@@ -154,7 +154,34 @@ fmt.Printf("Total students with enrollments: %d\n", len(enrollmentView.StudentEn
 1. **Indexing**: The implementation uses PostgreSQL's GIN indexes on the `tags` JSONB column for efficient querying
 2. **Streaming**: Events are processed one at a time, keeping memory usage constant regardless of event stream size
 3. **Query Optimization**: The same query used for consistency checks is used for state reduction, ensuring consistency
-4. **Batch Processing**: For large event streams, consider using `ReadStateUpTo` to process events in batches
+4. **Position-based Reading**: `ReadStateUpTo` allows reading events up to a specific position, which is useful for:
+   - Building state at a point in time
+   - Implementing event replay
+   - Handling out-of-order event processing
+   - Debugging by examining state at specific positions
+
+Here's an example of using `ReadStateUpTo`:
+
+```go
+// Read state up to a specific position
+maxPosition := int64(1000) // Read only events up to position 1000
+_, state, err := store.ReadStateUpTo(ctx, query, reducer, maxPosition)
+if err != nil {
+    panic(err)
+}
+
+// This is useful for scenarios like:
+// 1. Replaying events up to a certain point
+// 2. Debugging state at a specific time
+// 3. Building state for a specific version
+// 4. Handling out-of-order event processing
+```
+
+The key difference between `ReadState` and `ReadStateUpTo` is that `ReadStateUpTo` allows you to limit the event stream to a specific position, which is particularly useful for:
+- Debugging: You can examine state at any point in the event stream
+- Replay: You can replay events up to a specific position
+- Versioning: You can build state for a specific version of your data
+- Consistency: You can ensure you're working with a consistent view up to a known position
 
 ## Features
 
