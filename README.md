@@ -52,23 +52,41 @@ Here's how it works under the hood:
 ```go
 // The ReadState method streams events from PostgreSQL
 func (es *eventStore) ReadState(ctx context.Context, query Query, stateReducer StateReducer) (int64, any, error) {
-    // Build JSONB query condition from tags
-    tagMap := make(map[string]string)
-    for _, t := range query.Tags {
-        tagMap[t.Key] = t.Value
-    }
-    queryTags, err := json.Marshal(tagMap)
-    if err != nil {
-        return 0, stateReducer.InitialState, fmt.Errorf("failed to marshal query tags: %w", err)
+    // Handle empty or nil tags
+    var queryTags []byte
+    if len(query.Tags) > 0 {
+        // Build JSONB query condition from tags
+        tagMap := make(map[string]string)
+        for _, t := range query.Tags {
+            tagMap[t.Key] = t.Value
+        }
+        var err error
+        queryTags, err = json.Marshal(tagMap)
+        if err != nil {
+            return 0, stateReducer.InitialState, fmt.Errorf("failed to marshal query tags: %w", err)
+        }
     }
 
-    // Construct SQL query using PostgreSQL's JSONB containment operator @>
-    sqlQuery := "SELECT id, type, tags, data, position, causation_id, correlation_id FROM events WHERE tags @> $1"
-    args := []interface{}{queryTags}
+    // Construct SQL query
+    var sqlQuery string
+    var args []interface{}
+    
+    if queryTags != nil {
+        // Use JSONB containment operator @> when tags are provided
+        sqlQuery = "SELECT id, type, tags, data, position, causation_id, correlation_id FROM events WHERE tags @> $1"
+        args = append(args, queryTags)
+    } else {
+        // When no tags are provided, select all events
+        sqlQuery = "SELECT id, type, tags, data, position, causation_id, correlation_id FROM events"
+    }
 
     // Add event type filtering if specified
     if len(query.EventTypes) > 0 {
-        sqlQuery += fmt.Sprintf(" AND type = ANY($%d)", len(args)+1)
+        if len(args) > 0 {
+            sqlQuery += fmt.Sprintf(" AND type = ANY($%d)", len(args)+1)
+        } else {
+            sqlQuery += fmt.Sprintf(" WHERE type = ANY($%d)", len(args)+1)
+        }
         args = append(args, query.EventTypes)
     }
 
@@ -101,6 +119,105 @@ func (es *eventStore) ReadState(ctx context.Context, query Query, stateReducer S
     return position, state, nil
 }
 ```
+
+### Query Behavior
+
+The `ReadState` method provides flexible querying capabilities. Here are examples of how to use it:
+
+1. **Querying All Events**:
+   ```go
+   // Create a query with no tags to match all events
+   query := dcb.NewQuery(nil)
+   
+   // Read state using the query
+   position, state, err := store.ReadState(ctx, query, reducer)
+   if err != nil {
+       panic(err)
+   }
+   ```
+
+2. **Querying by Tags**:
+   ```go
+   // Query events for a specific course
+   query := dcb.NewQuery(dcb.NewTags("course_id", "c1"))
+   
+   // Query events for a specific student and course
+   query := dcb.NewQuery(dcb.NewTags(
+       "student_id", "s1",
+       "course_id", "c1",
+   ))
+   
+   // Read state using the query
+   position, state, err := store.ReadState(ctx, query, reducer)
+   if err != nil {
+       panic(err)
+   }
+   ```
+
+3. **Querying by Event Type**:
+   ```go
+   // Query all subscription events
+   query := dcb.NewQuery(nil, "StudentSubscribedToCourse")
+   
+   // Query subscription events for a specific course
+   query := dcb.NewQuery(
+       dcb.NewTags("course_id", "c1"),
+       "StudentSubscribedToCourse",
+   )
+   
+   // Read state using the query
+   position, state, err := store.ReadState(ctx, query, reducer)
+   if err != nil {
+       panic(err)
+   }
+   ```
+
+4. **Building Different Views**:
+   ```go
+   // Course view reducer
+   courseReducer := dcb.StateReducer{
+       InitialState: &CourseState{
+           StudentIDs: make(map[string]bool),
+       },
+       ReducerFn: func(state any, event dcb.Event) any {
+           course := state.(*CourseState)
+           // ... reducer implementation ...
+           return course
+       },
+   }
+
+   // Student view reducer
+   studentReducer := dcb.StateReducer{
+       InitialState: &StudentState{
+           CourseIDs: make(map[string]bool),
+       },
+       ReducerFn: func(state any, event dcb.Event) any {
+           student := state.(*StudentState)
+           // ... reducer implementation ...
+           return student
+       },
+   }
+
+   // Read course state
+   courseQuery := dcb.NewQuery(dcb.NewTags("course_id", "c1"))
+   _, courseState, err := store.ReadState(ctx, courseQuery, courseReducer)
+   if err != nil {
+       panic(err)
+   }
+
+   // Read student state
+   studentQuery := dcb.NewQuery(dcb.NewTags("student_id", "s1"))
+   _, studentState, err := store.ReadState(ctx, studentQuery, studentReducer)
+   if err != nil {
+       panic(err)
+   }
+   ```
+
+The query behavior follows these rules:
+- Empty or nil tags will match all events in the stream
+- When tags are provided, only events containing all specified tags will be matched
+- Event types can be combined with tags to further filter the events
+- The same query used for reading state is used for consistency checks when appending events
 
 ### Example: Building a Course Enrollment View
 
