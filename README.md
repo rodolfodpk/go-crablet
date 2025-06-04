@@ -1,5 +1,7 @@
 # go-crablet
 
+[![codecov](https://codecov.io/gh/rodolfo/go-crablet/branch/main/graph/badge.svg)](https://codecov.io/gh/rodolfo/go-crablet)
+
 A Go implementation of the Dynamic Consistency Boundary (DCB) event store pattern, providing a simpler and more flexible approach to consistency in event-driven systems.
 
 ## Overview
