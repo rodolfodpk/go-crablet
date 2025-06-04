@@ -1,6 +1,10 @@
 # go-crablet
 
-[![codecov](https://codecov.io/gh/rodolfo/go-crablet/branch/main/graph/badge.svg)](https://codecov.io/gh/rodolfo/go-crablet)
+[![Go Report Card](https://goreportcard.com/badge/github.com/rodolfodpk/go-crablet)](https://goreportcard.com/report/github.com/rodolfodpk/go-crablet)
+[![codecov](https://codecov.io/gh/rodolfodpk/go-crablet/branch/main/graph/badge.svg)](https://codecov.io/gh/rodolfodpk/go-crablet)
+[![GoDoc](https://godoc.org/github.com/rodolfodpk/go-crablet?status.svg)](https://godoc.org/github.com/rodolfodpk/go-crablet)
+[![License](https://img.shields.io/github/license/rodolfodpk/go-crablet)](https://github.com/rodolfodpk/go-crablet/blob/main/LICENSE)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/rodolfodpk/go-crablet)](https://github.com/rodolfodpk/go-crablet/blob/main/go.mod)
 
 A Go implementation of the Dynamic Consistency Boundary (DCB) event store pattern, providing a simpler and more flexible approach to consistency in event-driven systems.
 
@@ -73,7 +77,7 @@ position, err := store.AppendEvents(ctx, []dcb.InputEvent{event}, query, lastKno
 ## Installation
 
 ```bash
-go get github.com/yourusername/go-crablet
+go get github.com/rodolfodpk/go-crablet
 ```
 
 ## Quick Start
@@ -311,3 +315,4 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 - [DCB Official Website](https://dcb.events/)
 - ["Killing the Aggregate" by Sara Pellegrini](https://dcb.events/)
+- [GitHub Repository](https://github.com/rodolfodpk/go-crablet)
