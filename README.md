@@ -92,9 +92,27 @@ package main
 import (
     "context"
     "encoding/json"
+    "fmt"
     "github.com/jackc/pgx/v5/pgxpool"
     "go-crablet/internal/dcb"
 )
+
+// CourseState represents the current state of a course
+type CourseState struct {
+    ID          string
+    Name        string
+    Capacity    int
+    StudentIDs  map[string]bool // Set of enrolled student IDs
+    IsActive    bool
+}
+
+// StudentState represents the current state of a student
+type StudentState struct {
+    ID          string
+    Name        string
+    CourseIDs   map[string]bool // Set of enrolled course IDs
+    IsActive    bool
+}
 
 func main() {
     // Connect to PostgreSQL
@@ -111,44 +129,150 @@ func main() {
     }
     defer store.Close()
 
-    // Create an event with tags
-    event := dcb.NewInputEvent(
-        "UserCreated",
-        dcb.NewTags("user_id", "123", "tenant_id", "456"),
-        []byte(`{"name": "John Doe", "email": "john@example.com"}`),
-    )
+    // Create some events
+    events := []dcb.InputEvent{
+        // Course creation event
+        dcb.NewInputEvent(
+            "CourseCreated",
+            dcb.NewTags("course_id", "c1"),
+            []byte(`{"name": "Go Programming", "capacity": 30}`),
+        ),
+        // Student registration event
+        dcb.NewInputEvent(
+            "StudentRegistered",
+            dcb.NewTags("student_id", "s1"),
+            []byte(`{"name": "John Doe", "email": "john@example.com"}`),
+        ),
+        // Course subscription event
+        dcb.NewInputEvent(
+            "StudentSubscribedToCourse",
+            dcb.NewTags("course_id", "c1", "student_id", "s1"),
+            []byte(`{"timestamp": "2024-03-20T10:00:00Z"}`),
+        ),
+    }
 
-    // Define the query for consistency
-    query := dcb.NewQuery(
-        dcb.NewTags("user_id", "123"),
-        "UserCreated",
-    )
-
-    // Append the event with consistency check
-    position, err := store.AppendEvents(context.Background(), []dcb.InputEvent{event}, query, 0)
+    // Append all events
+    query := dcb.NewQuery(nil) // Empty query to match all events
+    position, err := store.AppendEvents(context.Background(), events, query, 0)
     if err != nil {
         panic(err)
     }
 
-    // Read state using a reducer
-    reducer := dcb.StateReducer{
-        InitialState: make(map[string]interface{}),
+    // Create a reducer for course state
+    courseReducer := dcb.StateReducer{
+        InitialState: &CourseState{
+            StudentIDs: make(map[string]bool),
+        },
         ReducerFn: func(state any, event dcb.Event) any {
-            m := state.(map[string]interface{})
-            var data map[string]interface{}
-            json.Unmarshal(event.Data, &data)
-            m[event.ID] = data
-            return m
+            course := state.(*CourseState)
+            
+            switch event.Type {
+            case "CourseCreated":
+                var data struct {
+                    Name     string `json:"name"`
+                    Capacity int    `json:"capacity"`
+                }
+                json.Unmarshal(event.Data, &data)
+                course.ID = event.Tags[0].Value // course_id tag
+                course.Name = data.Name
+                course.Capacity = data.Capacity
+                course.IsActive = true
+                
+            case "StudentSubscribedToCourse":
+                // Only process if this event is for our course
+                for _, tag := range event.Tags {
+                    if tag.Key == "course_id" && tag.Value == course.ID {
+                        // Get student_id from tags
+                        for _, t := range event.Tags {
+                            if t.Key == "student_id" {
+                                course.StudentIDs[t.Value] = true
+                                break
+                            }
+                        }
+                        break
+                    }
+                }
+            }
+            return course
         },
     }
 
-    // Read state using the same query
-    _, state, err := store.ReadState(context.Background(), query, reducer)
+    // Create a reducer for student state
+    studentReducer := dcb.StateReducer{
+        InitialState: &StudentState{
+            CourseIDs: make(map[string]bool),
+        },
+        ReducerFn: func(state any, event dcb.Event) any {
+            student := state.(*StudentState)
+            
+            switch event.Type {
+            case "StudentRegistered":
+                var data struct {
+                    Name  string `json:"name"`
+                    Email string `json:"email"`
+                }
+                json.Unmarshal(event.Data, &data)
+                student.ID = event.Tags[0].Value // student_id tag
+                student.Name = data.Name
+                student.IsActive = true
+                
+            case "StudentSubscribedToCourse":
+                // Only process if this event is for our student
+                for _, tag := range event.Tags {
+                    if tag.Key == "student_id" && tag.Value == student.ID {
+                        // Get course_id from tags
+                        for _, t := range event.Tags {
+                            if t.Key == "course_id" {
+                                student.CourseIDs[t.Value] = true
+                                break
+                            }
+                        }
+                        break
+                    }
+                }
+            }
+            return student
+        },
+    }
+
+    // Read course state
+    courseQuery := dcb.NewQuery(
+        dcb.NewTags("course_id", "c1"),
+    )
+    _, courseState, err := store.ReadState(context.Background(), courseQuery, courseReducer)
     if err != nil {
         panic(err)
     }
+    course := courseState.(*CourseState)
+    fmt.Printf("Course %s has %d students enrolled\n", 
+        course.Name, len(course.StudentIDs))
+
+    // Read student state
+    studentQuery := dcb.NewQuery(
+        dcb.NewTags("student_id", "s1"),
+    )
+    _, studentState, err := store.ReadState(context.Background(), studentQuery, studentReducer)
+    if err != nil {
+        panic(err)
+    }
+    student := studentState.(*StudentState)
+    fmt.Printf("Student %s is enrolled in %d courses\n", 
+        student.Name, len(student.CourseIDs))
+
+    // Check if course is at capacity
+    if len(course.StudentIDs) >= course.Capacity {
+        fmt.Printf("Course %s is at capacity\n", course.Name)
+    }
 }
 ```
+
+This example demonstrates several key aspects of DCB:
+
+1. **Single Event Stream**: All events (course creation, student registration, subscriptions) are stored in the same stream
+2. **Tag-based Queries**: We can query the same events in different ways using tags
+3. **Multiple Views**: The same events are used to build both course and student states
+4. **Consistency**: The subscription event affects both course and student states atomically
+5. **Business Rules**: We can enforce rules like course capacity by reducing over events
 
 ## API Documentation
 
