@@ -21,6 +21,141 @@ Unlike traditional event sourcing approaches that use strict constraints to main
 - **Dynamic Consistency**: Consistency is enforced through optimistic locking using the same query used for reading events
 - **Flexible Boundaries**: No need for predefined aggregates or rigid transactional boundaries
 
+## State Reduction with PostgreSQL Streaming
+
+go-crablet implements efficient state reduction by leveraging PostgreSQL's streaming capabilities. Instead of loading all events into memory, events are streamed directly from the database and processed one at a time. This approach provides several benefits:
+
+1. **Memory Efficiency**: Events are processed in a streaming fashion, making it suitable for large event streams
+2. **Database Efficiency**: Uses PostgreSQL's native JSONB indexing and querying capabilities
+3. **Consistent Views**: The same query used for consistency checks is used for state reduction
+
+Here's how it works under the hood:
+
+```go
+// The ReadState method streams events from PostgreSQL
+func (es *eventStore) ReadState(ctx context.Context, query Query, stateReducer StateReducer) (int64, any, error) {
+    // Build JSONB query condition from tags
+    tagMap := make(map[string]string)
+    for _, t := range query.Tags {
+        tagMap[t.Key] = t.Value
+    }
+    queryTags, err := json.Marshal(tagMap)
+    if err != nil {
+        return 0, stateReducer.InitialState, fmt.Errorf("failed to marshal query tags: %w", err)
+    }
+
+    // Construct SQL query using PostgreSQL's JSONB containment operator @>
+    sqlQuery := "SELECT id, type, tags, data, position, causation_id, correlation_id FROM events WHERE tags @> $1"
+    args := []interface{}{queryTags}
+
+    // Add event type filtering if specified
+    if len(query.EventTypes) > 0 {
+        sqlQuery += fmt.Sprintf(" AND type = ANY($%d)", len(args)+1)
+        args = append(args, query.EventTypes)
+    }
+
+    // Stream rows from PostgreSQL
+    rows, err := es.pool.Query(ctx, sqlQuery, args...)
+    if err != nil {
+        return 0, stateReducer.InitialState, fmt.Errorf("query failed: %w", err)
+    }
+    defer rows.Close()
+
+    // Initialize state
+    state := stateReducer.InitialState
+    position := int64(0)
+
+    // Process events one at a time
+    for rows.Next() {
+        var row rowEvent
+        if err := rows.Scan(&row.ID, &row.Type, &row.Tags, &row.Data, &row.Position, &row.CausationID, &row.CorrelationID); err != nil {
+            return 0, stateReducer.InitialState, fmt.Errorf("failed to scan row: %w", err)
+        }
+
+        // Convert row to Event
+        event := convertRowToEvent(row)
+        
+        // Apply reducer
+        state = stateReducer.ReducerFn(state, event)
+        position = row.Position
+    }
+
+    return position, state, nil
+}
+```
+
+### Example: Building a Course Enrollment View
+
+Here's how to efficiently build a course enrollment view using streaming state reduction:
+
+```go
+// EnrollmentView represents the current state of course enrollments
+type EnrollmentView struct {
+    CourseEnrollments map[string]map[string]bool // course_id -> student_id -> enrolled
+    StudentEnrollments map[string]map[string]bool // student_id -> course_id -> enrolled
+}
+
+// Create a reducer for the enrollment view
+enrollmentReducer := dcb.StateReducer{
+    InitialState: &EnrollmentView{
+        CourseEnrollments: make(map[string]map[string]bool),
+        StudentEnrollments: make(map[string]map[string]bool),
+    },
+    ReducerFn: func(state any, event dcb.Event) any {
+        view := state.(*EnrollmentView)
+        
+        switch event.Type {
+        case "StudentSubscribedToCourse":
+            var courseID, studentID string
+            // Extract IDs from tags
+            for _, tag := range event.Tags {
+                switch tag.Key {
+                case "course_id":
+                    courseID = tag.Value
+                case "student_id":
+                    studentID = tag.Value
+                }
+            }
+            
+            // Update course enrollments
+            if _, exists := view.CourseEnrollments[courseID]; !exists {
+                view.CourseEnrollments[courseID] = make(map[string]bool)
+            }
+            view.CourseEnrollments[courseID][studentID] = true
+            
+            // Update student enrollments
+            if _, exists := view.StudentEnrollments[studentID]; !exists {
+                view.StudentEnrollments[studentID] = make(map[string]bool)
+            }
+            view.StudentEnrollments[studentID][courseID] = true
+            
+        case "StudentUnsubscribedFromCourse":
+            // Similar logic for unsubscription
+            // ...
+        }
+        return view
+    },
+}
+
+// Read the enrollment view
+query := dcb.NewQuery(nil) // Match all subscription events
+_, view, err := store.ReadState(ctx, query, enrollmentReducer)
+if err != nil {
+    panic(err)
+}
+
+enrollmentView := view.(*EnrollmentView)
+fmt.Printf("Total courses with enrollments: %d\n", len(enrollmentView.CourseEnrollments))
+fmt.Printf("Total students with enrollments: %d\n", len(enrollmentView.StudentEnrollments))
+```
+
+### Performance Considerations
+
+1. **Indexing**: The implementation uses PostgreSQL's GIN indexes on the `tags` JSONB column for efficient querying
+2. **Streaming**: Events are processed one at a time, keeping memory usage constant regardless of event stream size
+3. **Query Optimization**: The same query used for consistency checks is used for state reduction, ensuring consistency
+4. **Batch Processing**: For large event streams, consider using `ReadStateUpTo` to process events in batches
+
 ## Features
 
 - **Event Storage**: Store events with unique IDs, types, and JSON payloads
