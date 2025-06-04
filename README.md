@@ -175,8 +175,8 @@ fmt.Printf("Total students with enrollments: %d\n", len(enrollmentView.StudentEn
 4. **Position-based Reading**: `ReadStateUpTo` allows reading events up to a specific position, which is useful for:
    - Building state at a point in time
    - Implementing event replay
-   - Handling out-of-order event processing
    - Debugging by examining state at specific positions
+   - Ensuring consistent reads up to a known position
 
 Here's an example of using `ReadStateUpTo`:
 
@@ -192,14 +192,16 @@ if err != nil {
 // 1. Replaying events up to a certain point
 // 2. Debugging state at a specific time
 // 3. Building state for a specific version
-// 4. Handling out-of-order event processing
+// 4. Ensuring consistent reads up to a known position
 ```
 
-The key difference between `ReadState` and `ReadStateUpTo` is that `ReadStateUpTo` allows you to limit the event stream to a specific position, which is particularly useful for:
+The key difference between `ReadState` and `ReadStateUpTo` is that `ReadStateUpTo` allows you to limit the event stream to a specific position. This is particularly useful for:
 - Debugging: You can examine state at any point in the event stream
 - Replay: You can replay events up to a specific position
 - Versioning: You can build state for a specific version of your data
 - Consistency: You can ensure you're working with a consistent view up to a known position
+
+Note: Events in the stream are always processed in order by their position. The position is automatically assigned when events are appended to the stream, ensuring a consistent and ordered sequence of events.
 
 ## Features
 
