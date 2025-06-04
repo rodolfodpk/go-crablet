@@ -16,10 +16,28 @@ Unlike traditional event sourcing approaches that use strict constraints to main
 
 ## Key Concepts
 
-- **Single Event Stream**: Instead of multiple event streams per aggregate, DCB uses a single event stream per bounded context
-- **Tag-based Events**: Events are tagged when published, allowing one event to affect multiple entities/concepts
+- **Single Event Stream**: While traditional event sourcing uses one stream per aggregate (e.g., one stream for Course aggregate, another for Student aggregate), DCB uses a single event stream per bounded context. You can still use aggregates if they make sense for your domain, but they're not required to enforce consistency
+- **Tag-based Events**: Events are tagged with relevant identifiers, allowing one event to affect multiple concepts without artificial boundaries
 - **Dynamic Consistency**: Consistency is enforced through optimistic locking using the same query used for reading events
-- **Flexible Boundaries**: No need for predefined aggregates or rigid transactional boundaries
+- **Flexible Boundaries**: No need for predefined aggregates or rigid transactional boundaries - consistency boundaries emerge naturally from your queries, though you can still use aggregates where they provide value
+
+The key difference from traditional event sourcing:
+
+Traditional Event Sourcing | DCB Approach
+-------------------------|------------
+One stream per aggregate (required) | One stream per bounded context (aggregates optional)
+Aggregates enforce consistency | Queries enforce consistency
+Rigid aggregate boundaries | Dynamic query-based boundaries
+Predefined consistency rules | Emergent consistency through queries
+
+For example, in a course subscription system:
+
+Traditional Approach | DCB Approach
+-------------------|------------
+Separate streams for `Course` and `Student` aggregates | Single stream with events tagged with both `course_id` and `student_id`
+Saga to coordinate subscription | Single event with both tags
+Two separate events for the same fact | One event affecting multiple concepts
+Aggregate boundaries limit flexibility | Natural consistency through queries
 
 ## State Reduction with PostgreSQL Streaming
 
