@@ -1,12 +1,14 @@
 package dcb_test
 
 import (
+	"encoding/json"
+	"fmt"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go-crablet/internal/dcb"
 )
 
-var _ = Describe("AppendEvents", func() {
+var _ = Describe("Event Store: Appending Events", func() {
 	BeforeEach(func() {
 		// Truncate the events table and reset sequences before each test
 		_, err := pool.Exec(ctx, "TRUNCATE TABLE events RESTART IDENTITY CASCADE")
@@ -180,5 +182,128 @@ var _ = Describe("AppendEvents", func() {
 			_, err := store.AppendEvents(ctx, events, query, 0)
 			Expect(err).To(HaveOccurred())
 		})
+	})
+
+	It("verifies events are retrieved in correct order", func() {
+		tags := dcb.NewTags("order_id", "order1")
+		query := dcb.NewQuery(tags)
+		events := []dcb.InputEvent{
+			dcb.NewInputEvent("OrderCreated", tags, []byte(`{"id":"order1"}`)),
+			dcb.NewInputEvent("ItemAdded", tags, []byte(`{"item":"product1"}`)),
+			dcb.NewInputEvent("ItemAdded", tags, []byte(`{"item":"product2"}`)),
+		}
+
+		_, err := store.AppendEvents(ctx, events, query, 0)
+		Expect(err).NotTo(HaveOccurred())
+
+		type OrderState struct {
+			Items []string
+		}
+
+		orderProjector := dcb.StateProjector{
+			InitialState: OrderState{Items: []string{}},
+			TransitionFn: func(state any, e dcb.Event) any {
+				s := state.(OrderState)
+				if e.Type == "ItemAdded" {
+					var data map[string]string
+					_ = json.Unmarshal(e.Data, &data)
+					s.Items = append(s.Items, data["item"])
+				}
+				return s
+			},
+		}
+
+		_, state, err := store.ProjectState(ctx, query, orderProjector)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(state.(OrderState).Items).To(Equal([]string{"product1", "product2"}))
+	})
+
+	It("appends events with expected position correctly", func() {
+		tags := dcb.NewTags("sequence_id", "seq1")
+		query := dcb.NewQuery(tags)
+
+		// First event
+		_, err := store.AppendEvents(ctx, []dcb.InputEvent{
+			dcb.NewInputEvent("First", tags, []byte(`{"value":1}`)),
+		}, query, 0)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Second event with correct position
+		pos, err := store.AppendEvents(ctx, []dcb.InputEvent{
+			dcb.NewInputEvent("Second", tags, []byte(`{"value":2}`)),
+		}, query, 1)
+
+		Expect(err).NotTo(HaveOccurred())
+		Expect(pos).To(Equal(int64(2)))
+	})
+
+	It("handles complex JSON payloads", func() {
+		tags := dcb.NewTags("doc_id", "doc1")
+		query := dcb.NewQuery(tags)
+
+		complexJSON := []byte(`{
+			"nested": {
+				"array": [1, 2, 3],
+				"object": {"key": "value"}
+			},
+			"special": "quotes \"inside\" and emoji 🚀",
+			"numbers": [3.14159, 42, -1]
+		}`)
+
+		pos, err := store.AppendEvents(ctx, []dcb.InputEvent{
+			dcb.NewInputEvent("ComplexData", tags, complexJSON),
+		}, query, 0)
+
+		Expect(err).NotTo(HaveOccurred())
+		Expect(pos).To(Equal(int64(1)))
+
+		// Verify the data can be retrieved correctly
+		type Result struct {
+			Event dcb.Event
+		}
+
+		verifyProjector := dcb.StateProjector{
+			InitialState: nil,
+			TransitionFn: func(state any, e dcb.Event) any {
+				return Result{Event: e}
+			},
+		}
+
+		_, state, err := store.ProjectState(ctx, query, verifyProjector)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Parse the JSON to verify it's valid
+		var parsedData map[string]interface{}
+		err = json.Unmarshal(state.(Result).Event.Data, &parsedData)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(parsedData["special"]).To(ContainSubstring("emoji"))
+	})
+
+	It("handles boundary condition with many events in a batch", func() {
+		tags := dcb.NewTags("batch_id", "large")
+		query := dcb.NewQuery(tags)
+
+		// Create 50 events in a batch
+		events := make([]dcb.InputEvent, 50)
+		for i := 0; i < 50; i++ {
+			events[i] = dcb.NewInputEvent("BatchItem", tags,
+				[]byte(fmt.Sprintf(`{"index":%d}`, i)))
+		}
+
+		pos, err := store.AppendEvents(ctx, events, query, 0)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(pos).To(Equal(int64(50)))
+
+		// Verify count
+		countProjector := dcb.StateProjector{
+			InitialState: 0,
+			TransitionFn: func(state any, e dcb.Event) any {
+				return state.(int) + 1
+			},
+		}
+
+		_, state, err := store.ProjectState(ctx, query, countProjector)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(state).To(Equal(50))
 	})
 })
