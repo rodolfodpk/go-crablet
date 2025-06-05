@@ -153,7 +153,7 @@ var _ = Describe("EventStore", func() {
 			Expect(readPos).To(Equal(int64(1)))
 			Expect(state).To(Equal(1))
 
-			dumpEvents()
+			dumpEvents(pool)
 		})
 
 		It("appends events with multiple tags", func() {
@@ -178,7 +178,7 @@ var _ = Describe("EventStore", func() {
 			Expect(state).To(Equal(1))
 			Expect(state).To(Equal(1))
 
-			dumpEvents()
+			dumpEvents(pool)
 		})
 		It("appends multiple events in a batch", func() {
 
@@ -202,7 +202,7 @@ var _ = Describe("EventStore", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(state).To(Equal(3))
 
-			dumpEvents()
+			dumpEvents(pool)
 
 		})
 		It("fails with concurrency error when position is outdated", func() {
@@ -224,7 +224,7 @@ var _ = Describe("EventStore", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("Consistency"))
 
-			dumpEvents()
+			dumpEvents(pool)
 		})
 		It("properly sets causation and correlation IDs", func() {
 
@@ -241,7 +241,7 @@ var _ = Describe("EventStore", func() {
 			Expect(pos).To(Equal(int64(3)))
 
 			// Check that causation and correlation IDs were set correctly
-			dumpEvents()
+			dumpEvents(pool)
 
 			// Custom reducer to check causation and correlation IDs
 			type EventRelationships struct {
@@ -434,80 +434,6 @@ var _ = Describe("EventStore", func() {
 	})
 })
 
-// dumpEvents queries the events table and prints the results as JSON
-func dumpEvents() {
-
-	rows, err := pool.Query(ctx, `
-		SELECT id, type, position, tags, data, causation_id, correlation_id
-		FROM events
-		ORDER BY position
-	`)
-	Expect(err).NotTo(HaveOccurred())
-	defer rows.Close()
-
-	type EventRecord struct {
-		ID            string      `json:"id"`
-		Type          string      `json:"type"`
-		Position      int64       `json:"position"`
-		Tags          interface{} `json:"tags"`
-		Data          interface{} `json:"data"`
-		CausationID   string      `json:"causation_id"`
-		CorrelationID string      `json:"correlation_id"`
-	}
-
-	events := []EventRecord{}
-	for rows.Next() {
-		var (
-			id            string
-			eventType     string
-			position      int64
-			tagsBytes     []byte
-			dataBytes     []byte
-			causationID   string
-			correlationID string
-		)
-
-		err := rows.Scan(&id, &eventType, &position, &tagsBytes, &dataBytes, &causationID, &correlationID)
-		Expect(err).NotTo(HaveOccurred())
-
-		var tags interface{}
-		err = json.Unmarshal(tagsBytes, &tags)
-		Expect(err).NotTo(HaveOccurred())
-
-		var data interface{}
-		err = json.Unmarshal(dataBytes, &data)
-		Expect(err).NotTo(HaveOccurred())
-
-		events = append(events, EventRecord{
-			ID:            id,
-			Type:          eventType,
-			Position:      position,
-			Tags:          tags,
-			Data:          data,
-			CausationID:   causationID,
-			CorrelationID: correlationID,
-		})
-	}
-	Expect(rows.Err()).NotTo(HaveOccurred())
-
-	// Convert events to JSON
-	jsonData, err := json.MarshalIndent(events, "", "  ")
-	Expect(err).NotTo(HaveOccurred())
-
-	// Print the JSON data
-	GinkgoWriter.Println("--- Events Table Contents (JSON) ---")
-	GinkgoWriter.Println(string(jsonData))
-	GinkgoWriter.Printf("Total events: %d\n", len(events))
-	GinkgoWriter.Println("------------------------------------")
-
-	// Also print to standard output to ensure visibility
-	fmt.Println("--- Events Table Contents (JSON) ---")
-	fmt.Println(string(jsonData))
-	fmt.Printf("Total events: %d\n", len(events))
-	fmt.Println("------------------------------------")
-
-}
-
 // Test scenarios for AppendEventsIfNotExists
 var _ = Describe("AppendEventsIfNotExists", func() {
 	BeforeEach(func() {
@@ -624,7 +550,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		Expect(state2.(*OrderState).IsProcessed).To(BeTrue())
 
 		// Verify only 2 events total
-		dumpEvents()
+		dumpEvents(pool)
 		countReducer := dcb.StateReducer{
 			InitialState: 0,
 			ReducerFn:    func(state any, e dcb.Event) any { return state.(int) + 1 },
@@ -634,3 +560,77 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		Expect(count).To(Equal(2))
 	})
 })
+
+// dumpEvents queries the events table and prints the results as JSON
+func dumpEvents(pool *pgxpool.Pool) {
+
+	rows, err := pool.Query(ctx, `
+		SELECT id, type, position, tags, data, causation_id, correlation_id
+		FROM events
+		ORDER BY position
+	`)
+	Expect(err).NotTo(HaveOccurred())
+	defer rows.Close()
+
+	type EventRecord struct {
+		ID            string      `json:"id"`
+		Type          string      `json:"type"`
+		Position      int64       `json:"position"`
+		Tags          interface{} `json:"tags"`
+		Data          interface{} `json:"data"`
+		CausationID   string      `json:"causation_id"`
+		CorrelationID string      `json:"correlation_id"`
+	}
+
+	events := []EventRecord{}
+	for rows.Next() {
+		var (
+			id            string
+			eventType     string
+			position      int64
+			tagsBytes     []byte
+			dataBytes     []byte
+			causationID   string
+			correlationID string
+		)
+
+		err := rows.Scan(&id, &eventType, &position, &tagsBytes, &dataBytes, &causationID, &correlationID)
+		Expect(err).NotTo(HaveOccurred())
+
+		var tags interface{}
+		err = json.Unmarshal(tagsBytes, &tags)
+		Expect(err).NotTo(HaveOccurred())
+
+		var data interface{}
+		err = json.Unmarshal(dataBytes, &data)
+		Expect(err).NotTo(HaveOccurred())
+
+		events = append(events, EventRecord{
+			ID:            id,
+			Type:          eventType,
+			Position:      position,
+			Tags:          tags,
+			Data:          data,
+			CausationID:   causationID,
+			CorrelationID: correlationID,
+		})
+	}
+	Expect(rows.Err()).NotTo(HaveOccurred())
+
+	// Convert events to JSON
+	jsonData, err := json.MarshalIndent(events, "", "  ")
+	Expect(err).NotTo(HaveOccurred())
+
+	// Print the JSON data
+	GinkgoWriter.Println("--- Events Table Contents (JSON) ---")
+	GinkgoWriter.Println(string(jsonData))
+	GinkgoWriter.Printf("Total events: %d\n", len(events))
+	GinkgoWriter.Println("------------------------------------")
+
+	// Also print to standard output to ensure visibility
+	fmt.Println("--- Events Table Contents (JSON) ---")
+	fmt.Println(string(jsonData))
+	fmt.Printf("Total events: %d\n", len(events))
+	fmt.Println("------------------------------------")
+
+}
