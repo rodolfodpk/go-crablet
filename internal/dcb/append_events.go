@@ -1,4 +1,4 @@
-renaming filespackage dcb
+package dcb
 
 import (
 	"context"
