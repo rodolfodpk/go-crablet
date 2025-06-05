@@ -54,31 +54,31 @@ This will run all tests in all packages, including integration tests that requir
 The event store supports conditional appends through `AppendEventsIfNotExists`. This is useful when you want to append events only if certain conditions are met. For example:
 
 ```go
-// Define a reducer that checks if an order is already processed
+// Define a projector that checks if an order is already processed
 type OrderState struct {
-    IsProcessed bool
+	IsProcessed bool
 }
 
-reducer := dcb.StateReducer{
-    InitialState: &OrderState{IsProcessed: false},
-    ReducerFn: func(state any, e dcb.Event) any {
-        orderState := state.(*OrderState)
-        if e.Type == "OrderProcessed" {
-            orderState.IsProcessed = true
-        }
-        return orderState
-    },
+projector := dcb.StateProjector{
+	InitialState: &OrderState{IsProcessed: false},
+	ProjectFn: func(state any, e dcb.Event) any {
+		orderState := state.(*OrderState)
+		if e.Type == "OrderProcessed" {
+			orderState.IsProcessed = true
+		}
+		return orderState
+	},
 }
 
 // Try to append "OrderProcessed" only if the order isn't processed yet
 events := []dcb.InputEvent{
-    dcb.NewInputEvent("OrderProcessed", tags, []byte(`{"status":"complete"}`)),
+	dcb.NewInputEvent("OrderProcessed", tags, []byte(`{"status":"complete"}`)),
 }
 
 // This will only append if the order isn't processed yet
-position, err := store.AppendEventsIfNotExists(ctx, events, query, lastPosition, reducer)
+position, err := store.AppendEventsIfNotExists(ctx, events, query, lastPosition, projector)
 if err != nil {
-    panic(err)
+	panic(err)
 }
 
 // If position didn't change, it means the event wasn't appended
@@ -86,16 +86,44 @@ if err != nil {
 ```
 
 The `AppendEventsIfNotExists` method:
-1. Reads the current state using the provided reducer
-2. Only appends the events if no events were found (position is 0)
-3. Returns the current position if events were found
-4. Uses optimistic concurrency control to ensure consistency
+1. Projects the current state up to the latest known position using the provided projector
+2. If the state exists (non-nil), it means events already exist for the query, so it returns the current position
+3. Otherwise, it appends the events using optimistic concurrency control
+4. Returns the new position after appending
 
 This is particularly useful for:
 - Preventing duplicate events
 - Enforcing business rules
 - Implementing idempotent operations
 - Handling race conditions
+
+Below is the latest implementation (from internal/dcb/append_events.go):
+
+```go
+func (es *eventStore) AppendEventsIfNotExists(ctx context.Context, events []InputEvent, query Query, latestPosition int64, projector StateProjector) (int64, error) {
+	position, state, err := es.ProjectStateUpTo(ctx, query, projector, latestPosition)
+	if err == nil && state != nil {
+		log.Printf("Events already exist for query: %v", query)
+		return position, nil
+	}
+	return es.AppendEvents(ctx, events, query, latestPosition)
+}
+```
+
+The method is designed to be simple and efficient:
+- It first projects the state up to the latest known position
+- If the state exists (non-nil), it means events already exist for the query
+- Otherwise, it appends the events using the standard AppendEvents method
+- All validation (query tags, event data, etc.) is handled by AppendEvents
+
+Note that the actual event validation and appending is handled by the `AppendEvents` method, which:
+1. Validates query tags and event data
+2. Ensures the event store is not closed
+3. Checks batch size limits
+4. Generates UUIDs for events
+5. Handles event causation and correlation
+6. Uses optimistic concurrency control to append events
+7. Returns the new position after appending
 
 ## State Reduction with PostgreSQL Streaming
 
@@ -444,232 +472,3 @@ go get github.com/rodolfodpk/go-crablet
 ```bash
 docker-compose up -d
 ```
-
-2. Use the event store in your Go code:
-
-```go
-package main
-
-import (
-    "context"
-    "encoding/json"
-    "fmt"
-    "github.com/jackc/pgx/v5/pgxpool"
-    "go-crablet/internal/dcb"
-)
-
-// CourseState represents the current state of a course
-type CourseState struct {
-    ID          string
-    Name        string
-    Capacity    int
-    StudentIDs  map[string]bool // Set of enrolled student IDs
-    IsActive    bool
-}
-
-// StudentState represents the current state of a student
-type StudentState struct {
-    ID          string
-    Name        string
-    CourseIDs   map[string]bool // Set of enrolled course IDs
-    IsActive    bool
-}
-
-func main() {
-    // Connect to PostgreSQL
-    pool, err := pgxpool.New(context.Background(), "postgres://user:secret@localhost:5432/testdb?sslmode=disable")
-    if err != nil {
-        panic(err)
-    }
-    defer pool.Close()
-
-    // Create event store
-    store, err := dcb.NewEventStore(context.Background(), pool)
-    if err != nil {
-        panic(err)
-    }
-    defer store.Close()
-
-    // Create some events
-    events := []dcb.InputEvent{
-        // Course creation event
-        dcb.NewInputEvent(
-            "CourseCreated",
-            dcb.NewTags("course_id", "c1"),
-            []byte(`{"name": "Go Programming", "capacity": 30}`),
-        ),
-        // Student registration event
-        dcb.NewInputEvent(
-            "StudentRegistered",
-            dcb.NewTags("student_id", "s1"),
-            []byte(`{"name": "John Doe", "email": "john@example.com"}`),
-        ),
-        // Course subscription event
-        dcb.NewInputEvent(
-            "StudentSubscribedToCourse",
-            dcb.NewTags("course_id", "c1", "student_id", "s1"),
-            []byte(`{"timestamp": "2024-03-20T10:00:00Z"}`),
-        ),
-    }
-
-    // Append all events
-    query := dcb.NewQuery(nil) // Empty query to match all events
-    position, err := store.AppendEvents(context.Background(), events, query, 0)
-    if err != nil {
-        panic(err)
-    }
-
-    // Create a reducer for course state
-    courseReducer := dcb.StateReducer{
-        InitialState: &CourseState{
-            StudentIDs: make(map[string]bool),
-        },
-        ReducerFn: func(state any, event dcb.Event) any {
-            course := state.(*CourseState)
-            
-            switch event.Type {
-            case "CourseCreated":
-                var data struct {
-                    Name     string `json:"name"`
-                    Capacity int    `json:"capacity"`
-                }
-                json.Unmarshal(event.Data, &data)
-                course.ID = event.Tags[0].Value // course_id tag
-                course.Name = data.Name
-                course.Capacity = data.Capacity
-                course.IsActive = true
-                
-            case "StudentSubscribedToCourse":
-                // Only process if this event is for our course
-                for _, tag := range event.Tags {
-                    if tag.Key == "course_id" && tag.Value == course.ID {
-                        // Get student_id from tags
-                        for _, t := range event.Tags {
-                            if t.Key == "student_id" {
-                                course.StudentIDs[t.Value] = true
-                                break
-                            }
-                        }
-                        break
-                    }
-                }
-            }
-            return course
-        },
-    }
-
-    // Create a reducer for student state
-    studentReducer := dcb.StateReducer{
-        InitialState: &StudentState{
-            CourseIDs: make(map[string]bool),
-        },
-        ReducerFn: func(state any, event dcb.Event) any {
-            student := state.(*StudentState)
-            
-            switch event.Type {
-            case "StudentRegistered":
-                var data struct {
-                    Name  string `json:"name"`
-                    Email string `json:"email"`
-                }
-                json.Unmarshal(event.Data, &data)
-                student.ID = event.Tags[0].Value // student_id tag
-                student.Name = data.Name
-                student.IsActive = true
-                
-            case "StudentSubscribedToCourse":
-                // Only process if this event is for our student
-                for _, tag := range event.Tags {
-                    if tag.Key == "student_id" && tag.Value == student.ID {
-                        // Get course_id from tags
-                        for _, t := range event.Tags {
-                            if t.Key == "course_id" {
-                                student.CourseIDs[t.Value] = true
-                                break
-                            }
-                        }
-                        break
-                    }
-                }
-            }
-            return student
-        },
-    }
-
-    // Read course state
-    courseQuery := dcb.NewQuery(
-        dcb.NewTags("course_id", "c1"),
-    )
-    _, courseState, err := store.ReadState(context.Background(), courseQuery, courseReducer)
-    if err != nil {
-        panic(err)
-    }
-    course := courseState.(*CourseState)
-    fmt.Printf("Course %s has %d students enrolled\n", 
-        course.Name, len(course.StudentIDs))
-
-    // Read student state
-    studentQuery := dcb.NewQuery(
-        dcb.NewTags("student_id", "s1"),
-    )
-    _, studentState, err := store.ReadState(context.Background(), studentQuery, studentReducer)
-    if err != nil {
-        panic(err)
-    }
-    student := studentState.(*StudentState)
-    fmt.Printf("Student %s is enrolled in %d courses\n", 
-        student.Name, len(student.CourseIDs))
-
-    // Check if course is at capacity
-    if len(course.StudentIDs) >= course.Capacity {
-        fmt.Printf("Course %s is at capacity\n", course.Name)
-    }
-}
-```
-
-This example demonstrates several key aspects of DCB:
-
-1. **Single Event Stream**: All events (course creation, student registration, subscriptions) are stored in the same stream
-2. **Tag-based Queries**: We can query the same events in different ways using tags
-3. **Multiple Views**: The same events are used to build both course and student states
-4. **Consistency**: The subscription event affects both course and student states atomically
-5. **Business Rules**: We can enforce rules like course capacity by reducing over events
-
-## API Documentation
-
-### EventStore Interface
-
-```go
-type EventStore interface {
-    // AppendEvents appends events to the store with optimistic concurrency control
-    // using the provided query to enforce consistency
-    AppendEvents(ctx context.Context, events []InputEvent, query Query, latestKnownPosition int64) (int64, error)
-    
-    // AppendEventsIfNotExists appends events only if they don't exist, using a reducer to check
-    AppendEventsIfNotExists(ctx context.Context, events []InputEvent, query Query, latestKnownPosition int64, reducer StateReducer) (int64, error)
-    
-    // ReadState reads and reduces events to compute current state
-    // using the same query that will be used for consistency checks
-    ReadState(ctx context.Context, query Query, stateReducer StateReducer) (int64, any, error)
-    
-    // ReadStateUpTo reads and reduces events up to a specific position
-    ReadStateUpTo(ctx context.Context, query Query, stateReducer StateReducer, maxPosition int64) (int64, any, error)
-    
-    // Close closes the event store connection
-    Close()
-}
-```
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
-
-## References
-
-- [DCB Official Website](https://dcb.events/)
-- ["Killing the Aggregate" by Sara Pellegrini](https://dcb.events/)
-- [GitHub Repository](https://github.com/rodolfodpk/go-crablet)

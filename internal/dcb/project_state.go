@@ -44,20 +44,20 @@ func convertRowToEvent(row rowEvent) Event {
 	return e
 }
 
-// ReadState computes a state by streaming events matching the query, up to maxPosition.
-func (es *eventStore) ProjectState(ctx context.Context, query Query, stateReducer StateReducer) (int64, any, error) {
-	return es.ProjectStateUpTo(ctx, query, stateReducer, -1)
+// ProjectState computes a state by streaming events matching the query, up to maxPosition.
+func (es *eventStore) ProjectState(ctx context.Context, query Query, projector StateProjector) (int64, any, error) {
+	return es.ProjectStateUpTo(ctx, query, projector, -1)
 }
 
-// ReadStateUpTo computes a state by streaming events matching the query, up to maxPosition.
-func (es *eventStore) ProjectStateUpTo(ctx context.Context, query Query, stateReducer StateReducer, maxPosition int64) (int64, any, error) {
-	if stateReducer.ReducerFn == nil {
-		return 0, stateReducer.InitialState, &ValidationError{
+// ProjectStateUpTo computes a state by streaming events matching the query, up to maxPosition.
+func (es *eventStore) ProjectStateUpTo(ctx context.Context, query Query, projector StateProjector, maxPosition int64) (int64, any, error) {
+	if projector.TransitionFn == nil {
+		return 0, projector.InitialState, &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  "ProjectStateUpTo",
-				Err: fmt.Errorf("reducer function cannot be nil"),
+				Err: fmt.Errorf("projector function cannot be nil"),
 			},
-			Field: "reducer",
+			Field: "projector",
 			Value: "nil",
 		}
 	}
@@ -69,7 +69,7 @@ func (es *eventStore) ProjectStateUpTo(ctx context.Context, query Query, stateRe
 	}
 	queryTags, err := json.Marshal(tagMap)
 	if err != nil {
-		return 0, stateReducer.InitialState, &EventStoreError{
+		return 0, projector.InitialState, &EventStoreError{
 			Op:  "ProjectStateUpTo",
 			Err: fmt.Errorf("failed to marshal query tags %v: %w", tagMap, err),
 		}
@@ -97,7 +97,7 @@ func (es *eventStore) ProjectStateUpTo(ctx context.Context, query Query, stateRe
 	// Query and stream rows with proper error handling
 	rows, err := es.pool.Query(ctx, sqlQuery, args...)
 	if err != nil {
-		return 0, stateReducer.InitialState, &ResourceError{
+		return 0, projector.InitialState, &ResourceError{
 			EventStoreError: EventStoreError{
 				Op:  "ProjectStateUpTo",
 				Err: fmt.Errorf("failed to execute query for tags %v: %w", tagMap, err),
@@ -108,14 +108,14 @@ func (es *eventStore) ProjectStateUpTo(ctx context.Context, query Query, stateRe
 	defer rows.Close()
 
 	// Initialize state
-	state := stateReducer.InitialState
+	state := projector.InitialState
 	position := int64(0)
 
 	// Process events with proper error handling
 	for rows.Next() {
 		var row rowEvent
 		if err := rows.Scan(&row.ID, &row.Type, &row.Tags, &row.Data, &row.Position, &row.CausationID, &row.CorrelationID); err != nil {
-			return 0, stateReducer.InitialState, &ResourceError{
+			return 0, projector.InitialState, &ResourceError{
 				EventStoreError: EventStoreError{
 					Op:  "ProjectStateUpTo",
 					Err: fmt.Errorf("failed to scan event row at position %d: %w", position, err),
@@ -138,23 +138,23 @@ func (es *eventStore) ProjectStateUpTo(ctx context.Context, query Query, stateRe
 			event = convertRowToEvent(row)
 		}()
 		if err != nil {
-			return 0, stateReducer.InitialState, err
+			return 0, projector.InitialState, err
 		}
 
-		// Apply reducer with panic recovery
+		// Apply projector with panic recovery
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
 					err = &EventStoreError{
 						Op:  "ProjectStateUpTo",
-						Err: fmt.Errorf("panic in reducer for event type %s at position %d: %v", event.Type, event.Position, r),
+						Err: fmt.Errorf("panic in projector for event type %s at position %d: %v", event.Type, event.Position, r),
 					}
 				}
 			}()
-			state = stateReducer.ReducerFn(state, event)
+			state = projector.TransitionFn(state, event)
 		}()
 		if err != nil {
-			return 0, stateReducer.InitialState, err
+			return 0, projector.InitialState, err
 		}
 
 		position = row.Position
@@ -162,7 +162,7 @@ func (es *eventStore) ProjectStateUpTo(ctx context.Context, query Query, stateRe
 
 	// Check for errors from iterating over rows
 	if err := rows.Err(); err != nil {
-		return 0, stateReducer.InitialState, &ResourceError{
+		return 0, projector.InitialState, &ResourceError{
 			EventStoreError: EventStoreError{
 				Op:  "ProjectStateUpTo",
 				Err: fmt.Errorf("error iterating over events: %w", err),

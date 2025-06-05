@@ -10,8 +10,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-func (es *eventStore) AppendEventsIfNotExists(ctx context.Context, events []InputEvent, query Query, latestPosition int64, reducer StateReducer) (int64, error) {
-	position, state, err := es.ProjectStateUpTo(ctx, query, reducer, latestPosition)
+func (es *eventStore) AppendEventsIfNotExists(ctx context.Context, events []InputEvent, query Query, latestPosition int64, projector StateProjector) (int64, error) {
+	position, state, err := es.ProjectStateUpTo(ctx, query, projector, latestPosition)
 	if err == nil && state != nil {
 		log.Printf("Events already exist for query: %v", query)
 		return position, nil
