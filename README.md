@@ -396,3 +396,10 @@ query := dcb.NewQuery(
 
 position, err := store.AppendEvents(ctx, []dcb.InputEvent{event}, query, lastKnownPosition)
 ```
+
+## References
+
+- [Dynamic Consistency Boundary (DCB)](https://dcb.events/) - The original blog post by Sara Pellegrini introducing the DCB pattern
+- [Killing the Aggregate](https://dcb.events/killing-the-aggregate) - The blog post that inspired this implementation
+- [PostgreSQL JSONB](https://www.postgresql.org/docs/current/datatype-json.html) - Documentation on PostgreSQL's JSONB type used for event tags
+- [Event Sourcing Pattern](https://martinfowler.com/eaaDev/EventSourcing.html) - Martin Fowler's explanation of event sourcing
