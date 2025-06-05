@@ -16,9 +16,9 @@ type (
 		EventTypes []string // Events must match one of these types (empty means match any type)
 	}
 
-	StateReducer struct {
+	StateProjector struct {
 		InitialState any
-		ReducerFn    func(any, Event) any
+		TransitionFn func(any, Event) any
 	}
 
 	// InputEvent represents an event to be appended to the store.
@@ -42,9 +42,9 @@ type (
 	// EventStore provides methods to append and read events in a PostgreSQL database.
 	EventStore interface {
 		AppendEvents(ctx context.Context, events []InputEvent, query Query, latestKnownPosition int64) (int64, error)
-		AppendEventsIfNotExists(ctx context.Context, events []InputEvent, query Query, latestKnownPosition int64, reducer StateReducer) (int64, error)
-		ProjectState(ctx context.Context, query Query, stateReducer StateReducer) (int64, any, error)
-		ProjectStateUpTo(ctx context.Context, query Query, stateReducer StateReducer, maxPosition int64) (int64, any, error)
+		AppendEventsIfNotExists(ctx context.Context, events []InputEvent, query Query, latestKnownPosition int64, stateProjector StateProjector) (int64, error)
+		ProjectState(ctx context.Context, query Query, stateProjector StateProjector) (int64, any, error)
+		ProjectStateUpTo(ctx context.Context, query Query, stateProjector StateProjector, maxPosition int64) (int64, any, error)
 		Close()
 	}
 )
