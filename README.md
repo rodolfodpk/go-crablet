@@ -18,7 +18,7 @@ Unlike traditional event sourcing approaches that use strict constraints to main
 
 - **Single Event Stream**: While traditional event sourcing uses one stream per aggregate (e.g., one stream for Course aggregate, another for Student aggregate), DCB uses a single event stream per bounded context. You can still use aggregates if they make sense for your domain, but they're not required to enforce consistency
 - **Tag-based Events**: Events are tagged with relevant identifiers, allowing one event to affect multiple concepts without artificial boundaries
-- **Dynamic Consistency**: Consistency is enforced through optimistic locking using the same query used for reading events
+- **Dynamic Consistency**: Consistency is enforced by checking if any events matching a query appeared after a known position. This ensures that events affecting the same concept are processed in order
 - **Flexible Boundaries**: No need for predefined aggregates or rigid transactional boundaries - consistency boundaries emerge naturally from your queries, though you can still use aggregates where they provide value
 
 The key difference from traditional event sourcing:
@@ -26,7 +26,7 @@ The key difference from traditional event sourcing:
 Traditional Event Sourcing | DCB Approach
 -------------------------|------------
 One stream per aggregate (required) | One stream per bounded context (aggregates optional)
-Aggregates enforce consistency | Queries enforce consistency
+Aggregates enforce consistency | Query-based position checks
 Rigid aggregate boundaries | Dynamic query-based boundaries
 Predefined consistency rules | Emergent consistency through queries
 
@@ -37,7 +37,7 @@ Traditional Approach | DCB Approach
 Separate streams for `Course` and `Student` aggregates | Single stream with events tagged with both `course_id` and `student_id`
 Saga to coordinate subscription | Single event with both tags
 Two separate events for the same fact | One event affecting multiple concepts
-Aggregate boundaries limit flexibility | Natural consistency through queries
+Aggregate boundaries limit flexibility | Natural consistency through query-based position checks
 
 ## Running Tests
 
@@ -431,7 +431,7 @@ With traditional event sourcing, this would require:
 With DCB, this becomes simpler:
 1. A single event stream for the entire bounded context
 2. One event tagged with both student and course identifiers
-3. Consistency enforced through optimistic locking using the same query
+3. Consistency enforced through position checks using the same query
 
 ```go
 // Example: Subscribing a student to a course
