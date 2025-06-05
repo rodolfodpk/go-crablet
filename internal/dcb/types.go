@@ -43,8 +43,8 @@ type (
 	EventStore interface {
 		AppendEvents(ctx context.Context, events []InputEvent, query Query, latestKnownPosition int64) (int64, error)
 		AppendEventsIfNotExists(ctx context.Context, events []InputEvent, query Query, latestKnownPosition int64, reducer StateReducer) (int64, error)
-		ReadState(ctx context.Context, query Query, stateReducer StateReducer) (int64, any, error)
-		ReadStateUpTo(ctx context.Context, query Query, stateReducer StateReducer, maxPosition int64) (int64, any, error)
+		ProjectState(ctx context.Context, query Query, stateReducer StateReducer) (int64, any, error)
+		ProjectStateUpTo(ctx context.Context, query Query, stateReducer StateReducer, maxPosition int64) (int64, any, error)
 		Close()
 	}
 )
