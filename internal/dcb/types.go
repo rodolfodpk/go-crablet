@@ -18,7 +18,7 @@ type (
 
 	StateProjector struct {
 		InitialState any
-		TransitionFn func(any, Event) any
+		TransitionFn func(any, Event) any // TODO should this receive only the JSON-encoded data?
 	}
 
 	// InputEvent represents an event to be appended to the store.
