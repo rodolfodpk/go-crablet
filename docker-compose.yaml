@@ -1,15 +1,16 @@
-version: '3.8'
-
+# This is a Docker Compose file for setting up a PostgreSQL database service.
+# This is just a utility file to help you get started quickly with PostgreSQL in a Docker environment
+# when trying any code using this library.
 services:
   postgres:
     image: postgres:latest
-    container_name: postgres_db
+    container_name: ${POSTGRES_CONTAINER_NAME:-postgres_db}
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: app_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-app_db}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
