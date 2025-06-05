@@ -399,7 +399,5 @@ position, err := store.AppendEvents(ctx, []dcb.InputEvent{event}, query, lastKno
 
 ## References
 
-- [Dynamic Consistency Boundary (DCB)](https://dcb.events/) - The original blog post by Sara Pellegrini introducing the DCB pattern
-- [Killing the Aggregate](https://dcb.events/killing-the-aggregate) - The blog post that inspired this implementation
-- [PostgreSQL JSONB](https://www.postgresql.org/docs/current/datatype-json.html) - Documentation on PostgreSQL's JSONB type used for event tags
-- [Event Sourcing Pattern](https://martinfowler.com/eaaDev/EventSourcing.html) - Martin Fowler's explanation of event sourcing
+- [Dynamic Consistency Boundary (DCB)](https://dcb.events/) - The official website about the DCB pattern
+- [Sara Pellegrini's Talk at DDD Europe 2024](https://dddeurope.com/2024/sara-pellegrini/) - Recent talk about DCB and its practical applications
