@@ -125,19 +125,19 @@ Note that the actual event validation and appending is handled by the `AppendEve
 6. Uses optimistic concurrency control to append events
 7. Returns the new position after appending
 
-## State Reduction with PostgreSQL Streaming
+## State Projection with PostgreSQL Streaming
 
-go-crablet implements efficient state reduction by leveraging PostgreSQL's streaming capabilities. Instead of loading all events into memory, events are streamed directly from the database and processed one at a time. This approach provides several benefits:
+go-crablet implements efficient state projection by leveraging PostgreSQL's streaming capabilities. Instead of loading all events into memory, events are streamed directly from the database and processed one at a time. This approach provides several benefits:
 
 1. **Memory Efficiency**: Events are processed in a streaming fashion, making it suitable for large event streams
 2. **Database Efficiency**: Uses PostgreSQL's native JSONB indexing and querying capabilities
-3. **Consistent Views**: The same query used for consistency checks is used for state reduction
+3. **Consistent Views**: The same query used for consistency checks is used for state projection
 
 Here's how it works under the hood:
 
 ```go
-// The ReadState method streams events from PostgreSQL
-func (es *eventStore) ReadState(ctx context.Context, query Query, stateReducer StateReducer) (int64, any, error) {
+// The ProjectState method streams events from PostgreSQL
+func (es *eventStore) ProjectState(ctx context.Context, query Query, stateProjector StateProjector) (int64, any, error) {
     // Handle empty or nil tags
     var queryTags []byte
     if len(query.Tags) > 0 {
@@ -149,7 +149,7 @@ func (es *eventStore) ReadState(ctx context.Context, query Query, stateReducer S
         var err error
         queryTags, err = json.Marshal(tagMap)
         if err != nil {
-            return 0, stateReducer.InitialState, fmt.Errorf("failed to marshal query tags: %w", err)
+            return 0, stateProjector.InitialState, fmt.Errorf("failed to marshal query tags: %w", err)
         }
     }
 
@@ -179,26 +179,26 @@ func (es *eventStore) ReadState(ctx context.Context, query Query, stateReducer S
     // Stream rows from PostgreSQL
     rows, err := es.pool.Query(ctx, sqlQuery, args...)
     if err != nil {
-        return 0, stateReducer.InitialState, fmt.Errorf("query failed: %w", err)
+        return 0, stateProjector.InitialState, fmt.Errorf("query failed: %w", err)
     }
     defer rows.Close()
 
     // Initialize state
-    state := stateReducer.InitialState
+    state := stateProjector.InitialState
     position := int64(0)
 
     // Process events one at a time
     for rows.Next() {
         var row rowEvent
         if err := rows.Scan(&row.ID, &row.Type, &row.Tags, &row.Data, &row.Position, &row.CausationID, &row.CorrelationID); err != nil {
-            return 0, stateReducer.InitialState, fmt.Errorf("failed to scan row: %w", err)
+            return 0, stateProjector.InitialState, fmt.Errorf("failed to scan row: %w", err)
         }
 
         // Convert row to Event
         event := convertRowToEvent(row)
         
-        // Apply reducer
-        state = stateReducer.ReducerFn(state, event)
+        // Apply projector
+        state = stateProjector.ProjectFn(state, event)
         position = row.Position
     }
 
@@ -208,15 +208,15 @@ func (es *eventStore) ReadState(ctx context.Context, query Query, stateReducer S
 
 ### Query Behavior
 
-The `ReadState` method provides flexible querying capabilities. Here are examples of how to use it:
+The `ProjectState` method provides flexible querying capabilities. Here are examples of how to use it:
 
 1. **Querying All Events**:
    ```go
    // Create a query with no tags to match all events
    query := dcb.NewQuery(nil)
    
-   // Read state using the query
-   position, state, err := store.ReadState(ctx, query, reducer)
+   // Project state using the query
+   position, state, err := store.ProjectState(ctx, query, projector)
    if err != nil {
        panic(err)
    }
@@ -233,8 +233,8 @@ The `ReadState` method provides flexible querying capabilities. Here are example
        "course_id", "c1",
    ))
    
-   // Read state using the query
-   position, state, err := store.ReadState(ctx, query, reducer)
+   // Project state using the query
+   position, state, err := store.ProjectState(ctx, query, projector)
    if err != nil {
        panic(err)
    }
@@ -251,8 +251,8 @@ The `ReadState` method provides flexible querying capabilities. Here are example
        "StudentSubscribedToCourse",
    )
    
-   // Read state using the query
-   position, state, err := store.ReadState(ctx, query, reducer)
+   // Project state using the query
+   position, state, err := store.ProjectState(ctx, query, projector)
    if err != nil {
        panic(err)
    }
@@ -260,40 +260,40 @@ The `ReadState` method provides flexible querying capabilities. Here are example
 
 4. **Building Different Views**:
    ```go
-   // Course view reducer
-   courseReducer := dcb.StateReducer{
+   // Course view projector
+   courseProjector := dcb.StateProjector{
        InitialState: &CourseState{
            StudentIDs: make(map[string]bool),
        },
-       ReducerFn: func(state any, event dcb.Event) any {
+       ProjectFn: func(state any, event dcb.Event) any {
            course := state.(*CourseState)
-           // ... reducer implementation ...
+           // ... projector implementation ...
            return course
        },
    }
 
-   // Student view reducer
-   studentReducer := dcb.StateReducer{
+   // Student view projector
+   studentProjector := dcb.StateProjector{
        InitialState: &StudentState{
            CourseIDs: make(map[string]bool),
        },
-       ReducerFn: func(state any, event dcb.Event) any {
+       ProjectFn: func(state any, event dcb.Event) any {
            student := state.(*StudentState)
-           // ... reducer implementation ...
+           // ... projector implementation ...
            return student
        },
    }
 
-   // Read course state
+   // Project course state
    courseQuery := dcb.NewQuery(dcb.NewTags("course_id", "c1"))
-   _, courseState, err := store.ReadState(ctx, courseQuery, courseReducer)
+   _, courseState, err := store.ProjectState(ctx, courseQuery, courseProjector)
    if err != nil {
        panic(err)
    }
 
-   // Read student state
+   // Project student state
    studentQuery := dcb.NewQuery(dcb.NewTags("student_id", "s1"))
-   _, studentState, err := store.ReadState(ctx, studentQuery, studentReducer)
+   _, studentState, err := store.ProjectState(ctx, studentQuery, studentProjector)
    if err != nil {
        panic(err)
    }
@@ -303,11 +303,11 @@ The query behavior follows these rules:
 - Empty or nil tags will match all events in the stream
 - When tags are provided, only events containing all specified tags will be matched
 - Event types can be combined with tags to further filter the events
-- The same query used for reading state is used for consistency checks when appending events
+- The same query used for projecting state is used for consistency checks when appending events
 
 ### Example: Building a Course Enrollment View
 
-Here's how to efficiently build a course enrollment view using streaming state reduction:
+Here's how to efficiently build a course enrollment view using streaming state projection:
 
 ```go
 // EnrollmentView represents the current state of course enrollments
@@ -316,13 +316,13 @@ type EnrollmentView struct {
     StudentEnrollments map[string]map[string]bool // student_id -> course_id -> enrolled
 }
 
-// Create a reducer for the enrollment view
-enrollmentReducer := dcb.StateReducer{
+// Create a projector for the enrollment view
+enrollmentProjector := dcb.StateProjector{
     InitialState: &EnrollmentView{
         CourseEnrollments: make(map[string]map[string]bool),
         StudentEnrollments: make(map[string]map[string]bool),
     },
-    ReducerFn: func(state any, event dcb.Event) any {
+    ProjectFn: func(state any, event dcb.Event) any {
         view := state.(*EnrollmentView)
         
         switch event.Type {
@@ -358,9 +358,9 @@ enrollmentReducer := dcb.StateReducer{
     },
 }
 
-// Read the enrollment view
+// Project the enrollment view
 query := dcb.NewQuery(nil) // Match all subscription events
-_, view, err := store.ReadState(ctx, query, enrollmentReducer)
+_, view, err := store.ProjectState(ctx, query, enrollmentProjector)
 if err != nil {
     panic(err)
 }
@@ -374,19 +374,19 @@ fmt.Printf("Total students with enrollments: %d\n", len(enrollmentView.StudentEn
 
 1. **Indexing**: The implementation uses PostgreSQL's GIN indexes on the `tags` JSONB column for efficient querying
 2. **Streaming**: Events are processed one at a time, keeping memory usage constant regardless of event stream size
-3. **Query Optimization**: The same query used for consistency checks is used for state reduction, ensuring consistency
-4. **Position-based Reading**: `ReadStateUpTo` allows reading events up to a specific position, which is useful for:
+3. **Query Optimization**: The same query used for consistency checks is used for state projection, ensuring consistency
+4. **Position-based Reading**: `ProjectStateUpTo` allows projecting state up to a specific position, which is useful for:
    - Building state at a point in time
    - Implementing event replay
    - Debugging by examining state at specific positions
    - Ensuring consistent reads up to a known position
 
-Here's an example of using `ReadStateUpTo`:
+Here's an example of using `ProjectStateUpTo`:
 
 ```go
-// Read state up to a specific position
-maxPosition := int64(1000) // Read only events up to position 1000
-_, state, err := store.ReadStateUpTo(ctx, query, reducer, maxPosition)
+// Project state up to a specific position
+maxPosition := int64(1000) // Project only events up to position 1000
+_, state, err := store.ProjectStateUpTo(ctx, query, projector, maxPosition)
 if err != nil {
     panic(err)
 }
@@ -398,7 +398,7 @@ if err != nil {
 // 4. Ensuring consistent reads up to a known position
 ```
 
-The key difference between `ReadState` and `ReadStateUpTo` is that `ReadStateUpTo` allows you to limit the event stream to a specific position. This is particularly useful for:
+The key difference between `ProjectState` and `ProjectStateUpTo` is that `ProjectStateUpTo` allows you to limit the event stream to a specific position. This is particularly useful for:
 - Debugging: You can examine state at any point in the event stream
 - Replay: You can replay events up to a specific position
 - Versioning: You can build state for a specific version of your data
@@ -412,7 +412,7 @@ Note: Events in the stream are always processed in order by their position. The 
 - **Tag-based Querying**: Query events using tags and event types to build different views of the same event stream
 - **Optimistic Concurrency**: Built-in support for optimistic locking using event queries and positions
 - **Event Causation**: Track event causation and correlation for event chains
-- **State Reduction**: Build current state by reducing over events using custom reducers
+- **State Projection**: Build current state by projecting over events using custom projectors
 - **Batch Operations**: Efficient batch operations for appending multiple events
 - **PostgreSQL Backend**: Uses PostgreSQL for reliable, ACID-compliant storage
 - **Go Native**: Written in Go with idiomatic Go patterns and interfaces
