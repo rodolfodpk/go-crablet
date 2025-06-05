@@ -8,8 +8,9 @@ import (
 
 var _ = Describe("ProjectState", func() {
 	BeforeEach(func() {
-		// Truncate the events table and reset sequences before each test
-		_, err := pool.Exec(ctx, "TRUNCATE TABLE events RESTART IDENTITY CASCADE")
+
+		// Truncate the events table before each test
+		err := truncateEventsTable(ctx, pool)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Set up some test events for all ProjectState tests

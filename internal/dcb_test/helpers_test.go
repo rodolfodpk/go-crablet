@@ -2,6 +2,8 @@ package dcb_test
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/jackc/pgx/v5"
@@ -12,15 +14,28 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
+// generateRandomPassword creates a random password string
+func generateRandomPassword(length int) (string, error) {
+	bytes := make([]byte, length)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return base64.URLEncoding.EncodeToString(bytes)[:length], nil
+}
+
 // setupPostgresContainer creates and configures a Postgres test container
 func setupPostgresContainer(ctx context.Context) (*pgxpool.Pool, testcontainers.Container, error) {
+	// Generate a random password
+	password, err := generateRandomPassword(16)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to generate password: %w", err)
+	}
+
 	req := testcontainers.ContainerRequest{
 		Image:        "postgres:15-alpine",
 		ExposedPorts: []string{"5432/tcp"},
 		Env: map[string]string{
-			"POSTGRES_PASSWORD": "secret",
-			"POSTGRES_USER":     "user",
-			"POSTGRES_DB":       "testdb",
+			"POSTGRES_PASSWORD": password,
 		},
 		WaitingFor: wait.ForListeningPort("5432/tcp"),
 	}
@@ -43,7 +58,7 @@ func setupPostgresContainer(ctx context.Context) (*pgxpool.Pool, testcontainers.
 		return nil, nil, err
 	}
 
-	dsn := fmt.Sprintf("postgres://user:secret@%s:%s/testdb?sslmode=disable", host, port.Port())
+	dsn := fmt.Sprintf("postgres://postgres:%s@%s:%s/postgres?sslmode=disable", password, host, port.Port())
 	poolConfig, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		return nil, nil, err

@@ -9,7 +9,7 @@ import (
 var _ = Describe("AppendEventsIfNotExists", func() {
 	BeforeEach(func() {
 		// Truncate the events table before each test
-		_, err := pool.Exec(ctx, "TRUNCATE TABLE events RESTART IDENTITY CASCADE")
+		err := truncateEventsTable(ctx, pool)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
