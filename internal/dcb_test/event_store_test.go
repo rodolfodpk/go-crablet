@@ -2,13 +2,10 @@ package dcb_test
 
 import (
 	"context"
-	"fmt"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
 	"go-crablet/internal/dcb"
 	"io"
 	"os"
@@ -67,41 +64,9 @@ func setupTeardown() {
 
 var _ = BeforeSuite(func() {
 	ctx = context.Background()
-	req := testcontainers.ContainerRequest{
-		Image:        "postgres:15-alpine",
-		ExposedPorts: []string{"5432/tcp"},
-		Env: map[string]string{
-			"POSTGRES_PASSWORD": "secret",
-			"POSTGRES_USER":     "user",
-			"POSTGRES_DB":       "testdb",
-		},
-		WaitingFor: wait.ForListeningPort("5432/tcp"),
-	}
 	var err error
-	postgresC, err = testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	Expect(err).NotTo(HaveOccurred())
 
-	host, err := postgresC.Host(ctx)
-	Expect(err).NotTo(HaveOccurred())
-	port, err := postgresC.MappedPort(ctx, "5432")
-	Expect(err).NotTo(HaveOccurred())
-
-	dsn := fmt.Sprintf("postgres://user:secret@%s:%s/testdb?sslmode=disable", host, port.Port())
-	poolConfig, err := pgxpool.ParseConfig(dsn)
-	if err != nil {
-		Expect(err).NotTo(HaveOccurred())
-	}
-
-	// Configure prepared statement cache settings
-	// In pgx v5, prepared statement behavior is different
-	poolConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeCacheDescribe
-	// Optionally set the statement cache capacity (default is 512)
-	poolConfig.ConnConfig.StatementCacheCapacity = 100
-
-	pool, err = pgxpool.NewWithConfig(ctx, poolConfig)
+	pool, postgresC, err = setupPostgresContainer(ctx)
 	Expect(err).NotTo(HaveOccurred())
 
 	Eventually(func() error {
