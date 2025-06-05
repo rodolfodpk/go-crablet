@@ -11,7 +11,7 @@ A Go implementation of the Dynamic Consistency Boundary (DCB) event store patter
 ## Requirements
 
 - Go 1.24 or later
-- PostgreSQL 15 or later
+- Docker and Docker Compose (required for both running PostgreSQL and running integration tests with testcontainers)
 
 ## Running Tests
 
