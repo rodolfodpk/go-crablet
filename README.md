@@ -39,92 +39,6 @@ Saga to coordinate subscription | Single event with both tags
 Two separate events for the same fact | One event affecting multiple concepts
 Aggregate boundaries limit flexibility | Natural consistency through query-based position checks
 
-## Running Tests
-
-To run all tests in the project, use:
-
-```bash
-go test -v ./...
-```
-
-This will run all tests in all packages, including integration tests that require a PostgreSQL database (which is automatically started using testcontainers).
-
-### Conditional Appends
-
-The event store supports conditional appends through `AppendEventsIfNotExists`. This is useful when you want to append events only if certain conditions are met. For example:
-
-```go
-// Define a projector that checks if an order is already processed
-type OrderState struct {
-	IsProcessed bool
-}
-
-projector := dcb.StateProjector{
-	InitialState: &OrderState{IsProcessed: false},
-	TransitionFn: func(state any, e dcb.Event) any {
-		orderState := state.(*OrderState)
-		if e.Type == "OrderProcessed" {
-			orderState.IsProcessed = true
-		}
-		return orderState
-	},
-}
-
-// Try to append "OrderProcessed" only if the order isn't processed yet
-events := []dcb.InputEvent{
-	dcb.NewInputEvent("OrderProcessed", tags, []byte(`{"status":"complete"}`)),
-}
-
-// This will only append if the order isn't processed yet
-position, err := store.AppendEventsIfNotExists(ctx, events, query, lastPosition, projector)
-if err != nil {
-	panic(err)
-}
-
-// If position didn't change, it means the event wasn't appended
-// because the condition wasn't met (order was already processed)
-```
-
-The `AppendEventsIfNotExists` method:
-1. Projects the current state up to the latest known position using the provided projector
-2. If the state exists (non-nil), it means events already exist for the query, so it returns the current position
-3. Otherwise, it appends the events using optimistic concurrency control
-4. Returns the new position after appending
-
-This is particularly useful for:
-- Preventing duplicate events
-- Enforcing business rules
-- Implementing idempotent operations
-- Handling race conditions
-
-Below is the latest implementation (from internal/dcb/append_events.go):
-
-```go
-func (es *eventStore) AppendEventsIfNotExists(ctx context.Context, events []InputEvent, query Query, latestPosition int64, projector StateProjector) (int64, error) {
-	position, state, err := es.ProjectStateUpTo(ctx, query, projector, latestPosition)
-	if err == nil && state != nil {
-		log.Printf("Events already exist for query: %v", query)
-		return position, nil
-	}
-	return es.AppendEvents(ctx, events, query, latestPosition)
-}
-```
-
-The method is designed to be simple and efficient:
-- It first projects the state up to the latest known position
-- If the state exists (non-nil), it means events already exist for the query
-- Otherwise, it appends the events using the standard AppendEvents method
-- All validation (query tags, event data, etc.) is handled by AppendEvents
-
-Note that the actual event validation and appending is handled by the `AppendEvents` method, which:
-1. Validates query tags and event data
-2. Ensures the event store is not closed
-3. Checks batch size limits
-4. Generates UUIDs for events
-5. Handles event causation and correlation
-6. Uses optimistic concurrency control to append events
-7. Returns the new position after appending
-
 ## State Projection with PostgreSQL Streaming
 
 go-crablet implements efficient state projection by leveraging PostgreSQL's streaming capabilities. Instead of loading all events into memory, events are streamed directly from the database and processed one at a time. This approach provides several benefits:
@@ -459,6 +373,16 @@ position, err := store.AppendEvents(ctx, []dcb.InputEvent{event}, query, lastKno
 - Go 1.24 or later
 - PostgreSQL 15 or later
 
+## Running Tests
+
+To run all tests in the project, use:
+
+```bash
+go test -v ./...
+```
+
+This will run all tests in all packages, including integration tests that require a PostgreSQL database (which is automatically started using testcontainers).
+
 ## Installation
 
 ```bash
@@ -472,3 +396,79 @@ go get github.com/rodolfodpk/go-crablet
 ```bash
 docker-compose up -d
 ```
+
+### Conditional Appends
+
+The event store supports conditional appends through `AppendEventsIfNotExists`. This is useful when you want to append events only if certain conditions are met. For example:
+
+```go
+// Define a projector that checks if an order is already processed
+type OrderState struct {
+	IsProcessed bool
+}
+
+projector := dcb.StateProjector{
+	InitialState: &OrderState{IsProcessed: false},
+	TransitionFn: func(state any, e dcb.Event) any {
+		orderState := state.(*OrderState)
+		if e.Type == "OrderProcessed" {
+			orderState.IsProcessed = true
+		}
+		return orderState
+	},
+}
+
+// Try to append "OrderProcessed" only if the order isn't processed yet
+events := []dcb.InputEvent{
+	dcb.NewInputEvent("OrderProcessed", tags, []byte(`{"status":"complete"}`)),
+}
+
+// This will only append if the order isn't processed yet
+position, err := store.AppendEventsIfNotExists(ctx, events, query, lastPosition, projector)
+if err != nil {
+	panic(err)
+}
+
+// If position didn't change, it means the event wasn't appended
+// because the condition wasn't met (order was already processed)
+```
+
+The `AppendEventsIfNotExists` method:
+1. Projects the current state up to the latest known position using the provided projector
+2. If the state exists (non-nil), it means events already exist for the query, so it returns the current position
+3. Otherwise, it appends the events using optimistic concurrency control
+4. Returns the new position after appending
+
+This is particularly useful for:
+- Preventing duplicate events
+- Enforcing business rules
+- Implementing idempotent operations
+- Handling race conditions
+
+Below is the latest implementation (from internal/dcb/append_events.go):
+
+```go
+func (es *eventStore) AppendEventsIfNotExists(ctx context.Context, events []InputEvent, query Query, latestPosition int64, projector StateProjector) (int64, error) {
+	position, state, err := es.ProjectStateUpTo(ctx, query, projector, latestPosition)
+	if err == nil && state != nil {
+		log.Printf("Events already exist for query: %v", query)
+		return position, nil
+	}
+	return es.AppendEvents(ctx, events, query, latestPosition)
+}
+```
+
+The method is designed to be simple and efficient:
+- It first projects the state up to the latest known position
+- If the state exists (non-nil), it means events already exist for the query
+- Otherwise, it appends the events using the standard AppendEvents method
+- All validation (query tags, event data, etc.) is handled by AppendEvents
+
+Note that the actual event validation and appending is handled by the `AppendEvents` method, which:
+1. Validates query tags and event data
+2. Ensures the event store is not closed
+3. Checks batch size limits
+4. Generates UUIDs for events
+5. Handles event causation and correlation
+6. Uses optimistic concurrency control to append events
+7. Returns the new position after appending
