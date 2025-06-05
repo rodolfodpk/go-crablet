@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -52,7 +53,18 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	dsn := fmt.Sprintf("postgres://user:secret@%s:%s/testdb?sslmode=disable", host, port.Port())
-	pool, err = pgxpool.New(ctx, dsn)
+	poolConfig, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		Expect(err).NotTo(HaveOccurred())
+	}
+
+	// Configure prepared statement cache settings
+	// In pgx v5, prepared statement behavior is different
+	poolConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeCacheDescribe
+	// Optionally set the statement cache capacity (default is 512)
+	poolConfig.ConnConfig.StatementCacheCapacity = 100
+
+	pool, err = pgxpool.NewWithConfig(ctx, poolConfig)
 	Expect(err).NotTo(HaveOccurred())
 
 	Eventually(func() error {
