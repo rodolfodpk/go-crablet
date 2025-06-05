@@ -12,10 +12,15 @@ import (
 
 func (es *eventStore) AppendEventsIfNotExists(ctx context.Context, events []InputEvent, query Query, latestPosition int64, projector StateProjector) (int64, error) {
 	position, state, err := es.ProjectStateUpTo(ctx, query, projector, latestPosition)
-	if err == nil && state != nil {
+	if err != nil {
+		return 0, fmt.Errorf("failed to project state: %w", err)
+	}
+
+	if state != nil {
 		log.Printf("Events already exist for query: %v", query)
 		return position, nil
 	}
+
 	return es.AppendEvents(ctx, events, query, latestPosition)
 }
 
