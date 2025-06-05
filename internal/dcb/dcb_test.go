@@ -372,7 +372,54 @@ var _ = Describe("EventStore", func() {
 			})
 		})
 	})
+	Describe("ReadStateUpTo scenarios", func() {
+		BeforeEach(func() {
+			// Set up sequential events for position testing
+			tags := dcb.NewTags("sequence_id", "seq1")
+			query := dcb.NewQuery(tags)
+			events := []dcb.InputEvent{
+				dcb.NewInputEvent("Event1", tags, []byte(`{"order":1}`)),
+				dcb.NewInputEvent("Event2", tags, []byte(`{"order":2}`)),
+				dcb.NewInputEvent("Event3", tags, []byte(`{"order":3}`)),
+				dcb.NewInputEvent("Event4", tags, []byte(`{"order":4}`)),
+				dcb.NewInputEvent("Event5", tags, []byte(`{"order":5}`)),
+			}
 
+			pos, err := store.AppendEvents(ctx, events, query, 0)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(pos).To(Equal(int64(5)))
+		})
+
+		It("reads state up to a specific position limit", func() {
+			query := dcb.NewQuery(dcb.NewTags("sequence_id", "seq1"))
+
+			// Define a reducer that counts events
+			countReducer := dcb.StateReducer{
+				InitialState: 0,
+				ReducerFn: func(state any, e dcb.Event) any {
+					return state.(int) + 1
+				},
+			}
+
+			// Read up to position 3 (should include events at positions 1, 2, and 3)
+			pos, state, err := store.ReadStateUpTo(ctx, query, countReducer, 3)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(pos).To(Equal(int64(3)))
+			Expect(state).To(Equal(3))
+
+			// Read all events (maxPosition = -1)
+			pos, state, err = store.ReadStateUpTo(ctx, query, countReducer, -1)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(pos).To(Equal(int64(5)))
+			Expect(state).To(Equal(5))
+
+			// Read up to position 0 (should find no events)
+			pos, state, err = store.ReadStateUpTo(ctx, query, countReducer, 0)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(pos).To(Equal(int64(0)))
+			Expect(state).To(Equal(0))
+		})
+	})
 })
 
 // dumpEvents queries the events table and prints the results as JSON

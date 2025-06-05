@@ -429,7 +429,11 @@ func (es *eventStore) ReadStateUpTo(ctx context.Context, query Query, stateReduc
 		args = append(args, query.EventTypes)
 	}
 
-	if maxPosition > 0 {
+	// Add position filtering if maxPosition is specified
+	// If maxPosition is -1, it means no limit
+	// If maxPosition is 0, it means no events should be returned
+	// If maxPosition is greater than 0, we filter events up to that position
+	if maxPosition >= 0 {
 		sqlQuery += fmt.Sprintf(" AND position <= $%d", len(args)+1)
 		args = append(args, maxPosition)
 	}
