@@ -8,34 +8,51 @@
 
 A Go implementation of the Dynamic Consistency Boundary (DCB) event store pattern, providing a simpler and more flexible approach to consistency in event-driven systems.
 
-## Requirements
-
-- Go 1.24 or later
-- Docker and Docker Compose (required for both running PostgreSQL and running integration tests with testcontainers)
-
-## Running Tests
-
-To run all tests in the project, use:
-
-```bash
-go test -v ./...
-```
-
-This will run all tests in all packages, including integration tests that require a PostgreSQL database (which is automatically started using testcontainers).
-
 ## Installation
 
 ```bash
 go get github.com/rodolfodpk/go-crablet
 ```
 
-## Quick Start
+## Development Tools
 
-1. Set up PostgreSQL (using Docker):
+This project includes a Makefile to simplify common development tasks. Here are the available commands:
 
 ```bash
-docker-compose up -d
+# Build the application
+make build
+
+# Run tests
+make test
+
+# Run tests with coverage report
+make test-coverage
+
+# Start Docker containers (PostgreSQL)
+make docker-up
+
+# Stop Docker containers
+make docker-down
+
+# Run linter
+make lint
+
+# Generate and serve documentation
+make docs
+
+# Clean build artifacts
+make clean
+
+# Show all available commands
+make help
 ```
+
+### Prerequisites
+
+To use these commands, you'll need:
+- Go 1.24 or later
+- Docker and Docker Compose (required for both running PostgreSQL and running integration tests with testcontainers)
+- golangci-lint (for the `make lint` command)
 
 ## Overview
 
