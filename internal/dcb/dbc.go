@@ -3,12 +3,15 @@ package dcb
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log"
+	"sync"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"log"
-	"sync"
 )
 
 // Tag is a key-value pair for querying events.
@@ -90,20 +93,90 @@ type EventStore interface {
 	Close()
 }
 
+// Custom error types for better error handling
+type (
+	// EventStoreError represents a base error type for event store operations
+	EventStoreError struct {
+		Op  string // Operation that failed
+		Err error  // The underlying error
+	}
+
+	// ValidationError represents an error in event or query validation
+	ValidationError struct {
+		EventStoreError
+		Field string // The field that failed validation
+		Value string // The invalid value
+	}
+
+	// ConcurrencyError represents a concurrency conflict
+	ConcurrencyError struct {
+		EventStoreError
+		ExpectedPosition int64
+		ActualPosition   int64
+	}
+
+	// ResourceError represents an error related to resource management
+	ResourceError struct {
+		EventStoreError
+		Resource string // The resource that caused the error
+	}
+)
+
+// Error implements the error interface
+func (e EventStoreError) Error() string {
+	if e.Err != nil {
+		return fmt.Sprintf("%s: %v", e.Op, e.Err)
+	}
+	return e.Op
+}
+
+// Unwrap returns the underlying error
+func (e EventStoreError) Unwrap() error {
+	return e.Err
+}
+
+// IsValidationError checks if an error is a ValidationError
+func IsValidationError(err error) bool {
+	var ve *ValidationError
+	return errors.As(err, &ve)
+}
+
+// IsConcurrencyError checks if an error is a ConcurrencyError
+func IsConcurrencyError(err error) bool {
+	var ce *ConcurrencyError
+	return errors.As(err, &ce)
+}
+
+// IsResourceError checks if an error is a ResourceError
+func IsResourceError(err error) bool {
+	var re *ResourceError
+	return errors.As(err, &re)
+}
+
 // eventStore implements EventStore.
 type eventStore struct {
 	pool         *pgxpool.Pool // Database connection pool
-	mu           sync.Mutex    // Protects concurrent access to shared fields
+	mu           sync.RWMutex  // Changed to RWMutex for better concurrency
 	closed       bool          // Indicates if the store has been closed
 	maxBatchSize int           // Maximum number of events in a single batch operation
+	cleanupOnce  sync.Once     // Ensures cleanup happens only once
 }
 
 // NewEventStore creates a new EventStore using the provided PostgreSQL connection pool.
 // It uses a default maximum batch size of 1000 events.
 func NewEventStore(ctx context.Context, pool *pgxpool.Pool) (EventStore, error) {
-	// Test the connection
+	// Test the connection with context timeout
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	if err := pool.Ping(ctx); err != nil {
-		return nil, fmt.Errorf("unable to connect to database: %w", err)
+		return nil, &ResourceError{
+			EventStoreError: EventStoreError{
+				Op:  "NewEventStore",
+				Err: fmt.Errorf("unable to connect to database: %w", err),
+			},
+			Resource: "database",
+		}
 	}
 
 	return &eventStore{
@@ -112,14 +185,46 @@ func NewEventStore(ctx context.Context, pool *pgxpool.Pool) (EventStore, error) 
 	}, nil
 }
 
-// Close closes the appender’s connection pool.
+// Close closes the event store's connection pool.
+// It is safe to call Close multiple times.
 func (es *eventStore) Close() {
-	es.mu.Lock()
-	defer es.mu.Unlock()
-	if !es.closed {
-		es.closed = true
-		es.pool.Close()
-	}
+	es.cleanupOnce.Do(func() {
+		es.mu.Lock()
+		defer es.mu.Unlock()
+
+		if !es.closed {
+			es.closed = true
+			// Close the pool in a separate goroutine to avoid blocking
+			go func() {
+				// Use a timeout context for pool closure
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				// Gracefully close the pool with timeout
+				done := make(chan struct{})
+				go func() {
+					es.pool.Close()
+					close(done)
+				}()
+
+				select {
+				case <-ctx.Done():
+					// Context timed out, but pool.Close() will still run in background
+					return
+				case <-done:
+					// Pool closed successfully
+					return
+				}
+			}()
+		}
+	})
+}
+
+// isClosed checks if the event store is closed
+func (es *eventStore) isClosed() bool {
+	es.mu.RLock()
+	defer es.mu.RUnlock()
+	return es.closed
 }
 
 func (es *eventStore) AppendEventsIfNotExists(ctx context.Context, events []InputEvent, query Query, latestPosition int64, reducer StateReducer) (int64, error) {
@@ -131,61 +236,109 @@ func (es *eventStore) AppendEventsIfNotExists(ctx context.Context, events []Inpu
 	return es.AppendEvents(ctx, events, query, latestPosition)
 }
 
-// validateQueryTags validates the query tags and returns an error if invalid
+// validateQueryTags validates the query tags and returns a ValidationError if invalid
 func validateQueryTags(query Query) error {
 	// Empty Tags or EventTypes are allowed
 
 	// Validate individual tags if present
 	for i, t := range query.Tags {
 		if t.Key == "" {
-			log.Printf("Query tag %d has empty key", i)
-			return fmt.Errorf("query tag %d has empty key", i)
+			return &ValidationError{
+				EventStoreError: EventStoreError{
+					Op:  "validateQueryTags",
+					Err: fmt.Errorf("empty key in tag %d", i),
+				},
+				Field: "tag.key",
+				Value: fmt.Sprintf("tag[%d]", i),
+			}
 		}
 		if t.Value == "" {
-			log.Printf("Query tag %d has empty value for key %s", i, t.Key)
-			return fmt.Errorf("query tag %d has empty value for key %s", i, t.Key)
+			return &ValidationError{
+				EventStoreError: EventStoreError{
+					Op:  "validateQueryTags",
+					Err: fmt.Errorf("empty value for key %s in tag %d", t.Key, i),
+				},
+				Field: fmt.Sprintf("tag[%d].value", i),
+				Value: t.Key,
+			}
 		}
 	}
 
 	// Validate event types (optional)
 	for i, eventType := range query.EventTypes {
 		if eventType == "" {
-			log.Printf("Query event type %d is empty", i)
-			return fmt.Errorf("query event type %d is empty", i)
+			return &ValidationError{
+				EventStoreError: EventStoreError{
+					Op:  "validateQueryTags",
+					Err: fmt.Errorf("empty event type at index %d", i),
+				},
+				Field: "eventType",
+				Value: fmt.Sprintf("type[%d]", i),
+			}
 		}
 	}
 
 	return nil
 }
 
-// validateEvent validates a single event and returns an error if invalid
+// validateEvent validates a single event and returns a ValidationError if invalid
 func validateEvent(e InputEvent, index int) error {
 	// Validate event type
 	if e.Type == "" {
-		log.Printf("Event %d has empty type", index)
-		return fmt.Errorf("event %d has empty type", index)
+		return &ValidationError{
+			EventStoreError: EventStoreError{
+				Op:  "validateEvent",
+				Err: fmt.Errorf("empty type in event %d", index),
+			},
+			Field: "type",
+			Value: fmt.Sprintf("event[%d]", index),
+		}
 	}
 
 	// Validate event tags
 	if len(e.Tags) == 0 {
-		log.Printf("Event %d has empty tags", index)
-		return fmt.Errorf("event %d has empty tags", index)
+		return &ValidationError{
+			EventStoreError: EventStoreError{
+				Op:  "validateEvent",
+				Err: fmt.Errorf("empty tags in event %d", index),
+			},
+			Field: "tags",
+			Value: fmt.Sprintf("event[%d]", index),
+		}
 	}
 	for j, t := range e.Tags {
 		if t.Key == "" {
-			log.Printf("Event %d tag %d has empty key", index, j)
-			return fmt.Errorf("event %d tag %d has empty key", index, j)
+			return &ValidationError{
+				EventStoreError: EventStoreError{
+					Op:  "validateEvent",
+					Err: fmt.Errorf("empty key in tag %d of event %d", j, index),
+				},
+				Field: fmt.Sprintf("event[%d].tag[%d].key", index, j),
+				Value: fmt.Sprintf("tag[%d]", j),
+			}
 		}
 		if t.Value == "" {
-			log.Printf("Event %d tag %d has empty value for key %s", index, j, t.Key)
-			return fmt.Errorf("event %d tag %d has empty value for key %s", index, j, t.Key)
+			return &ValidationError{
+				EventStoreError: EventStoreError{
+					Op:  "validateEvent",
+					Err: fmt.Errorf("empty value for key %s in tag %d of event %d", t.Key, j, index),
+				},
+				Field: fmt.Sprintf("event[%d].tag[%d].value", index, j),
+				Value: t.Key,
+			}
 		}
 	}
 
 	// Validate Data as JSON
 	if !json.Valid(e.Data) {
-		log.Printf("Event %d has invalid JSON data", index)
-		return fmt.Errorf("event %d has invalid JSON data", index)
+		return &ValidationError{
+			EventStoreError: EventStoreError{
+				Op:  "validateEvent",
+				Err: fmt.Errorf("invalid JSON data in event %d", index),
+			},
+			Field: "data",
+			Value: fmt.Sprintf("event[%d]", index),
+		}
 	}
 
 	return nil
@@ -194,13 +347,27 @@ func validateEvent(e InputEvent, index int) error {
 // AppendEvents adds multiple events to the stream and returns the latest position.
 func (es *eventStore) AppendEvents(ctx context.Context, events []InputEvent, query Query, latestPosition int64) (int64, error) {
 	es.mu.Lock()
+	defer es.mu.Unlock()
+
 	if es.closed {
-		es.mu.Unlock()
-		return 0, fmt.Errorf("eventStore is closed")
+		return 0, &ResourceError{
+			EventStoreError: EventStoreError{
+				Op:  "AppendEvents",
+				Err: fmt.Errorf("event store is closed"),
+			},
+			Resource: "eventStore",
+		}
 	}
-	es.mu.Unlock()
+
 	if len(events) > es.maxBatchSize {
-		return 0, fmt.Errorf("batch size exceeds %d events", es.maxBatchSize)
+		return 0, &ValidationError{
+			EventStoreError: EventStoreError{
+				Op:  "AppendEvents",
+				Err: fmt.Errorf("batch size %d exceeds maximum %d", len(events), es.maxBatchSize),
+			},
+			Field: "batchSize",
+			Value: fmt.Sprintf("%d", len(events)),
+		}
 	}
 	if len(events) == 0 {
 		return latestPosition, nil
@@ -209,6 +376,13 @@ func (es *eventStore) AppendEvents(ctx context.Context, events []InputEvent, que
 	// Validate query tags
 	if err := validateQueryTags(query); err != nil {
 		return 0, err
+	}
+
+	// Validate all events before proceeding
+	for i, event := range events {
+		if err := validateEvent(event, i); err != nil {
+			return 0, err
+		}
 	}
 
 	// Prepare arrays for PL/pgSQL
@@ -220,11 +394,6 @@ func (es *eventStore) AppendEvents(ctx context.Context, events []InputEvent, que
 	correlationIDs := make([]pgtype.UUID, len(events))
 
 	for i, e := range events {
-		// Validate each event
-		if err := validateEvent(e, i); err != nil {
-			return 0, err
-		}
-
 		// Generate UUID for event (UUIDv7)
 		uuidVal, err := uuid.NewV7()
 		if err != nil {
@@ -294,11 +463,20 @@ func (es *eventStore) AppendEvents(ctx context.Context, events []InputEvent, que
 		ids, types, tagsJSON, data, queryTagsJSON, latestPosition, causationIDs, correlationIDs, query.EventTypes,
 	).Scan(&pgPositions)
 	if err != nil {
-		log.Printf("Failed to append events: %v", err)
 		if err.Error() == "ERROR: Foreign key violation: invalid causation_id or correlation_id in batch (SQLSTATE P0001)" {
-			return 0, fmt.Errorf("foreign key violation: one or more causation_id or correlation_id values are invalid")
+			return 0, &ValidationError{
+				EventStoreError: EventStoreError{
+					Op:  "AppendEvents",
+					Err: fmt.Errorf("foreign key violation: one or more causation_id or correlation_id values are invalid"),
+				},
+				Field: "causation_id/correlation_id",
+				Value: "batch",
+			}
 		}
-		return 0, fmt.Errorf("append_events failed: %w", err)
+		return 0, &EventStoreError{
+			Op:  "AppendEvents",
+			Err: fmt.Errorf("failed to append events: %w", err),
+		}
 	}
 
 	// Extract positions from pgtype.Array[int64]
@@ -324,6 +502,32 @@ type rowEvent struct {
 	CorrelationID pgtype.UUID
 }
 
+// convertRowToEvent converts a database row to an Event
+func convertRowToEvent(row rowEvent) Event {
+	var e Event
+	if !row.ID.Valid {
+		panic(fmt.Sprintf("invalid UUID for id at position %d", row.Position))
+	}
+	e.ID = row.ID.String()
+	e.Type = row.Type
+	var tagMap map[string]string
+	if err := json.Unmarshal(row.Tags, &tagMap); err != nil {
+		panic(fmt.Sprintf("failed to unmarshal tags at position %d: %v", row.Position, err))
+	}
+	for k, v := range tagMap {
+		e.Tags = append(e.Tags, Tag{Key: k, Value: v})
+	}
+	e.Data = row.Data
+	e.Position = row.Position
+	if row.CausationID.Valid {
+		e.CausationID = row.CausationID.String()
+	}
+	if row.CorrelationID.Valid {
+		e.CorrelationID = row.CorrelationID.String()
+	}
+	return e
+}
+
 // ReadState computes a state by streaming events matching the query, up to maxPosition.
 func (es *eventStore) ReadState(ctx context.Context, query Query, stateReducer StateReducer) (int64, any, error) {
 	return es.ReadStateUpTo(ctx, query, stateReducer, -1)
@@ -331,23 +535,31 @@ func (es *eventStore) ReadState(ctx context.Context, query Query, stateReducer S
 
 // ReadStateUpTo computes a state by streaming events matching the query, up to maxPosition.
 func (es *eventStore) ReadStateUpTo(ctx context.Context, query Query, stateReducer StateReducer, maxPosition int64) (int64, any, error) {
-	// We still need a reducer function
-	// We still need a reducer function
 	if stateReducer.ReducerFn == nil {
-		return 0, stateReducer.InitialState, fmt.Errorf("reducer cannot be nil")
+		return 0, stateReducer.InitialState, &ValidationError{
+			EventStoreError: EventStoreError{
+				Op:  "ReadStateUpTo",
+				Err: fmt.Errorf("reducer function cannot be nil"),
+			},
+			Field: "reducer",
+			Value: "nil",
+		}
 	}
 
-	// Build JSONB query condition
+	// Build JSONB query condition with proper error handling
 	tagMap := make(map[string]string)
 	for _, t := range query.Tags {
 		tagMap[t.Key] = t.Value
 	}
 	queryTags, err := json.Marshal(tagMap)
 	if err != nil {
-		return 0, stateReducer.InitialState, fmt.Errorf("failed to marshal query tags: %w", err)
+		return 0, stateReducer.InitialState, &EventStoreError{
+			Op:  "ReadStateUpTo",
+			Err: fmt.Errorf("failed to marshal query tags %v: %w", tagMap, err),
+		}
 	}
 
-	// Construct SQL query
+	// Construct SQL query with proper error context
 	sqlQuery := "SELECT id, type, tags, data, position, causation_id, correlation_id FROM events WHERE tags @> $1"
 	args := []interface{}{queryTags}
 
@@ -362,56 +574,81 @@ func (es *eventStore) ReadStateUpTo(ctx context.Context, query Query, stateReduc
 		args = append(args, maxPosition)
 	}
 
-	// Query and stream rows
+	// Query and stream rows with proper error handling
 	rows, err := es.pool.Query(ctx, sqlQuery, args...)
 	if err != nil {
-		return 0, stateReducer.InitialState, fmt.Errorf("query failed for tags %v: %w", tagMap, err)
+		return 0, stateReducer.InitialState, &ResourceError{
+			EventStoreError: EventStoreError{
+				Op:  "ReadStateUpTo",
+				Err: fmt.Errorf("failed to execute query for tags %v: %w", tagMap, err),
+			},
+			Resource: "database",
+		}
 	}
 	defer rows.Close()
 
-	// Initialize state to initialState; remains unchanged if no events are processed
+	// Initialize state
 	state := stateReducer.InitialState
-	// Initialize position to 0; will be updated as events are processed
 	position := int64(0)
 
+	// Process events with proper error handling
 	for rows.Next() {
 		var row rowEvent
-		err := rows.Scan(&row.ID, &row.Type, &row.Tags, &row.Data, &row.Position, &row.CausationID, &row.CorrelationID)
+		if err := rows.Scan(&row.ID, &row.Type, &row.Tags, &row.Data, &row.Position, &row.CausationID, &row.CorrelationID); err != nil {
+			return 0, stateReducer.InitialState, &ResourceError{
+				EventStoreError: EventStoreError{
+					Op:  "ReadStateUpTo",
+					Err: fmt.Errorf("failed to scan event row at position %d: %w", position, err),
+				},
+				Resource: "database",
+			}
+		}
+
+		// Convert row to Event with panic recovery
+		var event Event
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					err = &EventStoreError{
+						Op:  "ReadStateUpTo",
+						Err: fmt.Errorf("panic converting row to event at position %d: %v", row.Position, r),
+					}
+				}
+			}()
+			event = convertRowToEvent(row)
+		}()
 		if err != nil {
-			return 0, stateReducer.InitialState, fmt.Errorf("failed to scan row: %w", err)
+			return 0, stateReducer.InitialState, err
 		}
 
-		var e Event
-		if !row.ID.Valid {
-			return 0, stateReducer.InitialState, fmt.Errorf("invalid UUID for id at position %d", row.Position)
-		}
-		e.ID = row.ID.String()
-		e.Type = row.Type
-		var tagMap map[string]string
-		if err := json.Unmarshal(row.Tags, &tagMap); err != nil {
-			return 0, stateReducer.InitialState, fmt.Errorf("failed to unmarshal tags at position %d: %w", row.Position, err)
-		}
-		for k, v := range tagMap {
-			e.Tags = append(e.Tags, Tag{Key: k, Value: v})
-		}
-		e.Data = row.Data
-		e.Position = row.Position
-		if row.CausationID.Valid {
-			e.CausationID = row.CausationID.String()
-		}
-		if row.CorrelationID.Valid {
-			e.CorrelationID = row.CorrelationID.String()
+		// Apply reducer with panic recovery
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					err = &EventStoreError{
+						Op:  "ReadStateUpTo",
+						Err: fmt.Errorf("panic in reducer for event type %s at position %d: %v", event.Type, event.Position, r),
+					}
+				}
+			}()
+			state = stateReducer.ReducerFn(state, event)
+		}()
+		if err != nil {
+			return 0, stateReducer.InitialState, err
 		}
 
-		state = stateReducer.ReducerFn(state, e)
 		position = row.Position
 	}
 
+	// Check for errors from iterating over rows
 	if err := rows.Err(); err != nil {
-		return 0, stateReducer.InitialState, fmt.Errorf("error iterating rows: %w", err)
-	}
-	if err != nil {
-		return 0, stateReducer.InitialState, fmt.Errorf("failed to stream events: %w", err)
+		return 0, stateReducer.InitialState, &ResourceError{
+			EventStoreError: EventStoreError{
+				Op:  "ReadStateUpTo",
+				Err: fmt.Errorf("error iterating over events: %w", err),
+			},
+			Resource: "database",
+		}
 	}
 
 	return position, state, nil
