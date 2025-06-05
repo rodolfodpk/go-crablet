@@ -49,6 +49,54 @@ go test -v ./...
 
 This will run all tests in all packages, including integration tests that require a PostgreSQL database (which is automatically started using testcontainers).
 
+### Conditional Appends
+
+The event store supports conditional appends through `AppendEventsIfNotExists`. This is useful when you want to append events only if certain conditions are met. For example:
+
+```go
+// Define a reducer that checks if an order is already processed
+type OrderState struct {
+    IsProcessed bool
+}
+
+reducer := dcb.StateReducer{
+    InitialState: &OrderState{IsProcessed: false},
+    ReducerFn: func(state any, e dcb.Event) any {
+        orderState := state.(*OrderState)
+        if e.Type == "OrderProcessed" {
+            orderState.IsProcessed = true
+        }
+        return orderState
+    },
+}
+
+// Try to append "OrderProcessed" only if the order isn't processed yet
+events := []dcb.InputEvent{
+    dcb.NewInputEvent("OrderProcessed", tags, []byte(`{"status":"complete"}`)),
+}
+
+// This will only append if the order isn't processed yet
+position, err := store.AppendEventsIfNotExists(ctx, events, query, lastPosition, reducer)
+if err != nil {
+    panic(err)
+}
+
+// If position didn't change, it means the event wasn't appended
+// because the condition wasn't met (order was already processed)
+```
+
+The `AppendEventsIfNotExists` method:
+1. Reads the current state using the provided reducer
+2. Only appends the events if no events were found (position is 0)
+3. Returns the current position if events were found
+4. Uses optimistic concurrency control to ensure consistency
+
+This is particularly useful for:
+- Preventing duplicate events
+- Enforcing business rules
+- Implementing idempotent operations
+- Handling race conditions
+
 ## State Reduction with PostgreSQL Streaming
 
 go-crablet implements efficient state reduction by leveraging PostgreSQL's streaming capabilities. Instead of loading all events into memory, events are streamed directly from the database and processed one at a time. This approach provides several benefits:

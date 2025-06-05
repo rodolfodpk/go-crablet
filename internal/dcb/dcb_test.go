@@ -148,7 +148,7 @@ var _ = Describe("EventStore", func() {
 					return state.(int) + 1
 				},
 			}
-			readPos, state, err := store.ReadState(ctx, query, reducer)
+			readPos, state, err := store.ProjectState(ctx, query, reducer)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(readPos).To(Equal(int64(1)))
 			Expect(state).To(Equal(1))
@@ -173,7 +173,7 @@ var _ = Describe("EventStore", func() {
 				ReducerFn:    func(state any, e dcb.Event) any { return state.(int) + 1 },
 			}
 
-			_, state, err := store.ReadState(ctx, queryByUser, reducer)
+			_, state, err := store.ProjectState(ctx, queryByUser, reducer)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(state).To(Equal(1))
 			Expect(state).To(Equal(1))
@@ -198,7 +198,7 @@ var _ = Describe("EventStore", func() {
 				InitialState: 0,
 				ReducerFn:    func(state any, e dcb.Event) any { return state.(int) + 1 },
 			}
-			_, state, err := store.ReadState(ctx, query, reducer)
+			_, state, err := store.ProjectState(ctx, query, reducer)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(state).To(Equal(3))
 
@@ -265,7 +265,7 @@ var _ = Describe("EventStore", func() {
 				},
 			}
 
-			_, state, err := store.ReadState(ctx, query, relationshipReducer)
+			_, state, err := store.ProjectState(ctx, query, relationshipReducer)
 			Expect(err).NotTo(HaveOccurred())
 			relationships := state.(EventRelationships)
 
@@ -305,9 +305,9 @@ var _ = Describe("EventStore", func() {
 			})
 		})
 
-		Describe("ReadState scenarios", func() {
+		Describe("ProjectState scenarios", func() {
 			BeforeEach(func() {
-				// Set up some test events for all ReadState tests
+				// Set up some test events for all ProjectState tests
 				courseTags := dcb.NewTags("course_id", "course101")
 				userTags := dcb.NewTags("user_id", "user101")
 				mixedTags := dcb.NewTags("course_id", "course101", "user_id", "user101")
@@ -335,7 +335,7 @@ var _ = Describe("EventStore", func() {
 					ReducerFn:    func(state any, e dcb.Event) any { return state.(int) + 1 },
 				}
 
-				_, state, err := store.ReadState(ctx, emptyTagsQuery, reducer)
+				_, state, err := store.ProjectState(ctx, emptyTagsQuery, reducer)
 				// Should return all events since no tag filtering is applied
 				Expect(err).NotTo(HaveOccurred())
 				Expect(state).To(Equal(4)) // All 4 events should be read
@@ -350,7 +350,7 @@ var _ = Describe("EventStore", func() {
 					ReducerFn:    func(state any, e dcb.Event) any { return state.(int) + 1 },
 				}
 
-				_, state, err := store.ReadState(ctx, courseQuery, reducer)
+				_, state, err := store.ProjectState(ctx, courseQuery, reducer)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(state).To(Equal(3)) // Should match CourseLaunched, Enrollment, and CourseUpdated
 			})
@@ -364,7 +364,7 @@ var _ = Describe("EventStore", func() {
 					ReducerFn:    func(state any, e dcb.Event) any { return state.(int) + 1 },
 				}
 
-				_, state, err := store.ReadState(ctx, query, reducer)
+				_, state, err := store.ProjectState(ctx, query, reducer)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(state).To(Equal(2)) // Should match only CourseLaunched and CourseUpdated
 			})
@@ -378,13 +378,13 @@ var _ = Describe("EventStore", func() {
 					ReducerFn:    func(state any, e dcb.Event) any { return state.(int) + 1 },
 				}
 
-				_, state, err := store.ReadState(ctx, query, reducer)
+				_, state, err := store.ProjectState(ctx, query, reducer)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(state).To(Equal(4)) // Should match all events
 			})
 		})
 	})
-	Describe("ReadStateUpTo scenarios", func() {
+	Describe("ProjectStateUpTo scenarios", func() {
 		BeforeEach(func() {
 			// Set up sequential events for position testing
 			tags := dcb.NewTags("sequence_id", "seq1")
@@ -414,19 +414,19 @@ var _ = Describe("EventStore", func() {
 			}
 
 			// Read up to position 3 (should include events at positions 1, 2, and 3)
-			pos, state, err := store.ReadStateUpTo(ctx, query, countReducer, 3)
+			pos, state, err := store.ProjectStateUpTo(ctx, query, countReducer, 3)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(pos).To(Equal(int64(3)))
 			Expect(state).To(Equal(3))
 
 			// Read all events (maxPosition = -1)
-			pos, state, err = store.ReadStateUpTo(ctx, query, countReducer, -1)
+			pos, state, err = store.ProjectStateUpTo(ctx, query, countReducer, -1)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(pos).To(Equal(int64(5)))
 			Expect(state).To(Equal(5))
 
 			// Read up to position 0 (should find no events)
-			pos, state, err = store.ReadStateUpTo(ctx, query, countReducer, 0)
+			pos, state, err = store.ProjectStateUpTo(ctx, query, countReducer, 0)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(pos).To(Equal(int64(0)))
 			Expect(state).To(Equal(0))
@@ -536,7 +536,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		Expect(pos).To(Equal(int64(1)))
 
 		// Verify the event was added
-		_, state, err := store.ReadState(ctx, query, reducer)
+		_, state, err := store.ProjectState(ctx, query, reducer)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(state).To(Equal("EntityCreated"))
 	})
@@ -571,7 +571,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 			InitialState: 0,
 			ReducerFn:    func(state any, e dcb.Event) any { return state.(int) + 1 },
 		}
-		_, count, err := store.ReadState(ctx, query, countReducer)
+		_, count, err := store.ProjectState(ctx, query, countReducer)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(count).To(Equal(1))
 	})
@@ -604,7 +604,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		Expect(pos1).To(Equal(int64(1)))
 
 		// Verify state before the conditional append
-		_, state1, err := store.ReadState(ctx, query, reducer)
+		_, state1, err := store.ProjectState(ctx, query, reducer)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(state1.(*OrderState).IsProcessed).To(BeFalse())
 
@@ -619,7 +619,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		Expect(pos).To(Equal(int64(2)))
 
 		// Now the state should show the order is processed
-		_, state2, err := store.ReadState(ctx, query, reducer)
+		_, state2, err := store.ProjectState(ctx, query, reducer)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(state2.(*OrderState).IsProcessed).To(BeTrue())
 
@@ -629,7 +629,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 			InitialState: 0,
 			ReducerFn:    func(state any, e dcb.Event) any { return state.(int) + 1 },
 		}
-		_, count, err := store.ReadState(ctx, query, countReducer)
+		_, count, err := store.ProjectState(ctx, query, countReducer)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(count).To(Equal(2))
 	})
