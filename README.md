@@ -39,6 +39,16 @@ Saga to coordinate subscription | Single event with both tags
 Two separate events for the same fact | One event affecting multiple concepts
 Aggregate boundaries limit flexibility | Natural consistency through queries
 
+## Running Tests
+
+To run all tests in the project, use:
+
+```bash
+go test -v ./...
+```
+
+This will run all tests in all packages, including integration tests that require a PostgreSQL database (which is automatically started using testcontainers).
+
 ## State Reduction with PostgreSQL Streaming
 
 go-crablet implements efficient state reduction by leveraging PostgreSQL's streaming capabilities. Instead of loading all events into memory, events are streamed directly from the database and processed one at a time. This approach provides several benefits:
