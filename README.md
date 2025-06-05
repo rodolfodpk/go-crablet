@@ -61,7 +61,7 @@ type OrderState struct {
 
 projector := dcb.StateProjector{
 	InitialState: &OrderState{IsProcessed: false},
-	ProjectFn: func(state any, e dcb.Event) any {
+	TransitionFn: func(state any, e dcb.Event) any {
 		orderState := state.(*OrderState)
 		if e.Type == "OrderProcessed" {
 			orderState.IsProcessed = true
@@ -198,7 +198,7 @@ func (es *eventStore) ProjectState(ctx context.Context, query Query, stateProjec
         event := convertRowToEvent(row)
         
         // Apply projector
-        state = stateProjector.ProjectFn(state, event)
+        state = stateProjector.TransitionFn(state, event)
         position = row.Position
     }
 
@@ -265,7 +265,7 @@ The `ProjectState` method provides flexible querying capabilities. Here are exam
        InitialState: &CourseState{
            StudentIDs: make(map[string]bool),
        },
-       ProjectFn: func(state any, event dcb.Event) any {
+       TransitionFn: func(state any, event dcb.Event) any {
            course := state.(*CourseState)
            // ... projector implementation ...
            return course
@@ -277,7 +277,7 @@ The `ProjectState` method provides flexible querying capabilities. Here are exam
        InitialState: &StudentState{
            CourseIDs: make(map[string]bool),
        },
-       ProjectFn: func(state any, event dcb.Event) any {
+       TransitionFn: func(state any, event dcb.Event) any {
            student := state.(*StudentState)
            // ... projector implementation ...
            return student
@@ -322,7 +322,7 @@ enrollmentProjector := dcb.StateProjector{
         CourseEnrollments: make(map[string]map[string]bool),
         StudentEnrollments: make(map[string]map[string]bool),
     },
-    ProjectFn: func(state any, event dcb.Event) any {
+    TransitionFn: func(state any, event dcb.Event) any {
         view := state.(*EnrollmentView)
         
         switch event.Type {
