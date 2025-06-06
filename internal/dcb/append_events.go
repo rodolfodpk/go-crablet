@@ -28,8 +28,6 @@ func (es *eventStore) AppendEventsIfStateIsNil(ctx context.Context, events []Inp
 
 // validateQueryTags validates the query tags and returns a ValidationError if invalid
 func validateQueryTags(query Query) error {
-	// Empty Tags or EventTypes are allowed
-
 	// Validate individual tags if present
 	for i, t := range query.Tags {
 		if t.Key == "" {
@@ -54,7 +52,7 @@ func validateQueryTags(query Query) error {
 		}
 	}
 
-	// Validate event types (optional)
+	// Validate event types if present
 	for i, eventType := range query.EventTypes {
 		if eventType == "" {
 			return &ValidationError{
@@ -62,8 +60,8 @@ func validateQueryTags(query Query) error {
 					Op:  "validateQueryTags",
 					Err: fmt.Errorf("empty event type at index %d", i),
 				},
-				Field: "eventType",
-				Value: fmt.Sprintf("type[%d]", i),
+				Field: "eventTypes",
+				Value: fmt.Sprintf("index[%d]", i),
 			}
 		}
 	}

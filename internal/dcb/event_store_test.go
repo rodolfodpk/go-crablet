@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -13,11 +12,6 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/testcontainers/testcontainers-go"
 )
-
-func TestEventStore(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "EventStore Integration Suite")
-}
 
 var (
 	ctx       context.Context
