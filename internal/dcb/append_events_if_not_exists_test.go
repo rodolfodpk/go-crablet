@@ -1,9 +1,8 @@
-package dcb_test
+package dcb
 
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"go-crablet/internal/dcb"
 )
 
 var _ = Describe("AppendEventsIfNotExists", func() {
@@ -14,16 +13,16 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 	})
 
 	It("appends events when they don't exist", func() {
-		tags := dcb.NewTags("entity_id", "E100")
-		query := dcb.NewQuery(tags)
-		events := []dcb.InputEvent{
-			dcb.NewInputEvent("EntityCreated", tags, []byte(`{"name":"Test Entity"}`)),
+		tags := NewTags("entity_id", "E100")
+		query := NewQuery(tags)
+		events := []InputEvent{
+			NewInputEvent("EntityCreated", tags, []byte(`{"name":"Test Entity"}`)),
 		}
 
 		// Define a simple projector
-		projector := dcb.StateProjector{
+		projector := StateProjector{
 			InitialState: nil,
-			TransitionFn: func(state any, e dcb.Event) any {
+			TransitionFn: func(state any, e Event) any {
 				return e.Type
 			},
 		}
@@ -39,16 +38,16 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 	})
 
 	It("doesn't append events when they already exist", func() {
-		tags := dcb.NewTags("entity_id", "E101")
-		query := dcb.NewQuery(tags)
-		events := []dcb.InputEvent{
-			dcb.NewInputEvent("EntityCreated", tags, []byte(`{"name":"Test Entity"}`)),
+		tags := NewTags("entity_id", "E101")
+		query := NewQuery(tags)
+		events := []InputEvent{
+			NewInputEvent("EntityCreated", tags, []byte(`{"name":"Test Entity"}`)),
 		}
 
 		// Define a projector that simply returns a non-nil value if any event exists
-		projector := dcb.StateProjector{
+		projector := StateProjector{
 			InitialState: nil,
-			TransitionFn: func(state any, e dcb.Event) any {
+			TransitionFn: func(state any, e Event) any {
 				return true
 			},
 		}
@@ -64,9 +63,9 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		Expect(pos2).To(Equal(pos1))
 
 		// Verify only one event exists
-		countprojector := dcb.StateProjector{
+		countprojector := StateProjector{
 			InitialState: 0,
-			TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
+			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
 		_, count, err := store.ProjectState(ctx, query, countprojector)
 		Expect(err).NotTo(HaveOccurred())
@@ -74,17 +73,17 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 	})
 
 	It("handles complex state checking before append", func() {
-		tags := dcb.NewTags("order_id", "O123")
-		query := dcb.NewQuery(tags)
+		tags := NewTags("order_id", "O123")
+		query := NewQuery(tags)
 
 		// Define a projector that checks for specific event types
 		type OrderState struct {
 			IsProcessed bool
 		}
 
-		projector := dcb.StateProjector{
+		projector := StateProjector{
 			InitialState: &OrderState{IsProcessed: false},
-			TransitionFn: func(state any, e dcb.Event) any {
+			TransitionFn: func(state any, e Event) any {
 				orderState := state.(*OrderState)
 				if e.Type == "OrderProcessed" {
 					orderState.IsProcessed = true
@@ -94,8 +93,8 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		}
 
 		// First add an order created event
-		pos1, err := store.AppendEvents(ctx, []dcb.InputEvent{
-			dcb.NewInputEvent("OrderCreated", tags, []byte(`{"amount":100}`)),
+		pos1, err := store.AppendEvents(ctx, []InputEvent{
+			NewInputEvent("OrderCreated", tags, []byte(`{"amount":100}`)),
 		}, query, 0)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(pos1).To(Equal(int64(1)))
@@ -106,8 +105,8 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		Expect(state1.(*OrderState).IsProcessed).To(BeFalse())
 
 		// Try to append "OrderProcessed" conditionally
-		processingEvents := []dcb.InputEvent{
-			dcb.NewInputEvent("OrderProcessed", tags, []byte(`{"status":"complete"}`)),
+		processingEvents := []InputEvent{
+			NewInputEvent("OrderProcessed", tags, []byte(`{"status":"complete"}`)),
 		}
 
 		// This should append since the order isn't processed yet
@@ -122,22 +121,22 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 
 		// Verify only 2 events total
 		dumpEvents(pool)
-		countprojector := dcb.StateProjector{
+		countprojector := StateProjector{
 			InitialState: 0,
-			TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
+			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
 		_, count, err := store.ProjectState(ctx, query, countprojector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(count).To(Equal(2))
 	})
 	It("handles empty events list", func() {
-		tags := dcb.NewTags("entity_id", "E200")
-		query := dcb.NewQuery(tags)
-		events := []dcb.InputEvent{}
+		tags := NewTags("entity_id", "E200")
+		query := NewQuery(tags)
+		events := []InputEvent{}
 
-		projector := dcb.StateProjector{
+		projector := StateProjector{
 			InitialState: nil,
-			TransitionFn: func(state any, e dcb.Event) any {
+			TransitionFn: func(state any, e Event) any {
 				return e.Type
 			},
 		}
@@ -148,10 +147,10 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 	})
 
 	It("handles position mismatch", func() {
-		tags := dcb.NewTags("entity_id", "E300")
-		query := dcb.NewQuery(tags)
-		events := []dcb.InputEvent{
-			dcb.NewInputEvent("EntityCreated", tags, []byte(`{"name":"Position Test Entity"}`)),
+		tags := NewTags("entity_id", "E300")
+		query := NewQuery(tags)
+		events := []InputEvent{
+			NewInputEvent("EntityCreated", tags, []byte(`{"name":"Position Test Entity"}`)),
 		}
 
 		// First, add an event to create a position
@@ -160,8 +159,8 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		Expect(pos1).To(Equal(int64(1)))
 
 		// Now append with a wrong expected position
-		newEvents := []dcb.InputEvent{
-			dcb.NewInputEvent("EntityUpdated", tags, []byte(`{"name":"Updated Entity"}`)),
+		newEvents := []InputEvent{
+			NewInputEvent("EntityUpdated", tags, []byte(`{"name":"Updated Entity"}`)),
 		}
 
 		// Create a function to check the error/behavior for your specific implementation
@@ -176,25 +175,25 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 	})
 
 	It("respects projector rejection", func() {
-		tags := dcb.NewTags("entity_id", "E400")
-		query := dcb.NewQuery(tags)
+		tags := NewTags("entity_id", "E400")
+		query := NewQuery(tags)
 
 		// First append an event to create state
-		firstEvents := []dcb.InputEvent{
-			dcb.NewInputEvent("InitialEvent", tags, []byte(`{"status":"initial"}`)),
+		firstEvents := []InputEvent{
+			NewInputEvent("InitialEvent", tags, []byte(`{"status":"initial"}`)),
 		}
 		pos1, err := store.AppendEvents(ctx, firstEvents, query, 0)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Events we'll try to append conditionally
-		newEvents := []dcb.InputEvent{
-			dcb.NewInputEvent("FollowUpEvent", tags, []byte(`{"status":"followup"}`)),
+		newEvents := []InputEvent{
+			NewInputEvent("FollowUpEvent", tags, []byte(`{"status":"followup"}`)),
 		}
 
 		// Define a projector that provides non-nil state if InitialEvent has been seen
-		projector := dcb.StateProjector{
+		projector := StateProjector{
 			InitialState: nil,
-			TransitionFn: func(state any, e dcb.Event) any {
+			TransitionFn: func(state any, e Event) any {
 				// Return the event type as state
 				// This creates a non-nil state after seeing InitialEvent
 				return e.Type
@@ -206,9 +205,9 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		Expect(pos2).To(Equal(pos1)) // Position shouldn't change as append was rejected
 
 		// Verify only the initial event exists
-		countprojector := dcb.StateProjector{
+		countprojector := StateProjector{
 			InitialState: 0,
-			TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
+			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
 		_, count, err := store.ProjectState(ctx, query, countprojector)
 		Expect(err).NotTo(HaveOccurred())
@@ -216,16 +215,16 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 	})
 
 	It("ensures idempotency with multiple calls", func() {
-		tags := dcb.NewTags("entity_id", "E500")
-		query := dcb.NewQuery(tags)
-		events := []dcb.InputEvent{
-			dcb.NewInputEvent("IdempotentEvent", tags, []byte(`{"data":"test"}`)),
+		tags := NewTags("entity_id", "E500")
+		query := NewQuery(tags)
+		events := []InputEvent{
+			NewInputEvent("IdempotentEvent", tags, []byte(`{"data":"test"}`)),
 		}
 
 		// Use a simpler projector to test idempotency
-		projector := dcb.StateProjector{
+		projector := StateProjector{
 			InitialState: nil,
-			TransitionFn: func(state any, e dcb.Event) any {
+			TransitionFn: func(state any, e Event) any {
 				// This only returns non-nil state if we see IdempotentEvent
 				if e.Type == "IdempotentEvent" {
 					return true
@@ -250,9 +249,9 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		Expect(pos3).To(Equal(pos1)) // Position should still remain the same
 
 		// Verify only one event was added across all calls
-		countprojector := dcb.StateProjector{
+		countprojector := StateProjector{
 			InitialState: 0,
-			TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
+			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
 		_, count, err := store.ProjectState(ctx, query, countprojector)
 		Expect(err).NotTo(HaveOccurred())

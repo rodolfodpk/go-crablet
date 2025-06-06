@@ -1,9 +1,8 @@
-package dcb_test
+package dcb
 
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"go-crablet/internal/dcb"
 )
 
 var _ = Describe("ProjectState", func() {
@@ -14,18 +13,18 @@ var _ = Describe("ProjectState", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		// Set up some test events for all ProjectState tests
-		courseTags := dcb.NewTags("course_id", "course101")
-		userTags := dcb.NewTags("user_id", "user101")
-		mixedTags := dcb.NewTags("course_id", "course101", "user_id", "user101")
+		courseTags := NewTags("course_id", "course101")
+		userTags := NewTags("user_id", "user101")
+		mixedTags := NewTags("course_id", "course101", "user_id", "user101")
 
-		query := dcb.NewQuery(courseTags)
+		query := NewQuery(courseTags)
 
 		// Insert different event types with different tag combinations
-		events := []dcb.InputEvent{
-			dcb.NewInputEvent("CourseLaunched", courseTags, []byte(`{"title":"Test Course"}`)),
-			dcb.NewInputEvent("UserRegistered", userTags, []byte(`{"name":"Test User"}`)),
-			dcb.NewInputEvent("Enrollment", mixedTags, []byte(`{"status":"active"}`)),
-			dcb.NewInputEvent("CourseUpdated", courseTags, []byte(`{"title":"Updated Course"}`)),
+		events := []InputEvent{
+			NewInputEvent("CourseLaunched", courseTags, []byte(`{"title":"Test Course"}`)),
+			NewInputEvent("UserRegistered", userTags, []byte(`{"name":"Test User"}`)),
+			NewInputEvent("Enrollment", mixedTags, []byte(`{"status":"active"}`)),
+			NewInputEvent("CourseUpdated", courseTags, []byte(`{"title":"Updated Course"}`)),
 		}
 
 		pos, err := store.AppendEvents(ctx, events, query, 0)
@@ -34,11 +33,11 @@ var _ = Describe("ProjectState", func() {
 	})
 
 	It("reads state with empty tags in query", func() {
-		emptyTagsQuery := dcb.NewQuery(dcb.NewTags())
+		emptyTagsQuery := NewQuery(NewTags())
 
-		projector := dcb.StateProjector{
+		projector := StateProjector{
 			InitialState: 0,
-			TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
+			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
 
 		_, state, err := store.ProjectState(ctx, emptyTagsQuery, projector)
@@ -48,12 +47,12 @@ var _ = Describe("ProjectState", func() {
 	})
 
 	It("reads state with specific tags but empty eventTypes", func() {
-		courseQuery := dcb.NewQuery(dcb.NewTags("course_id", "course101"))
+		courseQuery := NewQuery(NewTags("course_id", "course101"))
 		// Not setting any event types
 
-		projector := dcb.StateProjector{
+		projector := StateProjector{
 			InitialState: 0,
-			TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
+			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
 
 		_, state, err := store.ProjectState(ctx, courseQuery, projector)
@@ -62,12 +61,12 @@ var _ = Describe("ProjectState", func() {
 	})
 
 	It("reads state with empty tags but specific eventTypes", func() {
-		query := dcb.NewQuery(dcb.NewTags())
+		query := NewQuery(NewTags())
 		query.EventTypes = []string{"CourseLaunched", "CourseUpdated"}
 
-		projector := dcb.StateProjector{
+		projector := StateProjector{
 			InitialState: 0,
-			TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
+			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
 
 		_, state, err := store.ProjectState(ctx, query, projector)
@@ -76,12 +75,12 @@ var _ = Describe("ProjectState", func() {
 	})
 
 	It("reads state with both empty tags and empty eventTypes", func() {
-		query := dcb.NewQuery(dcb.NewTags())
+		query := NewQuery(NewTags())
 		// Event types remain empty
 
-		projector := dcb.StateProjector{
+		projector := StateProjector{
 			InitialState: 0,
-			TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
+			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
 
 		_, state, err := store.ProjectState(ctx, query, projector)
@@ -89,12 +88,12 @@ var _ = Describe("ProjectState", func() {
 		Expect(state).To(Equal(4)) // Should match all events
 	})
 	It("reads state with both specific tags and specific eventTypes", func() {
-		query := dcb.NewQuery(dcb.NewTags("course_id", "course101"))
+		query := NewQuery(NewTags("course_id", "course101"))
 		query.EventTypes = []string{"CourseLaunched"}
 
-		projector := dcb.StateProjector{
+		projector := StateProjector{
 			InitialState: 0,
-			TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
+			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
 
 		_, state, err := store.ProjectState(ctx, query, projector)
@@ -103,11 +102,11 @@ var _ = Describe("ProjectState", func() {
 	})
 
 	It("reads state with tags that don't match any events", func() {
-		query := dcb.NewQuery(dcb.NewTags("nonexistent_tag", "value"))
+		query := NewQuery(NewTags("nonexistent_tag", "value"))
 
-		projector := dcb.StateProjector{
+		projector := StateProjector{
 			InitialState: 0,
-			TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
+			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
 
 		_, state, err := store.ProjectState(ctx, query, projector)
@@ -116,12 +115,12 @@ var _ = Describe("ProjectState", func() {
 	})
 
 	It("reads state with event types that don't match any events", func() {
-		query := dcb.NewQuery(dcb.NewTags()) // Empty tags to match all events
+		query := NewQuery(NewTags()) // Empty tags to match all events
 		query.EventTypes = []string{"NonExistentEventType"}
 
-		projector := dcb.StateProjector{
+		projector := StateProjector{
 			InitialState: 0,
-			TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
+			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
 
 		_, state, err := store.ProjectState(ctx, query, projector)
@@ -136,14 +135,14 @@ var _ = Describe("ProjectState", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Set up sequential events for position testing
-			tags := dcb.NewTags("sequence_id", "seq1")
-			query := dcb.NewQuery(tags)
-			events := []dcb.InputEvent{
-				dcb.NewInputEvent("Event1", tags, []byte(`{"order":1}`)),
-				dcb.NewInputEvent("Event2", tags, []byte(`{"order":2}`)),
-				dcb.NewInputEvent("Event3", tags, []byte(`{"order":3}`)),
-				dcb.NewInputEvent("Event4", tags, []byte(`{"order":4}`)),
-				dcb.NewInputEvent("Event5", tags, []byte(`{"order":5}`)),
+			tags := NewTags("sequence_id", "seq1")
+			query := NewQuery(tags)
+			events := []InputEvent{
+				NewInputEvent("Event1", tags, []byte(`{"order":1}`)),
+				NewInputEvent("Event2", tags, []byte(`{"order":2}`)),
+				NewInputEvent("Event3", tags, []byte(`{"order":3}`)),
+				NewInputEvent("Event4", tags, []byte(`{"order":4}`)),
+				NewInputEvent("Event5", tags, []byte(`{"order":5}`)),
 			}
 
 			pos, err := store.AppendEvents(ctx, events, query, 0)
@@ -152,12 +151,12 @@ var _ = Describe("ProjectState", func() {
 		})
 
 		It("reads state up to a specific position limit", func() {
-			query := dcb.NewQuery(dcb.NewTags("sequence_id", "seq1"))
+			query := NewQuery(NewTags("sequence_id", "seq1"))
 
 			// Define a projector that counts events
-			countprojector := dcb.StateProjector{
+			countprojector := StateProjector{
 				InitialState: 0,
-				TransitionFn: func(state any, e dcb.Event) any {
+				TransitionFn: func(state any, e Event) any {
 					return state.(int) + 1
 				},
 			}
@@ -181,11 +180,11 @@ var _ = Describe("ProjectState", func() {
 			Expect(state).To(Equal(0))
 		})
 		It("reads state with position beyond available maximum", func() {
-			query := dcb.NewQuery(dcb.NewTags("sequence_id", "seq1"))
+			query := NewQuery(NewTags("sequence_id", "seq1"))
 
-			countprojector := dcb.StateProjector{
+			countprojector := StateProjector{
 				InitialState: 0,
-				TransitionFn: func(state any, e dcb.Event) any {
+				TransitionFn: func(state any, e Event) any {
 					return state.(int) + 1
 				},
 			}
@@ -198,12 +197,12 @@ var _ = Describe("ProjectState", func() {
 		})
 
 		It("combines position limits with event type filtering", func() {
-			query := dcb.NewQuery(dcb.NewTags("sequence_id", "seq1"))
+			query := NewQuery(NewTags("sequence_id", "seq1"))
 			query.EventTypes = []string{"Event2", "Event4"}
 
-			countprojector := dcb.StateProjector{
+			countprojector := StateProjector{
 				InitialState: 0,
-				TransitionFn: func(state any, e dcb.Event) any {
+				TransitionFn: func(state any, e Event) any {
 					return state.(int) + 1
 				},
 			}
@@ -218,24 +217,24 @@ var _ = Describe("ProjectState", func() {
 		It("reads with tags that partially match events", func() {
 			// Setup additional events with mixed tags
 			// Setup additional events with mixed tags
-			partialTags1 := dcb.NewTags("sequence_id", "seq2", "extra", "value1")
-			partialTags2 := dcb.NewTags("sequence_id", "seq2", "extra", "value2")
+			partialTags1 := NewTags("sequence_id", "seq2", "extra", "value1")
+			partialTags2 := NewTags("sequence_id", "seq2", "extra", "value2")
 
-			extraEvents := []dcb.InputEvent{
-				dcb.NewInputEvent("ExtraEvent1", partialTags1, []byte(`{"extra":1}`)),
-				dcb.NewInputEvent("ExtraEvent2", partialTags2, []byte(`{"extra":2}`)),
+			extraEvents := []InputEvent{
+				NewInputEvent("ExtraEvent1", partialTags1, []byte(`{"extra":1}`)),
+				NewInputEvent("ExtraEvent2", partialTags2, []byte(`{"extra":2}`)),
 			}
 
-			query := dcb.NewQuery(dcb.NewTags("sequence_id", "seq2"))
+			query := NewQuery(NewTags("sequence_id", "seq2"))
 			_, err := store.AppendEvents(ctx, extraEvents, query, 0)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Query for specific partial match
-			queryPartial := dcb.NewQuery(dcb.NewTags("extra", "value1"))
+			queryPartial := NewQuery(NewTags("extra", "value1"))
 
-			countprojector := dcb.StateProjector{
+			countprojector := StateProjector{
 				InitialState: 0,
-				TransitionFn: func(state any, e dcb.Event) any {
+				TransitionFn: func(state any, e Event) any {
 					return state.(int) + 1
 				},
 			}
