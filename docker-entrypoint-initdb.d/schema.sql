@@ -6,14 +6,14 @@ CREATE TABLE events (
                         data JSONB NOT NULL,
                         position BIGSERIAL NOT NULL,
                         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                        causation_id UUID REFERENCES events(id) DEFERRABLE INITIALLY DEFERRED, -- Nullable, deferred
-                        correlation_id UUID REFERENCES events(id) DEFERRABLE INITIALLY DEFERRED -- Nullable, deferred
+                        causation_id UUID NOT NULL REFERENCES events(id) DEFERRABLE INITIALLY DEFERRED,
+                        correlation_id UUID NOT NULL REFERENCES events(id) DEFERRABLE INITIALLY DEFERRED
 );
 
 CREATE INDEX idx_events_position ON events (position);
 CREATE INDEX idx_events_tags ON events USING GIN (tags);
-CREATE INDEX idx_events_causation_id_not_null ON events (causation_id) WHERE causation_id IS NOT NULL;
-CREATE INDEX idx_events_correlation_id_not_null ON events (correlation_id) WHERE correlation_id IS NOT NULL;
+CREATE INDEX idx_events_causation_id ON events (causation_id);
+CREATE INDEX idx_events_correlation_id ON events (correlation_id);
 
 -- Update the append_events function to accept event types
 CREATE OR REPLACE FUNCTION append_events(
