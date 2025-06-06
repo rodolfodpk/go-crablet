@@ -16,6 +16,7 @@ type (
 		EventTypes []string // Events must match one of these types (empty means match any type)
 	}
 
+	// StateProjector defines how to project state from events.
 	StateProjector struct {
 		Query        Query // Query to filter events for this projector
 		InitialState any

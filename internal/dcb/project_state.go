@@ -36,12 +36,8 @@ func convertRowToEvent(row rowEvent) Event {
 	}
 	e.Data = row.Data
 	e.Position = row.Position
-	if row.CausationID.Valid {
-		e.CausationID = row.CausationID.String()
-	}
-	if row.CorrelationID.Valid {
-		e.CorrelationID = row.CorrelationID.String()
-	}
+	e.CausationID = row.CausationID.String()
+	e.CorrelationID = row.CorrelationID.String()
 	return e
 }
 
