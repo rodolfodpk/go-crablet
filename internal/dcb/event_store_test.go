@@ -2,14 +2,15 @@ package dcb
 
 import (
 	"context"
-	"github.com/jackc/pgx/v5/pgxpool"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-	"github.com/testcontainers/testcontainers-go"
 	"io"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	"github.com/testcontainers/testcontainers-go"
 )
 
 func TestEventStore(t *testing.T) {
@@ -46,9 +47,7 @@ func setupTeardown() {
 			}
 		}
 
-		if store != nil {
-			store.Close()
-		}
+		// Only close the pool, not the store
 		if pool != nil {
 			pool.Close()
 		}
