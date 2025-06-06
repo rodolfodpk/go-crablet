@@ -1,7 +1,6 @@
 package dcb
 
 import (
-	"errors"
 	"fmt"
 )
 
@@ -45,22 +44,4 @@ func (e EventStoreError) Error() string {
 // Unwrap returns the underlying error
 func (e EventStoreError) Unwrap() error {
 	return e.Err
-}
-
-// IsValidationError checks if an error is a ValidationError
-func IsValidationError(err error) bool {
-	var ve *ValidationError
-	return errors.As(err, &ve)
-}
-
-// IsConcurrencyError checks if an error is a ConcurrencyError
-func IsConcurrencyError(err error) bool {
-	var ce *ConcurrencyError
-	return errors.As(err, &ce)
-}
-
-// IsResourceError checks if an error is a ResourceError
-func IsResourceError(err error) bool {
-	var re *ResourceError
-	return errors.As(err, &re)
 }
