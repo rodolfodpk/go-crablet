@@ -8,6 +8,26 @@
 
 A Go implementation of the Dynamic Consistency Boundary (DCB) event store pattern, providing a simpler and more flexible approach to consistency in event-driven systems.
 
+## Documentation
+
+The documentation has been split into several files for better organization:
+
+- [Installation and Development Tools](docs/installation.md) - How to install and set up the development environment
+- [Overview and Key Concepts](docs/overview.md) - Introduction to DCB and its key concepts
+- [State Projection](docs/state-projection.md) - Details about state projection and PostgreSQL streaming
+- [Examples](docs/examples.md) - Usage examples and patterns
+
+## Quick Start
+
+```bash
+# Install the package
+go get github.com/rodolfodpk/go-crablet
+
+# See [Installation](docs/installation.md) for development setup
+```
+
+For more detailed information, please refer to the documentation sections above.
+
 ## Installation
 
 ```bash
