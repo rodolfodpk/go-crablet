@@ -43,7 +43,7 @@ type (
 	// EventStore provides methods to append and read events in a PostgreSQL database.
 	EventStore interface {
 		AppendEvents(ctx context.Context, events []InputEvent, query Query, latestKnownPosition int64) (int64, error)
-		AppendEventsIfNotExists(ctx context.Context, events []InputEvent, query Query, latestKnownPosition int64, stateProjector StateProjector) (int64, error)
+		AppendEventsIfStateIsNil(ctx context.Context, events []InputEvent, query Query, latestKnownPosition int64, stateProjector StateProjector) (int64, error)
 		ProjectState(ctx context.Context, stateProjector StateProjector) (int64, any, error)
 		ProjectStateUpTo(ctx context.Context, stateProjector StateProjector, maxPosition int64) (int64, any, error)
 	}
