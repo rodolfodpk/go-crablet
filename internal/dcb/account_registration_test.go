@@ -45,12 +45,19 @@ type AccountAPI struct {
 }
 
 // NewAccountAPI creates a new account API instance
-func NewAccountAPI(eventStore EventStore) *AccountAPI {
-	return &AccountAPI{eventStore: eventStore}
+func NewAccountAPI(eventStore EventStore) (*AccountAPI, error) {
+	if eventStore == nil {
+		return nil, fmt.Errorf("event store cannot be nil")
+	}
+	return &AccountAPI{eventStore: eventStore}, nil
 }
 
 // RegisterAccount attempts to register a new account
 func (a *AccountAPI) RegisterAccount(ctx context.Context, username string) error {
+	if a.eventStore == nil {
+		return fmt.Errorf("account API not properly initialized: event store is nil")
+	}
+
 	projector := IsUsernameClaimedProjection(username)
 	_, state, err := a.eventStore.ProjectState(ctx, projector)
 	if err != nil {
@@ -83,7 +90,11 @@ var _ = Describe("Account Registration", func() {
 		err := truncateEventsTable(ctx, pool)
 		Expect(err).NotTo(HaveOccurred())
 
-		api = NewAccountAPI(store)
+		var apiErr error
+		api, apiErr = NewAccountAPI(store)
+		Expect(apiErr).NotTo(HaveOccurred(), "Failed to create AccountAPI")
+		Expect(api).NotTo(BeNil(), "AccountAPI should not be nil")
+
 		username = "testuser"
 		query = NewQuery(NewTags("username", username))
 		projector = IsUsernameClaimedProjection(username)
