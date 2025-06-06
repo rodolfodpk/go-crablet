@@ -60,12 +60,15 @@ go-crablet is a Go library that implements the [Dynamic Consistency Boundary (DC
 
 Unlike traditional event sourcing approaches that use strict constraints to maintain immediate consistency, DCB allows for selective enforcement of strong consistency where needed, particularly for operations that span multiple entities. This ensures critical business processes and cross-entity invariants remain reliable while avoiding the constraints of traditional transactional models.
 
+The implementation leverages PostgreSQL's robust concurrency control mechanisms (MVCC and optimistic locking) to handle concurrent operations efficiently, while maintaining ACID guarantees at the database level.
+
 ## Key Concepts
 
 - **Single Event Stream**: While traditional event sourcing uses one stream per aggregate (e.g., one stream for Course aggregate, another for Student aggregate), DCB uses a single event stream per bounded context. You can still use aggregates if they make sense for your domain, but they're not required to enforce consistency
 - **Tag-based Events**: Events are tagged with relevant identifiers, allowing one event to affect multiple concepts without artificial boundaries
 - **Dynamic Consistency**: Consistency is enforced by checking if any events matching a query appeared after a known position. This ensures that events affecting the same concept are processed in order
 - **Flexible Boundaries**: No need for predefined aggregates or rigid transactional boundaries - consistency boundaries emerge naturally from your queries, though you can still use aggregates where they provide value
+- **Concurrent Operations**: The implementation allows true concurrent operations by leveraging PostgreSQL's concurrency control mechanisms, rather than using application-level locks
 
 The key difference from traditional event sourcing:
 
@@ -75,6 +78,7 @@ One stream per aggregate (required) | One stream per bounded context (aggregates
 Aggregates enforce consistency | Query-based position checks
 Rigid aggregate boundaries | Dynamic query-based boundaries
 Predefined consistency rules | Emergent consistency through queries
+Application-level locking | Database-level concurrency control
 
 For example, in a course subscription system:
 
@@ -97,19 +101,19 @@ Here's how it works under the hood:
 
 ```go
 // The ProjectState method streams events from PostgreSQL
-func (es *eventStore) ProjectState(ctx context.Context, query Query, stateProjector StateProjector) (int64, any, error) {
+func (es *eventStore) ProjectState(ctx context.Context, projector StateProjector) (int64, any, error) {
     // Handle empty or nil tags
     var queryTags []byte
-    if len(query.Tags) > 0 {
+    if len(projector.Tags) > 0 {
         // Build JSONB query condition from tags
         tagMap := make(map[string]string)
-        for _, t := range query.Tags {
+        for _, t := range projector.Tags {
             tagMap[t.Key] = t.Value
         }
         var err error
         queryTags, err = json.Marshal(tagMap)
         if err != nil {
-            return 0, stateProjector.InitialState, fmt.Errorf("failed to marshal query tags: %w", err)
+            return 0, projector.InitialState, fmt.Errorf("failed to marshal query tags: %w", err)
         }
     }
 
@@ -127,38 +131,38 @@ func (es *eventStore) ProjectState(ctx context.Context, query Query, stateProjec
     }
 
     // Add event type filtering if specified
-    if len(query.EventTypes) > 0 {
+    if len(projector.EventTypes) > 0 {
         if len(args) > 0 {
             sqlQuery += fmt.Sprintf(" AND type = ANY($%d)", len(args)+1)
         } else {
             sqlQuery += fmt.Sprintf(" WHERE type = ANY($%d)", len(args)+1)
         }
-        args = append(args, query.EventTypes)
+        args = append(args, projector.EventTypes)
     }
 
     // Stream rows from PostgreSQL
     rows, err := es.pool.Query(ctx, sqlQuery, args...)
     if err != nil {
-        return 0, stateProjector.InitialState, fmt.Errorf("query failed: %w", err)
+        return 0, projector.InitialState, fmt.Errorf("query failed: %w", err)
     }
     defer rows.Close()
 
     // Initialize state
-    state := stateProjector.InitialState
+    state := projector.InitialState
     position := int64(0)
 
     // Process events one at a time
     for rows.Next() {
         var row rowEvent
         if err := rows.Scan(&row.ID, &row.Type, &row.Tags, &row.Data, &row.Position, &row.CausationID, &row.CorrelationID); err != nil {
-            return 0, stateProjector.InitialState, fmt.Errorf("failed to scan row: %w", err)
+            return 0, projector.InitialState, fmt.Errorf("failed to scan row: %w", err)
         }
 
         // Convert row to Event
         event := convertRowToEvent(row)
         
         // Apply projector
-        state = stateProjector.TransitionFn(state, event)
+        state = projector.TransitionFn(state, event)
         position = row.Position
     }
 
@@ -168,203 +172,163 @@ func (es *eventStore) ProjectState(ctx context.Context, query Query, stateProjec
 
 ### Query Behavior
 
-The `ProjectState` method provides flexible querying capabilities. Here are examples of how to use it:
+The `ProjectState` method provides flexible state projection capabilities. Here are examples of how to use it:
 
-1. **Querying All Events**:
+1. **Projecting All Events**:
    ```go
-   // Create a query with no tags to match all events
-   query := dcb.NewQuery(nil)
+   // Create a projector that handles all events
+   projector := dcb.StateProjector{
+       Query: dcb.NewQuery(nil), // Empty query matches all events
+       InitialState: &MyState{},
+       TransitionFn: func(state any, event dcb.Event) any {
+           // Handle all events
+           return state
+       },
+   }
    
-   // Project state using the query
-   position, state, err := store.ProjectState(ctx, query, projector)
+   // Project state using the projector
+   position, state, err := store.ProjectState(ctx, projector)
    if err != nil {
        panic(err)
    }
    ```
 
-2. **Querying by Tags**:
+2. **Projecting Specific Event Types**:
    ```go
-   // Query events for a specific course
-   query := dcb.NewQuery(dcb.NewTags("course_id", "c1"))
+   // Create a projector that handles specific event types
+   projector := dcb.StateProjector{
+       Query: dcb.NewQuery(nil, "StudentSubscribedToCourse", "StudentUnsubscribedFromCourse"),
+       InitialState: &SubscriptionState{},
+       TransitionFn: func(state any, event dcb.Event) any {
+           // Only subscription events will be received due to Query.EventTypes
+           switch event.Type {
+           case "StudentSubscribedToCourse":
+               // Handle subscription event
+           case "StudentUnsubscribedFromCourse":
+               // Handle unsubscription event
+           }
+           return state
+       },
+   }
    
-   // Query events for a specific student and course
-   query := dcb.NewQuery(dcb.NewTags(
-       "student_id", "s1",
-       "course_id", "c1",
-   ))
-   
-   // Project state using the query
-   position, state, err := store.ProjectState(ctx, query, projector)
+   // Project state using the projector
+   position, state, err := store.ProjectState(ctx, projector)
    if err != nil {
        panic(err)
    }
    ```
 
-3. **Querying by Event Type**:
-   ```go
-   // Query all subscription events
-   query := dcb.NewQuery(nil, "StudentSubscribedToCourse")
-   
-   // Query subscription events for a specific course
-   query := dcb.NewQuery(
-       dcb.NewTags("course_id", "c1"),
-       "StudentSubscribedToCourse",
-   )
-   
-   // Project state using the query
-   position, state, err := store.ProjectState(ctx, query, projector)
-   if err != nil {
-       panic(err)
-   }
-   ```
-
-4. **Building Different Views**:
+3. **Building Different Views**:
    ```go
    // Course view projector
    courseProjector := dcb.StateProjector{
+       Query: dcb.NewQuery(dcb.NewTags("course_id", "c1")), // Filter by course_id at database level
        InitialState: &CourseState{
            StudentIDs: make(map[string]bool),
        },
        TransitionFn: func(state any, event dcb.Event) any {
            course := state.(*CourseState)
-           // ... projector implementation ...
+           // Only events for course c1 will be received due to Query.Tags
+           switch event.Type {
+           case "StudentSubscribedToCourse":
+               // Add student to course
+           case "StudentUnsubscribedFromCourse":
+               // Remove student from course
+           }
            return course
        },
    }
 
    // Student view projector
    studentProjector := dcb.StateProjector{
+       Query: dcb.NewQuery(dcb.NewTags("student_id", "s1")), // Filter by student_id at database level
        InitialState: &StudentState{
            CourseIDs: make(map[string]bool),
        },
        TransitionFn: func(state any, event dcb.Event) any {
            student := state.(*StudentState)
-           // ... projector implementation ...
+           // Only events for student s1 will be received due to Query.Tags
+           switch event.Type {
+           case "StudentSubscribedToCourse":
+               // Add course to student
+           case "StudentUnsubscribedFromCourse":
+               // Remove course from student
+           }
            return student
        },
    }
 
    // Project course state
-   courseQuery := dcb.NewQuery(dcb.NewTags("course_id", "c1"))
-   _, courseState, err := store.ProjectState(ctx, courseQuery, courseProjector)
+   _, courseState, err := store.ProjectState(ctx, courseProjector)
    if err != nil {
        panic(err)
    }
 
    // Project student state
-   studentQuery := dcb.NewQuery(dcb.NewTags("student_id", "s1"))
-   _, studentState, err := store.ProjectState(ctx, studentQuery, studentProjector)
+   _, studentState, err := store.ProjectState(ctx, studentProjector)
    if err != nil {
        panic(err)
    }
    ```
 
-The query behavior follows these rules:
-- Empty or nil tags will match all events in the stream
-- When tags are provided, only events containing all specified tags will be matched
-- Event types can be combined with tags to further filter the events
-- The same query used for projecting state is used for consistency checks when appending events
+The projector behavior follows these rules:
+- The projector's `Query` field filters events at the database level for better performance
+- The projector's `TransitionFn` receives only the events that match the query
+- The projector can combine tag and event type filtering in its query
+- The projector maintains its own state and can handle any event type it needs to
 
-### Example: Building a Course Enrollment View
+### Generic Example: Filtering by Tag and Event Type
 
-Here's how to efficiently build a course enrollment view using streaming state projection:
+Suppose you want to project state only for events related to a specific course and only for certain event types. Here's a minimal example:
 
 ```go
-// EnrollmentView represents the current state of course enrollments
-type EnrollmentView struct {
-    CourseEnrollments map[string]map[string]bool // course_id -> student_id -> enrolled
-    StudentEnrollments map[string]map[string]bool // student_id -> course_id -> enrolled
+// Define a simple state type to track course activity
+type CourseActivity struct {
+    Subscriptions int
+    Unsubscriptions int
 }
 
-// Create a projector for the enrollment view
-enrollmentProjector := dcb.StateProjector{
-    InitialState: &EnrollmentView{
-        CourseEnrollments: make(map[string]map[string]bool),
-        StudentEnrollments: make(map[string]map[string]bool),
-    },
+// Append some events (pseudo-code, assumes you have a store and context)
+courseTags := dcb.NewTags("course_id", "C123")
+otherCourseTags := dcb.NewTags("course_id", "C999")
+
+// These events would be appended to the store (see your event appending API)
+events := []dcb.InputEvent{
+    dcb.NewInputEvent("StudentSubscribedToCourse", courseTags, nil),    // Should be counted
+    dcb.NewInputEvent("StudentUnsubscribedFromCourse", courseTags, nil), // Should be counted
+    dcb.NewInputEvent("CourseCancelled", courseTags, nil),              // Should NOT be counted
+    dcb.NewInputEvent("StudentSubscribedToCourse", otherCourseTags, nil), // Should NOT be counted
+}
+// _ = store.AppendEvents(ctx, events, dcb.NewQuery(nil), 0) // (pseudo-code)
+
+// Create a projector that only counts subscription events for course_id=C123
+projector := dcb.StateProjector{
+    Query: dcb.NewQuery(
+        dcb.NewTags("course_id", "C123"), // Only events with this tag
+        "StudentSubscribedToCourse", "StudentUnsubscribedFromCourse", // Only these event types
+    ),
+    InitialState: &CourseActivity{},
     TransitionFn: func(state any, event dcb.Event) any {
-        view := state.(*EnrollmentView)
-        
+        c := state.(*CourseActivity)
         switch event.Type {
         case "StudentSubscribedToCourse":
-            var courseID, studentID string
-            // Extract IDs from tags
-            for _, tag := range event.Tags {
-                switch tag.Key {
-                case "course_id":
-                    courseID = tag.Value
-                case "student_id":
-                    studentID = tag.Value
-                }
-            }
-            
-            // Update course enrollments
-            if _, exists := view.CourseEnrollments[courseID]; !exists {
-                view.CourseEnrollments[courseID] = make(map[string]bool)
-            }
-            view.CourseEnrollments[courseID][studentID] = true
-            
-            // Update student enrollments
-            if _, exists := view.StudentEnrollments[studentID]; !exists {
-                view.StudentEnrollments[studentID] = make(map[string]bool)
-            }
-            view.StudentEnrollments[studentID][courseID] = true
-            
+            c.Subscriptions++
         case "StudentUnsubscribedFromCourse":
-            // Similar logic for unsubscription
-            // ...
+            c.Unsubscriptions++
         }
-        return view
+        return c
     },
 }
 
-// Project the enrollment view
-query := dcb.NewQuery(nil) // Match all subscription events
-_, view, err := store.ProjectState(ctx, query, enrollmentProjector)
+// Project the state
+_, state, err := store.ProjectState(ctx, projector)
 if err != nil {
     panic(err)
 }
-
-enrollmentView := view.(*EnrollmentView)
-fmt.Printf("Total courses with enrollments: %d\n", len(enrollmentView.CourseEnrollments))
-fmt.Printf("Total students with enrollments: %d\n", len(enrollmentView.StudentEnrollments))
+activity := state.(*CourseActivity)
+fmt.Printf("Subscriptions: %d, Unsubscriptions: %d\n", activity.Subscriptions, activity.Unsubscriptions)
+// Output: Subscriptions: 1, Unsubscriptions: 1
 ```
-
-### Performance Considerations
-
-1. **Indexing**: The implementation uses PostgreSQL's GIN indexes on the `tags` JSONB column for efficient querying
-2. **Streaming**: Events are processed one at a time, keeping memory usage constant regardless of event stream size
-3. **Query Optimization**: The same query used for consistency checks is used for state projection, ensuring consistency
-4. **Position-based Reading**: `ProjectStateUpTo` allows projecting state up to a specific position, which is useful for:
-   - Building state at a point in time
-   - Implementing event replay
-   - Debugging by examining state at specific positions
-   - Ensuring consistent reads up to a known position
-
-Here's an example of using `ProjectStateUpTo`:
-
-```go
-// Project state up to a specific position
-maxPosition := int64(1000) // Project only events up to position 1000
-_, state, err := store.ProjectStateUpTo(ctx, query, projector, maxPosition)
-if err != nil {
-    panic(err)
-}
-
-// This is useful for scenarios like:
-// 1. Replaying events up to a certain point
-// 2. Debugging state at a specific time
-// 3. Building state for a specific version
-// 4. Ensuring consistent reads up to a known position
-```
-
-The key difference between `ProjectState` and `ProjectStateUpTo` is that `ProjectStateUpTo` allows you to limit the event stream to a specific position. This is particularly useful for:
-- Debugging: You can examine state at any point in the event stream
-- Replay: You can replay events up to a specific position
-- Versioning: You can build state for a specific version of your data
-- Consistency: You can ensure you're working with a consistent view up to a known position
-
-Note: Events in the stream are always processed in order by their position. The position is automatically assigned when events are appended to the stream, ensuring a consistent and ordered sequence of events.
 
 ## Features
 
@@ -374,8 +338,9 @@ Note: Events in the stream are always processed in order by their position. The 
 - **Event Causation**: Track event causation and correlation for event chains
 - **State Projection**: Build current state by projecting over events using custom projectors
 - **Batch Operations**: Efficient batch operations for appending multiple events
-- **PostgreSQL Backend**: Uses PostgreSQL for reliable, ACID-compliant storage
+- **PostgreSQL Backend**: Uses PostgreSQL for reliable, ACID-compliant storage with native concurrency control
 - **Go Native**: Written in Go with idiomatic Go patterns and interfaces
+- **Resource Management**: Clean separation of concerns with database pool lifecycle managed by the caller
 
 ## Example Use Case
 
@@ -418,3 +383,44 @@ position, err := store.AppendEvents(ctx, []dcb.InputEvent{event}, query, lastKno
 
 - [Dynamic Consistency Boundary (DCB)](https://dcb.events/) - The official website about the DCB pattern
 - [Sara Pellegrini's Talk at DDD Europe 2024](https://dddeurope.com/2024/sara-pellegrini/) - Recent talk about DCB and its practical applications
+
+### Event Store Interface
+
+The event store provides a simple interface for managing events:
+
+```go
+type EventStore interface {
+    // AppendEvents adds multiple events to the stream and returns the latest position
+    AppendEvents(ctx context.Context, events []Event) (int64, error)
+    
+    // ProjectState projects the current state using the provided projector
+    ProjectState(ctx context.Context, projector StateProjector) (int64, any, error)
+}
+
+// StateProjector defines how to project state from events
+type StateProjector struct {
+    // Query defines criteria for selecting events at the database level
+    Query Query
+    
+    // InitialState is the starting state for the projection
+    InitialState any
+    
+    // TransitionFn defines how to update state for each event
+    TransitionFn func(state any, event Event) any
+}
+
+// Query defines criteria for selecting events
+type Query struct {
+    // Tags must match all specified tags (empty means match any tag)
+    Tags []Tag
+    
+    // EventTypes must match one of these types (empty means match any type)
+    EventTypes []string
+}
+
+// Tag is a key-value pair for querying events
+type Tag struct {
+    Key   string
+    Value string
+}
+```

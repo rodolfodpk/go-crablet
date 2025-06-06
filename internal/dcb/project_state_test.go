@@ -1,6 +1,8 @@
 package dcb
 
 import (
+	"encoding/json"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -267,5 +269,213 @@ var _ = Describe("ProjectState", func() {
 			Expect(pos).To(Equal(int64(3)))
 			Expect(state).To(Equal(3)) // Should count events up to position 3
 		})
+	})
+
+	It("handles complex projector with multiple event types and tags", func() {
+		// Set up test events with different combinations of tags and types
+		courseTags := NewTags("course_id", "course_test_1", "category", "programming")
+		userTags := NewTags("user_id", "user_test_1", "role", "student", "course_id", "course_test_1")
+		mixedTags := NewTags("course_id", "course_test_1", "user_id", "user_test_1", "category", "programming", "role", "student")
+
+		events := []InputEvent{
+			NewInputEvent("CourseCreated", courseTags, []byte(`{"title":"Go Programming"}`)),
+			NewInputEvent("UserRegistered", userTags, []byte(`{"name":"Alice"}`)),
+			NewInputEvent("EnrollmentStarted", mixedTags, []byte(`{"status":"pending"}`)),
+			NewInputEvent("EnrollmentCompleted", mixedTags, []byte(`{"status":"active"}`)),
+			NewInputEvent("CourseUpdated", courseTags, []byte(`{"title":"Advanced Go"}`)),
+			NewInputEvent("UserProfileUpdated", userTags, []byte(`{"level":"intermediate"}`)),
+		}
+
+		// Use a unique query to avoid conflicts with existing events
+		_, err := store.AppendEvents(ctx, events, NewQuery(NewTags("test_id", "test_1")), 0)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Define a complex state type to track course and user interactions
+		type CourseUserState struct {
+			CourseTitle      string
+			UserName         string
+			EnrollmentStatus string
+			UserLevel        string
+			EventCount       int
+		}
+
+		// Create a projector that tracks both course and user events
+		projector := StateProjector{
+			Query: NewQuery(
+				NewTags("course_id", "course_test_1"),
+				"CourseCreated", "CourseUpdated", "UserRegistered", "UserProfileUpdated",
+				"EnrollmentStarted", "EnrollmentCompleted",
+			),
+			InitialState: &CourseUserState{},
+			TransitionFn: func(state any, e Event) any {
+				s := state.(*CourseUserState)
+				s.EventCount++
+
+				var data map[string]string
+				_ = json.Unmarshal(e.Data, &data)
+
+				switch e.Type {
+				case "CourseCreated", "CourseUpdated":
+					s.CourseTitle = data["title"]
+				case "UserRegistered":
+					s.UserName = data["name"]
+				case "UserProfileUpdated":
+					s.UserLevel = data["level"]
+				case "EnrollmentStarted", "EnrollmentCompleted":
+					s.EnrollmentStatus = data["status"]
+				}
+				return s
+			},
+		}
+
+		_, state, err := store.ProjectState(ctx, projector)
+		Expect(err).NotTo(HaveOccurred())
+		finalState := state.(*CourseUserState)
+
+		// Verify the final state reflects all relevant events
+		Expect(finalState.CourseTitle).To(Equal("Advanced Go"))
+		Expect(finalState.UserName).To(Equal("Alice"))
+		Expect(finalState.UserLevel).To(Equal("intermediate"))
+		Expect(finalState.EnrollmentStatus).To(Equal("active"))
+		Expect(finalState.EventCount).To(Equal(6)) // All events matching course_id
+	})
+
+	It("handles projector with partial tag matches", func() {
+		// Set up events with overlapping but different tag combinations
+		baseTags := NewTags("tenant_id", "tenant_test_1")
+		userTags := NewTags("tenant_id", "tenant_test_1", "user_id", "user_test_1")
+		orderTags := NewTags("tenant_id", "tenant_test_1", "order_id", "order_test_1")
+		mixedTags := NewTags("tenant_id", "tenant_test_1", "user_id", "user_test_1", "order_id", "order_test_1")
+
+		events := []InputEvent{
+			NewInputEvent("TenantCreated", baseTags, []byte(`{"name":"Tenant 1"}`)),
+			NewInputEvent("UserRegistered", userTags, []byte(`{"name":"John"}`)),
+			NewInputEvent("OrderCreated", orderTags, []byte(`{"amount":100}`)),
+			NewInputEvent("OrderAssigned", mixedTags, []byte(`{"status":"assigned"}`)),
+		}
+
+		// Use a unique query to avoid conflicts with existing events
+		_, err := store.AppendEvents(ctx, events, NewQuery(NewTags("test_id", "test_2")), 0)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Create a projector that tracks all events for a tenant
+		type TenantState struct {
+			UserCount      int
+			OrderCount     int
+			AssignedOrders int
+			EventTypes     []string
+		}
+
+		projector := StateProjector{
+			Query:        NewQuery(NewTags("tenant_id", "tenant_test_1")),
+			InitialState: &TenantState{},
+			TransitionFn: func(state any, e Event) any {
+				s := state.(*TenantState)
+				s.EventTypes = append(s.EventTypes, e.Type)
+
+				// Check for user_id tag
+				for _, tag := range e.Tags {
+					if tag.Key == "user_id" {
+						s.UserCount++
+					}
+					if tag.Key == "order_id" {
+						s.OrderCount++
+					}
+				}
+
+				// Check for assigned orders
+				if e.Type == "OrderAssigned" {
+					s.AssignedOrders++
+				}
+
+				return s
+			},
+		}
+
+		_, state, err := store.ProjectState(ctx, projector)
+		Expect(err).NotTo(HaveOccurred())
+		finalState := state.(*TenantState)
+
+		// Verify the state reflects all tenant events
+		Expect(finalState.UserCount).To(Equal(2))  // UserRegistered and OrderAssigned
+		Expect(finalState.OrderCount).To(Equal(2)) // OrderCreated and OrderAssigned
+		Expect(finalState.AssignedOrders).To(Equal(1))
+		Expect(finalState.EventTypes).To(HaveLen(4))
+		Expect(finalState.EventTypes).To(ContainElements(
+			"TenantCreated",
+			"UserRegistered",
+			"OrderCreated",
+			"OrderAssigned",
+		))
+	})
+
+	It("handles projector with event type filtering and complex state transitions", func() {
+		// Set up a sequence of events representing a workflow
+		workflowTags := NewTags("workflow_id", "workflow_test_1", "status", "active")
+		events := []InputEvent{
+			NewInputEvent("WorkflowStarted", workflowTags, []byte(`{"step":1}`)),
+			NewInputEvent("TaskAssigned", workflowTags, []byte(`{"task":"A"}`)),
+			NewInputEvent("TaskCompleted", workflowTags, []byte(`{"task":"A"}`)),
+			NewInputEvent("TaskAssigned", workflowTags, []byte(`{"task":"B"}`)),
+			NewInputEvent("TaskFailed", workflowTags, []byte(`{"task":"B","error":"timeout"}`)),
+			NewInputEvent("TaskRetried", workflowTags, []byte(`{"task":"B"}`)),
+			NewInputEvent("TaskCompleted", workflowTags, []byte(`{"task":"B"}`)),
+			NewInputEvent("WorkflowCompleted", workflowTags, []byte(`{"step":2}`)),
+		}
+
+		// Use a unique query to avoid conflicts with existing events
+		_, err := store.AppendEvents(ctx, events, NewQuery(NewTags("test_id", "test_3")), 0)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Define a state type to track workflow progress
+		type WorkflowState struct {
+			CurrentStep    int
+			CompletedTasks []string
+			FailedTasks    map[string]string
+			RetryCount     map[string]int
+			IsComplete     bool
+		}
+
+		// Create a projector that only processes task-related events
+		projector := StateProjector{
+			Query: NewQuery(
+				NewTags("workflow_id", "workflow_test_1"),
+				"TaskAssigned", "TaskCompleted", "TaskFailed", "TaskRetried",
+			),
+			InitialState: &WorkflowState{
+				FailedTasks: make(map[string]string),
+				RetryCount:  make(map[string]int),
+			},
+			TransitionFn: func(state any, e Event) any {
+				s := state.(*WorkflowState)
+				var data map[string]string
+				_ = json.Unmarshal(e.Data, &data)
+				taskID := data["task"]
+
+				switch e.Type {
+				case "TaskAssigned":
+					// No state changes needed
+				case "TaskCompleted":
+					s.CompletedTasks = append(s.CompletedTasks, taskID)
+					delete(s.FailedTasks, taskID)
+				case "TaskFailed":
+					s.FailedTasks[taskID] = data["error"]
+				case "TaskRetried":
+					s.RetryCount[taskID]++
+					delete(s.FailedTasks, taskID)
+				}
+				return s
+			},
+		}
+
+		_, state, err := store.ProjectState(ctx, projector)
+		Expect(err).NotTo(HaveOccurred())
+		finalState := state.(*WorkflowState)
+
+		// Verify the final state reflects the workflow progress
+		Expect(finalState.CompletedTasks).To(HaveLen(2))
+		Expect(finalState.CompletedTasks).To(ContainElements("A", "B"))
+		Expect(finalState.FailedTasks).To(BeEmpty())
+		Expect(finalState.RetryCount).To(HaveKeyWithValue("B", 1))
 	})
 })
