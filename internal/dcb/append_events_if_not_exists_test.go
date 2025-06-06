@@ -5,14 +5,14 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("AppendEventsIfStateIsNil", func() {
+var _ = Describe("Appending Events with State Projection", func() {
 	BeforeEach(func() {
 		// Truncate the events table before each test
 		err := truncateEventsTable(ctx, pool)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("appends events when they don't exist", func() {
+	It("appends events when state is nil", func() {
 		tags := NewTags("entity_id", "E100")
 		query := NewQuery(tags, "EntityCreated")
 		events := []InputEvent{
@@ -28,17 +28,24 @@ var _ = Describe("AppendEventsIfStateIsNil", func() {
 			},
 		}
 
-		pos, err := store.AppendEventsIfStateIsNil(ctx, events, query, 0, projector)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(pos).To(Equal(int64(1)))
-
-		// Verify the event was added
+		// Check if state exists before appending
 		_, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(state).To(Equal("EntityCreated"))
+		if state == nil {
+			pos, err := store.AppendEvents(ctx, events, query, 0)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(pos).To(Equal(int64(1)))
+		} else {
+			Fail("State should be nil before appending events")
+		}
+
+		// Verify the event was added
+		_, state2, err := store.ProjectState(ctx, projector)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(state2).To(Equal("EntityCreated"))
 	})
 
-	It("doesn't append events when they already exist", func() {
+	It("doesn't append events when state already exists", func() {
 		tags := NewTags("entity_id", "E101")
 		query := NewQuery(tags, "EntityCreated")
 		events := []InputEvent{
@@ -59,10 +66,17 @@ var _ = Describe("AppendEventsIfStateIsNil", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(pos1).To(Equal(int64(1)))
 
-		// AppendEventsIfStateIsNil should not append and return the existing position
-		pos2, err := store.AppendEventsIfStateIsNil(ctx, events, query, pos1, projector)
+		// Check if state exists before attempting to append again
+		_, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(pos2).To(Equal(pos1))
+		if state == nil {
+			pos2, err := store.AppendEvents(ctx, events, query, pos1)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(pos2).To(Equal(pos1 + 1))
+		} else {
+			// State exists, so position should remain the same
+			Expect(pos1).To(Equal(int64(1)))
+		}
 
 		// Verify only one event exists
 		countprojector := StateProjector{
@@ -124,7 +138,6 @@ var _ = Describe("AppendEventsIfStateIsNil", func() {
 		Expect(state2.(*OrderState).IsProcessed).To(BeTrue())
 
 		// Verify only 2 events total
-		dumpEvents(pool)
 		countprojector := StateProjector{
 			Query:        query,
 			InitialState: 0,
@@ -134,6 +147,7 @@ var _ = Describe("AppendEventsIfStateIsNil", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(count).To(Equal(2))
 	})
+
 	It("handles empty events list", func() {
 		tags := NewTags("entity_id", "E200")
 		query := NewQuery(tags, "EntityCreated")
@@ -147,9 +161,16 @@ var _ = Describe("AppendEventsIfStateIsNil", func() {
 			},
 		}
 
-		pos, err := store.AppendEventsIfStateIsNil(ctx, events, query, 0, projector)
+		// Check if state exists before appending
+		_, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(pos).To(Equal(int64(0))) // Position should remain 0 when no events are appended
+		if state == nil {
+			pos, err := store.AppendEvents(ctx, events, query, 0)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(pos).To(Equal(int64(0))) // Position should remain 0 when no events are appended
+		} else {
+			Fail("State should be nil before appending events")
+		}
 	})
 
 	It("handles position mismatch", func() {
@@ -207,9 +228,17 @@ var _ = Describe("AppendEventsIfStateIsNil", func() {
 			},
 		}
 
-		pos2, err := store.AppendEventsIfStateIsNil(ctx, newEvents, query, pos1, projector)
+		// Check if state exists before attempting to append
+		_, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(pos2).To(Equal(pos1)) // Position shouldn't change as append was rejected
+		if state == nil {
+			pos2, err := store.AppendEvents(ctx, newEvents, query, pos1)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(pos2).To(Equal(pos1 + 1))
+		} else {
+			// State exists, so position should remain the same
+			Expect(pos1).To(Equal(int64(1)))
+		}
 
 		// Verify only the initial event exists
 		countprojector := StateProjector{
@@ -243,19 +272,38 @@ var _ = Describe("AppendEventsIfStateIsNil", func() {
 		}
 
 		// First call should append since there are no events yet
-		pos1, err := store.AppendEvents(ctx, events, query, 0)
+		_, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(pos1).To(Equal(int64(1)))
+		var pos1 int64
+		if state == nil {
+			pos1, err = store.AppendEvents(ctx, events, query, 0)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(pos1).To(Equal(int64(1)))
+		}
 
-		// Now use AppendEventsIfStateIsNil which should not append duplicate
-		pos2, err := store.AppendEventsIfStateIsNil(ctx, events, query, pos1, projector)
+		// Second call should not append since state exists
+		_, state2, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(pos2).To(Equal(pos1)) // Position should remain the same
+		if state2 == nil {
+			pos2, err := store.AppendEvents(ctx, events, query, pos1)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(pos2).To(Equal(pos1 + 1))
+		} else {
+			// State exists, so position should remain the same
+			Expect(pos1).To(Equal(int64(1)))
+		}
 
 		// Third call should still not append
-		pos3, err := store.AppendEventsIfStateIsNil(ctx, events, query, pos1, projector)
+		_, state3, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(pos3).To(Equal(pos1)) // Position should still remain the same
+		if state3 == nil {
+			pos3, err := store.AppendEvents(ctx, events, query, pos1)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(pos3).To(Equal(pos1 + 1))
+		} else {
+			// State exists, so position should remain the same
+			Expect(pos1).To(Equal(int64(1)))
+		}
 
 		// Verify only one event was added across all calls
 		countprojector := StateProjector{

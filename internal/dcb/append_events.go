@@ -10,22 +10,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-func (es *eventStore) AppendEventsIfStateIsNil(ctx context.Context, events []InputEvent, query Query, latestPosition int64, projector StateProjector) (int64, error) {
-	// Set the projector's query to match the provided query
-	projector.Query = query
-	position, state, err := es.ProjectStateUpTo(ctx, projector, latestPosition) // TODO should this fn be a boolean function?
-	if err != nil {
-		return 0, fmt.Errorf("failed to project state: %w", err)
-	}
-
-	if state != nil {
-		log.Printf("Events already exist for query: %v", query)
-		return position, nil
-	}
-
-	return es.AppendEvents(ctx, events, query, latestPosition)
-}
-
 // validateQueryTags validates the query tags and returns a ValidationError if invalid
 func validateQueryTags(query Query) error {
 	// Validate individual tags if present
