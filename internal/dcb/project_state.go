@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -44,13 +45,13 @@ func convertRowToEvent(row rowEvent) Event {
 	return e
 }
 
-// ProjectState computes a state by streaming events matching the query, up to maxPosition.
-func (es *eventStore) ProjectState(ctx context.Context, query Query, projector StateProjector) (int64, any, error) {
-	return es.ProjectStateUpTo(ctx, query, projector, -1)
+// ProjectState computes a state by streaming events matching the projector's query.
+func (es *eventStore) ProjectState(ctx context.Context, projector StateProjector) (int64, any, error) {
+	return es.ProjectStateUpTo(ctx, projector, -1)
 }
 
-// ProjectStateUpTo computes a state by streaming events matching the query, up to maxPosition.
-func (es *eventStore) ProjectStateUpTo(ctx context.Context, query Query, projector StateProjector, maxPosition int64) (int64, any, error) {
+// ProjectStateUpTo computes a state by streaming events matching the projector's query, up to maxPosition.
+func (es *eventStore) ProjectStateUpTo(ctx context.Context, projector StateProjector, maxPosition int64) (int64, any, error) {
 	if projector.TransitionFn == nil {
 		return 0, projector.InitialState, &ValidationError{
 			EventStoreError: EventStoreError{
@@ -62,9 +63,12 @@ func (es *eventStore) ProjectStateUpTo(ctx context.Context, query Query, project
 		}
 	}
 
+	// Use projector's query
+	effectiveQuery := projector.Query
+
 	// Build JSONB query condition with proper error handling
 	tagMap := make(map[string]string)
-	for _, t := range query.Tags {
+	for _, t := range effectiveQuery.Tags {
 		tagMap[t.Key] = t.Value
 	}
 	queryTags, err := json.Marshal(tagMap)
@@ -80,9 +84,9 @@ func (es *eventStore) ProjectStateUpTo(ctx context.Context, query Query, project
 	args := []interface{}{queryTags}
 
 	// Add event type filtering if specified
-	if len(query.EventTypes) > 0 {
+	if len(effectiveQuery.EventTypes) > 0 {
 		sqlQuery += fmt.Sprintf(" AND type = ANY($%d)", len(args)+1)
-		args = append(args, query.EventTypes)
+		args = append(args, effectiveQuery.EventTypes)
 	}
 
 	// Add position filtering if maxPosition is specified

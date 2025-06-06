@@ -3,14 +3,14 @@ package dcb
 import (
 	"encoding/json"
 	"fmt"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Event Store: Appending Events", func() {
 	BeforeEach(func() {
-		// Truncate the events table and reset sequences before each test
-		_, err := pool.Exec(ctx, "TRUNCATE TABLE events RESTART IDENTITY CASCADE")
+		err := truncateEventsTable(ctx, pool)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -24,12 +24,13 @@ var _ = Describe("Event Store: Appending Events", func() {
 		Expect(pos).To(Equal(int64(1)))
 
 		projector := StateProjector{
+			Query:        query,
 			InitialState: 0,
 			TransitionFn: func(state any, e Event) any {
 				return state.(int) + 1
 			},
 		}
-		readPos, state, err := store.ProjectState(ctx, query, projector)
+		readPos, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(readPos).To(Equal(int64(1)))
 		Expect(state).To(Equal(1))
@@ -48,13 +49,13 @@ var _ = Describe("Event Store: Appending Events", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(pos).To(Equal(int64(1)))
 		// Query by different tag combinations
-		queryByUser := NewQuery(NewTags("user_id", "user123"))
 		projector := StateProjector{
+			Query:        NewQuery(NewTags("user_id", "user123")),
 			InitialState: 0,
 			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
 
-		_, state, err := store.ProjectState(ctx, queryByUser, projector)
+		_, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(state).To(Equal(1))
 
@@ -75,10 +76,11 @@ var _ = Describe("Event Store: Appending Events", func() {
 		Expect(pos).To(Equal(int64(3)))
 
 		projector := StateProjector{
+			Query:        query,
 			InitialState: 0,
 			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
-		_, state, err := store.ProjectState(ctx, query, projector)
+		_, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(state).To(Equal(3))
 
@@ -131,6 +133,7 @@ var _ = Describe("Event Store: Appending Events", func() {
 		}
 
 		relationshipprojector := StateProjector{
+			Query:        query,
 			InitialState: EventRelationships{Count: 0},
 			TransitionFn: func(state any, e Event) any {
 				s := state.(EventRelationships)
@@ -144,7 +147,7 @@ var _ = Describe("Event Store: Appending Events", func() {
 			},
 		}
 
-		_, state, err := store.ProjectState(ctx, query, relationshipprojector)
+		_, state, err := store.ProjectState(ctx, relationshipprojector)
 		Expect(err).NotTo(HaveOccurred())
 		relationships := state.(EventRelationships)
 
@@ -200,6 +203,7 @@ var _ = Describe("Event Store: Appending Events", func() {
 		}
 
 		orderProjector := StateProjector{
+			Query:        query,
 			InitialState: OrderState{Items: []string{}},
 			TransitionFn: func(state any, e Event) any {
 				s := state.(OrderState)
@@ -212,7 +216,7 @@ var _ = Describe("Event Store: Appending Events", func() {
 			},
 		}
 
-		_, state, err := store.ProjectState(ctx, query, orderProjector)
+		_, state, err := store.ProjectState(ctx, orderProjector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(state.(OrderState).Items).To(Equal([]string{"product1", "product2"}))
 	})
@@ -262,13 +266,14 @@ var _ = Describe("Event Store: Appending Events", func() {
 		}
 
 		verifyProjector := StateProjector{
+			Query:        query,
 			InitialState: nil,
 			TransitionFn: func(state any, e Event) any {
 				return Result{Event: e}
 			},
 		}
 
-		_, state, err := store.ProjectState(ctx, query, verifyProjector)
+		_, state, err := store.ProjectState(ctx, verifyProjector)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Parse the JSON to verify it's valid
@@ -295,13 +300,14 @@ var _ = Describe("Event Store: Appending Events", func() {
 
 		// Verify count
 		countProjector := StateProjector{
+			Query:        query,
 			InitialState: 0,
 			TransitionFn: func(state any, e Event) any {
 				return state.(int) + 1
 			},
 		}
 
-		_, state, err := store.ProjectState(ctx, query, countProjector)
+		_, state, err := store.ProjectState(ctx, countProjector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(state).To(Equal(50))
 	})

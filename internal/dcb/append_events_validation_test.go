@@ -7,7 +7,7 @@ import (
 
 var _ = Describe("Event Store: Input Validation", func() {
 	BeforeEach(func() {
-		_, err := pool.Exec(ctx, "TRUNCATE TABLE events RESTART IDENTITY CASCADE")
+		err := truncateEventsTable(ctx, pool)
 		Expect(err).NotTo(HaveOccurred())
 	})
 

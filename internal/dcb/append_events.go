@@ -11,7 +11,9 @@ import (
 )
 
 func (es *eventStore) AppendEventsIfNotExists(ctx context.Context, events []InputEvent, query Query, latestPosition int64, projector StateProjector) (int64, error) {
-	position, state, err := es.ProjectStateUpTo(ctx, query, projector, latestPosition) // TODO should this fn be a boolean function?
+	// Set the projector's query to match the provided query
+	projector.Query = query
+	position, state, err := es.ProjectStateUpTo(ctx, projector, latestPosition) // TODO should this fn be a boolean function?
 	if err != nil {
 		return 0, fmt.Errorf("failed to project state: %w", err)
 	}

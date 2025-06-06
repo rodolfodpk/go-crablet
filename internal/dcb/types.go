@@ -16,7 +16,8 @@ type (
 		EventTypes []string // Events must match one of these types (empty means match any type)
 	}
 
-	StateProjector struct { // TODO should we have a query here as well?
+	StateProjector struct {
+		Query        Query // Query to filter events for this projector
 		InitialState any
 		TransitionFn func(any, Event) any // TODO should this receive only the JSON-encoded data?
 	}
@@ -35,16 +36,16 @@ type (
 		Tags          []Tag  // Tags for querying (e.g., {"course_id": "C1"})
 		Data          []byte // Event payload
 		Position      int64  // Position in the event stream
-		CausationID   string // UUID of the event that caused this event (optional)
-		CorrelationID string // UUID linking to the root event or process (optional)
+		CausationID   string // UUID of the event that caused this event
+		CorrelationID string // UUID linking to the root event or process
 	}
 
 	// EventStore provides methods to append and read events in a PostgreSQL database.
 	EventStore interface {
 		AppendEvents(ctx context.Context, events []InputEvent, query Query, latestKnownPosition int64) (int64, error)
 		AppendEventsIfNotExists(ctx context.Context, events []InputEvent, query Query, latestKnownPosition int64, stateProjector StateProjector) (int64, error)
-		ProjectState(ctx context.Context, query Query, stateProjector StateProjector) (int64, any, error)
-		ProjectStateUpTo(ctx context.Context, query Query, stateProjector StateProjector, maxPosition int64) (int64, any, error)
+		ProjectState(ctx context.Context, stateProjector StateProjector) (int64, any, error)
+		ProjectStateUpTo(ctx context.Context, stateProjector StateProjector, maxPosition int64) (int64, any, error)
 		Close()
 	}
 )
