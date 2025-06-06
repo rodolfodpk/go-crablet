@@ -14,7 +14,7 @@ var _ = Describe("AppendEventsIfStateIsNil", func() {
 
 	It("appends events when they don't exist", func() {
 		tags := NewTags("entity_id", "E100")
-		query := NewQuery(tags)
+		query := NewQuery(tags, "EntityCreated")
 		events := []InputEvent{
 			NewInputEvent("EntityCreated", tags, []byte(`{"name":"Test Entity"}`)),
 		}
@@ -40,7 +40,7 @@ var _ = Describe("AppendEventsIfStateIsNil", func() {
 
 	It("doesn't append events when they already exist", func() {
 		tags := NewTags("entity_id", "E101")
-		query := NewQuery(tags)
+		query := NewQuery(tags, "EntityCreated")
 		events := []InputEvent{
 			NewInputEvent("EntityCreated", tags, []byte(`{"name":"Test Entity"}`)),
 		}
@@ -77,7 +77,7 @@ var _ = Describe("AppendEventsIfStateIsNil", func() {
 
 	It("handles complex state checking before append", func() {
 		tags := NewTags("order_id", "O123")
-		query := NewQuery(tags)
+		query := NewQuery(tags, "OrderCreated", "OrderProcessed")
 
 		// Define a projector that checks for specific event types
 		type OrderState struct {
@@ -136,7 +136,7 @@ var _ = Describe("AppendEventsIfStateIsNil", func() {
 	})
 	It("handles empty events list", func() {
 		tags := NewTags("entity_id", "E200")
-		query := NewQuery(tags)
+		query := NewQuery(tags, "EntityCreated")
 		events := []InputEvent{}
 
 		projector := StateProjector{
@@ -154,7 +154,7 @@ var _ = Describe("AppendEventsIfStateIsNil", func() {
 
 	It("handles position mismatch", func() {
 		tags := NewTags("entity_id", "E300")
-		query := NewQuery(tags)
+		query := NewQuery(tags, "EntityCreated", "EntityUpdated")
 		events := []InputEvent{
 			NewInputEvent("EntityCreated", tags, []byte(`{"name":"Position Test Entity"}`)),
 		}
@@ -182,7 +182,7 @@ var _ = Describe("AppendEventsIfStateIsNil", func() {
 
 	It("respects projector rejection", func() {
 		tags := NewTags("entity_id", "E400")
-		query := NewQuery(tags)
+		query := NewQuery(tags, "InitialEvent", "FollowUpEvent")
 
 		// First append an event to create state
 		firstEvents := []InputEvent{
@@ -224,7 +224,7 @@ var _ = Describe("AppendEventsIfStateIsNil", func() {
 
 	It("ensures idempotency with multiple calls", func() {
 		tags := NewTags("entity_id", "E500")
-		query := NewQuery(tags)
+		query := NewQuery(tags, "IdempotentEvent")
 		events := []InputEvent{
 			NewInputEvent("IdempotentEvent", tags, []byte(`{"data":"test"}`)),
 		}

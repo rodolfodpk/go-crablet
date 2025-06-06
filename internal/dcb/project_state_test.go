@@ -36,7 +36,7 @@ var _ = Describe("ProjectState", func() {
 
 	It("reads state with empty tags in query", func() {
 		projector := StateProjector{
-			Query:        NewQuery(NewTags()),
+			Query:        NewQuery(NewTags(), "CourseLaunched", "UserRegistered", "Enrollment", "CourseUpdated"),
 			InitialState: 0,
 			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
@@ -49,7 +49,7 @@ var _ = Describe("ProjectState", func() {
 
 	It("reads state with specific tags but empty eventTypes", func() {
 		projector := StateProjector{
-			Query:        NewQuery(NewTags("course_id", "course101")),
+			Query:        NewQuery(NewTags("course_id", "course101"), "CourseLaunched", "Enrollment", "CourseUpdated"),
 			InitialState: 0,
 			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
@@ -73,7 +73,7 @@ var _ = Describe("ProjectState", func() {
 
 	It("reads state with both empty tags and empty eventTypes", func() {
 		projector := StateProjector{
-			Query:        NewQuery(NewTags()),
+			Query:        NewQuery(NewTags(), "CourseLaunched", "UserRegistered", "Enrollment", "CourseUpdated"),
 			InitialState: 0,
 			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
@@ -277,6 +277,8 @@ var _ = Describe("ProjectState", func() {
 		userTags := NewTags("user_id", "user_test_1", "role", "student", "course_id", "course_test_1")
 		mixedTags := NewTags("course_id", "course_test_1", "user_id", "user_test_1", "category", "programming", "role", "student")
 
+		query := NewQuery(NewTags("test_id", "test_1"), "CourseCreated", "UserRegistered", "EnrollmentStarted", "EnrollmentCompleted", "CourseUpdated", "UserProfileUpdated")
+
 		events := []InputEvent{
 			NewInputEvent("CourseCreated", courseTags, []byte(`{"title":"Go Programming"}`)),
 			NewInputEvent("UserRegistered", userTags, []byte(`{"name":"Alice"}`)),
@@ -287,7 +289,7 @@ var _ = Describe("ProjectState", func() {
 		}
 
 		// Use a unique query to avoid conflicts with existing events
-		_, err := store.AppendEvents(ctx, events, NewQuery(NewTags("test_id", "test_1")), 0)
+		_, err := store.AppendEvents(ctx, events, query, 0)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Define a complex state type to track course and user interactions
@@ -347,6 +349,8 @@ var _ = Describe("ProjectState", func() {
 		orderTags := NewTags("tenant_id", "tenant_test_1", "order_id", "order_test_1")
 		mixedTags := NewTags("tenant_id", "tenant_test_1", "user_id", "user_test_1", "order_id", "order_test_1")
 
+		query := NewQuery(NewTags("test_id", "test_2"), "TenantCreated", "UserRegistered", "OrderCreated", "OrderAssigned")
+
 		events := []InputEvent{
 			NewInputEvent("TenantCreated", baseTags, []byte(`{"name":"Tenant 1"}`)),
 			NewInputEvent("UserRegistered", userTags, []byte(`{"name":"John"}`)),
@@ -355,7 +359,7 @@ var _ = Describe("ProjectState", func() {
 		}
 
 		// Use a unique query to avoid conflicts with existing events
-		_, err := store.AppendEvents(ctx, events, NewQuery(NewTags("test_id", "test_2")), 0)
+		_, err := store.AppendEvents(ctx, events, query, 0)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Create a projector that tracks all events for a tenant
@@ -412,6 +416,8 @@ var _ = Describe("ProjectState", func() {
 	It("handles projector with event type filtering and complex state transitions", func() {
 		// Set up a sequence of events representing a workflow
 		workflowTags := NewTags("workflow_id", "workflow_test_1", "status", "active")
+		query := NewQuery(NewTags("test_id", "test_3"), "WorkflowStarted", "TaskAssigned", "TaskCompleted", "TaskFailed", "TaskRetried", "WorkflowCompleted")
+
 		events := []InputEvent{
 			NewInputEvent("WorkflowStarted", workflowTags, []byte(`{"step":1}`)),
 			NewInputEvent("TaskAssigned", workflowTags, []byte(`{"task":"A"}`)),
@@ -424,7 +430,7 @@ var _ = Describe("ProjectState", func() {
 		}
 
 		// Use a unique query to avoid conflicts with existing events
-		_, err := store.AppendEvents(ctx, events, NewQuery(NewTags("test_id", "test_3")), 0)
+		_, err := store.AppendEvents(ctx, events, query, 0)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Define a state type to track workflow progress
