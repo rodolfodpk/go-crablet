@@ -311,4 +311,175 @@ var _ = Describe("Event Store: Appending Events", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(state).To(Equal(50))
 	})
+
+	// --- Additional critical test scenarios ---
+	It("projects state with only event types", func() {
+		tags := NewTags("type_id", "T1")
+		query := NewQuery(tags)
+		events := []InputEvent{
+			NewInputEvent("TypeA", tags, []byte(`{"val":1}`)),
+			NewInputEvent("TypeB", tags, []byte(`{"val":2}`)),
+			NewInputEvent("TypeA", tags, []byte(`{"val":3}`)),
+		}
+		_, err := store.AppendEvents(ctx, events, query, 0)
+		Expect(err).NotTo(HaveOccurred())
+
+		projector := StateProjector{
+			Query:        NewQuery(NewTags(), "TypeA"),
+			InitialState: 0,
+			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
+		}
+		_, state, err := store.ProjectState(ctx, projector)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(state).To(Equal(2)) // Only TypeA events
+	})
+
+	It("projects state with only tags", func() {
+		tags1 := NewTags("tag", "A")
+		tags2 := NewTags("tag", "B")
+		query := NewQuery(NewTags())
+		events := []InputEvent{
+			NewInputEvent("E1", tags1, []byte(`{"v":1}`)),
+			NewInputEvent("E2", tags2, []byte(`{"v":2}`)),
+		}
+		_, err := store.AppendEvents(ctx, events, query, 0)
+		Expect(err).NotTo(HaveOccurred())
+
+		projector := StateProjector{
+			Query:        NewQuery(NewTags("tag", "A")),
+			InitialState: 0,
+			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
+		}
+		_, state, err := store.ProjectState(ctx, projector)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(state).To(Equal(1))
+	})
+
+	It("projects state with both tags and event types", func() {
+		tags := NewTags("combo", "yes")
+		events := []InputEvent{
+			NewInputEvent("A", tags, []byte(`{"x":1}`)),
+			NewInputEvent("B", tags, []byte(`{"x":2}`)),
+			NewInputEvent("A", NewTags("combo", "no"), []byte(`{"x":3}`)),
+		}
+		_, err := store.AppendEvents(ctx, events, NewQuery(NewTags()), 0)
+		Expect(err).NotTo(HaveOccurred())
+
+		projector := StateProjector{
+			Query:        NewQuery(NewTags("combo", "yes"), "A"),
+			InitialState: 0,
+			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
+		}
+		_, state, err := store.ProjectState(ctx, projector)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(state).To(Equal(1))
+	})
+
+	It("returns initial state if projector query matches no events", func() {
+		tags := NewTags("none", "match")
+		query := NewQuery(tags)
+		// No events appended
+		projector := StateProjector{
+			Query:        query,
+			InitialState: 42,
+			TransitionFn: func(state any, e Event) any { return 0 },
+		}
+		_, state, err := store.ProjectState(ctx, projector)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(state).To(Equal(42))
+	})
+
+	It("ProjectStateUpTo with maxPosition = 0 returns initial state", func() {
+		tags := NewTags("seq", "zero")
+		query := NewQuery(tags)
+		events := []InputEvent{
+			NewInputEvent("E", tags, []byte(`{"v":1}`)),
+		}
+		_, err := store.AppendEvents(ctx, events, query, 0)
+		Expect(err).NotTo(HaveOccurred())
+		projector := StateProjector{
+			Query:        query,
+			InitialState: 99,
+			TransitionFn: func(state any, e Event) any { return 0 },
+		}
+		pos, state, err := store.ProjectStateUpTo(ctx, projector, 0)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(pos).To(Equal(int64(0)))
+		Expect(state).To(Equal(99))
+	})
+
+	It("ProjectStateUpTo with maxPosition in the middle", func() {
+		tags := NewTags("seq", "mid")
+		query := NewQuery(tags)
+		events := []InputEvent{
+			NewInputEvent("E", tags, []byte(`{"v":1}`)),
+			NewInputEvent("E", tags, []byte(`{"v":2}`)),
+			NewInputEvent("E", tags, []byte(`{"v":3}`)),
+		}
+		_, err := store.AppendEvents(ctx, events, query, 0)
+		Expect(err).NotTo(HaveOccurred())
+		projector := StateProjector{
+			Query:        query,
+			InitialState: 0,
+			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
+		}
+		pos, state, err := store.ProjectStateUpTo(ctx, projector, 2)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(pos).To(Equal(int64(2)))
+		Expect(state).To(Equal(2))
+	})
+
+	It("returns error if projector TransitionFn is nil", func() {
+		projector := StateProjector{
+			Query:        NewQuery(NewTags()),
+			InitialState: 0,
+			TransitionFn: nil,
+		}
+		_, _, err := store.ProjectState(ctx, projector)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("projector function cannot be nil"))
+	})
+
+	It("returns error if projector TransitionFn panics", func() {
+		tags := NewTags("panic", "yes")
+		query := NewQuery(tags)
+		events := []InputEvent{
+			NewInputEvent("E", tags, []byte(`{"v":1}`)),
+		}
+		_, err := store.AppendEvents(ctx, events, query, 0)
+		Expect(err).NotTo(HaveOccurred())
+		projector := StateProjector{
+			Query:        query,
+			InitialState: 0,
+			TransitionFn: func(state any, e Event) any { panic("fail!") },
+		}
+		_, _, err = store.ProjectState(ctx, projector)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("panic in projector"))
+	})
+
+	It("handles mutable pointer state in projector", func() {
+		tags := NewTags("mut", "ptr")
+		query := NewQuery(tags)
+		events := []InputEvent{
+			NewInputEvent("E", tags, []byte(`{"v":1}`)),
+			NewInputEvent("E", tags, []byte(`{"v":2}`)),
+		}
+		_, err := store.AppendEvents(ctx, events, query, 0)
+		Expect(err).NotTo(HaveOccurred())
+		type Counter struct{ N int }
+		projector := StateProjector{
+			Query:        query,
+			InitialState: &Counter{N: 0},
+			TransitionFn: func(state any, e Event) any {
+				c := state.(*Counter)
+				c.N++
+				return c
+			},
+		}
+		_, state, err := store.ProjectState(ctx, projector)
+		Expect(err).NotTo(HaveOccurred())
+		c := state.(*Counter)
+		Expect(c.N).To(Equal(2))
+	})
 })
