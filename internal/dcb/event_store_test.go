@@ -1,4 +1,4 @@
-package dcb_test
+package dcb
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/testcontainers/testcontainers-go"
-	"go-crablet/internal/dcb"
 	"io"
 	"os"
 	"testing"
@@ -23,7 +22,7 @@ var (
 	pool      *pgxpool.Pool
 	postgresC testcontainers.Container
 	teardown  func()
-	store     dcb.EventStore
+	store     EventStore
 )
 
 // Define teardown function at package level
@@ -82,7 +81,7 @@ var _ = BeforeSuite(func() {
 	_, err = pool.Exec(ctx, string(schema))
 	Expect(err).NotTo(HaveOccurred())
 
-	store, err = dcb.NewEventStore(ctx, pool)
+	store, err = NewEventStore(ctx, pool)
 	Expect(err).NotTo(HaveOccurred())
 	setupTeardown()
 })
