@@ -16,7 +16,7 @@ type (
 		EventTypes []string // Events must match one of these types (empty means match any type)
 	}
 
-	StateProjector struct {
+	StateProjector struct { // TODO should we have a query here as well?
 		InitialState any
 		TransitionFn func(any, Event) any // TODO should this receive only the JSON-encoded data?
 	}
