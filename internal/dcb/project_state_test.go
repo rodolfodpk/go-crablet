@@ -33,99 +33,114 @@ var _ = Describe("ProjectState", func() {
 	})
 
 	It("reads state with empty tags in query", func() {
-		emptyTagsQuery := NewQuery(NewTags())
-
 		projector := StateProjector{
+			Query:        NewQuery(NewTags()),
 			InitialState: 0,
 			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
 
-		_, state, err := store.ProjectState(ctx, emptyTagsQuery, projector)
+		_, state, err := store.ProjectState(ctx, projector)
 		// Should return all events since no tag filtering is applied
 		Expect(err).NotTo(HaveOccurred())
 		Expect(state).To(Equal(4)) // All 4 events should be read
 	})
 
 	It("reads state with specific tags but empty eventTypes", func() {
-		courseQuery := NewQuery(NewTags("course_id", "course101"))
-		// Not setting any event types
-
 		projector := StateProjector{
+			Query:        NewQuery(NewTags("course_id", "course101")),
 			InitialState: 0,
 			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
 
-		_, state, err := store.ProjectState(ctx, courseQuery, projector)
+		_, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(state).To(Equal(3)) // Should match CourseLaunched, Enrollment, and CourseUpdated
 	})
 
 	It("reads state with empty tags but specific eventTypes", func() {
-		query := NewQuery(NewTags())
-		query.EventTypes = []string{"CourseLaunched", "CourseUpdated"}
-
 		projector := StateProjector{
+			Query:        NewQuery(NewTags(), "CourseLaunched", "CourseUpdated"),
 			InitialState: 0,
 			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
 
-		_, state, err := store.ProjectState(ctx, query, projector)
+		_, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(state).To(Equal(2)) // Should match only CourseLaunched and CourseUpdated
 	})
 
 	It("reads state with both empty tags and empty eventTypes", func() {
-		query := NewQuery(NewTags())
-		// Event types remain empty
-
 		projector := StateProjector{
+			Query:        NewQuery(NewTags()),
 			InitialState: 0,
 			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
 
-		_, state, err := store.ProjectState(ctx, query, projector)
+		_, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(state).To(Equal(4)) // Should match all events
 	})
-	It("reads state with both specific tags and specific eventTypes", func() {
-		query := NewQuery(NewTags("course_id", "course101"))
-		query.EventTypes = []string{"CourseLaunched"}
 
+	It("reads state with both specific tags and specific eventTypes", func() {
 		projector := StateProjector{
+			Query:        NewQuery(NewTags("course_id", "course101"), "CourseLaunched"),
 			InitialState: 0,
 			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
 
-		_, state, err := store.ProjectState(ctx, query, projector)
+		_, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(state).To(Equal(1)) // Should match only CourseLaunched event
 	})
 
 	It("reads state with tags that don't match any events", func() {
-		query := NewQuery(NewTags("nonexistent_tag", "value"))
-
 		projector := StateProjector{
+			Query:        NewQuery(NewTags("nonexistent_tag", "value")),
 			InitialState: 0,
 			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
 
-		_, state, err := store.ProjectState(ctx, query, projector)
+		_, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(state).To(Equal(0)) // Should not match any events
 	})
 
 	It("reads state with event types that don't match any events", func() {
-		query := NewQuery(NewTags()) // Empty tags to match all events
-		query.EventTypes = []string{"NonExistentEventType"}
-
 		projector := StateProjector{
+			Query:        NewQuery(NewTags(), "NonExistentEventType"),
 			InitialState: 0,
 			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
 
-		_, state, err := store.ProjectState(ctx, query, projector)
+		_, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(state).To(Equal(0)) // Should not match any events
+	})
+
+	It("uses projector's query when available", func() {
+		// Create a projector with its own query
+		projector := StateProjector{
+			Query:        NewQuery(NewTags("course_id", "course101"), "CourseLaunched"),
+			InitialState: 0,
+			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
+		}
+
+		_, state, err := store.ProjectState(ctx, projector)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(state).To(Equal(1)) // Should only match CourseLaunched event
+	})
+
+	It("falls back to provided query when projector's query is empty", func() {
+		// Create a projector with empty query
+		projector := StateProjector{
+			Query:        NewQuery(NewTags()), // Empty query
+			InitialState: 0,
+			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
+		}
+
+		_, state, err := store.ProjectState(ctx, projector)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(state).To(Equal(4)) // Should match all events
 	})
 
 	var _ = Describe("ProjectStateUpTo", func() {
@@ -151,10 +166,8 @@ var _ = Describe("ProjectState", func() {
 		})
 
 		It("reads state up to a specific position limit", func() {
-			query := NewQuery(NewTags("sequence_id", "seq1"))
-
-			// Define a projector that counts events
-			countprojector := StateProjector{
+			projector := StateProjector{
+				Query:        NewQuery(NewTags("sequence_id", "seq1")),
 				InitialState: 0,
 				TransitionFn: func(state any, e Event) any {
 					return state.(int) + 1
@@ -162,27 +175,27 @@ var _ = Describe("ProjectState", func() {
 			}
 
 			// Read up to position 3 (should include events at positions 1, 2, and 3)
-			pos, state, err := store.ProjectStateUpTo(ctx, query, countprojector, 3)
+			pos, state, err := store.ProjectStateUpTo(ctx, projector, 3)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(pos).To(Equal(int64(3)))
 			Expect(state).To(Equal(3))
 
 			// Read all events (maxPosition = -1)
-			pos, state, err = store.ProjectStateUpTo(ctx, query, countprojector, -1)
+			pos, state, err = store.ProjectStateUpTo(ctx, projector, -1)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(pos).To(Equal(int64(5)))
 			Expect(state).To(Equal(5))
 
 			// Read up to position 0 (should find no events)
-			pos, state, err = store.ProjectStateUpTo(ctx, query, countprojector, 0)
+			pos, state, err = store.ProjectStateUpTo(ctx, projector, 0)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(pos).To(Equal(int64(0)))
 			Expect(state).To(Equal(0))
 		})
-		It("reads state with position beyond available maximum", func() {
-			query := NewQuery(NewTags("sequence_id", "seq1"))
 
-			countprojector := StateProjector{
+		It("reads state with position beyond available maximum", func() {
+			projector := StateProjector{
+				Query:        NewQuery(NewTags("sequence_id", "seq1")),
 				InitialState: 0,
 				TransitionFn: func(state any, e Event) any {
 					return state.(int) + 1
@@ -190,17 +203,15 @@ var _ = Describe("ProjectState", func() {
 			}
 
 			// Request position 100, which is beyond our max of 5
-			pos, state, err := store.ProjectStateUpTo(ctx, query, countprojector, 100)
+			pos, state, err := store.ProjectStateUpTo(ctx, projector, 100)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(pos).To(Equal(int64(5))) // Should return the actual max position
 			Expect(state).To(Equal(5))      // All 5 events should be counted
 		})
 
 		It("combines position limits with event type filtering", func() {
-			query := NewQuery(NewTags("sequence_id", "seq1"))
-			query.EventTypes = []string{"Event2", "Event4"}
-
-			countprojector := StateProjector{
+			projector := StateProjector{
+				Query:        NewQuery(NewTags("sequence_id", "seq1"), "Event2", "Event4"),
 				InitialState: 0,
 				TransitionFn: func(state any, e Event) any {
 					return state.(int) + 1
@@ -208,14 +219,13 @@ var _ = Describe("ProjectState", func() {
 			}
 
 			// Read up to position 4 with event type filtering
-			pos, state, err := store.ProjectStateUpTo(ctx, query, countprojector, 4)
+			pos, state, err := store.ProjectStateUpTo(ctx, projector, 4)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(pos).To(Equal(int64(4)))
 			Expect(state).To(Equal(2)) // Should only count Event2 and Event4
 		})
 
 		It("reads with tags that partially match events", func() {
-			// Setup additional events with mixed tags
 			// Setup additional events with mixed tags
 			partialTags1 := NewTags("sequence_id", "seq2", "extra", "value1")
 			partialTags2 := NewTags("sequence_id", "seq2", "extra", "value2")
@@ -229,10 +239,8 @@ var _ = Describe("ProjectState", func() {
 			_, err := store.AppendEvents(ctx, extraEvents, query, 0)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Query for specific partial match
-			queryPartial := NewQuery(NewTags("extra", "value1"))
-
-			countprojector := StateProjector{
+			projector := StateProjector{
+				Query:        NewQuery(NewTags("extra", "value1")),
 				InitialState: 0,
 				TransitionFn: func(state any, e Event) any {
 					return state.(int) + 1
@@ -240,9 +248,24 @@ var _ = Describe("ProjectState", func() {
 			}
 
 			// Read all events with the partial tag match
-			_, state, err := store.ProjectStateUpTo(ctx, queryPartial, countprojector, -1)
+			_, state, err := store.ProjectStateUpTo(ctx, projector, -1)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(state).To(Equal(1)) // Should only match ExtraEvent1
+		})
+
+		It("combines projector's query with position limits", func() {
+			// Create a projector with its own query
+			projector := StateProjector{
+				Query:        NewQuery(NewTags("sequence_id", "seq1")),
+				InitialState: 0,
+				TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
+			}
+
+			// Read up to position 3 using projector's query
+			pos, state, err := store.ProjectStateUpTo(ctx, projector, 3)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(pos).To(Equal(int64(3)))
+			Expect(state).To(Equal(3)) // Should count events up to position 3
 		})
 	})
 })

@@ -21,6 +21,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 
 		// Define a simple projector
 		projector := StateProjector{
+			Query:        query,
 			InitialState: nil,
 			TransitionFn: func(state any, e Event) any {
 				return e.Type
@@ -32,7 +33,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		Expect(pos).To(Equal(int64(1)))
 
 		// Verify the event was added
-		_, state, err := store.ProjectState(ctx, query, projector)
+		_, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(state).To(Equal("EntityCreated"))
 	})
@@ -46,6 +47,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 
 		// Define a projector that simply returns a non-nil value if any event exists
 		projector := StateProjector{
+			Query:        query,
 			InitialState: nil,
 			TransitionFn: func(state any, e Event) any {
 				return true
@@ -64,10 +66,11 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 
 		// Verify only one event exists
 		countprojector := StateProjector{
+			Query:        query,
 			InitialState: 0,
 			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
-		_, count, err := store.ProjectState(ctx, query, countprojector)
+		_, count, err := store.ProjectState(ctx, countprojector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(count).To(Equal(1))
 	})
@@ -82,6 +85,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		}
 
 		projector := StateProjector{
+			Query:        query,
 			InitialState: &OrderState{IsProcessed: false},
 			TransitionFn: func(state any, e Event) any {
 				orderState := state.(*OrderState)
@@ -100,7 +104,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		Expect(pos1).To(Equal(int64(1)))
 
 		// Verify state before the conditional append
-		_, state1, err := store.ProjectState(ctx, query, projector)
+		_, state1, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(state1.(*OrderState).IsProcessed).To(BeFalse())
 
@@ -115,17 +119,18 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		Expect(pos).To(Equal(int64(2)))
 
 		// Now the state should show the order is processed
-		_, state2, err := store.ProjectState(ctx, query, projector)
+		_, state2, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(state2.(*OrderState).IsProcessed).To(BeTrue())
 
 		// Verify only 2 events total
 		dumpEvents(pool)
 		countprojector := StateProjector{
+			Query:        query,
 			InitialState: 0,
 			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
-		_, count, err := store.ProjectState(ctx, query, countprojector)
+		_, count, err := store.ProjectState(ctx, countprojector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(count).To(Equal(2))
 	})
@@ -135,6 +140,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		events := []InputEvent{}
 
 		projector := StateProjector{
+			Query:        query,
 			InitialState: nil,
 			TransitionFn: func(state any, e Event) any {
 				return e.Type
@@ -192,6 +198,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 
 		// Define a projector that provides non-nil state if InitialEvent has been seen
 		projector := StateProjector{
+			Query:        query,
 			InitialState: nil,
 			TransitionFn: func(state any, e Event) any {
 				// Return the event type as state
@@ -206,10 +213,11 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 
 		// Verify only the initial event exists
 		countprojector := StateProjector{
+			Query:        query,
 			InitialState: 0,
 			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
-		_, count, err := store.ProjectState(ctx, query, countprojector)
+		_, count, err := store.ProjectState(ctx, countprojector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(count).To(Equal(1))
 	})
@@ -223,6 +231,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 
 		// Use a simpler projector to test idempotency
 		projector := StateProjector{
+			Query:        query,
 			InitialState: nil,
 			TransitionFn: func(state any, e Event) any {
 				// This only returns non-nil state if we see IdempotentEvent
@@ -250,10 +259,11 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 
 		// Verify only one event was added across all calls
 		countprojector := StateProjector{
+			Query:        query,
 			InitialState: 0,
 			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
 		}
-		_, count, err := store.ProjectState(ctx, query, countprojector)
+		_, count, err := store.ProjectState(ctx, countprojector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(count).To(Equal(1))
 	})
