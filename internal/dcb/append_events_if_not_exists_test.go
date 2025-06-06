@@ -5,7 +5,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("AppendEventsIfNotExists", func() {
+var _ = Describe("AppendEventsIfStateIsNil", func() {
 	BeforeEach(func() {
 		// Truncate the events table before each test
 		err := truncateEventsTable(ctx, pool)
@@ -28,7 +28,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 			},
 		}
 
-		pos, err := store.AppendEventsIfNotExists(ctx, events, query, 0, projector)
+		pos, err := store.AppendEventsIfStateIsNil(ctx, events, query, 0, projector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(pos).To(Equal(int64(1)))
 
@@ -59,8 +59,8 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(pos1).To(Equal(int64(1)))
 
-		// AppendEventsIfNotExists should not append and return the existing position
-		pos2, err := store.AppendEventsIfNotExists(ctx, events, query, pos1, projector)
+		// AppendEventsIfStateIsNil should not append and return the existing position
+		pos2, err := store.AppendEventsIfStateIsNil(ctx, events, query, pos1, projector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(pos2).To(Equal(pos1))
 
@@ -147,7 +147,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 			},
 		}
 
-		pos, err := store.AppendEventsIfNotExists(ctx, events, query, 0, projector)
+		pos, err := store.AppendEventsIfStateIsNil(ctx, events, query, 0, projector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(pos).To(Equal(int64(0))) // Position should remain 0 when no events are appended
 	})
@@ -207,7 +207,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 			},
 		}
 
-		pos2, err := store.AppendEventsIfNotExists(ctx, newEvents, query, pos1, projector)
+		pos2, err := store.AppendEventsIfStateIsNil(ctx, newEvents, query, pos1, projector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(pos2).To(Equal(pos1)) // Position shouldn't change as append was rejected
 
@@ -247,13 +247,13 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(pos1).To(Equal(int64(1)))
 
-		// Now use AppendEventsIfNotExists which should not append duplicate
-		pos2, err := store.AppendEventsIfNotExists(ctx, events, query, pos1, projector)
+		// Now use AppendEventsIfStateIsNil which should not append duplicate
+		pos2, err := store.AppendEventsIfStateIsNil(ctx, events, query, pos1, projector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(pos2).To(Equal(pos1)) // Position should remain the same
 
 		// Third call should still not append
-		pos3, err := store.AppendEventsIfNotExists(ctx, events, query, pos1, projector)
+		pos3, err := store.AppendEventsIfStateIsNil(ctx, events, query, pos1, projector)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(pos3).To(Equal(pos1)) // Position should still remain the same
 

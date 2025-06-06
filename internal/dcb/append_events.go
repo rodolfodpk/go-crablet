@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-func (es *eventStore) AppendEventsIfNotExists(ctx context.Context, events []InputEvent, query Query, latestPosition int64, projector StateProjector) (int64, error) {
+func (es *eventStore) AppendEventsIfStateIsNil(ctx context.Context, events []InputEvent, query Query, latestPosition int64, projector StateProjector) (int64, error) {
 	// Set the projector's query to match the provided query
 	projector.Query = query
 	position, state, err := es.ProjectStateUpTo(ctx, projector, latestPosition) // TODO should this fn be a boolean function?
