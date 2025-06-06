@@ -136,19 +136,6 @@ func validateEvent(e InputEvent, index int) error {
 
 // AppendEvents adds multiple events to the stream and returns the latest position.
 func (es *eventStore) AppendEvents(ctx context.Context, events []InputEvent, query Query, latestPosition int64) (int64, error) {
-	es.mu.Lock()
-	defer es.mu.Unlock()
-
-	if es.closed {
-		return 0, &ResourceError{
-			EventStoreError: EventStoreError{
-				Op:  "AppendEvents",
-				Err: fmt.Errorf("event store is closed"),
-			},
-			Resource: "eventStore",
-		}
-	}
-
 	if len(events) > es.maxBatchSize {
 		return 0, &ValidationError{
 			EventStoreError: EventStoreError{
