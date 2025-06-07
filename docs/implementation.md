@@ -1,45 +1,6 @@
-# go-crablet
+# Implementation Details
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/rodolfodpk/go-crablet)](https://goreportcard.com/report/github.com/rodolfodpk/go-crablet)
-[![codecov](https://codecov.io/gh/rodolfodpk/go-crablet/branch/main/graph/badge.svg)](https://codecov.io/gh/rodolfodpk/go-crablet)
-[![GoDoc](https://godoc.org/github.com/rodolfodpk/go-crablet?status.svg)](https://godoc.org/github.com/rodolfodpk/go-crablet)
-[![License](https://img.shields.io/github/license/rodolfodpk/go-crablet)](https://github.com/rodolfodpk/go-crablet/blob/main/LICENSE)
-[![Go Version](https://img.shields.io/github/go-mod/go-version/rodolfodpk/go-crablet)](https://github.com/rodolfodpk/go-crablet/blob/main/go.mod)
-
-A Go implementation of the Dynamic Consistency Boundary (DCB) event store pattern, providing a simpler and more flexible approach to consistency in event-driven systems. Perfect for event sourcing applications that need:
-- Reliable audit trail of all state changes
-- Flexible querying across event streams
-- Easy state reconstruction at any point in time
-- Optimistic concurrency control with consistency boundaries
-
-Event sourcing is a pattern where all changes to application state are appended as a sequence of immutable events. Instead of updating the current state, you append new events that represent state changes. This append-only approach creates a complete, tamper-evident history that allows you to reconstruct past states, analyze how the system evolved, and build new views of the data without modifying the original event log.
-
-## Documentation
-
-The documentation has been split into several files for better organization:
-
-- [Overview](docs/overview.md): High-level overview of go-crablet
-- [Installation](docs/installation.md): Installation and setup guide
-- [Tutorial](docs/tutorial.md): Step-by-step guide to get started with go-crablet
-- [Implementation Details](docs/implementation.md): Detailed technical documentation about the implementation
-- [State Projection](docs/state-projection.md): Detailed guide on state projection
-- [Appending Events](docs/appending-events.md): Guide on appending events and handling concurrency
-- [Examples](docs/examples.md): Practical examples and use cases, including a complete course subscription system
-
-## Features
-
-- **Event Storage**: Append events with unique IDs, types, and JSON payloads
-- **Consistency Boundaries**: Define and manage consistency boundaries for your events
-- **State Projection**: PostgreSQL-streamed event projection for efficient state reconstruction
-- **Flexible Querying**: Query events by type and tags to build different views of the same event stream
-- **Concurrency Control**: Handle concurrent event appends with optimistic locking
-- **Event Causation**: Track event causation and correlation for event chains
-- **Batch Operations**: Efficient batch operations for appending multiple events
-- **PostgreSQL Backend**: Uses PostgreSQL for reliable, ACID-compliant storage with optimistic concurrency control
-- **Go Native**: Written in Go with idiomatic Go patterns and interfaces
-- **Stream Position Management**: Automatic handling of stream positions to ensure event ordering and prevent race conditions. All event appends use the current stream position for optimistic concurrency control, maintaining consistency across concurrent operations.
-
-### Stream Position Handling
+## Stream Position Handling
 
 When appending events to the store, it's crucial to use the current stream position rather than a fixed position (like 0). This ensures:
 
@@ -68,7 +29,7 @@ events := []dcb.InputEvent{
 newPosition, err := store.AppendEvents(ctx, events, query, position)
 ```
 
-### Event Store Interface
+## Event Store Interface
 
 The core interface for event management:
 
@@ -137,9 +98,9 @@ type Tag struct {
 }
 ```
 
-For a practical example of using go-crablet to implement a course subscription system, see [Course Subscription Example](docs/course-subscription.md).
+For a practical example of using go-crablet to implement a course subscription system, see [Course Subscription Example](course-subscription.md).
 
-### State Projection
+## State Projection
 
 go-crablet implements efficient state projection by leveraging PostgreSQL's streaming capabilities. Instead of loading all events into memory, events are streamed directly from the database and processed one at a time. This approach provides several benefits:
 
@@ -164,7 +125,7 @@ projector := dcb.StateProjector{
 position, state, err := store.ProjectState(ctx, projector)
 ```
 
-### Appending Events
+## Appending Events
 
 go-crablet provides a robust mechanism for appending events with optimistic concurrency control. This ensures:
 
@@ -202,9 +163,4 @@ if err != nil {
 The event store automatically handles optimistic concurrency control by:
 1. Checking if the provided position matches the current stream position
 2. Rejecting the append if there are concurrent modifications
-3. Updating the stream position atomically with the event append
-
-## References
-
-- [Dynamic Consistency Boundary (DCB)](https://dcb.events/) - The official website about the DCB pattern
-- [Sara Pellegrini's Talk at DDD Europe 2024](https://dddeurope.com/2024/sara-pellegrini/) - Recent talk about DCB and its practical applications
+3. Updating the stream position atomically with the event append 
