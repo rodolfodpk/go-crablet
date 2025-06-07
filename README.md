@@ -25,17 +25,6 @@ The documentation has been split into several files for better organization:
 - [Appending Events](docs/appending-events.md): Guide on appending events and handling concurrency
 - [Examples](docs/examples.md): Practical examples and use cases, including a complete course subscription system
 
-## Quick Start
-
-```bash
-# Install the package
-go get github.com/rodolfodpk/go-crablet
-
-# See [Installation](docs/installation.md) for development setup
-```
-
-For more detailed information, please refer to the documentation sections above.
-
 ## Features
 
 - **Event Storage**: Append events with unique IDs, types, and JSON payloads
