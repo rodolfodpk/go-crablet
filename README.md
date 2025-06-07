@@ -38,7 +38,6 @@ For more detailed information, please refer to the documentation sections above.
 - **Batch Operations**: Efficient batch operations for appending multiple events
 - **PostgreSQL Backend**: Uses PostgreSQL for reliable, ACID-compliant storage with native concurrency control
 - **Go Native**: Written in Go with idiomatic Go patterns and interfaces
-- **Resource Management**: Clean separation of concerns with database pool lifecycle managed by the caller
 
 ## Example Use Case
 
