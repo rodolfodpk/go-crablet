@@ -40,9 +40,8 @@ For more detailed information, please refer to the documentation sections above.
 - **Event Storage**: Append events with unique IDs, types, and JSON payloads
 - **Consistency Boundaries**: Define and manage consistency boundaries for your events
 - **State Projection**: Project events into current state views
-- **Event Querying**: Query events by type and tags
+- **Flexible Querying**: Query events by type and tags to build different views of the same event stream
 - **Concurrency Control**: Handle concurrent event appends with optimistic locking
-- **Tag-based Querying**: Query events using tags and event types to build different views of the same event stream
 - **Event Causation**: Track event causation and correlation for event chains
 - **Batch Operations**: Efficient batch operations for appending multiple events
 - **PostgreSQL Backend**: Uses PostgreSQL for reliable, ACID-compliant storage with native concurrency control
