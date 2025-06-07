@@ -44,4 +44,6 @@ The documentation has been split into several files for better organization:
 ## References
 
 - [Dynamic Consistency Boundary (DCB)](https://dcb.events/) - The official website about the DCB pattern
-- [Sara Pellegrini's Talk at DDD Europe 2024](https://dddeurope.com/2024/sara-pellegrini/) - Recent talk about DCB and its practical applications
+- [I am here to kill the aggregate](https://sara.event-thinking.io/2023/04/kill-aggregate-chapter-1-I-am-here-to-kill-the-aggregate.html) - Sara Pellegrini's blog post about moving beyond aggregates in event-driven systems
+- [Event Sourcing Pattern](https://martinfowler.com/eaaDev/EventSourcing.html) - Martin Fowler's comprehensive explanation of the event sourcing pattern
+- [Event Sourcing Made Simple](https://www.eventstore.com/blog/event-sourcing-made-simple) - A practical guide to understanding and implementing event sourcing
