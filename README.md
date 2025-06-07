@@ -94,6 +94,24 @@ position, err := store.AppendEvents(ctx, []dcb.InputEvent{event}, query, lastKno
 The event store provides a simple interface for managing events:
 
 ```go
+// EventStore provides methods to append and read events in a PostgreSQL database.
+// It implements the Dynamic Consistency Boundary pattern, ensuring that events
+// within the same boundary are processed atomically and maintaining consistency
+// through optimistic locking.
+type EventStore interface {
+    // AppendEvents adds multiple events to the stream and returns the latest position.
+    // It ensures that no conflicting events have been appended since latestKnownPosition
+    // for the given query, maintaining consistency boundaries.
+    // Returns the new latest position or an error if the append fails.
+    AppendEvents(ctx context.Context, events []InputEvent, query Query, latestKnownPosition int64) (int64, error)
+    
+    // ProjectState projects the current state using the provided projector.
+    // It streams events from PostgreSQL that match the projector's query,
+    // applying the transition function to build the current state.
+    // Returns the latest position processed, the final state, and any error.
+    ProjectState(ctx context.Context, projector StateProjector) (int64, any, error)
+}
+
 // Event represents a persisted event in the system
 type Event struct {
     ID            string // Unique event identifier (UUID)
@@ -110,14 +128,6 @@ type InputEvent struct {
     Type string // Event type (e.g., "Subscription")
     Tags []Tag  // Tags for querying (e.g., {"course_id": "C1"})
     Data []byte // JSON-encoded event payload
-}
-
-type EventStore interface {
-    // AppendEvents adds multiple events to the stream and returns the latest position
-    AppendEvents(ctx context.Context, events []InputEvent, query Query, latestKnownPosition int64) (int64, error)
-    
-    // ProjectState projects the current state using the provided projector
-    ProjectState(ctx context.Context, projector StateProjector) (int64, any, error)
 }
 
 // StateProjector defines how to project state from events
