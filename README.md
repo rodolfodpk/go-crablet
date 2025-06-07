@@ -47,48 +47,6 @@ For more detailed information, please refer to the documentation sections above.
 - **PostgreSQL Backend**: Uses PostgreSQL for reliable, ACID-compliant storage with native concurrency control
 - **Go Native**: Written in Go with idiomatic Go patterns and interfaces
 
-## Example Use Case
-
-Consider a course subscription system where:
-- A course cannot accept more than N students
-- A student cannot subscribe to more than 10 courses
-
-With traditional event sourcing, this would require:
-1. Two separate event streams (for students and courses)
-2. A saga to coordinate the subscription process
-3. Two separate events for the same fact
-
-With DCB, this becomes simpler:
-1. A single event stream for the entire bounded context
-2. One event tagged with both student and course identifiers
-3. Consistency enforced through position checks using the same query
-
-```go
-// Example: Subscribing a student to a course
-event := dcb.NewInputEvent(
-    "StudentSubscribedToCourse",
-    dcb.NewTags(
-        "student_id", "s1",
-        "course_id", "c1",
-    ),
-    []byte(`{"timestamp": "2024-03-20T10:00:00Z"}`),
-)
-
-// The event affects both student and course entities
-// Consistency is enforced through the query
-query := dcb.NewQuery(
-    dcb.NewTags("student_id", "s1", "course_id", "c1"),
-    "StudentSubscribedToCourse",
-)
-
-position, err := store.AppendEvents(ctx, []dcb.InputEvent{event}, query, lastKnownPosition)
-```
-
-## References
-
-- [Dynamic Consistency Boundary (DCB)](https://dcb.events/) - The official website about the DCB pattern
-- [Sara Pellegrini's Talk at DDD Europe 2024](https://dddeurope.com/2024/sara-pellegrini/) - Recent talk about DCB and its practical applications
-
 ### Event Store Interface
 
 The event store provides a simple interface for managing events:
@@ -157,3 +115,87 @@ type Tag struct {
     Value string
 }
 ```
+
+### Example Use Case: Course Subscription System
+
+Here's a practical example of using go-crablet to implement a course subscription system:
+
+```go
+// Define event types
+const (
+    EventTypeSubscription = "Subscription"
+    EventTypeUnsubscription = "Unsubscription"
+)
+
+// Define subscription state
+type SubscriptionState struct {
+    IsActive bool
+    Since    time.Time
+    Until    time.Time
+}
+
+// Create a projector for subscription state
+subscriptionProjector := dcb.StateProjector{
+    Query: dcb.NewQuery(
+        dcb.NewTags("course_id", "C1", "student_id", "S1"),
+        EventTypeSubscription,
+        EventTypeUnsubscription,
+    ),
+    InitialState: &SubscriptionState{},
+    TransitionFn: func(state any, event dcb.Event) any {
+        s := state.(*SubscriptionState)
+        switch event.Type {
+        case EventTypeSubscription:
+            var data struct{ Until time.Time }
+            if err := json.Unmarshal(event.Data, &data); err != nil {
+                panic(err)
+            }
+            s.IsActive = true
+            s.Since = time.Now()
+            s.Until = data.Until
+        case EventTypeUnsubscription:
+            s.IsActive = false
+        }
+        return s
+    },
+}
+
+// Append a subscription event
+events := []dcb.InputEvent{
+    {
+        Type: EventTypeSubscription,
+        Tags: dcb.NewTags("course_id", "C1", "student_id", "S1"),
+        Data: []byte(`{"until": "2024-12-31T23:59:59Z"}`),
+    },
+}
+
+// Use a query to define the consistency boundary
+query := dcb.NewQuery(
+    dcb.NewTags("course_id", "C1", "student_id", "S1"),
+    EventTypeSubscription,
+    EventTypeUnsubscription,
+)
+
+// Append events with optimistic locking
+position, err := store.AppendEvents(ctx, events, query, 0)
+if err != nil {
+    panic(err)
+}
+
+// Project current state
+_, state, err := store.ProjectState(ctx, subscriptionProjector)
+if err != nil {
+    panic(err)
+}
+
+subscription := state.(*SubscriptionState)
+fmt.Printf("Subscription active: %v, until: %v\n", 
+    subscription.IsActive, 
+    subscription.Until,
+)
+```
+
+## References
+
+- [Dynamic Consistency Boundary (DCB)](https://dcb.events/) - The official website about the DCB pattern
+- [Sara Pellegrini's Talk at DDD Europe 2024](https://dddeurope.com/2024/sara-pellegrini/) - Recent talk about DCB and its practical applications
