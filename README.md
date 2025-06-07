@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/github/license/rodolfodpk/go-crablet)](https://github.com/rodolfodpk/go-crablet/blob/main/LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/rodolfodpk/go-crablet)](https://github.com/rodolfodpk/go-crablet/blob/main/go.mod)
 
-A Go library inspired by Sara Pellegrini's Dynamic Consistency Boundary (DCB) pattern, providing a simpler and more flexible approach to consistency in event-driven systems. This library is perfect for event sourcing applications that need:
+A Go library inspired by Sara Pellegrini's Dynamic Consistency Boundary (DCB) pattern, providing a simpler and more flexible approach to consistency in event-driven systems. This library aims to help with event sourcing applications that need:
 - Reliable audit trail of all state changes
 - Flexible querying across event streams
 - Easy state reconstruction at any point in time
