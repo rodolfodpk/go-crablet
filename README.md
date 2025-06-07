@@ -23,6 +23,7 @@ The documentation has been split into several files for better organization:
 - [Tutorial](docs/tutorial.md): Step-by-step guide to get started with go-crablet
 - [State Projection](docs/state-projection.md): Detailed guide on state projection
 - [Examples](docs/examples.md): Practical examples and use cases
+- [Course Subscription](docs/course-subscription.md): Detailed example of a course subscription system
 
 ## Quick Start
 
@@ -146,84 +147,7 @@ type Tag struct {
 }
 ```
 
-### Example Use Case: Course Subscription System
-
-Here's a practical example of using go-crablet to implement a course subscription system:
-
-```go
-// Define event types
-const (
-    EventTypeSubscription = "Subscription"
-    EventTypeUnsubscription = "Unsubscription"
-)
-
-// Define subscription state
-type SubscriptionState struct {
-    IsActive bool
-    Since    time.Time
-    Until    time.Time
-}
-
-// Create a projector for subscription state
-subscriptionProjector := dcb.StateProjector{
-    Query: dcb.NewQuery(
-        dcb.NewTags("course_id", "C1", "student_id", "S1"),
-        EventTypeSubscription,
-        EventTypeUnsubscription,
-    ),
-    InitialState: &SubscriptionState{},
-    TransitionFn: func(state any, event dcb.Event) any {
-        s := state.(*SubscriptionState)
-        switch event.Type {
-        case EventTypeSubscription:
-            var data struct{ Until time.Time }
-            if err := json.Unmarshal(event.Data, &data); err != nil {
-                panic(err)
-            }
-            s.IsActive = true
-            s.Since = time.Now()
-            s.Until = data.Until
-        case EventTypeUnsubscription:
-            s.IsActive = false
-        }
-        return s
-    },
-}
-
-// Append a subscription event
-events := []dcb.InputEvent{
-    {
-        Type: EventTypeSubscription,
-        Tags: dcb.NewTags("course_id", "C1", "student_id", "S1"),
-        Data: []byte(`{"until": "2024-12-31T23:59:59Z"}`),
-    },
-}
-
-// Use a query to define the consistency boundary
-query := dcb.NewQuery(
-    dcb.NewTags("course_id", "C1", "student_id", "S1"),
-    EventTypeSubscription,
-    EventTypeUnsubscription,
-)
-
-// Append events with optimistic locking
-position, err := store.AppendEvents(ctx, events, query, 0)
-if err != nil {
-    panic(err)
-}
-
-// Project current state
-_, state, err := store.ProjectState(ctx, subscriptionProjector)
-if err != nil {
-    panic(err)
-}
-
-subscription := state.(*SubscriptionState)
-fmt.Printf("Subscription active: %v, until: %v\n", 
-    subscription.IsActive, 
-    subscription.Until,
-)
-```
+For a practical example of using go-crablet to implement a course subscription system, see [Course Subscription Example](docs/course-subscription.md).
 
 ### State Projection
 
