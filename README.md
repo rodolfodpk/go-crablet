@@ -37,11 +37,13 @@ For more detailed information, please refer to the documentation sections above.
 
 ## Features
 
-- **Event Storage**: Store events with unique IDs, types, and JSON payloads
+- **Event Storage**: Append events with unique IDs, types, and JSON payloads
+- **Consistency Boundaries**: Define and manage consistency boundaries for your events
+- **State Projection**: Project events into current state views
+- **Event Querying**: Query events by type, time range, and custom filters
+- **Concurrency Control**: Handle concurrent event appends with optimistic locking
+- **Event Versioning**: Support for event versioning and schema evolution
 - **Tag-based Querying**: Query events using tags and event types to build different views of the same event stream
-- **Optimistic Concurrency**: Built-in support for optimistic locking using event queries and positions
-- **Event Causation**: Track event causation and correlation for event chains
-- **State Projection**: Build current state by projecting over events using custom projectors
 - **Batch Operations**: Efficient batch operations for appending multiple events
 - **PostgreSQL Backend**: Uses PostgreSQL for reliable, ACID-compliant storage with native concurrency control
 - **Go Native**: Written in Go with idiomatic Go patterns and interfaces
