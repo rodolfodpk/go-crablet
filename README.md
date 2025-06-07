@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/github/license/rodolfodpk/go-crablet)](https://github.com/rodolfodpk/go-crablet/blob/main/LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/rodolfodpk/go-crablet)](https://github.com/rodolfodpk/go-crablet/blob/main/go.mod)
 
-A Go library implementing the Dynamic Consistency Boundary (DCB) event store pattern, providing a simpler and more flexible approach to consistency in event-driven systems. This library is perfect for event sourcing applications that need:
+A Go library inspired by Sara Pellegrini's Dynamic Consistency Boundary (DCB) pattern, providing a simpler and more flexible approach to consistency in event-driven systems. This library is perfect for event sourcing applications that need:
 - Reliable audit trail of all state changes
 - Flexible querying across event streams
 - Easy state reconstruction at any point in time
@@ -42,7 +42,6 @@ The documentation has been split into several files for better organization:
 
 ## References
 
-- [Dynamic Consistency Boundary (DCB)](https://dcb.events/) - The official website about the DCB pattern
+- [Dynamic Consistency Boundary (DCB)](https://dcb.events/) - Sara Pellegrini's pattern for managing consistency in event-driven systems
 - [I am here to kill the aggregate](https://sara.event-thinking.io/2023/04/kill-aggregate-chapter-1-I-am-here-to-kill-the-aggregate.html) - Sara Pellegrini's blog post about moving beyond aggregates in event-driven systems
-- [Event Sourcing Pattern](https://martinfowler.com/eaaDev/EventSourcing.html) - Martin Fowler's comprehensive explanation of the event sourcing pattern
-- [Event Sourcing Made Simple](https://www.eventstore.com/blog/event-sourcing-made-simple) - A practical guide to understanding and implementing event sourcing
+
