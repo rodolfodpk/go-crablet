@@ -13,42 +13,24 @@ Here's how it works under the hood:
 ```go
 // The ProjectState method streams events from PostgreSQL
 func (es *eventStore) ProjectState(ctx context.Context, projector StateProjector) (int64, any, error) {
-    // Handle empty or nil tags
-    var queryTags []byte
-    if len(projector.Tags) > 0 {
-        // Build JSONB query condition from tags
-        tagMap := make(map[string]string)
-        for _, t := range projector.Tags {
-            tagMap[t.Key] = t.Value
-        }
-        var err error
-        queryTags, err = json.Marshal(tagMap)
-        if err != nil {
-            return 0, projector.InitialState, fmt.Errorf("failed to marshal query tags: %w", err)
-        }
+    // Build JSONB query condition from query tags
+    tagMap := make(map[string]string)
+    for _, t := range projector.Query.Tags {
+        tagMap[t.Key] = t.Value
+    }
+    queryTags, err := json.Marshal(tagMap)
+    if err != nil {
+        return 0, projector.InitialState, fmt.Errorf("failed to marshal query tags: %w", err)
     }
 
     // Construct SQL query
-    var sqlQuery string
-    var args []interface{}
-    
-    if queryTags != nil {
-        // Use JSONB containment operator @> when tags are provided
-        sqlQuery = "SELECT id, type, tags, data, position, causation_id, correlation_id FROM events WHERE tags @> $1"
-        args = append(args, queryTags)
-    } else {
-        // When no tags are provided, select all events
-        sqlQuery = "SELECT id, type, tags, data, position, causation_id, correlation_id FROM events"
-    }
+    sqlQuery := "SELECT id, type, tags, data, position, causation_id, correlation_id FROM events WHERE tags @> $1"
+    args := []interface{}{queryTags}
 
     // Add event type filtering if specified
-    if len(projector.EventTypes) > 0 {
-        if len(args) > 0 {
-            sqlQuery += fmt.Sprintf(" AND type = ANY($%d)", len(args)+1)
-        } else {
-            sqlQuery += fmt.Sprintf(" WHERE type = ANY($%d)", len(args)+1)
-        }
-        args = append(args, projector.EventTypes)
+    if len(projector.Query.EventTypes) > 0 {
+        sqlQuery += fmt.Sprintf(" AND type = ANY($%d)", len(args)+1)
+        args = append(args, projector.Query.EventTypes)
     }
 
     // Stream rows from PostgreSQL
@@ -114,6 +96,12 @@ The `ProjectState` method provides flexible state projection capabilities. Here 
            // Only subscription events will be received due to Query.EventTypes
            switch event.Type {
            case "StudentSubscribedToCourse":
+               var data struct {
+                   SubscriptionDate string `json:"subscription_date"`
+               }
+               if err := json.Unmarshal(event.Data, &data); err != nil {
+                   panic(err)
+               }
                // Handle subscription event
            case "StudentUnsubscribedFromCourse":
                // Handle unsubscription event
@@ -142,9 +130,17 @@ The `ProjectState` method provides flexible state projection capabilities. Here 
            // Only events for course c1 will be received due to Query.Tags
            switch event.Type {
            case "StudentSubscribedToCourse":
-               // Add student to course
+               for _, tag := range event.Tags {
+                   if tag.Key == "student_id" {
+                       course.StudentIDs[tag.Value] = true
+                   }
+               }
            case "StudentUnsubscribedFromCourse":
-               // Remove student from course
+               for _, tag := range event.Tags {
+                   if tag.Key == "student_id" {
+                       delete(course.StudentIDs, tag.Value)
+                   }
+               }
            }
            return course
        },
@@ -161,9 +157,17 @@ The `ProjectState` method provides flexible state projection capabilities. Here 
            // Only events for student s1 will be received due to Query.Tags
            switch event.Type {
            case "StudentSubscribedToCourse":
-               // Add course to student
+               for _, tag := range event.Tags {
+                   if tag.Key == "course_id" {
+                       student.CourseIDs[tag.Value] = true
+                   }
+               }
            case "StudentUnsubscribedFromCourse":
-               // Remove course from student
+               for _, tag := range event.Tags {
+                   if tag.Key == "course_id" {
+                       delete(student.CourseIDs, tag.Value)
+                   }
+               }
            }
            return student
        },

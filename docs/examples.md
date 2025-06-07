@@ -14,16 +14,23 @@ import (
     "fmt"
     "log"
 
+    "github.com/jackc/pgx/v5/pgxpool"
     "github.com/rodolfodpk/go-crablet"
 )
 
 func main() {
-    // Create a new event store with PostgreSQL connection
-    store, err := dcb.NewEventStore("postgres://user:pass@localhost:5432/mydb?sslmode=disable")
+    // Create a PostgreSQL connection pool
+    pool, err := pgxpool.New(context.Background(), "postgres://user:pass@localhost:5432/mydb?sslmode=disable")
     if err != nil {
         log.Fatal(err)
     }
-    defer store.Close()
+    defer pool.Close()
+
+    // Create a new event store
+    store, err := dcb.NewEventStore(context.Background(), pool)
+    if err != nil {
+        log.Fatal(err)
+    }
 
     ctx := context.Background()
 
@@ -34,13 +41,17 @@ func main() {
     )
 
     // Create a new event
-    event := dcb.NewInputEvent("StudentSubscribedToCourse", tags, map[string]interface{}{
-        "subscription_date": "2024-03-20",
-        "payment_method": "credit_card",
-    })
+    event := dcb.NewInputEvent(
+        "StudentSubscribedToCourse", 
+        tags, 
+        []byte(`{"subscription_date": "2024-03-20", "payment_method": "credit_card"}`),
+    )
+
+    // Define the consistency boundary
+    query := dcb.NewQuery(tags, "StudentSubscribedToCourse")
 
     // Append the event to the store
-    position, err := store.AppendEvents(ctx, []dcb.InputEvent{event}, dcb.NewQuery(nil), 0)
+    position, err := store.AppendEvents(ctx, []dcb.InputEvent{event}, query, 0)
     if err != nil {
         log.Fatal(err)
     }
@@ -58,9 +69,12 @@ package main
 
 import (
     "context"
+    "encoding/json"
     "fmt"
     "log"
+    "time"
 
+    "github.com/jackc/pgx/v5/pgxpool"
     "github.com/rodolfodpk/go-crablet"
 )
 
@@ -81,47 +95,58 @@ type StudentState struct {
 }
 
 func main() {
-    store, err := dcb.NewEventStore("postgres://user:pass@localhost:5432/mydb?sslmode=disable")
+    // Create a PostgreSQL connection pool
+    pool, err := pgxpool.New(context.Background(), "postgres://user:pass@localhost:5432/mydb?sslmode=disable")
     if err != nil {
         log.Fatal(err)
     }
-    defer store.Close()
+    defer pool.Close()
+
+    // Create a new event store
+    store, err := dcb.NewEventStore(context.Background(), pool)
+    if err != nil {
+        log.Fatal(err)
+    }
 
     ctx := context.Background()
 
     // Create a new course
     courseID := "C123"
     courseTags := dcb.NewTags("course_id", courseID)
-    courseCreated := dcb.NewInputEvent("CourseCreated", courseTags, map[string]interface{}{
-        "name": "Introduction to Go",
-        "description": "Learn Go programming language",
-    })
+    courseCreated := dcb.NewInputEvent(
+        "CourseCreated", 
+        courseTags, 
+        []byte(`{"name": "Introduction to Go", "description": "Learn Go programming language"}`),
+    )
 
     // Create a new student
     studentID := "S456"
     studentTags := dcb.NewTags("student_id", studentID)
-    studentRegistered := dcb.NewInputEvent("StudentRegistered", studentTags, map[string]interface{}{
-        "name": "John Doe",
-        "email": "john@example.com",
-    })
+    studentRegistered := dcb.NewInputEvent(
+        "StudentRegistered", 
+        studentTags, 
+        []byte(`{"name": "John Doe", "email": "john@example.com"}`),
+    )
 
     // Subscribe student to course
     subscriptionTags := dcb.NewTags(
         "course_id", courseID,
         "student_id", studentID,
     )
-    subscriptionEvent := dcb.NewInputEvent("StudentSubscribedToCourse", subscriptionTags, map[string]interface{}{
-        "subscription_date": "2024-03-20",
-        "payment_method": "credit_card",
-    })
+    subscriptionEvent := dcb.NewInputEvent(
+        "StudentSubscribedToCourse", 
+        subscriptionTags, 
+        []byte(`{"subscription_date": "2024-03-20", "payment_method": "credit_card"}`),
+    )
 
-    // Append all events
+    // Append all events with a query that includes all relevant tags
+    query := dcb.NewQuery(subscriptionTags, "CourseCreated", "StudentRegistered", "StudentSubscribedToCourse")
     events := []dcb.InputEvent{
         courseCreated,
         studentRegistered,
         subscriptionEvent,
     }
-    position, err := store.AppendEvents(ctx, events, dcb.NewQuery(nil), 0)
+    position, err := store.AppendEvents(ctx, events, query, 0)
     if err != nil {
         log.Fatal(err)
     }
@@ -137,13 +162,26 @@ func main() {
             course := state.(*CourseState)
             switch event.Type {
             case "CourseCreated":
-                data := event.Data.(map[string]interface{})
-                course.Name = data["name"].(string)
+                var data struct {
+                    Name string `json:"name"`
+                }
+                if err := json.Unmarshal(event.Data, &data); err != nil {
+                    panic(err)
+                }
+                course.Name = data.Name
                 course.IsActive = true
             case "StudentSubscribedToCourse":
-                course.StudentIDs[event.Tags["student_id"]] = true
+                for _, tag := range event.Tags {
+                    if tag.Key == "student_id" {
+                        course.StudentIDs[tag.Value] = true
+                    }
+                }
             case "StudentUnsubscribedFromCourse":
-                delete(course.StudentIDs, event.Tags["student_id"])
+                for _, tag := range event.Tags {
+                    if tag.Key == "student_id" {
+                        delete(course.StudentIDs, tag.Value)
+                    }
+                }
             case "CourseCancelled":
                 course.IsActive = false
             }
@@ -162,13 +200,26 @@ func main() {
             student := state.(*StudentState)
             switch event.Type {
             case "StudentRegistered":
-                data := event.Data.(map[string]interface{})
-                student.Name = data["name"].(string)
+                var data struct {
+                    Name string `json:"name"`
+                }
+                if err := json.Unmarshal(event.Data, &data); err != nil {
+                    panic(err)
+                }
+                student.Name = data.Name
                 student.IsActive = true
             case "StudentSubscribedToCourse":
-                student.CourseIDs[event.Tags["course_id"]] = true
+                for _, tag := range event.Tags {
+                    if tag.Key == "course_id" {
+                        student.CourseIDs[tag.Value] = true
+                    }
+                }
             case "StudentUnsubscribedFromCourse":
-                delete(student.CourseIDs, event.Tags["course_id"])
+                for _, tag := range event.Tags {
+                    if tag.Key == "course_id" {
+                        delete(student.CourseIDs, tag.Value)
+                    }
+                }
             case "StudentDeactivated":
                 student.IsActive = false
             }
@@ -201,62 +252,6 @@ func main() {
 }
 ```
 
-## Consistency Example
-
-Here's an example showing how to use go-crablet's consistency features:
-
-```go
-package main
-
-import (
-    "context"
-    "fmt"
-    "log"
-
-    "github.com/rodolfodpk/go-crablet"
-)
-
-func main() {
-    store, err := dcb.NewEventStore("postgres://user:pass@localhost:5432/mydb?sslmode=disable")
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer store.Close()
-
-    ctx := context.Background()
-
-    // Create a query for a specific course
-    courseID := "C123"
-    courseQuery := dcb.NewQuery(dcb.NewTags("course_id", courseID))
-
-    // Get current position for the course
-    _, position, err := store.GetPosition(ctx, courseQuery)
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // Create a new subscription event
-    subscriptionTags := dcb.NewTags(
-        "course_id", courseID,
-        "student_id", "S456",
-    )
-    subscriptionEvent := dcb.NewInputEvent("StudentSubscribedToCourse", subscriptionTags, nil)
-
-    // Append event with consistency check
-    // This ensures no other events for this course were added since we last checked
-    newPosition, err := store.AppendEvents(ctx, []dcb.InputEvent{subscriptionEvent}, courseQuery, position)
-    if err != nil {
-        if err == dcb.ErrConcurrentModification {
-            fmt.Println("Course was modified by another process, please retry")
-            return
-        }
-        log.Fatal(err)
-    }
-
-    fmt.Printf("Event appended at position %d\n", newPosition)
-}
-```
-
 ## Error Handling
 
 Here's an example showing how to handle different types of errors:
@@ -269,57 +264,69 @@ import (
     "fmt"
     "log"
 
+    "github.com/jackc/pgx/v5/pgxpool"
     "github.com/rodolfodpk/go-crablet"
 )
 
 func main() {
-    store, err := dcb.NewEventStore("postgres://user:pass@localhost:5432/mydb?sslmode=disable")
+    // Create a PostgreSQL connection pool
+    pool, err := pgxpool.New(context.Background(), "postgres://user:pass@localhost:5432/mydb?sslmode=disable")
     if err != nil {
         log.Fatal(err)
     }
-    defer store.Close()
+    defer pool.Close()
+
+    // Create a new event store
+    store, err := dcb.NewEventStore(context.Background(), pool)
+    if err != nil {
+        log.Fatal(err)
+    }
 
     ctx := context.Background()
 
-    // Example of handling concurrent modification
+    // Example of handling validation errors
     courseID := "C123"
-    courseQuery := dcb.NewQuery(dcb.NewTags("course_id", courseID))
+    courseTags := dcb.NewTags("course_id", courseID)
+    query := dcb.NewQuery(courseTags, "CourseUpdated")
 
-    // Get current position
-    _, position, err := store.GetPosition(ctx, courseQuery)
+    // Try to append with invalid event data
+    invalidEvent := dcb.NewInputEvent(
+        "CourseUpdated", 
+        courseTags, 
+        []byte(`invalid json`), // Invalid JSON data
+    )
+
+    _, err = store.AppendEvents(ctx, []dcb.InputEvent{invalidEvent}, query, 0)
+    if err != nil {
+        if validationErr, ok := err.(*dcb.ValidationError); ok {
+            fmt.Printf("Validation error: %v\n", validationErr)
+            return
+        }
+        log.Fatal(err)
+    }
+
+    // Example of handling concurrency errors
+    // First append
+    event1 := dcb.NewInputEvent(
+        "CourseUpdated", 
+        courseTags, 
+        []byte(`{"title": "New Title"}`),
+    )
+    position, err := store.AppendEvents(ctx, []dcb.InputEvent{event1}, query, 0)
     if err != nil {
         log.Fatal(err)
     }
 
-    // Try to append with retry logic
-    maxRetries := 3
-    for i := 0; i < maxRetries; i++ {
-        event := dcb.NewInputEvent("CourseUpdated", dcb.NewTags("course_id", courseID), nil)
-        newPosition, err := store.AppendEvents(ctx, []dcb.InputEvent{event}, courseQuery, position)
-        if err != nil {
-            if err == dcb.ErrConcurrentModification {
-                // Get the new position and retry
-                _, position, err = store.GetPosition(ctx, courseQuery)
-                if err != nil {
-                    log.Fatal(err)
-                }
-                continue
-            }
-            log.Fatal(err)
-        }
-        fmt.Printf("Event appended at position %d after %d retries\n", newPosition, i)
-        break
-    }
-
-    // Example of handling invalid event data
-    invalidEvent := dcb.NewInputEvent("CourseCreated", dcb.NewTags("course_id", "C999"), map[string]interface{}{
-        "name": make(chan int), // Invalid data type
-    })
-
-    _, err = store.AppendEvents(ctx, []dcb.InputEvent{invalidEvent}, dcb.NewQuery(nil), 0)
+    // Try to append another event with the same query but old position
+    event2 := dcb.NewInputEvent(
+        "CourseUpdated", 
+        courseTags, 
+        []byte(`{"title": "Another Title"}`),
+    )
+    _, err = store.AppendEvents(ctx, []dcb.InputEvent{event2}, query, 0) // Using position 0 instead of the new position
     if err != nil {
-        if err == dcb.ErrInvalidEventData {
-            fmt.Println("Invalid event data:", err)
+        if _, ok := err.(*dcb.ConcurrencyError); ok {
+            fmt.Println("Concurrency error: another event was appended to this stream")
             return
         }
         log.Fatal(err)
@@ -331,6 +338,6 @@ These examples demonstrate:
 1. Basic event storage and retrieval
 2. Building a complete system with multiple entities
 3. Using consistency features to handle concurrent operations
-4. Proper error handling and retry logic
+4. Proper error handling for validation and concurrency
 
 For more details about specific features, please refer to the other documentation sections. 
