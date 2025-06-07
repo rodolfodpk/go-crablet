@@ -3,6 +3,7 @@ package dcb
 
 import (
 	"encoding/json"
+	"go-crablet/pkg/dcb"
 )
 
 // CourseState represents the state of a course
@@ -42,9 +43,9 @@ type EnrollmentEvent struct {
 }
 
 // NewCourseLaunchedEvent creates a new course launched event
-func NewCourseLaunchedEvent(title string, tags []Tag) InputEvent {
+func NewCourseLaunchedEvent(title string, tags []dcb.Tag) dcb.InputEvent {
 	data, _ := json.Marshal(CourseLaunchedEvent{Title: title})
-	return InputEvent{
+	return dcb.InputEvent{
 		Type: "CourseLaunched",
 		Tags: tags,
 		Data: data,
@@ -52,9 +53,9 @@ func NewCourseLaunchedEvent(title string, tags []Tag) InputEvent {
 }
 
 // NewCourseUpdatedEvent creates a new course updated event
-func NewCourseUpdatedEvent(title string, tags []Tag) InputEvent {
+func NewCourseUpdatedEvent(title string, tags []dcb.Tag) dcb.InputEvent {
 	data, _ := json.Marshal(CourseUpdatedEvent{Title: title})
-	return InputEvent{
+	return dcb.InputEvent{
 		Type: "CourseUpdated",
 		Tags: tags,
 		Data: data,
@@ -62,9 +63,9 @@ func NewCourseUpdatedEvent(title string, tags []Tag) InputEvent {
 }
 
 // NewUserRegisteredEvent creates a new user registration event
-func NewUserRegisteredEvent(name string, tags []Tag) InputEvent {
+func NewUserRegisteredEvent(name string, tags []dcb.Tag) dcb.InputEvent {
 	data, _ := json.Marshal(UserRegisteredEvent{Name: name})
-	return InputEvent{
+	return dcb.InputEvent{
 		Type: "UserRegistered",
 		Tags: tags,
 		Data: data,
@@ -72,9 +73,9 @@ func NewUserRegisteredEvent(name string, tags []Tag) InputEvent {
 }
 
 // NewEnrollmentEvent creates a new enrollment event
-func NewEnrollmentEvent(status string, tags []Tag) InputEvent {
+func NewEnrollmentEvent(status string, tags []dcb.Tag) dcb.InputEvent {
 	data, _ := json.Marshal(EnrollmentEvent{Status: status})
-	return InputEvent{
+	return dcb.InputEvent{
 		Type: "Enrollment",
 		Tags: tags,
 		Data: data,
@@ -82,11 +83,11 @@ func NewEnrollmentEvent(status string, tags []Tag) InputEvent {
 }
 
 // CourseProjector creates a projector for course events
-func CourseProjector(courseID string) StateProjector {
-	return StateProjector{
+func CourseProjector(courseID string) dcb.StateProjector {
+	return dcb.StateProjector{
 		Query:        NewQuery(NewTags("course_id", courseID), "CourseLaunched", "CourseUpdated", "Enrollment"),
 		InitialState: &CourseState{},
-		TransitionFn: func(state any, e Event) any {
+		TransitionFn: func(state any, e dcb.Event) any {
 			s := state.(*CourseState)
 			s.EventCount++
 
@@ -105,15 +106,15 @@ func CourseProjector(courseID string) StateProjector {
 }
 
 // CourseUserProjector creates a projector for course and user events
-func CourseUserProjector(courseID string) StateProjector {
-	return StateProjector{
+func CourseUserProjector(courseID string) dcb.StateProjector {
+	return dcb.StateProjector{
 		Query: NewQuery(
 			NewTags("course_id", courseID),
 			"CourseLaunched", "CourseUpdated", "UserRegistered", "UserProfileUpdated",
 			"EnrollmentStarted", "EnrollmentCompleted",
 		),
 		InitialState: &CourseUserState{},
-		TransitionFn: func(state any, e Event) any {
+		TransitionFn: func(state any, e dcb.Event) any {
 			s := state.(*CourseUserState)
 			s.EventCount++
 

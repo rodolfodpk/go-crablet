@@ -43,8 +43,14 @@ type (
 
 	// EventStore provides methods to append and read events in a PostgreSQL database.
 	EventStore interface {
+		// AppendEvents adds multiple events to the stream and returns the latest position.
+		// It requires the latest known position to ensure consistency.
 		AppendEvents(ctx context.Context, events []InputEvent, query Query, latestKnownPosition int64) (int64, error)
+
+		// ProjectState computes a state by streaming events matching the projector's query.
 		ProjectState(ctx context.Context, stateProjector StateProjector) (int64, any, error)
+
+		// ProjectStateUpTo computes a state by streaming events matching the projector's query, up to maxPosition.
 		ProjectStateUpTo(ctx context.Context, stateProjector StateProjector, maxPosition int64) (int64, any, error)
 	}
 )

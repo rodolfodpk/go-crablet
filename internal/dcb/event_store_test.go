@@ -7,6 +7,8 @@ import (
 	"os"
 	"time"
 
+	"go-crablet/pkg/dcb"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -18,7 +20,7 @@ var (
 	pool      *pgxpool.Pool
 	postgresC testcontainers.Container
 	teardown  func()
-	store     EventStore
+	store     dcb.EventStore
 )
 
 // Define teardown function at package level
@@ -140,7 +142,7 @@ var _ = BeforeSuite(func() {
 
 	// Initialize event store with retry
 	Eventually(func() error {
-		store, err = NewEventStore(ctx, pool)
+		store, err = dcb.NewEventStore(ctx, pool)
 		if err != nil {
 			return fmt.Errorf("failed to create event store: %w", err)
 		}

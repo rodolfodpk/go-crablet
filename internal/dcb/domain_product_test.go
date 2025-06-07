@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go-crablet/pkg/dcb"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -43,7 +44,7 @@ type ProductPriceState struct {
 
 // ProductAPI provides methods for product-related operations
 type ProductAPI struct {
-	store EventStore
+	store dcb.EventStore
 }
 
 // OrderProductCommand represents the command to order a product
@@ -53,48 +54,48 @@ type OrderProductCommand struct {
 }
 
 // NewProductDefinedEvent creates a new ProductDefined event
-func NewProductDefinedEvent(productID string, price float64, minutesAgo int) InputEvent {
+func NewProductDefinedEvent(productID string, price float64, minutesAgo int) dcb.InputEvent {
 	data, _ := json.Marshal(ProductDefinedEvent{
 		ProductID:  productID,
 		Price:      price,
 		MinutesAgo: minutesAgo,
 	})
-	return InputEvent{
+	return dcb.InputEvent{
 		Type: "ProductDefined",
-		Tags: []Tag{{Key: "product", Value: productID}},
+		Tags: []dcb.Tag{{Key: "product", Value: productID}},
 		Data: data,
 	}
 }
 
 // NewProductPriceChangedEvent creates a new ProductPriceChanged event
-func NewProductPriceChangedEvent(productID string, newPrice float64, minutesAgo int) InputEvent {
+func NewProductPriceChangedEvent(productID string, newPrice float64, minutesAgo int) dcb.InputEvent {
 	data, _ := json.Marshal(ProductPriceChangedEvent{
 		ProductID:  productID,
 		NewPrice:   newPrice,
 		MinutesAgo: minutesAgo,
 	})
-	return InputEvent{
+	return dcb.InputEvent{
 		Type: "ProductPriceChanged",
-		Tags: []Tag{{Key: "product", Value: productID}},
+		Tags: []dcb.Tag{{Key: "product", Value: productID}},
 		Data: data,
 	}
 }
 
 // NewProductOrderedEvent creates a new ProductOrdered event
-func NewProductOrderedEvent(productID string, price float64) InputEvent {
+func NewProductOrderedEvent(productID string, price float64) dcb.InputEvent {
 	data, _ := json.Marshal(ProductOrderedEvent{
 		ProductID: productID,
 		Price:     price,
 	})
-	return InputEvent{
+	return dcb.InputEvent{
 		Type: "ProductOrdered",
-		Tags: []Tag{{Key: "product", Value: productID}},
+		Tags: []dcb.Tag{{Key: "product", Value: productID}},
 		Data: data,
 	}
 }
 
 // NewProductAPI creates a new ProductAPI instance
-func NewProductAPI(store EventStore) *ProductAPI {
+func NewProductAPI(store dcb.EventStore) *ProductAPI {
 	return &ProductAPI{store: store}
 }
 
@@ -103,16 +104,16 @@ func (api *ProductAPI) OrderProduct(ctx context.Context, cmd OrderProductCommand
 	const productPriceGracePeriod = 15 // minutes
 
 	// Project current product price state
-	projector := StateProjector{
-		Query: Query{
-			Tags:       []Tag{{Key: "product", Value: cmd.ProductID}},
+	projector := dcb.StateProjector{
+		Query: dcb.Query{
+			Tags:       []dcb.Tag{{Key: "product", Value: cmd.ProductID}},
 			EventTypes: []string{"ProductDefined", "ProductPriceChanged"},
 		},
 		InitialState: ProductPriceState{
 			LastValidOldPrice: 0,
 			ValidNewPrices:    make([]float64, 0),
 		},
-		TransitionFn: func(state any, event Event) any {
+		TransitionFn: func(state any, event dcb.Event) any {
 			currentState := state.(ProductPriceState)
 
 			switch event.Type {
@@ -173,17 +174,17 @@ func (api *ProductAPI) OrderProduct(ctx context.Context, cmd OrderProductCommand
 	event := NewProductOrderedEvent(cmd.ProductID, cmd.DisplayedPrice)
 
 	// Create a query that filters by product tag and event type
-	appendQuery := Query{
-		Tags:       []Tag{{Key: "product", Value: cmd.ProductID}},
+	appendQuery := dcb.Query{
+		Tags:       []dcb.Tag{{Key: "product", Value: cmd.ProductID}},
 		EventTypes: []string{"ProductOrdered"},
 	}
 
 	// Get the current position for this product's events
-	pos, _, err := api.store.ProjectState(ctx, StateProjector{
+	pos, _, err := api.store.ProjectState(ctx, dcb.StateProjector{
 		Query:        appendQuery,
-		InitialState: []Event{},
-		TransitionFn: func(state any, event Event) any {
-			events := state.([]Event)
+		InitialState: []dcb.Event{},
+		TransitionFn: func(state any, event dcb.Event) any {
+			events := state.([]dcb.Event)
 			return append(events, event)
 		},
 	})
@@ -192,7 +193,7 @@ func (api *ProductAPI) OrderProduct(ctx context.Context, cmd OrderProductCommand
 	}
 
 	// Append the event using the current position
-	_, err = api.store.AppendEvents(ctx, []InputEvent{event}, appendQuery, pos)
+	_, err = api.store.AppendEvents(ctx, []dcb.InputEvent{event}, appendQuery, pos)
 	if err != nil {
 		return fmt.Errorf("failed to append order event: %w", err)
 	}
@@ -231,8 +232,8 @@ var _ = Describe("Product Events", func() {
 		BeforeEach(func() {
 			// Given
 			event := NewProductDefinedEvent(productID, 100.0, 0)
-			_, err := store.AppendEvents(ctx, []InputEvent{event}, Query{
-				Tags:       []Tag{{Key: "product", Value: productID}},
+			_, err := store.AppendEvents(ctx, []dcb.InputEvent{event}, dcb.Query{
+				Tags:       []dcb.Tag{{Key: "product", Value: productID}},
 				EventTypes: []string{"ProductDefined"},
 			}, 0)
 			Expect(err).NotTo(HaveOccurred())
@@ -250,19 +251,19 @@ var _ = Describe("Product Events", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				// Verify the event was created
-				_, eventsResult, err := store.ProjectState(ctx, StateProjector{
-					Query: Query{
-						Tags:       []Tag{{Key: "product", Value: productID}},
+				_, eventsResult, err := store.ProjectState(ctx, dcb.StateProjector{
+					Query: dcb.Query{
+						Tags:       []dcb.Tag{{Key: "product", Value: productID}},
 						EventTypes: []string{"ProductOrdered"},
 					},
-					InitialState: []Event{},
-					TransitionFn: func(state any, event Event) any {
-						events := state.([]Event)
+					InitialState: []dcb.Event{},
+					TransitionFn: func(state any, event dcb.Event) any {
+						events := state.([]dcb.Event)
 						return append(events, event)
 					},
 				})
 				Expect(err).NotTo(HaveOccurred())
-				events := eventsResult.([]Event)
+				events := eventsResult.([]dcb.Event)
 				Expect(events).To(HaveLen(1))
 				Expect(events[0].Type).To(Equal("ProductOrdered"))
 
@@ -287,19 +288,19 @@ var _ = Describe("Product Events", func() {
 				Expect(err.Error()).To(ContainSubstring("invalid price for product"))
 
 				// Verify no order event was created
-				_, eventsResult, err := store.ProjectState(ctx, StateProjector{
-					Query: Query{
-						Tags:       []Tag{{Key: "product", Value: productID}},
+				_, eventsResult, err := store.ProjectState(ctx, dcb.StateProjector{
+					Query: dcb.Query{
+						Tags:       []dcb.Tag{{Key: "product", Value: productID}},
 						EventTypes: []string{"ProductOrdered"},
 					},
-					InitialState: []Event{},
-					TransitionFn: func(state any, event Event) any {
-						events := state.([]Event)
+					InitialState: []dcb.Event{},
+					TransitionFn: func(state any, event dcb.Event) any {
+						events := state.([]dcb.Event)
 						return append(events, event)
 					},
 				})
 				Expect(err).NotTo(HaveOccurred())
-				events := eventsResult.([]Event)
+				events := eventsResult.([]dcb.Event)
 				Expect(events).To(BeEmpty())
 			})
 		})
@@ -310,8 +311,8 @@ var _ = Describe("Product Events", func() {
 			// Given
 			defineEvent := NewProductDefinedEvent(productID, 100.0, 20)     // 20 minutes ago
 			changeEvent := NewProductPriceChangedEvent(productID, 200.0, 5) // 5 minutes ago
-			_, err := store.AppendEvents(ctx, []InputEvent{defineEvent, changeEvent}, Query{
-				Tags:       []Tag{{Key: "product", Value: productID}},
+			_, err := store.AppendEvents(ctx, []dcb.InputEvent{defineEvent, changeEvent}, dcb.Query{
+				Tags:       []dcb.Tag{{Key: "product", Value: productID}},
 				EventTypes: []string{"ProductDefined", "ProductPriceChanged"},
 			}, 0)
 			Expect(err).NotTo(HaveOccurred())
@@ -329,19 +330,19 @@ var _ = Describe("Product Events", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				// Verify the event was created
-				_, eventsResult, err := store.ProjectState(ctx, StateProjector{
-					Query: Query{
-						Tags:       []Tag{{Key: "product", Value: productID}},
+				_, eventsResult, err := store.ProjectState(ctx, dcb.StateProjector{
+					Query: dcb.Query{
+						Tags:       []dcb.Tag{{Key: "product", Value: productID}},
 						EventTypes: []string{"ProductOrdered"},
 					},
-					InitialState: []Event{},
-					TransitionFn: func(state any, event Event) any {
-						events := state.([]Event)
+					InitialState: []dcb.Event{},
+					TransitionFn: func(state any, event dcb.Event) any {
+						events := state.([]dcb.Event)
 						return append(events, event)
 					},
 				})
 				Expect(err).NotTo(HaveOccurred())
-				events := eventsResult.([]Event)
+				events := eventsResult.([]dcb.Event)
 				Expect(events).To(HaveLen(1))
 				Expect(events[0].Type).To(Equal("ProductOrdered"))
 
@@ -366,19 +367,19 @@ var _ = Describe("Product Events", func() {
 				Expect(err.Error()).To(ContainSubstring("invalid price for product"))
 
 				// Verify no order event was created
-				_, eventsResult, err := store.ProjectState(ctx, StateProjector{
-					Query: Query{
-						Tags:       []Tag{{Key: "product", Value: productID}},
+				_, eventsResult, err := store.ProjectState(ctx, dcb.StateProjector{
+					Query: dcb.Query{
+						Tags:       []dcb.Tag{{Key: "product", Value: productID}},
 						EventTypes: []string{"ProductOrdered"},
 					},
-					InitialState: []Event{},
-					TransitionFn: func(state any, event Event) any {
-						events := state.([]Event)
+					InitialState: []dcb.Event{},
+					TransitionFn: func(state any, event dcb.Event) any {
+						events := state.([]dcb.Event)
 						return append(events, event)
 					},
 				})
 				Expect(err).NotTo(HaveOccurred())
-				events := eventsResult.([]Event)
+				events := eventsResult.([]dcb.Event)
 				Expect(events).To(BeEmpty())
 			})
 		})
@@ -390,8 +391,8 @@ var _ = Describe("Product Events", func() {
 			defineEvent := NewProductDefinedEvent(productID, 100.0, 20)       // 20 minutes ago
 			changeEvent1 := NewProductPriceChangedEvent(productID, 200.0, 15) // 15 minutes ago
 			changeEvent2 := NewProductPriceChangedEvent(productID, 300.0, 5)  // 5 minutes ago
-			_, err := store.AppendEvents(ctx, []InputEvent{defineEvent, changeEvent1, changeEvent2}, Query{
-				Tags:       []Tag{{Key: "product", Value: productID}},
+			_, err := store.AppendEvents(ctx, []dcb.InputEvent{defineEvent, changeEvent1, changeEvent2}, dcb.Query{
+				Tags:       []dcb.Tag{{Key: "product", Value: productID}},
 				EventTypes: []string{"ProductDefined", "ProductPriceChanged"},
 			}, 0)
 			Expect(err).NotTo(HaveOccurred())
@@ -422,19 +423,19 @@ var _ = Describe("Product Events", func() {
 				Expect(err.Error()).To(ContainSubstring("invalid price for product"))
 
 				// Verify two order events were created
-				_, eventsResult, err := store.ProjectState(ctx, StateProjector{
-					Query: Query{
-						Tags:       []Tag{{Key: "product", Value: productID}},
+				_, eventsResult, err := store.ProjectState(ctx, dcb.StateProjector{
+					Query: dcb.Query{
+						Tags:       []dcb.Tag{{Key: "product", Value: productID}},
 						EventTypes: []string{"ProductOrdered"},
 					},
-					InitialState: []Event{},
-					TransitionFn: func(state any, event Event) any {
-						events := state.([]Event)
+					InitialState: []dcb.Event{},
+					TransitionFn: func(state any, event dcb.Event) any {
+						events := state.([]dcb.Event)
 						return append(events, event)
 					},
 				})
 				Expect(err).NotTo(HaveOccurred())
-				events := eventsResult.([]Event)
+				events := eventsResult.([]dcb.Event)
 				Expect(events).To(HaveLen(2))
 
 				// Verify first order

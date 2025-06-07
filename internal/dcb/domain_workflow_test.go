@@ -3,6 +3,7 @@ package dcb
 
 import (
 	"encoding/json"
+	"go-crablet/pkg/dcb"
 )
 
 // WorkflowState represents the state of a workflow
@@ -46,9 +47,9 @@ type WorkflowCompletedEvent struct {
 }
 
 // NewWorkflowStartedEvent creates a new workflow started event
-func NewWorkflowStartedEvent(step int, tags []Tag) InputEvent {
+func NewWorkflowStartedEvent(step int, tags []dcb.Tag) dcb.InputEvent {
 	data, _ := json.Marshal(WorkflowStartedEvent{Step: step})
-	return InputEvent{
+	return dcb.InputEvent{
 		Type: "WorkflowStarted",
 		Tags: tags,
 		Data: data,
@@ -56,9 +57,9 @@ func NewWorkflowStartedEvent(step int, tags []Tag) InputEvent {
 }
 
 // NewTaskAssignedEvent creates a new task assigned event
-func NewTaskAssignedEvent(task string, tags []Tag) InputEvent {
+func NewTaskAssignedEvent(task string, tags []dcb.Tag) dcb.InputEvent {
 	data, _ := json.Marshal(TaskAssignedEvent{Task: task})
-	return InputEvent{
+	return dcb.InputEvent{
 		Type: "TaskAssigned",
 		Tags: tags,
 		Data: data,
@@ -66,9 +67,9 @@ func NewTaskAssignedEvent(task string, tags []Tag) InputEvent {
 }
 
 // NewTaskCompletedEvent creates a new task completed event
-func NewTaskCompletedEvent(task string, tags []Tag) InputEvent {
+func NewTaskCompletedEvent(task string, tags []dcb.Tag) dcb.InputEvent {
 	data, _ := json.Marshal(TaskCompletedEvent{Task: task})
-	return InputEvent{
+	return dcb.InputEvent{
 		Type: "TaskCompleted",
 		Tags: tags,
 		Data: data,
@@ -76,9 +77,9 @@ func NewTaskCompletedEvent(task string, tags []Tag) InputEvent {
 }
 
 // NewTaskFailedEvent creates a new task failed event
-func NewTaskFailedEvent(task string, error string, tags []Tag) InputEvent {
+func NewTaskFailedEvent(task string, error string, tags []dcb.Tag) dcb.InputEvent {
 	data, _ := json.Marshal(TaskFailedEvent{Task: task, Error: error})
-	return InputEvent{
+	return dcb.InputEvent{
 		Type: "TaskFailed",
 		Tags: tags,
 		Data: data,
@@ -86,9 +87,9 @@ func NewTaskFailedEvent(task string, error string, tags []Tag) InputEvent {
 }
 
 // NewTaskRetriedEvent creates a new task retried event
-func NewTaskRetriedEvent(task string, tags []Tag) InputEvent {
+func NewTaskRetriedEvent(task string, tags []dcb.Tag) dcb.InputEvent {
 	data, _ := json.Marshal(TaskRetriedEvent{Task: task})
-	return InputEvent{
+	return dcb.InputEvent{
 		Type: "TaskRetried",
 		Tags: tags,
 		Data: data,
@@ -96,9 +97,9 @@ func NewTaskRetriedEvent(task string, tags []Tag) InputEvent {
 }
 
 // NewWorkflowCompletedEvent creates a new workflow completed event
-func NewWorkflowCompletedEvent(step int, tags []Tag) InputEvent {
+func NewWorkflowCompletedEvent(step int, tags []dcb.Tag) dcb.InputEvent {
 	data, _ := json.Marshal(WorkflowCompletedEvent{Step: step})
-	return InputEvent{
+	return dcb.InputEvent{
 		Type: "WorkflowCompleted",
 		Tags: tags,
 		Data: data,
@@ -106,8 +107,8 @@ func NewWorkflowCompletedEvent(step int, tags []Tag) InputEvent {
 }
 
 // WorkflowProjector creates a projector for workflow events
-func WorkflowProjector(workflowID string) StateProjector {
-	return StateProjector{
+func WorkflowProjector(workflowID string) dcb.StateProjector {
+	return dcb.StateProjector{
 		Query: NewQuery(
 			NewTags("workflow_id", workflowID),
 			"TaskAssigned", "TaskCompleted", "TaskFailed", "TaskRetried",
@@ -116,7 +117,7 @@ func WorkflowProjector(workflowID string) StateProjector {
 			FailedTasks: make(map[string]string),
 			RetryCount:  make(map[string]int),
 		},
-		TransitionFn: func(state any, e Event) any {
+		TransitionFn: func(state any, e dcb.Event) any {
 			s := state.(*WorkflowState)
 			var data map[string]string
 			_ = json.Unmarshal(e.Data, &data)

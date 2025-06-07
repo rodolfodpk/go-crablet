@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go-crablet/pkg/dcb"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -30,27 +31,27 @@ type MoneyTransferred struct {
 }
 
 // NewAccountRegistered creates a new account registration event
-func NewAccountRegistered(username string) InputEvent {
+func NewAccountRegistered(username string) dcb.InputEvent {
 	data, _ := json.Marshal(AccountRegistered{Username: username})
-	return InputEvent{
+	return dcb.InputEvent{
 		Type: "AccountRegistered",
 		Data: data,
-		Tags: []Tag{{Key: "username", Value: username}},
+		Tags: []dcb.Tag{{Key: "username", Value: username}},
 	}
 }
 
 // NewAccountBalanceEvent creates a new account balance event
-func NewAccountBalanceEvent(username string, amount float64) InputEvent {
+func NewAccountBalanceEvent(username string, amount float64) dcb.InputEvent {
 	data, _ := json.Marshal(AccountBalance{Amount: amount})
-	return InputEvent{
+	return dcb.InputEvent{
 		Type: "AccountBalance",
 		Data: data,
-		Tags: []Tag{{Key: "username", Value: username}},
+		Tags: []dcb.Tag{{Key: "username", Value: username}},
 	}
 }
 
 // NewMoneyTransferredEvent creates a new money transfer event
-func NewMoneyTransferredEvent(fromUsername, toUsername string, amount, fromBalance, toBalance float64) InputEvent {
+func NewMoneyTransferredEvent(fromUsername, toUsername string, amount, fromBalance, toBalance float64) dcb.InputEvent {
 	data, _ := json.Marshal(MoneyTransferred{
 		FromUsername: fromUsername,
 		ToUsername:   toUsername,
@@ -58,10 +59,10 @@ func NewMoneyTransferredEvent(fromUsername, toUsername string, amount, fromBalan
 		FromBalance:  fromBalance,
 		ToBalance:    toBalance,
 	})
-	return InputEvent{
+	return dcb.InputEvent{
 		Type: "MoneyTransferred",
 		Data: data,
-		Tags: []Tag{
+		Tags: []dcb.Tag{
 			{Key: "username", Value: fromUsername},
 			{Key: "username", Value: toUsername},
 		},
@@ -69,28 +70,28 @@ func NewMoneyTransferredEvent(fromUsername, toUsername string, amount, fromBalan
 }
 
 // IsUsernameClaimedProjection creates a projector to check if a username is claimed
-func IsUsernameClaimedProjection(username string) StateProjector {
-	return StateProjector{
-		Query: Query{
-			Tags:       []Tag{{Key: "username", Value: username}},
+func IsUsernameClaimedProjection(username string) dcb.StateProjector {
+	return dcb.StateProjector{
+		Query: dcb.Query{
+			Tags:       []dcb.Tag{{Key: "username", Value: username}},
 			EventTypes: []string{"AccountRegistered"},
 		},
 		InitialState: false,
-		TransitionFn: func(state any, event Event) any {
+		TransitionFn: func(state any, event dcb.Event) any {
 			return true
 		},
 	}
 }
 
 // AccountBalanceProjection creates a projector for account balance
-func AccountBalanceProjection(username string) StateProjector {
-	return StateProjector{
-		Query: Query{
-			Tags:       []Tag{{Key: "username", Value: username}},
+func AccountBalanceProjection(username string) dcb.StateProjector {
+	return dcb.StateProjector{
+		Query: dcb.Query{
+			Tags:       []dcb.Tag{{Key: "username", Value: username}},
 			EventTypes: []string{"AccountBalance", "MoneyTransferred"},
 		},
 		InitialState: 0.0,
-		TransitionFn: func(state any, event Event) any {
+		TransitionFn: func(state any, event dcb.Event) any {
 			balance := state.(float64)
 			switch event.Type {
 			case "AccountBalance":
@@ -118,11 +119,11 @@ func AccountBalanceProjection(username string) StateProjector {
 
 // AccountAPI handles account registration commands
 type AccountAPI struct {
-	eventStore EventStore
+	eventStore dcb.EventStore
 }
 
 // NewAccountAPI creates a new account API instance
-func NewAccountAPI(eventStore EventStore) (*AccountAPI, error) {
+func NewAccountAPI(eventStore dcb.EventStore) (*AccountAPI, error) {
 	if eventStore == nil {
 		return nil, fmt.Errorf("event store must not be nil")
 	}
@@ -142,7 +143,7 @@ func (a *AccountAPI) RegisterAccount(ctx context.Context, username string) error
 	}
 
 	event := NewAccountRegistered(username)
-	_, err = a.eventStore.AppendEvents(ctx, []InputEvent{event}, projector.Query, 0)
+	_, err = a.eventStore.AppendEvents(ctx, []dcb.InputEvent{event}, projector.Query, 0)
 	if err != nil {
 		return fmt.Errorf("failed to register account: %w", err)
 	}
@@ -216,15 +217,15 @@ func (a *AccountAPI) TransferMoney(ctx context.Context, cmd TransferMoneyCommand
 	transferEvent := NewMoneyTransferredEvent(cmd.FromUsername, cmd.ToUsername, cmd.Amount, fromNewBalance, toNewBalance)
 
 	// Get current position for the combined stream
-	query := Query{
-		Tags:       []Tag{{Key: "username", Value: cmd.FromUsername}, {Key: "username", Value: cmd.ToUsername}},
+	query := dcb.Query{
+		Tags:       []dcb.Tag{{Key: "username", Value: cmd.FromUsername}, {Key: "username", Value: cmd.ToUsername}},
 		EventTypes: []string{"AccountBalance", "MoneyTransferred"},
 	}
-	pos, _, err := a.eventStore.ProjectState(ctx, StateProjector{
+	pos, _, err := a.eventStore.ProjectState(ctx, dcb.StateProjector{
 		Query:        query,
-		InitialState: []Event{},
-		TransitionFn: func(state any, event Event) any {
-			events := state.([]Event)
+		InitialState: []dcb.Event{},
+		TransitionFn: func(state any, event dcb.Event) any {
+			events := state.([]dcb.Event)
 			return append(events, event)
 		},
 	})
@@ -233,7 +234,7 @@ func (a *AccountAPI) TransferMoney(ctx context.Context, cmd TransferMoneyCommand
 	}
 
 	// Append all events in a single transaction
-	_, err = a.eventStore.AppendEvents(ctx, []InputEvent{fromEvent, toEvent, transferEvent}, query, pos)
+	_, err = a.eventStore.AppendEvents(ctx, []dcb.InputEvent{fromEvent, toEvent, transferEvent}, query, pos)
 	if err != nil {
 		return fmt.Errorf("failed to update accounts: %w", err)
 	}
@@ -255,11 +256,11 @@ func (a *AccountAPI) SetAccountBalance(ctx context.Context, username string, amo
 
 	// Create and append the balance event
 	event := NewAccountBalanceEvent(username, amount)
-	query := Query{
-		Tags:       []Tag{{Key: "username", Value: username}},
+	query := dcb.Query{
+		Tags:       []dcb.Tag{{Key: "username", Value: username}},
 		EventTypes: []string{"AccountBalance"},
 	}
-	_, err = a.eventStore.AppendEvents(ctx, []InputEvent{event}, query, 0)
+	_, err = a.eventStore.AppendEvents(ctx, []dcb.InputEvent{event}, query, 0)
 	if err != nil {
 		return fmt.Errorf("failed to set account balance: %w", err)
 	}
@@ -271,8 +272,8 @@ var _ = Describe("Account Registration", func() {
 	var (
 		api       *AccountAPI
 		username  string
-		query     Query
-		projector StateProjector
+		query     dcb.Query
+		projector dcb.StateProjector
 	)
 
 	BeforeEach(func() {
@@ -305,16 +306,16 @@ var _ = Describe("Account Registration", func() {
 				Expect(state).To(BeTrue())
 
 				// Verify event details
-				_, eventsResult, err := store.ProjectState(ctx, StateProjector{
+				_, eventsResult, err := store.ProjectState(ctx, dcb.StateProjector{
 					Query:        query,
-					InitialState: []Event{},
-					TransitionFn: func(state any, event Event) any {
-						events := state.([]Event)
+					InitialState: []dcb.Event{},
+					TransitionFn: func(state any, event dcb.Event) any {
+						events := state.([]dcb.Event)
 						return append(events, event)
 					},
 				})
 				Expect(err).NotTo(HaveOccurred())
-				events := eventsResult.([]Event)
+				events := eventsResult.([]dcb.Event)
 				Expect(events).To(HaveLen(1))
 				Expect(events[0].Type).To(Equal("AccountRegistered"))
 
@@ -330,7 +331,7 @@ var _ = Describe("Account Registration", func() {
 		BeforeEach(func() {
 			// Given
 			event := NewAccountRegistered(username)
-			_, err := store.AppendEvents(ctx, []InputEvent{event}, query, 0)
+			_, err := store.AppendEvents(ctx, []dcb.InputEvent{event}, query, 0)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -344,16 +345,16 @@ var _ = Describe("Account Registration", func() {
 				Expect(err.Error()).To(ContainSubstring("username \"testuser\" is claimed"))
 
 				// Verify no new events were created
-				_, eventsResult, err := store.ProjectState(ctx, StateProjector{
+				_, eventsResult, err := store.ProjectState(ctx, dcb.StateProjector{
 					Query:        query,
-					InitialState: []Event{},
-					TransitionFn: func(state any, event Event) any {
-						events := state.([]Event)
+					InitialState: []dcb.Event{},
+					TransitionFn: func(state any, event dcb.Event) any {
+						events := state.([]dcb.Event)
 						return append(events, event)
 					},
 				})
 				Expect(err).NotTo(HaveOccurred())
-				events := eventsResult.([]Event)
+				events := eventsResult.([]dcb.Event)
 				Expect(events).To(HaveLen(1))
 			})
 		})
@@ -395,16 +396,16 @@ var _ = Describe("Account Registration", func() {
 				Expect(err1 == nil && err2 == nil).To(BeFalse(), "not both registrations should succeed")
 
 				// Verify only one event exists
-				_, eventsResult, err := store.ProjectState(ctx, StateProjector{
+				_, eventsResult, err := store.ProjectState(ctx, dcb.StateProjector{
 					Query:        NewQuery(NewTags("username", "concurrentuser")),
-					InitialState: []Event{},
-					TransitionFn: func(state any, event Event) any {
-						events := state.([]Event)
+					InitialState: []dcb.Event{},
+					TransitionFn: func(state any, event dcb.Event) any {
+						events := state.([]dcb.Event)
 						return append(events, event)
 					},
 				})
 				Expect(err).NotTo(HaveOccurred())
-				events := eventsResult.([]Event)
+				events := eventsResult.([]dcb.Event)
 				Expect(events).To(HaveLen(1))
 			})
 		})
@@ -416,8 +417,8 @@ var _ = Describe("Account Money Transfer", func() {
 		api           *AccountAPI
 		fromUsername  string
 		toUsername    string
-		fromProjector StateProjector
-		toProjector   StateProjector
+		fromProjector dcb.StateProjector
+		toProjector   dcb.StateProjector
 	)
 
 	BeforeEach(func() {
@@ -474,19 +475,19 @@ var _ = Describe("Account Money Transfer", func() {
 				Expect(toBalance).To(Equal(80.0))
 
 				// Verify transfer event was created
-				_, eventsResult, err := store.ProjectState(ctx, StateProjector{
-					Query: Query{
-						Tags:       []Tag{{Key: "username", Value: fromUsername}, {Key: "username", Value: toUsername}},
+				_, eventsResult, err := store.ProjectState(ctx, dcb.StateProjector{
+					Query: dcb.Query{
+						Tags:       []dcb.Tag{{Key: "username", Value: fromUsername}, {Key: "username", Value: toUsername}},
 						EventTypes: []string{"MoneyTransferred"},
 					},
-					InitialState: []Event{},
-					TransitionFn: func(state any, event Event) any {
-						events := state.([]Event)
+					InitialState: []dcb.Event{},
+					TransitionFn: func(state any, event dcb.Event) any {
+						events := state.([]dcb.Event)
 						return append(events, event)
 					},
 				})
 				Expect(err).NotTo(HaveOccurred())
-				events := eventsResult.([]Event)
+				events := eventsResult.([]dcb.Event)
 				Expect(events).To(HaveLen(1))
 				Expect(events[0].Type).To(Equal("MoneyTransferred"))
 
@@ -601,37 +602,37 @@ var _ = Describe("Account Money Transfer", func() {
 
 				// Verify all transfer events were created
 				// Query for sender's events
-				_, senderEventsResult, err := store.ProjectState(ctx, StateProjector{
-					Query: Query{
-						Tags:       []Tag{{Key: "username", Value: fromUsername}},
+				_, senderEventsResult, err := store.ProjectState(ctx, dcb.StateProjector{
+					Query: dcb.Query{
+						Tags:       []dcb.Tag{{Key: "username", Value: fromUsername}},
 						EventTypes: []string{"MoneyTransferred"},
 					},
-					InitialState: []Event{},
-					TransitionFn: func(state any, event Event) any {
-						events := state.([]Event)
+					InitialState: []dcb.Event{},
+					TransitionFn: func(state any, event dcb.Event) any {
+						events := state.([]dcb.Event)
 						return append(events, event)
 					},
 				})
 				Expect(err).NotTo(HaveOccurred())
-				senderEvents := senderEventsResult.([]Event)
+				senderEvents := senderEventsResult.([]dcb.Event)
 
 				// Query for receiver's events
-				_, receiverEventsResult, err := store.ProjectState(ctx, StateProjector{
-					Query: Query{
-						Tags:       []Tag{{Key: "username", Value: toUsername}},
+				_, receiverEventsResult, err := store.ProjectState(ctx, dcb.StateProjector{
+					Query: dcb.Query{
+						Tags:       []dcb.Tag{{Key: "username", Value: toUsername}},
 						EventTypes: []string{"MoneyTransferred"},
 					},
-					InitialState: []Event{},
-					TransitionFn: func(state any, event Event) any {
-						events := state.([]Event)
+					InitialState: []dcb.Event{},
+					TransitionFn: func(state any, event dcb.Event) any {
+						events := state.([]dcb.Event)
 						return append(events, event)
 					},
 				})
 				Expect(err).NotTo(HaveOccurred())
-				receiverEvents := receiverEventsResult.([]Event)
+				receiverEvents := receiverEventsResult.([]dcb.Event)
 
 				// Combine and deduplicate events
-				allEvents := make(map[string]Event)
+				allEvents := make(map[string]dcb.Event)
 				for _, event := range senderEvents {
 					allEvents[event.ID] = event
 				}
@@ -640,7 +641,7 @@ var _ = Describe("Account Money Transfer", func() {
 				}
 
 				// Convert map to slice
-				events := make([]Event, 0, len(allEvents))
+				events := make([]dcb.Event, 0, len(allEvents))
 				for _, event := range allEvents {
 					events = append(events, event)
 				}
