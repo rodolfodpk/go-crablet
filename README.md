@@ -94,9 +94,27 @@ position, err := store.AppendEvents(ctx, []dcb.InputEvent{event}, query, lastKno
 The event store provides a simple interface for managing events:
 
 ```go
+// Event represents a persisted event in the system
+type Event struct {
+    ID            string // Unique event identifier (UUID)
+    Type          string // Event type (e.g., "Subscription")
+    Tags          []Tag  // Tags for querying (e.g., {"course_id": "C1"})
+    Data          []byte // Event payload
+    Position      int64  // Position in the event stream
+    CausationID   string // UUID of the event that caused this event
+    CorrelationID string // UUID linking to the root event or process
+}
+
+// InputEvent represents an event to be appended to the store
+type InputEvent struct {
+    Type string // Event type (e.g., "Subscription")
+    Tags []Tag  // Tags for querying (e.g., {"course_id": "C1"})
+    Data []byte // JSON-encoded event payload
+}
+
 type EventStore interface {
     // AppendEvents adds multiple events to the stream and returns the latest position
-    AppendEvents(ctx context.Context, events []Event) (int64, error)
+    AppendEvents(ctx context.Context, events []InputEvent, query Query, latestKnownPosition int64) (int64, error)
     
     // ProjectState projects the current state using the provided projector
     ProjectState(ctx context.Context, projector StateProjector) (int64, any, error)
