@@ -3,6 +3,7 @@ package dcb
 
 import (
 	"encoding/json"
+	"go-crablet/pkg/dcb"
 )
 
 // TenantState represents the state of a tenant
@@ -29,9 +30,9 @@ type OrderAssignedEvent struct {
 }
 
 // NewTenantCreatedEvent creates a new tenant created event
-func NewTenantCreatedEvent(name string, tags []Tag) InputEvent {
+func NewTenantCreatedEvent(name string, tags []dcb.Tag) dcb.InputEvent {
 	data, _ := json.Marshal(TenantCreatedEvent{Name: name})
-	return InputEvent{
+	return dcb.InputEvent{
 		Type: "TenantCreated",
 		Tags: tags,
 		Data: data,
@@ -39,9 +40,9 @@ func NewTenantCreatedEvent(name string, tags []Tag) InputEvent {
 }
 
 // NewOrderCreatedEvent creates a new order created event
-func NewOrderCreatedEvent(amount float64, tags []Tag) InputEvent {
+func NewOrderCreatedEvent(amount float64, tags []dcb.Tag) dcb.InputEvent {
 	data, _ := json.Marshal(OrderCreatedEvent{Amount: amount})
-	return InputEvent{
+	return dcb.InputEvent{
 		Type: "OrderCreated",
 		Tags: tags,
 		Data: data,
@@ -49,9 +50,9 @@ func NewOrderCreatedEvent(amount float64, tags []Tag) InputEvent {
 }
 
 // NewOrderAssignedEvent creates a new order assigned event
-func NewOrderAssignedEvent(status string, tags []Tag) InputEvent {
+func NewOrderAssignedEvent(status string, tags []dcb.Tag) dcb.InputEvent {
 	data, _ := json.Marshal(OrderAssignedEvent{Status: status})
-	return InputEvent{
+	return dcb.InputEvent{
 		Type: "OrderAssigned",
 		Tags: tags,
 		Data: data,
@@ -59,11 +60,11 @@ func NewOrderAssignedEvent(status string, tags []Tag) InputEvent {
 }
 
 // TenantProjector creates a projector for tenant events
-func TenantProjector(tenantID string) StateProjector {
-	return StateProjector{
+func TenantProjector(tenantID string) dcb.StateProjector {
+	return dcb.StateProjector{
 		Query:        NewQuery(NewTags("tenant_id", tenantID)),
 		InitialState: &TenantState{},
-		TransitionFn: func(state any, e Event) any {
+		TransitionFn: func(state any, e dcb.Event) any {
 			s := state.(*TenantState)
 			s.EventTypes = append(s.EventTypes, e.Type)
 

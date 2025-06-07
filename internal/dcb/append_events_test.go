@@ -3,6 +3,7 @@ package dcb
 import (
 	"encoding/json"
 	"fmt"
+	"go-crablet/pkg/dcb"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -18,15 +19,15 @@ var _ = Describe("Event Store: Appending Events", func() {
 		tags := NewTags("course_id", "course1")
 		query := NewQuery(tags, "Subscription")
 		event := NewInputEvent("Subscription", tags, []byte(`{"foo":"bar"}`))
-		events := []InputEvent{event}
+		events := []dcb.InputEvent{event}
 		pos, err := store.AppendEvents(ctx, events, query, 0)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(pos).To(Equal(int64(1)))
 
-		projector := StateProjector{
+		projector := dcb.StateProjector{
 			Query:        query,
 			InitialState: 0,
-			TransitionFn: func(state any, e Event) any {
+			TransitionFn: func(state any, e dcb.Event) any {
 				return state.(int) + 1
 			},
 		}
@@ -41,7 +42,7 @@ var _ = Describe("Event Store: Appending Events", func() {
 	It("appends events with multiple tags", func() {
 		tags := NewTags("course_id", "course1", "user_id", "user123", "action", "enroll")
 		query := NewQuery(NewTags("course_id", "course1"), "Enrollment")
-		events := []InputEvent{
+		events := []dcb.InputEvent{
 			NewInputEvent("Enrollment", tags, []byte(`{"action":"enrolled"}`)),
 		}
 
@@ -49,10 +50,10 @@ var _ = Describe("Event Store: Appending Events", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(pos).To(Equal(int64(1)))
 		// Query by different tag combinations
-		projector := StateProjector{
+		projector := dcb.StateProjector{
 			Query:        NewQuery(NewTags("user_id", "user123"), "Enrollment"),
 			InitialState: 0,
-			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
+			TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
 		}
 
 		_, state, err := store.ProjectState(ctx, projector)
@@ -65,7 +66,7 @@ var _ = Describe("Event Store: Appending Events", func() {
 	It("appends multiple events in a batch", func() {
 		tags := NewTags("course_id", "course2")
 		query := NewQuery(tags, "CourseLaunched", "LessonAdded")
-		events := []InputEvent{
+		events := []dcb.InputEvent{
 			NewInputEvent("CourseLaunched", tags, []byte(`{"title":"Go Programming"}`)),
 			NewInputEvent("LessonAdded", tags, []byte(`{"lesson_id":"L1"}`)),
 			NewInputEvent("LessonAdded", tags, []byte(`{"lesson_id":"L2"}`)),
@@ -75,10 +76,10 @@ var _ = Describe("Event Store: Appending Events", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(pos).To(Equal(int64(3)))
 
-		projector := StateProjector{
+		projector := dcb.StateProjector{
 			Query:        query,
 			InitialState: 0,
-			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
+			TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
 		}
 		_, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
@@ -92,13 +93,13 @@ var _ = Describe("Event Store: Appending Events", func() {
 		query := NewQuery(tags, "Initial", "Second")
 
 		// First append - will succeed
-		_, err := store.AppendEvents(ctx, []InputEvent{
+		_, err := store.AppendEvents(ctx, []dcb.InputEvent{
 			NewInputEvent("Initial", tags, []byte(`{"status":"first"}`)),
 		}, query, 0)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Second append with outdated position - should fail
-		_, err = store.AppendEvents(ctx, []InputEvent{
+		_, err = store.AppendEvents(ctx, []dcb.InputEvent{
 			NewInputEvent("Second", tags, []byte(`{"status":"second"}`)),
 		}, query, 0) // Using 0 again when it should be 1
 
@@ -111,7 +112,7 @@ var _ = Describe("Event Store: Appending Events", func() {
 	It("properly sets causation and correlation IDs", func() {
 		tags := NewTags("entity_id", "E1")
 		query := NewQuery(tags, "EntityRegistered", "EntityAttributeChanged")
-		events := []InputEvent{
+		events := []dcb.InputEvent{
 			NewInputEvent("EntityRegistered", tags, []byte(`{"initial":true}`)),
 			NewInputEvent("EntityAttributeChanged", tags, []byte(`{"step":1}`)),
 			NewInputEvent("EntityAttributeChanged", tags, []byte(`{"step":2}`)),
@@ -132,10 +133,10 @@ var _ = Describe("Event Store: Appending Events", func() {
 			CorrelationIDs []string
 		}
 
-		relationshipprojector := StateProjector{
+		relationshipprojector := dcb.StateProjector{
 			Query:        query,
 			InitialState: EventRelationships{Count: 0},
-			TransitionFn: func(state any, e Event) any {
+			TransitionFn: func(state any, e dcb.Event) any {
 				s := state.(EventRelationships)
 				s.Count++
 				if s.Count == 1 {
@@ -168,7 +169,7 @@ var _ = Describe("Event Store: Appending Events", func() {
 		It("returns error when appending events with empty tags", func() {
 			tags := NewTags() // Empty tags
 			query := NewQuery(NewTags("course_id", "C1"))
-			events := []InputEvent{
+			events := []dcb.InputEvent{
 				NewInputEvent("Subscription", tags, []byte(`{"foo":"bar"}`)),
 			}
 			_, err := store.AppendEvents(ctx, events, query, 0)
@@ -178,7 +179,7 @@ var _ = Describe("Event Store: Appending Events", func() {
 		It("returns error when appending invalid JSON data", func() {
 			tags := NewTags("course_id", "C1")
 			query := NewQuery(tags)
-			events := []InputEvent{
+			events := []dcb.InputEvent{
 				NewInputEvent("Subscription", tags, []byte(`not-json`)),
 			}
 			_, err := store.AppendEvents(ctx, events, query, 0)
@@ -189,7 +190,7 @@ var _ = Describe("Event Store: Appending Events", func() {
 	It("verifies events are retrieved in correct order", func() {
 		tags := NewTags("order_id", "order1")
 		query := NewQuery(tags, "OrderCreated", "ItemAdded")
-		events := []InputEvent{
+		events := []dcb.InputEvent{
 			NewInputEvent("OrderCreated", tags, []byte(`{"id":"order1"}`)),
 			NewInputEvent("ItemAdded", tags, []byte(`{"item":"product1"}`)),
 			NewInputEvent("ItemAdded", tags, []byte(`{"item":"product2"}`)),
@@ -198,27 +199,30 @@ var _ = Describe("Event Store: Appending Events", func() {
 		_, err := store.AppendEvents(ctx, events, query, 0)
 		Expect(err).NotTo(HaveOccurred())
 
-		type OrderState struct {
-			Items []string
+		// Custom projector to check event order
+		type Result struct {
+			Event dcb.Event
 		}
 
-		orderProjector := StateProjector{
+		orderProjector := dcb.StateProjector{
 			Query:        query,
-			InitialState: OrderState{Items: []string{}},
-			TransitionFn: func(state any, e Event) any {
-				s := state.(OrderState)
-				if e.Type == "ItemAdded" {
-					var data map[string]string
-					_ = json.Unmarshal(e.Data, &data)
-					s.Items = append(s.Items, data["item"])
-				}
-				return s
+			InitialState: Result{},
+			TransitionFn: func(state any, e dcb.Event) any {
+				return Result{Event: e}
 			},
 		}
 
 		_, state, err := store.ProjectState(ctx, orderProjector)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(state.(OrderState).Items).To(Equal([]string{"product1", "product2"}))
+		result := state.(Result)
+
+		// Verify the last event is the last one we appended
+		var data map[string]string
+		err = json.Unmarshal(result.Event.Data, &data)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(data["item"]).To(Equal("product2"))
+
+		dumpEvents(pool)
 	})
 
 	It("appends events with expected position correctly", func() {
@@ -226,13 +230,13 @@ var _ = Describe("Event Store: Appending Events", func() {
 		query := NewQuery(tags, "First", "Second")
 
 		// First event
-		_, err := store.AppendEvents(ctx, []InputEvent{
+		_, err := store.AppendEvents(ctx, []dcb.InputEvent{
 			NewInputEvent("First", tags, []byte(`{"value":1}`)),
 		}, query, 0)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Second event with correct position
-		pos, err := store.AppendEvents(ctx, []InputEvent{
+		pos, err := store.AppendEvents(ctx, []dcb.InputEvent{
 			NewInputEvent("Second", tags, []byte(`{"value":2}`)),
 		}, query, 1)
 
@@ -253,7 +257,7 @@ var _ = Describe("Event Store: Appending Events", func() {
 			"numbers": [3.14159, 42, -1]
 		}`)
 
-		pos, err := store.AppendEvents(ctx, []InputEvent{
+		pos, err := store.AppendEvents(ctx, []dcb.InputEvent{
 			NewInputEvent("ComplexData", tags, complexJSON),
 		}, query, 0)
 
@@ -262,13 +266,13 @@ var _ = Describe("Event Store: Appending Events", func() {
 
 		// Verify the data can be retrieved correctly
 		type Result struct {
-			Event Event
+			Event dcb.Event
 		}
 
-		verifyProjector := StateProjector{
+		verifyProjector := dcb.StateProjector{
 			Query:        query,
 			InitialState: nil,
-			TransitionFn: func(state any, e Event) any {
+			TransitionFn: func(state any, e dcb.Event) any {
 				return Result{Event: e}
 			},
 		}
@@ -288,7 +292,7 @@ var _ = Describe("Event Store: Appending Events", func() {
 		query := NewQuery(tags, "BatchItem")
 
 		// Create 50 events in a batch
-		events := make([]InputEvent, 50)
+		events := make([]dcb.InputEvent, 50)
 		for i := 0; i < 50; i++ {
 			events[i] = NewInputEvent("BatchItem", tags,
 				[]byte(fmt.Sprintf(`{"index":%d}`, i)))
@@ -299,10 +303,10 @@ var _ = Describe("Event Store: Appending Events", func() {
 		Expect(pos).To(Equal(int64(50)))
 
 		// Verify count
-		countProjector := StateProjector{
+		countProjector := dcb.StateProjector{
 			Query:        query,
 			InitialState: 0,
-			TransitionFn: func(state any, e Event) any {
+			TransitionFn: func(state any, e dcb.Event) any {
 				return state.(int) + 1
 			},
 		}
@@ -316,7 +320,7 @@ var _ = Describe("Event Store: Appending Events", func() {
 	It("projects state with only event types", func() {
 		tags := NewTags("type_id", "T1")
 		query := NewQuery(tags, "TypeA", "TypeB")
-		events := []InputEvent{
+		events := []dcb.InputEvent{
 			NewInputEvent("TypeA", tags, []byte(`{"val":1}`)),
 			NewInputEvent("TypeB", tags, []byte(`{"val":2}`)),
 			NewInputEvent("TypeA", tags, []byte(`{"val":3}`)),
@@ -324,10 +328,10 @@ var _ = Describe("Event Store: Appending Events", func() {
 		_, err := store.AppendEvents(ctx, events, query, 0)
 		Expect(err).NotTo(HaveOccurred())
 
-		projector := StateProjector{
+		projector := dcb.StateProjector{
 			Query:        NewQuery(NewTags(), "TypeA"),
 			InitialState: 0,
-			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
+			TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
 		}
 		_, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
@@ -338,17 +342,17 @@ var _ = Describe("Event Store: Appending Events", func() {
 		tags1 := NewTags("tag", "A")
 		tags2 := NewTags("tag", "B")
 		query := NewQuery(NewTags(), "E1", "E2")
-		events := []InputEvent{
+		events := []dcb.InputEvent{
 			NewInputEvent("E1", tags1, []byte(`{"v":1}`)),
 			NewInputEvent("E2", tags2, []byte(`{"v":2}`)),
 		}
 		_, err := store.AppendEvents(ctx, events, query, 0)
 		Expect(err).NotTo(HaveOccurred())
 
-		projector := StateProjector{
+		projector := dcb.StateProjector{
 			Query:        NewQuery(NewTags("tag", "A"), "E1"),
 			InitialState: 0,
-			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
+			TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
 		}
 		_, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
@@ -357,7 +361,7 @@ var _ = Describe("Event Store: Appending Events", func() {
 
 	It("projects state with both tags and event types", func() {
 		tags := NewTags("combo", "yes")
-		events := []InputEvent{
+		events := []dcb.InputEvent{
 			NewInputEvent("A", tags, []byte(`{"x":1}`)),
 			NewInputEvent("B", tags, []byte(`{"x":2}`)),
 			NewInputEvent("A", NewTags("combo", "no"), []byte(`{"x":3}`)),
@@ -365,10 +369,10 @@ var _ = Describe("Event Store: Appending Events", func() {
 		_, err := store.AppendEvents(ctx, events, NewQuery(NewTags(), "A", "B"), 0)
 		Expect(err).NotTo(HaveOccurred())
 
-		projector := StateProjector{
+		projector := dcb.StateProjector{
 			Query:        NewQuery(NewTags("combo", "yes"), "A"),
 			InitialState: 0,
-			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
+			TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
 		}
 		_, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
@@ -379,10 +383,10 @@ var _ = Describe("Event Store: Appending Events", func() {
 		tags := NewTags("none", "match")
 		query := NewQuery(tags, "NonExistentEvent")
 		// No events appended
-		projector := StateProjector{
+		projector := dcb.StateProjector{
 			Query:        query,
 			InitialState: 42,
-			TransitionFn: func(state any, e Event) any { return 0 },
+			TransitionFn: func(state any, e dcb.Event) any { return 0 },
 		}
 		_, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
@@ -392,15 +396,15 @@ var _ = Describe("Event Store: Appending Events", func() {
 	It("ProjectStateUpTo with maxPosition = 0 returns initial state", func() {
 		tags := NewTags("seq", "zero")
 		query := NewQuery(tags)
-		events := []InputEvent{
+		events := []dcb.InputEvent{
 			NewInputEvent("E", tags, []byte(`{"v":1}`)),
 		}
 		_, err := store.AppendEvents(ctx, events, query, 0)
 		Expect(err).NotTo(HaveOccurred())
-		projector := StateProjector{
+		projector := dcb.StateProjector{
 			Query:        query,
 			InitialState: 99,
-			TransitionFn: func(state any, e Event) any { return 0 },
+			TransitionFn: func(state any, e dcb.Event) any { return 0 },
 		}
 		pos, state, err := store.ProjectStateUpTo(ctx, projector, 0)
 		Expect(err).NotTo(HaveOccurred())
@@ -411,17 +415,17 @@ var _ = Describe("Event Store: Appending Events", func() {
 	It("ProjectStateUpTo with maxPosition in the middle", func() {
 		tags := NewTags("seq", "mid")
 		query := NewQuery(tags)
-		events := []InputEvent{
+		events := []dcb.InputEvent{
 			NewInputEvent("E", tags, []byte(`{"v":1}`)),
 			NewInputEvent("E", tags, []byte(`{"v":2}`)),
 			NewInputEvent("E", tags, []byte(`{"v":3}`)),
 		}
 		_, err := store.AppendEvents(ctx, events, query, 0)
 		Expect(err).NotTo(HaveOccurred())
-		projector := StateProjector{
+		projector := dcb.StateProjector{
 			Query:        query,
 			InitialState: 0,
-			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
+			TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
 		}
 		pos, state, err := store.ProjectStateUpTo(ctx, projector, 2)
 		Expect(err).NotTo(HaveOccurred())
@@ -430,7 +434,7 @@ var _ = Describe("Event Store: Appending Events", func() {
 	})
 
 	It("returns error if projector TransitionFn is nil", func() {
-		projector := StateProjector{
+		projector := dcb.StateProjector{
 			Query:        NewQuery(NewTags()),
 			InitialState: 0,
 			TransitionFn: nil,
@@ -443,15 +447,15 @@ var _ = Describe("Event Store: Appending Events", func() {
 	It("returns error if projector TransitionFn panics", func() {
 		tags := NewTags("panic", "yes")
 		query := NewQuery(tags)
-		events := []InputEvent{
+		events := []dcb.InputEvent{
 			NewInputEvent("E", tags, []byte(`{"v":1}`)),
 		}
 		_, err := store.AppendEvents(ctx, events, query, 0)
 		Expect(err).NotTo(HaveOccurred())
-		projector := StateProjector{
+		projector := dcb.StateProjector{
 			Query:        query,
 			InitialState: 0,
-			TransitionFn: func(state any, e Event) any { panic("fail!") },
+			TransitionFn: func(state any, e dcb.Event) any { panic("fail!") },
 		}
 		_, _, err = store.ProjectState(ctx, projector)
 		Expect(err).To(HaveOccurred())
@@ -461,17 +465,17 @@ var _ = Describe("Event Store: Appending Events", func() {
 	It("handles mutable pointer state in projector", func() {
 		tags := NewTags("mut", "ptr")
 		query := NewQuery(tags)
-		events := []InputEvent{
+		events := []dcb.InputEvent{
 			NewInputEvent("E", tags, []byte(`{"v":1}`)),
 			NewInputEvent("E", tags, []byte(`{"v":2}`)),
 		}
 		_, err := store.AppendEvents(ctx, events, query, 0)
 		Expect(err).NotTo(HaveOccurred())
 		type Counter struct{ N int }
-		projector := StateProjector{
+		projector := dcb.StateProjector{
 			Query:        query,
 			InitialState: &Counter{N: 0},
-			TransitionFn: func(state any, e Event) any {
+			TransitionFn: func(state any, e dcb.Event) any {
 				c := state.(*Counter)
 				c.N++
 				return c

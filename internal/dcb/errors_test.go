@@ -2,130 +2,143 @@ package dcb
 
 import (
 	"errors"
-	"testing"
+	"fmt"
+	"go-crablet/pkg/dcb"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
-func TestEventStoreError(t *testing.T) {
-	tests := []struct {
-		name     string
-		err      EventStoreError
-		expected string
-	}{
-		{
-			name: "with underlying error",
-			err: EventStoreError{
-				Op:  "read",
-				Err: errors.New("connection failed"),
-			},
-			expected: "read: connection failed",
-		},
-		{
-			name: "without underlying error",
-			err: EventStoreError{
-				Op: "write",
-			},
-			expected: "write",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.err.Error(); got != tt.expected {
-				t.Errorf("EventStoreError.Error() = %v, want %v", got, tt.expected)
+var _ = Describe("Event Store: Error Types", func() {
+	Describe("EventStoreError", func() {
+		It("implements error interface", func() {
+			var err error = &dcb.EventStoreError{
+				Op:  "test",
+				Err: errors.New("test error"),
 			}
-
-			if tt.err.Err != nil {
-				if got := tt.err.Unwrap(); got != tt.err.Err {
-					t.Errorf("EventStoreError.Unwrap() = %v, want %v", got, tt.err.Err)
-				}
-			}
+			Expect(err.Error()).To(Equal("test: test error"))
 		})
-	}
-}
 
-func TestValidationError(t *testing.T) {
-	err := ValidationError{
-		EventStoreError: EventStoreError{
-			Op:  "validate",
-			Err: errors.New("invalid input"),
-		},
-		Field: "name",
-		Value: "123",
-	}
+		It("handles nil underlying error", func() {
+			var err error = &dcb.EventStoreError{
+				Op: "test",
+			}
+			Expect(err.Error()).To(Equal("test"))
+		})
 
-	expected := "validate: invalid input"
-	if got := err.Error(); got != expected {
-		t.Errorf("ValidationError.Error() = %v, want %v", got, expected)
-	}
+		It("implements error unwrapping", func() {
+			underlying := errors.New("underlying error")
+			err := &dcb.EventStoreError{
+				Op:  "test",
+				Err: underlying,
+			}
+			Expect(errors.Unwrap(err)).To(Equal(underlying))
+		})
+	})
 
-	// Test that ValidationError embeds EventStoreError correctly
-	if err.Field != "name" {
-		t.Errorf("ValidationError.Field = %v, want %v", err.Field, "name")
-	}
-	if err.Value != "123" {
-		t.Errorf("ValidationError.Value = %v, want %v", err.Value, "123")
-	}
-}
+	Describe("ValidationError", func() {
+		It("includes field and value in error message", func() {
+			err := &dcb.ValidationError{
+				EventStoreError: dcb.EventStoreError{
+					Op:  "validate",
+					Err: fmt.Errorf("invalid value"),
+				},
+				Field: "testField",
+				Value: "testValue",
+			}
+			Expect(err.Error()).To(ContainSubstring("validate"))
+			Expect(err.Error()).To(ContainSubstring("invalid value"))
+			Expect(err.Field).To(Equal("testField"))
+			Expect(err.Value).To(Equal("testValue"))
+		})
 
-func TestConcurrencyError(t *testing.T) {
-	err := ConcurrencyError{
-		EventStoreError: EventStoreError{
-			Op:  "append",
-			Err: errors.New("version mismatch"),
-		},
-		ExpectedPosition: 5,
-		ActualPosition:   6,
-	}
+		It("implements error unwrapping", func() {
+			underlying := errors.New("underlying error")
+			err := &dcb.ValidationError{
+				EventStoreError: dcb.EventStoreError{
+					Op:  "validate",
+					Err: underlying,
+				},
+				Field: "testField",
+				Value: "testValue",
+			}
+			Expect(errors.Unwrap(err)).To(Equal(underlying))
+		})
+	})
 
-	expected := "append: version mismatch"
-	if got := err.Error(); got != expected {
-		t.Errorf("ConcurrencyError.Error() = %v, want %v", got, expected)
-	}
+	Describe("ConcurrencyError", func() {
+		It("includes expected and actual positions in error message", func() {
+			err := &dcb.ConcurrencyError{
+				EventStoreError: dcb.EventStoreError{
+					Op:  "append",
+					Err: fmt.Errorf("concurrent modification"),
+				},
+				ExpectedPosition: 1,
+				ActualPosition:   2,
+			}
+			Expect(err.Error()).To(ContainSubstring("append"))
+			Expect(err.Error()).To(ContainSubstring("concurrent modification"))
+			Expect(err.ExpectedPosition).To(Equal(int64(1)))
+			Expect(err.ActualPosition).To(Equal(int64(2)))
+		})
 
-	// Test that ConcurrencyError embeds EventStoreError correctly
-	if err.ExpectedPosition != 5 {
-		t.Errorf("ConcurrencyError.ExpectedPosition = %v, want %v", err.ExpectedPosition, 5)
-	}
-	if err.ActualPosition != 6 {
-		t.Errorf("ConcurrencyError.ActualPosition = %v, want %v", err.ActualPosition, 6)
-	}
-}
+		It("implements error unwrapping", func() {
+			underlying := errors.New("underlying error")
+			err := &dcb.ConcurrencyError{
+				EventStoreError: dcb.EventStoreError{
+					Op:  "append",
+					Err: underlying,
+				},
+				ExpectedPosition: 1,
+				ActualPosition:   2,
+			}
+			Expect(errors.Unwrap(err)).To(Equal(underlying))
+		})
+	})
 
-func TestResourceError(t *testing.T) {
-	err := ResourceError{
-		EventStoreError: EventStoreError{
-			Op:  "allocate",
-			Err: errors.New("insufficient resources"),
-		},
-		Resource: "memory",
-	}
+	Describe("ResourceError", func() {
+		It("includes resource name in error message", func() {
+			err := &dcb.ResourceError{
+				EventStoreError: dcb.EventStoreError{
+					Op:  "connect",
+					Err: fmt.Errorf("connection failed"),
+				},
+				Resource: "database",
+			}
+			Expect(err.Error()).To(ContainSubstring("connect"))
+			Expect(err.Error()).To(ContainSubstring("connection failed"))
+			Expect(err.Resource).To(Equal("database"))
+		})
 
-	expected := "allocate: insufficient resources"
-	if got := err.Error(); got != expected {
-		t.Errorf("ResourceError.Error() = %v, want %v", got, expected)
-	}
+		It("implements error unwrapping", func() {
+			underlying := errors.New("underlying error")
+			err := &dcb.ResourceError{
+				EventStoreError: dcb.EventStoreError{
+					Op:  "connect",
+					Err: underlying,
+				},
+				Resource: "database",
+			}
+			Expect(errors.Unwrap(err)).To(Equal(underlying))
+		})
+	})
 
-	// Test that ResourceError embeds EventStoreError correctly
-	if err.Resource != "memory" {
-		t.Errorf("ResourceError.Resource = %v, want %v", err.Resource, "memory")
-	}
-}
+	Describe("Error Type Assertions", func() {
+		It("allows type assertions for specific error types", func() {
+			// Create a validation error
+			validationErr := &dcb.ValidationError{
+				EventStoreError: dcb.EventStoreError{
+					Op:  "validate",
+					Err: fmt.Errorf("invalid value"),
+				},
+				Field: "testField",
+				Value: "testValue",
+			}
 
-func TestErrorUnwrapping(t *testing.T) {
-	baseErr := errors.New("base error")
-	storeErr := EventStoreError{
-		Op:  "operation",
-		Err: baseErr,
-	}
-
-	// Test that errors.Is works correctly
-	if !errors.Is(storeErr, baseErr) {
-		t.Error("errors.Is(storeErr, baseErr) = false, want true")
-	}
-
-	// Test that errors.As works correctly
-	var target EventStoreError
-	if !errors.As(storeErr, &target) {
-		t.Error("errors.As(storeErr, &target) = false, want true")
-	}
-}
+			// Test type assertion
+			var err error = validationErr
+			_, ok := err.(*dcb.ValidationError)
+			Expect(ok).To(BeTrue())
+		})
+	})
+})

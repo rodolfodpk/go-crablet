@@ -47,18 +47,20 @@ END IF;
         RAISE EXCEPTION 'Input arrays have inconsistent lengths';
 END IF;
 
-    -- Check for conflicting events (optimistic locking)
-    IF EXISTS (
-        SELECT 1
-        FROM events
-        WHERE position > p_last_position
-          AND tags @> p_query_tags
-          AND (p_query_event_types IS NULL OR
-               array_length(p_query_event_types, 1) = 0 OR
-               type = ANY(p_query_event_types))
-    ) THEN
-        RAISE EXCEPTION 'Consistency violation: new events match query since position %', p_last_position;
-END IF;
+    -- Check for conflicting events (optimistic locking) only if query tags are not empty
+    IF p_query_tags IS NOT NULL AND p_query_tags != '{}'::jsonb THEN
+        IF EXISTS (
+            SELECT 1
+            FROM events
+            WHERE position > p_last_position
+              AND tags @> p_query_tags
+              AND (p_query_event_types IS NULL OR
+                   array_length(p_query_event_types, 1) = 0 OR
+                   type = ANY(p_query_event_types))
+        ) THEN
+            RAISE EXCEPTION 'Consistency violation: new events match query since position %', p_last_position;
+        END IF;
+    END IF;
 
     -- Insert events one by one using a loop
 BEGIN
@@ -118,18 +120,20 @@ END IF;
         RAISE EXCEPTION 'Input arrays have inconsistent lengths';
 END IF;
 
-    -- Check for conflicting events (optimistic locking)
-    IF EXISTS (
-        SELECT 1
-        FROM events
-        WHERE position > p_last_position
-          AND tags @> p_query_tags
-          AND (p_query_event_types IS NULL OR
-               array_length(p_query_event_types, 1) = 0 OR
-               type = ANY(p_query_event_types))
-    ) THEN
-        RAISE EXCEPTION 'Consistency violation: new events match query since position %', p_last_position;
-END IF;
+    -- Check for conflicting events (optimistic locking) only if query tags are not empty
+    IF p_query_tags IS NOT NULL AND p_query_tags != '{}'::jsonb THEN
+        IF EXISTS (
+            SELECT 1
+            FROM events
+            WHERE position > p_last_position
+              AND tags @> p_query_tags
+              AND (p_query_event_types IS NULL OR
+                   array_length(p_query_event_types, 1) = 0 OR
+                   type = ANY(p_query_event_types))
+        ) THEN
+            RAISE EXCEPTION 'Consistency violation: new events match query since position %', p_last_position;
+        END IF;
+    END IF;
 
     -- Insert all events in a single batch using UNNEST
 BEGIN
