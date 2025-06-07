@@ -1,10 +1,6 @@
 // Package dcb provides domain-specific types and helpers for the tenant domain.
 package dcb
 
-import (
-	"encoding/json"
-)
-
 // TenantState represents the state of a tenant
 type TenantState struct {
 	UserCount      int
@@ -29,33 +25,23 @@ type OrderAssignedEvent struct {
 }
 
 // NewTenantCreatedEvent creates a new tenant created event
-func NewTenantCreatedEvent(name string, tags []Tag) InputEvent {
-	data, _ := json.Marshal(TenantCreatedEvent{Name: name})
-	return InputEvent{
-		Type: "TenantCreated",
-		Tags: tags,
-		Data: data,
-	}
+func NewTenantCreatedEvent(tenantID string) InputEvent {
+	return NewInputEvent("TenantCreated", NewTags("tenant_id", tenantID), []byte(`{"name":"Test Tenant"}`))
+}
+
+// NewUserRegisteredEvent creates a new user registered event
+func NewUserRegisteredEvent(tenantID, userID string) InputEvent {
+	return NewInputEvent("UserRegistered", NewTags("tenant_id", tenantID, "user_id", userID), []byte(`{"name":"Test User"}`))
 }
 
 // NewOrderCreatedEvent creates a new order created event
-func NewOrderCreatedEvent(amount float64, tags []Tag) InputEvent {
-	data, _ := json.Marshal(OrderCreatedEvent{Amount: amount})
-	return InputEvent{
-		Type: "OrderCreated",
-		Tags: tags,
-		Data: data,
-	}
+func NewOrderCreatedEvent(tenantID, orderID string) InputEvent {
+	return NewInputEvent("OrderCreated", NewTags("tenant_id", tenantID, "order_id", orderID), []byte(`{"amount":100}`))
 }
 
 // NewOrderAssignedEvent creates a new order assigned event
-func NewOrderAssignedEvent(status string, tags []Tag) InputEvent {
-	data, _ := json.Marshal(OrderAssignedEvent{Status: status})
-	return InputEvent{
-		Type: "OrderAssigned",
-		Tags: tags,
-		Data: data,
-	}
+func NewOrderAssignedEvent(tenantID, orderID, status string) InputEvent {
+	return NewInputEvent("OrderAssigned", NewTags("tenant_id", tenantID, "order_id", orderID), []byte(`{"status":"`+status+`"}`))
 }
 
 // TenantProjector creates a projector for tenant events

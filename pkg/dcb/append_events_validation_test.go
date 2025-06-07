@@ -15,11 +15,8 @@ var _ = Describe("Event Store: Input Validation", func() {
 
 	Describe("Invalid Query Tags", func() {
 		It("rejects query with empty tag key", func() {
-			invalidTags := []Tag{{Key: "", Value: "some-value"}}
-			query := Query{
-				Tags:       invalidTags,
-				EventTypes: []string{"EventType"}, // Event types are optional
-			}
+			invalidTags := NewTags("", "some-value")
+			query := NewQuery(invalidTags, "EventType")
 			events := []InputEvent{
 				NewInputEvent("EventType", NewTags("valid-key", "valid-value"), []byte(`{}`)),
 			}
@@ -34,11 +31,8 @@ var _ = Describe("Event Store: Input Validation", func() {
 		})
 
 		It("rejects query with empty tag value", func() {
-			invalidTags := []Tag{{Key: "some-key", Value: ""}}
-			query := Query{
-				Tags:       invalidTags,
-				EventTypes: []string{"EventType"}, // Event types are optional
-			}
+			invalidTags := NewTags("some-key", "")
+			query := NewQuery(invalidTags, "EventType")
 			events := []InputEvent{
 				NewInputEvent("EventType", NewTags("valid-key", "valid-value"), []byte(`{}`)),
 			}
@@ -53,10 +47,7 @@ var _ = Describe("Event Store: Input Validation", func() {
 		})
 
 		It("rejects query with empty event type in the list", func() {
-			query := Query{
-				Tags:       NewTags("valid-key", "valid-value"),
-				EventTypes: []string{"ValidType", ""}, // Empty event type in the list
-			}
+			query := NewQuery(NewTags("valid-key", "valid-value"), "ValidType", "")
 			events := []InputEvent{
 				NewInputEvent("ValidType", NewTags("valid-key", "valid-value"), []byte(`{}`)),
 			}
@@ -72,11 +63,9 @@ var _ = Describe("Event Store: Input Validation", func() {
 		It("rejects event with empty type", func() {
 			tags := NewTags("entity_id", "123")
 			query := NewQuery(tags, "EventType")
-			events := []InputEvent{{
-				Type: "",
-				Tags: tags,
-				Data: []byte(`{"valid":"json"}`),
-			}}
+			events := []InputEvent{
+				NewInputEvent("", tags, []byte(`{"valid":"json"}`)),
+			}
 
 			_, err := store.AppendEvents(ctx, events, query, 0)
 
@@ -86,11 +75,9 @@ var _ = Describe("Event Store: Input Validation", func() {
 
 		It("rejects event with empty tags", func() {
 			query := NewQuery(NewTags("valid-key", "valid-value"), "EventType")
-			events := []InputEvent{{
-				Type: "EventType",
-				Tags: []Tag{},
-				Data: []byte(`{"valid":"json"}`),
-			}}
+			events := []InputEvent{
+				NewInputEvent("EventType", NewTags(), []byte(`{"valid":"json"}`)),
+			}
 
 			_, err := store.AppendEvents(ctx, events, query, 0)
 
@@ -100,11 +87,9 @@ var _ = Describe("Event Store: Input Validation", func() {
 
 		It("rejects event with tag having empty key", func() {
 			query := NewQuery(NewTags("valid-key", "valid-value"), "EventType")
-			events := []InputEvent{{
-				Type: "EventType",
-				Tags: []Tag{{Key: "", Value: "value"}},
-				Data: []byte(`{"valid":"json"}`),
-			}}
+			events := []InputEvent{
+				NewInputEvent("EventType", NewTags("", "value"), []byte(`{"valid":"json"}`)),
+			}
 
 			_, err := store.AppendEvents(ctx, events, query, 0)
 
@@ -114,11 +99,9 @@ var _ = Describe("Event Store: Input Validation", func() {
 
 		It("rejects event with tag having empty value", func() {
 			query := NewQuery(NewTags("valid-key", "valid-value"), "EventType")
-			events := []InputEvent{{
-				Type: "EventType",
-				Tags: []Tag{{Key: "key", Value: ""}},
-				Data: []byte(`{"valid":"json"}`),
-			}}
+			events := []InputEvent{
+				NewInputEvent("EventType", NewTags("key", ""), []byte(`{"valid":"json"}`)),
+			}
 
 			_, err := store.AppendEvents(ctx, events, query, 0)
 

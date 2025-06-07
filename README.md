@@ -45,6 +45,36 @@ For more detailed information, please refer to the documentation sections above.
 - **Batch Operations**: Efficient batch operations for appending multiple events
 - **PostgreSQL Backend**: Uses PostgreSQL for reliable, ACID-compliant storage with optimistic concurrency control
 - **Go Native**: Written in Go with idiomatic Go patterns and interfaces
+- **Stream Position Management**: Automatic handling of stream positions to ensure event ordering and prevent race conditions. All event appends use the current stream position for optimistic concurrency control, maintaining consistency across concurrent operations.
+
+### Stream Position Handling
+
+When appending events to the store, it's crucial to use the current stream position rather than a fixed position (like 0). This ensures:
+
+1. **Event Ordering**: Events are processed in the correct sequence
+2. **Race Condition Prevention**: Concurrent updates are handled safely
+3. **Consistency**: The final state reflects the most recent update
+
+Example of proper stream position handling:
+
+```go
+// Get current stream position
+query := dcb.NewQuery(dcb.NewTags("account_id", "acc123"))
+position, err := store.GetCurrentPosition(ctx, query)
+if err != nil {
+    return err
+}
+
+// Append events using the current position
+events := []dcb.InputEvent{
+    {
+        Type: "AccountBalanceUpdated",
+        Tags: dcb.NewTags("account_id", "acc123"),
+        Data: []byte(`{"balance": 1000}`),
+    },
+}
+newPosition, err := store.AppendEvents(ctx, events, query, position)
+```
 
 ### Event Store Interface
 
