@@ -42,6 +42,6 @@ The documentation has been split into several files for better organization:
 
 ## References
 
-- [Dynamic Consistency Boundary (DCB)](https://dcb.events/) - Sara Pellegrini's pattern for managing consistency in event-driven systems
+- [Dynamic Consistency Boundary (DCB)](https://dcb.events/) - A very good resource to understand the DCB pattern and its applications in event-driven systems
 - [I am here to kill the aggregate](https://sara.event-thinking.io/2023/04/kill-aggregate-chapter-1-I-am-here-to-kill-the-aggregate.html) - Sara Pellegrini's blog post about moving beyond aggregates in event-driven systems
 
