@@ -240,11 +240,17 @@ func main() {
         CompletedAt: "2024-03-20T11:00:00Z",
     }
 
-    // Create the completion event using NewInputEvent's built-in JSON marshaling
+    // Marshal the event data to JSON
+    data, err := json.Marshal(todoCompleted)
+    if err != nil {
+        log.Fatalf("Unable to marshal event data: %v", err)
+    }
+
+    // Create the completion event with pre-marshaled JSON data
     completionEvent := dcb.NewInputEvent(
         "TodoCompleted",
         todoTags,
-        todoCompleted, // NewInputEvent will handle the JSON marshaling
+        data, // Pre-marshaled JSON data
     )
 
     // Get updated position
