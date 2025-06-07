@@ -67,6 +67,45 @@ func (es *eventStore) ProjectState(ctx context.Context, projector StateProjector
 
 The `ProjectState` method provides flexible state projection capabilities. Here are examples of how to use it:
 
+### Stream Position and Optimistic Concurrency Control
+
+When appending events, it's crucial to use the current stream position for optimistic concurrency control. This ensures:
+
+1. **Event Ordering**: Events are processed in the correct sequence
+2. **Race Condition Prevention**: Concurrent updates are handled safely
+3. **Consistency**: The final state reflects the most recent update
+
+Here's how to properly handle stream positions:
+
+```go
+// Get current stream position before appending events
+position, err := store.GetCurrentPosition(ctx, query)
+if err != nil {
+    return err
+}
+
+// Append events using the current position
+events := []dcb.InputEvent{
+    {
+        Type: "AccountBalanceUpdated",
+        Tags: dcb.NewTags("account_id", "acc123"),
+        Data: []byte(`{"balance": 1000}`),
+    },
+}
+newPosition, err := store.AppendEvents(ctx, events, query, position)
+if err != nil {
+    // Handle error - might be due to concurrent modification
+    return err
+}
+```
+
+The event store will automatically handle optimistic concurrency control by:
+1. Checking if the provided position matches the current stream position
+2. Rejecting the append if there are concurrent modifications
+3. Updating the stream position atomically with the event append
+
+This ensures that your event stream remains consistent even under concurrent load.
+
 1. **Projecting All Events**:
    ```go
    // Create a projector that handles all events
