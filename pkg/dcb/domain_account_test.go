@@ -212,13 +212,15 @@ func (a *AccountAPI) TransferMoney(ctx context.Context, cmd TransferMoneyCommand
 	// Create the transfer event with both accounts' balance information
 	transferEvent := NewMoneyTransferredEvent(cmd.FromUsername, cmd.ToUsername, cmd.Amount, fromNewBalance, toNewBalance)
 
-	// Get current position for the combined stream
-	query := Query{
+	// Get current positions for both accounts' streams
+	combinedQuery := Query{
 		Tags:       []Tag{{Key: "username", Value: cmd.FromUsername}, {Key: "username", Value: cmd.ToUsername}},
 		EventTypes: []string{"AccountBalance", "MoneyTransferred"},
 	}
+
+	// Get position for the combined stream
 	pos, _, err := a.eventStore.ProjectState(ctx, StateProjector{
-		Query:        query,
+		Query:        combinedQuery,
 		InitialState: []Event{},
 		TransitionFn: func(state any, event Event) any {
 			events := state.([]Event)
@@ -229,10 +231,10 @@ func (a *AccountAPI) TransferMoney(ctx context.Context, cmd TransferMoneyCommand
 		return fmt.Errorf("failed to get stream position: %w", err)
 	}
 
-	// Append all events in a single transaction
-	_, err = a.eventStore.AppendEvents(ctx, []InputEvent{fromEvent, toEvent, transferEvent}, query, pos)
+	// Append all events in a single transaction using the combined query
+	_, err = a.eventStore.AppendEvents(ctx, []InputEvent{fromEvent, toEvent, transferEvent}, combinedQuery, pos)
 	if err != nil {
-		return fmt.Errorf("failed to update accounts: %w", err)
+		return fmt.Errorf("failed to append transfer events: %w", err)
 	}
 
 	return nil
@@ -250,13 +252,23 @@ func (a *AccountAPI) SetAccountBalance(ctx context.Context, username string, amo
 		return fmt.Errorf("account %q does not exist", username)
 	}
 
+	// Get current stream position
+	query := NewQuery(NewTags("username", username))
+	pos, _, err := a.eventStore.ProjectState(ctx, StateProjector{
+		Query:        query,
+		InitialState: []Event{},
+		TransitionFn: func(state any, event Event) any {
+			events := state.([]Event)
+			return append(events, event)
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to get stream position: %w", err)
+	}
+
 	// Create and append the balance event
 	event := NewAccountBalanceEvent(username, amount)
-	query := Query{
-		Tags:       []Tag{{Key: "username", Value: username}},
-		EventTypes: []string{"AccountBalance"},
-	}
-	_, err = a.eventStore.AppendEvents(ctx, []InputEvent{event}, query, 0)
+	_, err = a.eventStore.AppendEvents(ctx, []InputEvent{event}, query, pos)
 	if err != nil {
 		return fmt.Errorf("failed to set account balance: %w", err)
 	}

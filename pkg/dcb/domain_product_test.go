@@ -104,10 +104,7 @@ func (api *ProductAPI) OrderProduct(ctx context.Context, cmd OrderProductCommand
 
 	// Project current product price state
 	projector := StateProjector{
-		Query: Query{
-			Tags:       NewTags("product", cmd.ProductID),
-			EventTypes: []string{"ProductDefined", "ProductPriceChanged"},
-		},
+		Query: NewQuery(NewTags("product", cmd.ProductID), "ProductDefined", "ProductPriceChanged"),
 		InitialState: ProductPriceState{
 			LastValidOldPrice: 0,
 			ValidNewPrices:    make([]float64, 0),

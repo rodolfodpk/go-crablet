@@ -61,14 +61,9 @@ func NewCourseUpdatedEvent(title string, tags []Tag) InputEvent {
 	}
 }
 
-// NewUserRegisteredEvent creates a new user registration event
-func NewUserRegisteredEvent(name string, tags []Tag) InputEvent {
-	data, _ := json.Marshal(UserRegisteredEvent{Name: name})
-	return InputEvent{
-		Type: "UserRegistered",
-		Tags: tags,
-		Data: data,
-	}
+// NewCourseUserRegisteredEvent creates a new user registered event for course domain
+func NewCourseUserRegisteredEvent(userID string, tags []Tag) InputEvent {
+	return NewInputEvent("UserRegistered", tags, []byte(`{"name":"Test User"}`))
 }
 
 // NewEnrollmentEvent creates a new enrollment event

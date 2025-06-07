@@ -29,3 +29,9 @@ func NewInputEvent(eventType string, tags []Tag, data []byte) InputEvent {
 		Data: data,
 	}
 }
+
+// NewEvents creates a slice of events from the given InputEvents.
+// This is a convenience function for creating event batches.
+func NewEvents(events ...InputEvent) []InputEvent {
+	return events
+}
