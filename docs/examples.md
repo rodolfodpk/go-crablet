@@ -278,7 +278,69 @@ func main() {
     fmt.Printf("Courses: %d\n", len(student.CourseIDs))
 }
 
-### Key Features Demonstrated
+## Error Handling
+
+Here's an example showing how to handle different types of errors that can occur when using go-crablet:
+
+### Validation Errors
+These occur when event data doesn't meet the required format or constraints. For example, when JSON data is invalid or required fields are missing.
+
+```go
+// Example of handling validation errors
+courseID := "C123"
+courseTags := dcb.NewTags("course_id", courseID)
+query := dcb.NewQuery(courseTags, "CourseUpdated")
+
+// Try to append with invalid event data
+invalidEvent := dcb.NewInputEvent(
+    "CourseUpdated", 
+    courseTags, 
+    []byte(`invalid json`), // Invalid JSON data
+)
+
+_, err = store.AppendEvents(ctx, []dcb.InputEvent{invalidEvent}, query, 0)
+if err != nil {
+    if validationErr, ok := err.(*dcb.ValidationError); ok {
+        fmt.Printf("Validation error: %v\n", validationErr)
+        return
+    }
+    log.Fatal(err)
+}
+```
+
+### Concurrency Errors
+These occur when multiple processes try to modify the same event stream simultaneously. The event store uses optimistic concurrency control to detect and prevent conflicts.
+
+```go
+// Example of handling concurrency errors
+// First append
+event1 := dcb.NewInputEvent(
+    "CourseUpdated", 
+    courseTags, 
+    []byte(`{"title": "New Title"}`),
+)
+position, err := store.AppendEvents(ctx, []dcb.InputEvent{event1}, query, 0)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Try to append another event with the same query but old position
+event2 := dcb.NewInputEvent(
+    "CourseUpdated", 
+    courseTags, 
+    []byte(`{"title": "Another Title"}`),
+)
+_, err = store.AppendEvents(ctx, []dcb.InputEvent{event2}, query, 0) // Using position 0 instead of the new position
+if err != nil {
+    if _, ok := err.(*dcb.ConcurrencyError); ok {
+        fmt.Println("Concurrency error: another event was appended to this stream")
+        return
+    }
+    log.Fatal(err)
+}
+```
+
+## Key Features Demonstrated
 
 1. **Event Types and Data**
    - Course events: `CourseCreated`, `CourseCancelled`
@@ -300,7 +362,7 @@ func main() {
    - Efficient querying by course and student IDs
    - Building different views of the same event stream
 
-### Best Practices
+## Best Practices
 
 1. **Tag Usage**
    - Use consistent tag keys (`course_id`, `student_id`)
@@ -327,103 +389,8 @@ func main() {
    - Use batch operations for related events
    - Handle position updates atomically
 
-For more details about specific features used in this example, see:
+For more details about specific features used in these examples, see:
 - [Appending Events](docs/appending-events.md): Learn about event appending and concurrency control
 - [State Projection](docs/state-projection.md): Understand how state projection works
 - [Tutorial](docs/tutorial.md): Get started with go-crablet
-
-## Error Handling
-
-Here's an example showing how to handle different types of errors:
-
-```go
-package main
-
-import (
-    "context"
-    "fmt"
-    "log"
-
-    "github.com/jackc/pgx/v5/pgxpool"
-    "github.com/rodolfodpk/go-crablet"
-)
-
-func main() {
-    // Create a PostgreSQL connection pool
-    pool, err := pgxpool.New(context.Background(), "postgres://user:pass@localhost:5432/mydb?sslmode=disable")
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer pool.Close()
-
-    // Create a new event store
-    store, err := dcb.NewEventStore(context.Background(), pool)
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    ctx := context.Background()
-
-    // Example of handling validation errors
-    courseID := "C123"
-    courseTags := dcb.NewTags("course_id", courseID)
-    query := dcb.NewQuery(courseTags, "CourseUpdated")
-
-    // Try to append with invalid event data
-    invalidEvent := dcb.NewInputEvent(
-        "CourseUpdated", 
-        courseTags, 
-        []byte(`invalid json`), // Invalid JSON data
-    )
-
-    _, err = store.AppendEvents(ctx, []dcb.InputEvent{invalidEvent}, query, 0)
-    if err != nil {
-        if validationErr, ok := err.(*dcb.ValidationError); ok {
-            fmt.Printf("Validation error: %v\n", validationErr)
-            return
-        }
-        log.Fatal(err)
-    }
-
-    // Example of handling concurrency errors
-    // First append
-    event1 := dcb.NewInputEvent(
-        "CourseUpdated", 
-        courseTags, 
-        []byte(`{"title": "New Title"}`),
-    )
-    position, err := store.AppendEvents(ctx, []dcb.InputEvent{event1}, query, 0)
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // Try to append another event with the same query but old position
-    event2 := dcb.NewInputEvent(
-        "CourseUpdated", 
-        courseTags, 
-        []byte(`{"title": "Another Title"}`),
-    )
-    _, err = store.AppendEvents(ctx, []dcb.InputEvent{event2}, query, 0) // Using position 0 instead of the new position
-    if err != nil {
-        if _, ok := err.(*dcb.ConcurrencyError); ok {
-            fmt.Println("Concurrency error: another event was appended to this stream")
-            return
-        }
-        log.Fatal(err)
-    }
-}
-```
-
-These examples demonstrate:
-1. Basic event storage and retrieval
-2. Building a complete system with multiple entities
-3. Using consistency features to handle concurrent operations
-4. Proper error handling for validation and concurrency
-
-For more details about specific features, please refer to the other documentation sections. 
-
-Appending a batch of events
-err = store.AppendEvents(ctx, dcb.NewEventBatch(
-    dcb.NewInputEvent("Subscription", dcb.NewTags("course_id", "C1", "user_id", "U1"), []byte(`{"status":"active"}`)),
-    dcb.NewInputEvent("LessonCompleted", dcb.NewTags("course_id", "C1", "user_id", "U1", "lesson_id", "L1"), []byte(`{"score":95}`)),
-), query, position) 
+- [Course Subscription Example](docs/course-subscription.md): See a complete implementation of the course subscription system 
