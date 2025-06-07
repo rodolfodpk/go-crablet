@@ -6,7 +6,14 @@
 [![License](https://img.shields.io/github/license/rodolfodpk/go-crablet)](https://github.com/rodolfodpk/go-crablet/blob/main/LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/rodolfodpk/go-crablet)](https://github.com/rodolfodpk/go-crablet/blob/main/go.mod)
 
-A Go implementation of the Dynamic Consistency Boundary (DCB) event store pattern, providing a simpler and more flexible approach to consistency in event-driven systems.
+A Go implementation of the Dynamic Consistency Boundary (DCB) event store pattern, providing a simpler and more flexible approach to consistency in event-driven systems. Perfect for event sourcing applications that need:
+- Reliable audit trail of all state changes
+- Flexible querying across event streams
+- Easy state reconstruction at any point in time
+- Strong consistency guarantees
+- Support for complex business workflows
+
+Event sourcing is a pattern where all changes to application state are stored as a sequence of events. Instead of just storing the current state, you store the complete history of events that led to that state. This allows you to reconstruct past states, analyze how the system evolved, and build new views of the data without changing the original event log.
 
 ## Documentation
 
