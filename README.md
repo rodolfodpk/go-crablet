@@ -39,7 +39,6 @@ The documentation has been split into several files for better organization:
 - **Batch Operations**: Efficient batch operations for appending multiple events
 - **PostgreSQL Backend**: Uses PostgreSQL for reliable, ACID-compliant storage with optimistic concurrency control
 - **Go Native**: Written in Go with idiomatic Go patterns and interfaces
-- **Position Management**: Automatic versioning of the global event stream to prevent conflicts when multiple processes try to append events simultaneously
 
 ## References
 
