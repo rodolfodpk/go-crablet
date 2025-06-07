@@ -10,8 +10,7 @@ A Go implementation of the Dynamic Consistency Boundary (DCB) event store patter
 - Reliable audit trail of all state changes
 - Flexible querying across event streams
 - Easy state reconstruction at any point in time
-- Strong consistency guarantees
-- Support for complex business workflows
+- Optimistic concurrency control with consistency boundaries
 
 Event sourcing is a pattern where all changes to application state are appended as a sequence of immutable events. Instead of updating the current state, you append new events that represent state changes. This append-only approach creates a complete, tamper-evident history that allows you to reconstruct past states, analyze how the system evolved, and build new views of the data without modifying the original event log.
 
@@ -44,7 +43,7 @@ For more detailed information, please refer to the documentation sections above.
 - **Concurrency Control**: Handle concurrent event appends with optimistic locking
 - **Event Causation**: Track event causation and correlation for event chains
 - **Batch Operations**: Efficient batch operations for appending multiple events
-- **PostgreSQL Backend**: Uses PostgreSQL for reliable, ACID-compliant storage with native concurrency control
+- **PostgreSQL Backend**: Uses PostgreSQL for reliable, ACID-compliant storage with optimistic concurrency control
 - **Go Native**: Written in Go with idiomatic Go patterns and interfaces
 
 ### Event Store Interface
