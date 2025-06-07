@@ -83,10 +83,10 @@ var _ = Describe("Event Store: Idempotent Event Appending", func() {
 	It("handles partial event appending with idempotency", func() {
 		tags := NewTags("course_id", "course3")
 		query := NewQuery(tags, "CourseLaunched", "LessonAdded")
-		initialEvents := []InputEvent{
+		initialEvents := NewEventBatch(
 			NewInputEvent("CourseLaunched", tags, []byte(`{"title":"Go Programming"}`)),
 			NewInputEvent("LessonAdded", tags, []byte(`{"lesson_id":"L1"}`)),
-		}
+		)
 
 		// First append
 		pos, err := store.AppendEvents(ctx, initialEvents, query, 0)
@@ -94,10 +94,10 @@ var _ = Describe("Event Store: Idempotent Event Appending", func() {
 		Expect(pos).To(Equal(int64(2)))
 
 		// Try to append a mix of existing and new events
-		newEvents := []InputEvent{
+		newEvents := NewEventBatch(
 			NewInputEvent("CourseLaunched", tags, []byte(`{"title":"Go Programming"}`)), // Existing
 			NewInputEvent("LessonAdded", tags, []byte(`{"lesson_id":"L2"}`)),            // New
-		}
+		)
 		// This should fail with a concurrency error since we're using the wrong position
 		_, err = store.AppendEvents(ctx, newEvents, query, 0)
 		Expect(err).To(HaveOccurred())

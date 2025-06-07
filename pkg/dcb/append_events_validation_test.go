@@ -122,6 +122,9 @@ var _ = Describe("Event Store: Input Validation", func() {
 
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("invalid JSON data"))
+			validationErr, ok := err.(*ValidationError)
+			Expect(ok).To(BeTrue())
+			Expect(validationErr.Field).To(Equal("data"))
 		})
 
 		It("rejects batch exceeding maxBatchSize", func() {
