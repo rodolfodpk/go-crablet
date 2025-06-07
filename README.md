@@ -49,7 +49,7 @@ For more detailed information, please refer to the documentation sections above.
 
 ### Event Store Interface
 
-The event store provides a simple interface for managing events:
+The core interface for event management:
 
 ```go
 // EventStore provides methods to append and read events in a PostgreSQL database.
