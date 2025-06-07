@@ -1,3 +1,4 @@
+// Package dcb provides domain-specific types and helpers for the account domain.
 package dcb
 
 import (
@@ -16,8 +17,7 @@ type AccountRegistered struct {
 
 // NewAccountRegistered creates a new account registration event
 func NewAccountRegistered(username string) InputEvent {
-	data, err := json.Marshal(AccountRegistered{Username: username})
-	Expect(err).NotTo(HaveOccurred())
+	data, _ := json.Marshal(AccountRegistered{Username: username})
 	return InputEvent{
 		Type: "AccountRegistered",
 		Data: data,
