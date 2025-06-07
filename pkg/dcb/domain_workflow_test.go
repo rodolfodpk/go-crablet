@@ -48,61 +48,61 @@ type WorkflowCompletedEvent struct {
 // NewWorkflowStartedEvent creates a new workflow started event
 func NewWorkflowStartedEvent(step int, tags []Tag) InputEvent {
 	data, _ := json.Marshal(WorkflowStartedEvent{Step: step})
-	return InputEvent{
-		Type: "WorkflowStarted",
-		Tags: tags,
-		Data: data,
-	}
+	return NewInputEvent(
+		"WorkflowStarted",
+		tags,
+		data,
+	)
 }
 
 // NewTaskAssignedEvent creates a new task assigned event
 func NewTaskAssignedEvent(task string, tags []Tag) InputEvent {
 	data, _ := json.Marshal(TaskAssignedEvent{Task: task})
-	return InputEvent{
-		Type: "TaskAssigned",
-		Tags: tags,
-		Data: data,
-	}
+	return NewInputEvent(
+		"TaskAssigned",
+		tags,
+		data,
+	)
 }
 
 // NewTaskCompletedEvent creates a new task completed event
 func NewTaskCompletedEvent(task string, tags []Tag) InputEvent {
 	data, _ := json.Marshal(TaskCompletedEvent{Task: task})
-	return InputEvent{
-		Type: "TaskCompleted",
-		Tags: tags,
-		Data: data,
-	}
+	return NewInputEvent(
+		"TaskCompleted",
+		tags,
+		data,
+	)
 }
 
 // NewTaskFailedEvent creates a new task failed event
 func NewTaskFailedEvent(task string, error string, tags []Tag) InputEvent {
 	data, _ := json.Marshal(TaskFailedEvent{Task: task, Error: error})
-	return InputEvent{
-		Type: "TaskFailed",
-		Tags: tags,
-		Data: data,
-	}
+	return NewInputEvent(
+		"TaskFailed",
+		tags,
+		data,
+	)
 }
 
 // NewTaskRetriedEvent creates a new task retried event
 func NewTaskRetriedEvent(task string, tags []Tag) InputEvent {
 	data, _ := json.Marshal(TaskRetriedEvent{Task: task})
-	return InputEvent{
-		Type: "TaskRetried",
-		Tags: tags,
-		Data: data,
-	}
+	return NewInputEvent(
+		"TaskRetried",
+		tags,
+		data,
+	)
 }
 
 // NewWorkflowCompletedEvent creates a new workflow completed event
 func NewWorkflowCompletedEvent(step int, tags []Tag) InputEvent {
 	data, _ := json.Marshal(WorkflowCompletedEvent{Step: step})
-	return InputEvent{
-		Type: "WorkflowCompleted",
-		Tags: tags,
-		Data: data,
-	}
+	return NewInputEvent(
+		"WorkflowCompleted",
+		tags,
+		data,
+	)
 }
 
 // WorkflowProjector creates a projector for workflow events

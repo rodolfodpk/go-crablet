@@ -142,6 +142,9 @@ type TodoCompleted struct {
 }
 
 func main() {
+    // Create a context that will be used throughout the application
+    ctx := context.Background()
+
     // Get database URL from environment variable
     dbURL := os.Getenv("DATABASE_URL")
     if dbURL == "" {
@@ -149,19 +152,17 @@ func main() {
     }
 
     // Create a PostgreSQL connection pool
-    pool, err := pgxpool.New(context.Background(), dbURL)
+    pool, err := pgxpool.New(ctx, dbURL)
     if err != nil {
         log.Fatalf("Unable to connect to database: %v", err)
     }
     defer pool.Close()
 
     // Create a new event store
-    store, err := dcb.NewEventStore(context.Background(), pool)
+    store, err := dcb.NewEventStore(ctx, pool)
     if err != nil {
         log.Fatalf("Unable to create event store: %v", err)
     }
-
-    ctx := context.Background()
 
     // Create a new todo
     todoID := "todo-1"
@@ -172,16 +173,12 @@ func main() {
         Title:     "Learn go-crablet",
         CreatedAt: "2024-03-20T10:00:00Z",
     }
-    todoCreatedData, err := json.Marshal(todoCreated)
-    if err != nil {
-        log.Fatalf("Unable to marshal todo created event: %v", err)
-    }
 
-    // Create the event
+    // Create the event using NewInputEvent's built-in JSON marshaling
     event := dcb.NewInputEvent(
         "TodoCreated",
         todoTags,
-        todoCreatedData,
+        todoCreated, // NewInputEvent will handle the JSON marshaling
     )
 
     // Get current stream position
@@ -242,16 +239,12 @@ func main() {
     todoCompleted := TodoCompleted{
         CompletedAt: "2024-03-20T11:00:00Z",
     }
-    todoCompletedData, err := json.Marshal(todoCompleted)
-    if err != nil {
-        log.Fatalf("Unable to marshal todo completed event: %v", err)
-    }
 
-    // Create the completion event
+    // Create the completion event using NewInputEvent's built-in JSON marshaling
     completionEvent := dcb.NewInputEvent(
         "TodoCompleted",
         todoTags,
-        todoCompletedData,
+        todoCompleted, // NewInputEvent will handle the JSON marshaling
     )
 
     // Get updated position

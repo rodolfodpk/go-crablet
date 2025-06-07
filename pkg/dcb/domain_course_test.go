@@ -44,36 +44,41 @@ type EnrollmentEvent struct {
 // NewCourseLaunchedEvent creates a new course launched event
 func NewCourseLaunchedEvent(title string, tags []Tag) InputEvent {
 	data, _ := json.Marshal(CourseLaunchedEvent{Title: title})
-	return InputEvent{
-		Type: "CourseLaunched",
-		Tags: tags,
-		Data: data,
-	}
+	return NewInputEvent(
+		"CourseLaunched",
+		tags,
+		data,
+	)
 }
 
 // NewCourseUpdatedEvent creates a new course updated event
 func NewCourseUpdatedEvent(title string, tags []Tag) InputEvent {
 	data, _ := json.Marshal(CourseUpdatedEvent{Title: title})
-	return InputEvent{
-		Type: "CourseUpdated",
-		Tags: tags,
-		Data: data,
-	}
+	return NewInputEvent(
+		"CourseUpdated",
+		tags,
+		data,
+	)
 }
 
 // NewCourseUserRegisteredEvent creates a new user registered event for course domain
 func NewCourseUserRegisteredEvent(userID string, tags []Tag) InputEvent {
-	return NewInputEvent("UserRegistered", tags, []byte(`{"name":"Test User"}`))
+	data, _ := json.Marshal(UserRegisteredEvent{Name: "Test User"})
+	return NewInputEvent(
+		"UserRegistered",
+		tags,
+		data,
+	)
 }
 
 // NewEnrollmentEvent creates a new enrollment event
 func NewEnrollmentEvent(status string, tags []Tag) InputEvent {
 	data, _ := json.Marshal(EnrollmentEvent{Status: status})
-	return InputEvent{
-		Type: "Enrollment",
-		Tags: tags,
-		Data: data,
-	}
+	return NewInputEvent(
+		"Enrollment",
+		tags,
+		data,
+	)
 }
 
 // CourseProjector creates a projector for course events
