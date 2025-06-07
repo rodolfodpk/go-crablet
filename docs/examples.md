@@ -66,7 +66,271 @@ func main() {
 }
 ```
 
-For a complete example of a course subscription system, including state projection, event handling, and best practices, see [Course Subscription Example](docs/course-subscription.md).
+## Course Subscription System
+
+Here's a complete example of a course subscription system using go-crablet. This example demonstrates:
+
+- Event creation and appending
+- State projection for multiple entities
+- Consistency boundaries
+- Tag-based querying
+- Error handling
+
+```go
+package main
+
+import (
+    "context"
+    "encoding/json"
+    "fmt"
+    "log"
+    "time"
+
+    "github.com/jackc/pgx/v5/pgxpool"
+    "github.com/rodolfodpk/go-crablet"
+)
+
+// CourseState represents the current state of a course
+type CourseState struct {
+    ID          string
+    Name        string
+    StudentIDs  map[string]bool
+    IsActive    bool
+}
+
+// StudentState represents the current state of a student
+type StudentState struct {
+    ID         string
+    Name       string
+    CourseIDs  map[string]bool
+    IsActive   bool
+}
+
+func main() {
+    // Create a PostgreSQL connection pool
+    pool, err := pgxpool.New(context.Background(), "postgres://user:pass@localhost:5432/mydb?sslmode=disable")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer pool.Close()
+
+    // Create a new event store
+    store, err := dcb.NewEventStore(context.Background(), pool)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    ctx := context.Background()
+
+    // Create a new course
+    courseID := "C123"
+    courseTags := dcb.NewTags("course_id", courseID)
+    courseCreated := dcb.NewInputEvent(
+        "CourseCreated", 
+        courseTags, 
+        []byte(`{"name": "Introduction to Go", "description": "Learn Go programming language"}`),
+    )
+
+    // Create a new student
+    studentID := "S456"
+    studentTags := dcb.NewTags("student_id", studentID)
+    studentRegistered := dcb.NewInputEvent(
+        "StudentRegistered", 
+        studentTags, 
+        []byte(`{"name": "John Doe", "email": "john@example.com"}`),
+    )
+
+    // Subscribe student to course
+    subscriptionTags := dcb.NewTags(
+        "course_id", courseID,
+        "student_id", studentID,
+    )
+    subscriptionEvent := dcb.NewInputEvent(
+        "StudentSubscribedToCourse", 
+        subscriptionTags, 
+        []byte(`{"subscription_date": "2024-03-20", "payment_method": "credit_card"}`),
+    )
+
+    // Define a consistency boundary that includes all relevant event types
+    query := dcb.NewQuery(
+        subscriptionTags,
+        "CourseCreated",
+        "StudentRegistered",
+        "StudentSubscribedToCourse",
+    )
+    
+    // Get current stream position
+    position, err := store.GetCurrentPosition(ctx, query)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Append all events in a single batch
+    events := []dcb.InputEvent{
+        courseCreated,
+        studentRegistered,
+        subscriptionEvent,
+    }
+    newPosition, err := store.AppendEvents(ctx, events, query, position)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Printf("Events appended at position %d\n", newPosition)
+
+    // Project course state
+    courseProjector := dcb.StateProjector{
+        Query: dcb.NewQuery(courseTags),
+        InitialState: &CourseState{
+            ID: courseID,
+            StudentIDs: make(map[string]bool),
+        },
+        TransitionFn: func(state any, event dcb.Event) any {
+            course := state.(*CourseState)
+            switch event.Type {
+            case "CourseCreated":
+                var data struct {
+                    Name string `json:"name"`
+                }
+                if err := json.Unmarshal(event.Data, &data); err != nil {
+                    panic(err)
+                }
+                course.Name = data.Name
+                course.IsActive = true
+            case "StudentSubscribedToCourse":
+                for _, tag := range event.Tags {
+                    if tag.Key == "student_id" {
+                        course.StudentIDs[tag.Value] = true
+                    }
+                }
+            case "StudentUnsubscribedFromCourse":
+                for _, tag := range event.Tags {
+                    if tag.Key == "student_id" {
+                        delete(course.StudentIDs, tag.Value)
+                    }
+                }
+            case "CourseCancelled":
+                course.IsActive = false
+            }
+            return course
+        },
+    }
+
+    // Project student state
+    studentProjector := dcb.StateProjector{
+        Query: dcb.NewQuery(studentTags),
+        InitialState: &StudentState{
+            ID: studentID,
+            CourseIDs: make(map[string]bool),
+        },
+        TransitionFn: func(state any, event dcb.Event) any {
+            student := state.(*StudentState)
+            switch event.Type {
+            case "StudentRegistered":
+                var data struct {
+                    Name string `json:"name"`
+                }
+                if err := json.Unmarshal(event.Data, &data); err != nil {
+                    panic(err)
+                }
+                student.Name = data.Name
+                student.IsActive = true
+            case "StudentSubscribedToCourse":
+                for _, tag := range event.Tags {
+                    if tag.Key == "course_id" {
+                        student.CourseIDs[tag.Value] = true
+                    }
+                }
+            case "StudentUnsubscribedFromCourse":
+                for _, tag := range event.Tags {
+                    if tag.Key == "course_id" {
+                        delete(student.CourseIDs, tag.Value)
+                    }
+                }
+            case "StudentDeactivated":
+                student.IsActive = false
+            }
+            return student
+        },
+    }
+
+    // Get current states
+    _, courseState, err := store.ProjectState(ctx, courseProjector)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    _, studentState, err := store.ProjectState(ctx, studentProjector)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Print results
+    course := courseState.(*CourseState)
+    student := studentState.(*StudentState)
+
+    fmt.Printf("Course: %s\n", course.Name)
+    fmt.Printf("Active: %v\n", course.IsActive)
+    fmt.Printf("Students: %d\n", len(course.StudentIDs))
+
+    fmt.Printf("\nStudent: %s\n", student.Name)
+    fmt.Printf("Active: %v\n", student.IsActive)
+    fmt.Printf("Courses: %d\n", len(student.CourseIDs))
+}
+
+### Key Features Demonstrated
+
+1. **Event Types and Data**
+   - Course events: `CourseCreated`, `CourseCancelled`
+   - Student events: `StudentRegistered`, `StudentDeactivated`
+   - Subscription events: `StudentSubscribedToCourse`, `StudentUnsubscribedFromCourse`
+
+2. **State Projection**
+   - Separate projectors for course and student states
+   - Efficient tag-based filtering
+   - Type-safe event handling
+
+3. **Consistency Boundaries**
+   - Events for the same course/student are processed atomically
+   - Concurrent modifications are detected and handled
+   - Event ordering is maintained
+
+4. **Tag Management**
+   - Using tags to link related events
+   - Efficient querying by course and student IDs
+   - Building different views of the same event stream
+
+### Best Practices
+
+1. **Tag Usage**
+   - Use consistent tag keys (`course_id`, `student_id`)
+   - Include all relevant IDs in event tags
+   - Use tags for efficient querying
+
+2. **Event Types**
+   - Use descriptive event type names
+   - Group related events by domain concept
+   - Maintain consistent naming conventions
+
+3. **State Structure**
+   - Keep state objects focused and minimal
+   - Use maps for efficient lookups
+   - Include only necessary fields
+
+4. **Error Handling**
+   - Check for errors after each operation
+   - Handle concurrency errors appropriately
+   - Validate event data before appending
+
+5. **Position Management**
+   - Always get current position before appending
+   - Use batch operations for related events
+   - Handle position updates atomically
+
+For more details about specific features used in this example, see:
+- [Appending Events](docs/appending-events.md): Learn about event appending and concurrency control
+- [State Projection](docs/state-projection.md): Understand how state projection works
+- [Tutorial](docs/tutorial.md): Get started with go-crablet
 
 ## Error Handling
 

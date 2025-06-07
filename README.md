@@ -22,8 +22,8 @@ The documentation has been split into several files for better organization:
 - [Installation](docs/installation.md): Installation and setup guide
 - [Tutorial](docs/tutorial.md): Step-by-step guide to get started with go-crablet
 - [State Projection](docs/state-projection.md): Detailed guide on state projection
-- [Examples](docs/examples.md): Practical examples and use cases
-- [Course Subscription](docs/course-subscription.md): Detailed example of a course subscription system
+- [Appending Events](docs/appending-events.md): Guide on appending events and handling concurrency
+- [Examples](docs/examples.md): Practical examples and use cases, including a complete course subscription system
 
 ## Quick Start
 
