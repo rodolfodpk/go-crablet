@@ -421,3 +421,9 @@ These examples demonstrate:
 4. Proper error handling for validation and concurrency
 
 For more details about specific features, please refer to the other documentation sections. 
+
+Appending a batch of events
+err = store.AppendEvents(ctx, dcb.NewEventBatch(
+    dcb.NewInputEvent("Subscription", dcb.NewTags("course_id", "C1", "user_id", "U1"), []byte(`{"status":"active"}`)),
+    dcb.NewInputEvent("LessonCompleted", dcb.NewTags("course_id", "C1", "user_id", "U1", "lesson_id", "L1"), []byte(`{"score":95}`)),
+), query, position) 
