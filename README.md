@@ -18,10 +18,11 @@ Event sourcing is a pattern where all changes to application state are appended 
 
 The documentation has been split into several files for better organization:
 
-- [Installation and Development Tools](docs/installation.md) - How to install and set up the development environment
-- [Overview and Key Concepts](docs/overview.md) - Introduction to DCB and its key concepts
-- [State Projection](docs/state-projection.md) - Details about state projection and PostgreSQL streaming
-- [Examples](docs/examples.md) - Usage examples and patterns
+- [Overview](docs/overview.md): High-level overview of go-crablet
+- [Installation](docs/installation.md): Installation and setup guide
+- [Tutorial](docs/tutorial.md): Step-by-step guide to get started with go-crablet
+- [State Projection](docs/state-projection.md): Detailed guide on state projection
+- [Examples](docs/examples.md): Practical examples and use cases
 
 ## Quick Start
 
@@ -223,6 +224,71 @@ fmt.Printf("Subscription active: %v, until: %v\n",
     subscription.Until,
 )
 ```
+
+### State Projection
+
+go-crablet implements efficient state projection by leveraging PostgreSQL's streaming capabilities. Instead of loading all events into memory, events are streamed directly from the database and processed one at a time. This approach provides several benefits:
+
+1. **Memory Efficiency**: Events are processed in a streaming fashion, making it suitable for large event streams
+2. **Database Efficiency**: Uses PostgreSQL's native JSONB indexing and querying capabilities
+3. **Consistent Views**: The same query used for consistency checks is used for state projection
+
+Example of state projection:
+
+```go
+// Create a projector for account balances
+projector := dcb.StateProjector{
+    Query: dcb.NewQuery(dcb.NewTags("account_id", "acc123")),
+    InitialState: &AccountState{},
+    TransitionFn: func(state any, event dcb.Event) any {
+        // Handle events and update state
+        return state
+    },
+}
+
+// Project the current state
+position, state, err := store.ProjectState(ctx, projector)
+```
+
+### Appending Events
+
+go-crablet provides a robust mechanism for appending events with optimistic concurrency control. This ensures:
+
+1. **Event Ordering**: Events are processed in the correct sequence
+2. **Race Condition Prevention**: Concurrent updates are handled safely
+3. **Consistency**: The final state reflects the most recent update
+
+Example of appending events:
+
+```go
+// Get current stream position
+query := dcb.NewQuery(dcb.NewTags("account_id", "acc123"))
+position, err := store.GetCurrentPosition(ctx, query)
+if err != nil {
+    return err
+}
+
+// Create and append events
+events := []dcb.InputEvent{
+    {
+        Type: "AccountBalanceUpdated",
+        Tags: dcb.NewTags("account_id", "acc123"),
+        Data: []byte(`{"balance": 1000}`),
+    },
+}
+
+// Append events using the current position
+newPosition, err := store.AppendEvents(ctx, events, query, position)
+if err != nil {
+    // Handle error - might be due to concurrent modification
+    return err
+}
+```
+
+The event store automatically handles optimistic concurrency control by:
+1. Checking if the provided position matches the current stream position
+2. Rejecting the append if there are concurrent modifications
+3. Updating the stream position atomically with the event append
 
 ## References
 
