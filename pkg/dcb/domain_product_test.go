@@ -59,11 +59,11 @@ func NewProductDefinedEvent(productID string, price float64, minutesAgo int) Inp
 		Price:      price,
 		MinutesAgo: minutesAgo,
 	})
-	return InputEvent{
-		Type: "ProductDefined",
-		Tags: NewTags("product", productID),
-		Data: data,
-	}
+	return NewInputEvent(
+		"ProductDefined",
+		NewTags("product", productID),
+		data,
+	)
 }
 
 // NewProductPriceChangedEvent creates a new ProductPriceChanged event
@@ -73,11 +73,11 @@ func NewProductPriceChangedEvent(productID string, newPrice float64, minutesAgo 
 		NewPrice:   newPrice,
 		MinutesAgo: minutesAgo,
 	})
-	return InputEvent{
-		Type: "ProductPriceChanged",
-		Tags: NewTags("product", productID),
-		Data: data,
-	}
+	return NewInputEvent(
+		"ProductPriceChanged",
+		NewTags("product", productID),
+		data,
+	)
 }
 
 // NewProductOrderedEvent creates a new ProductOrdered event
@@ -86,11 +86,11 @@ func NewProductOrderedEvent(productID string, price float64) InputEvent {
 		ProductID: productID,
 		Price:     price,
 	})
-	return InputEvent{
-		Type: "ProductOrdered",
-		Tags: NewTags("product", productID),
-		Data: data,
-	}
+	return NewInputEvent(
+		"ProductOrdered",
+		NewTags("product", productID),
+		data,
+	)
 }
 
 // NewProductAPI creates a new ProductAPI instance

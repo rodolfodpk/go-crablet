@@ -32,21 +32,21 @@ type MoneyTransferred struct {
 // NewAccountRegistered creates a new account registration event
 func NewAccountRegistered(username string) InputEvent {
 	data, _ := json.Marshal(AccountRegistered{Username: username})
-	return InputEvent{
-		Type: "AccountRegistered",
-		Data: data,
-		Tags: NewTags("username", username),
-	}
+	return NewInputEvent(
+		"AccountRegistered",
+		NewTags("username", username),
+		data,
+	)
 }
 
 // NewAccountBalanceEvent creates a new account balance event
 func NewAccountBalanceEvent(username string, amount float64) InputEvent {
 	data, _ := json.Marshal(AccountBalance{Amount: amount})
-	return InputEvent{
-		Type: "AccountBalance",
-		Data: data,
-		Tags: NewTags("username", username),
-	}
+	return NewInputEvent(
+		"AccountBalance",
+		NewTags("username", username),
+		data,
+	)
 }
 
 // NewMoneyTransferredEvent creates a new money transfer event
@@ -58,11 +58,11 @@ func NewMoneyTransferredEvent(fromUsername, toUsername string, amount, fromBalan
 		FromBalance:  fromBalance,
 		ToBalance:    toBalance,
 	})
-	return InputEvent{
-		Type: "MoneyTransferred",
-		Data: data,
-		Tags: NewTags("username", fromUsername, "username", toUsername),
-	}
+	return NewInputEvent(
+		"MoneyTransferred",
+		NewTags("username", fromUsername, "username", toUsername),
+		data,
+	)
 }
 
 // IsUsernameClaimedProjection creates a projector to check if a username is claimed
