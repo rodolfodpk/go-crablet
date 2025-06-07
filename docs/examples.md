@@ -50,13 +50,19 @@ func main() {
     // Define the consistency boundary
     query := dcb.NewQuery(tags, "StudentSubscribedToCourse")
 
-    // Append the event to the store
-    position, err := store.AppendEvents(ctx, []dcb.InputEvent{event}, query, 0)
+    // Get current stream position
+    position, err := store.GetCurrentPosition(ctx, query)
     if err != nil {
         log.Fatal(err)
     }
 
-    fmt.Printf("Event appended at position %d\n", position)
+    // Append the event to the store using the current position
+    newPosition, err := store.AppendEvents(ctx, []dcb.InputEvent{event}, query, position)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Printf("Event appended at position %d\n", newPosition)
 }
 ```
 
@@ -141,15 +147,24 @@ func main() {
 
     // Append all events with a query that includes all relevant tags
     query := dcb.NewQuery(subscriptionTags, "CourseCreated", "StudentRegistered", "StudentSubscribedToCourse")
+    
+    // Get current stream position
+    position, err := store.GetCurrentPosition(ctx, query)
+    if err != nil {
+        log.Fatal(err)
+    }
+
     events := []dcb.InputEvent{
         courseCreated,
         studentRegistered,
         subscriptionEvent,
     }
-    position, err := store.AppendEvents(ctx, events, query, 0)
+    newPosition, err := store.AppendEvents(ctx, events, query, position)
     if err != nil {
         log.Fatal(err)
     }
+
+    fmt.Printf("Events appended at position %d\n", newPosition)
 
     // Project course state
     courseProjector := dcb.StateProjector{
