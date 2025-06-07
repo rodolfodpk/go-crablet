@@ -65,11 +65,11 @@ if err != nil {
 
 ## Batch Operations
 
-You can append multiple events in a single operation. This is useful for maintaining consistency across related events:
+You can append multiple events in a single operation using the `NewEvents` helper. This is useful for maintaining consistency across related events:
 
 ```go
-// Create multiple events
-events := []dcb.InputEvent{
+// Create multiple events using NewEvents helper
+events := dcb.NewEvents(
     dcb.NewInputEvent(
         "OrderCreated",
         dcb.NewTags("order_id", "order123"),
@@ -80,7 +80,7 @@ events := []dcb.InputEvent{
         dcb.NewTags("order_id", "order123"),
         []byte(`{"amount": 100, "payment_id": "pay123"}`),
     ),
-}
+)
 
 // Define a query that includes all relevant event types
 query := dcb.NewQuery(
@@ -216,8 +216,8 @@ newPosition, err := store.AppendEvents(ctx, events, query, position)
    store.AppendEvents(ctx, []dcb.InputEvent{orderCreated}, query, pos1)
    store.AppendEvents(ctx, []dcb.InputEvent{paymentProcessed}, query, pos2)
    
-   // ✅ Appending related events in a batch
-   events := []dcb.InputEvent{orderCreated, paymentProcessed}
+   // ✅ Appending related events in a batch using NewEvents
+   events := dcb.NewEvents(orderCreated, paymentProcessed)
    store.AppendEvents(ctx, events, query, position)
    ```
 

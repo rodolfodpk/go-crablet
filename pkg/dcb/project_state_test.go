@@ -279,14 +279,14 @@ var _ = Describe("ProjectState", func() {
 
 		query := NewQuery(NewTags("test_id", "test_1"), "CourseCreated", "UserRegistered", "EnrollmentStarted", "EnrollmentCompleted", "CourseUpdated", "UserProfileUpdated")
 
-		events := []InputEvent{
+		events := NewEventBatch(
 			NewInputEvent("CourseCreated", courseTags, []byte(`{"title":"Go Programming"}`)),
 			NewInputEvent("UserRegistered", userTags, []byte(`{"name":"Alice"}`)),
 			NewInputEvent("EnrollmentStarted", mixedTags, []byte(`{"status":"pending"}`)),
 			NewInputEvent("EnrollmentCompleted", mixedTags, []byte(`{"status":"active"}`)),
 			NewInputEvent("CourseUpdated", courseTags, []byte(`{"title":"Advanced Go"}`)),
 			NewInputEvent("UserProfileUpdated", userTags, []byte(`{"level":"intermediate"}`)),
-		}
+		)
 
 		// Use a unique query to avoid conflicts with existing events
 		_, err := store.AppendEvents(ctx, events, query, 0)
@@ -351,12 +351,12 @@ var _ = Describe("ProjectState", func() {
 
 		query := NewQuery(NewTags("test_id", "test_2"), "TenantCreated", "UserRegistered", "OrderCreated", "OrderAssigned")
 
-		events := []InputEvent{
+		events := NewEventBatch(
 			NewInputEvent("TenantCreated", baseTags, []byte(`{"name":"Tenant 1"}`)),
 			NewInputEvent("UserRegistered", userTags, []byte(`{"name":"John"}`)),
 			NewInputEvent("OrderCreated", orderTags, []byte(`{"amount":100}`)),
 			NewInputEvent("OrderAssigned", mixedTags, []byte(`{"status":"assigned"}`)),
-		}
+		)
 
 		// Use a unique query to avoid conflicts with existing events
 		_, err := store.AppendEvents(ctx, events, query, 0)
@@ -418,7 +418,7 @@ var _ = Describe("ProjectState", func() {
 		workflowTags := NewTags("workflow_id", "workflow_test_1", "status", "active")
 		query := NewQuery(NewTags("test_id", "test_3"), "WorkflowStarted", "TaskAssigned", "TaskCompleted", "TaskFailed", "TaskRetried", "WorkflowCompleted")
 
-		events := []InputEvent{
+		events := NewEventBatch(
 			NewInputEvent("WorkflowStarted", workflowTags, []byte(`{"step":1}`)),
 			NewInputEvent("TaskAssigned", workflowTags, []byte(`{"task":"A"}`)),
 			NewInputEvent("TaskCompleted", workflowTags, []byte(`{"task":"A"}`)),
@@ -427,7 +427,7 @@ var _ = Describe("ProjectState", func() {
 			NewInputEvent("TaskRetried", workflowTags, []byte(`{"task":"B"}`)),
 			NewInputEvent("TaskCompleted", workflowTags, []byte(`{"task":"B"}`)),
 			NewInputEvent("WorkflowCompleted", workflowTags, []byte(`{"step":2}`)),
-		}
+		)
 
 		// Use a unique query to avoid conflicts with existing events
 		_, err := store.AppendEvents(ctx, events, query, 0)
