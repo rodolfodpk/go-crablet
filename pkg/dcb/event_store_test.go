@@ -155,3 +155,226 @@ var _ = AfterSuite(func() {
 		teardown()
 	}
 })
+
+var _ = Describe("AppendEventsIfNotExists", func() {
+	var (
+		ctx       context.Context
+		store     EventStore
+		pool      *pgxpool.Pool
+		postgresC testcontainers.Container
+	)
+
+	BeforeEach(func() {
+		ctx = context.Background()
+		var err error
+		pool, postgresC, err = setupPostgresContainer(ctx)
+		Expect(err).NotTo(HaveOccurred())
+
+		store, err = NewEventStore(ctx, pool)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Load schema
+		schema, err := os.ReadFile("../../docker-entrypoint-initdb.d/schema.sql")
+		Expect(err).NotTo(HaveOccurred())
+		_, err = pool.Exec(ctx, string(schema))
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		if pool != nil {
+			pool.Close()
+		}
+		if postgresC != nil {
+			Expect(postgresC.Terminate(ctx)).To(Succeed())
+		}
+	})
+
+	It("should append events when no matching events exist", func() {
+		// Create test events
+		events := []InputEvent{
+			NewInputEvent("TestEvent", NewTags("test", "value"), []byte(`{"data": "test1"}`)),
+			NewInputEvent("TestEvent", NewTags("test", "value"), []byte(`{"data": "test2"}`)),
+		}
+
+		// Create append condition that should not match any events
+		condition := AppendCondition{
+			FailIfEventsMatch: NewQuery(NewTags("nonexistent", "value")),
+		}
+
+		// Append events
+		position, err := store.AppendEventsIfNotExists(ctx, events, condition)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(position).To(Equal(int64(2))) // Should be the position of the last event
+
+		// Verify events were appended
+		rows, err := pool.Query(ctx, "SELECT type, tags, data FROM events ORDER BY position")
+		Expect(err).NotTo(HaveOccurred())
+		defer rows.Close()
+
+		var count int
+		for rows.Next() {
+			var eventType string
+			var tags, data []byte
+			err := rows.Scan(&eventType, &tags, &data)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(eventType).To(Equal("TestEvent"))
+			count++
+		}
+		Expect(count).To(Equal(2))
+	})
+
+	It("should fail when matching events exist", func() {
+		// First append some events
+		firstEvents := []InputEvent{
+			NewInputEvent("TestEvent", NewTags("test", "value"), []byte(`{"data": "test1"}`)),
+		}
+		firstCondition := AppendCondition{
+			FailIfEventsMatch: NewQuery(NewTags("nonexistent", "value")),
+		}
+		_, err := store.AppendEventsIfNotExists(ctx, firstEvents, firstCondition)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Try to append more events with a condition that matches existing events
+		secondEvents := []InputEvent{
+			NewInputEvent("TestEvent", NewTags("test", "value"), []byte(`{"data": "test2"}`)),
+		}
+		secondCondition := AppendCondition{
+			FailIfEventsMatch: NewQuery(NewTags("test", "value")),
+		}
+		_, err = store.AppendEventsIfNotExists(ctx, secondEvents, secondCondition)
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(BeAssignableToTypeOf(&ConcurrencyError{}))
+	})
+
+	It("should respect the After position in append condition", func() {
+		// First append some events
+		firstEvents := []InputEvent{
+			NewInputEvent("TestEvent", NewTags("test", "value"), []byte(`{"data": "test1"}`)),
+		}
+		firstCondition := AppendCondition{
+			FailIfEventsMatch: NewQuery(NewTags("nonexistent", "value")),
+		}
+		position, err := store.AppendEventsIfNotExists(ctx, firstEvents, firstCondition)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Try to append more events with a condition that matches existing events but after the first position
+		secondEvents := []InputEvent{
+			NewInputEvent("TestEvent", NewTags("test", "value"), []byte(`{"data": "test2"}`)),
+		}
+		secondCondition := AppendCondition{
+			FailIfEventsMatch: NewQuery(NewTags("test", "value")),
+			After:             &position, // Only check for matches after the first event
+		}
+		_, err = store.AppendEventsIfNotExists(ctx, secondEvents, secondCondition)
+		Expect(err).NotTo(HaveOccurred()) // Should succeed because we're only checking after the first event
+	})
+
+	It("should handle empty event types in append condition", func() {
+		// Create test events
+		events := []InputEvent{
+			NewInputEvent("TestEvent", NewTags("test", "value"), []byte(`{"data": "test1"}`)),
+		}
+
+		// Create append condition with empty event types
+		condition := AppendCondition{
+			FailIfEventsMatch: Query{
+				Tags:       NewTags("test", "value"),
+				EventTypes: []string{}, // Empty event types should match any type
+			},
+		}
+
+		// First append should succeed
+		_, err := store.AppendEventsIfNotExists(ctx, events, condition)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Second append should fail because events match the condition
+		_, err = store.AppendEventsIfNotExists(ctx, events, condition)
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(BeAssignableToTypeOf(&ConcurrencyError{}))
+	})
+
+	It("should handle nil After position in append condition", func() {
+		// Create test events
+		events := []InputEvent{
+			NewInputEvent("TestEvent", NewTags("test", "value"), []byte(`{"data": "test1"}`)),
+		}
+
+		// Create append condition with nil After position
+		condition := AppendCondition{
+			FailIfEventsMatch: NewQuery(NewTags("test", "value")),
+			After:             nil, // Should check all events
+		}
+
+		// First append should succeed
+		_, err := store.AppendEventsIfNotExists(ctx, events, condition)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Second append should fail because events match the condition
+		_, err = store.AppendEventsIfNotExists(ctx, events, condition)
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(BeAssignableToTypeOf(&ConcurrencyError{}))
+	})
+
+	It("should validate input events", func() {
+		// Test empty events slice
+		condition := AppendCondition{
+			FailIfEventsMatch: NewQuery(NewTags("test", "value")),
+		}
+		_, err := store.AppendEventsIfNotExists(ctx, []InputEvent{}, condition)
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(BeAssignableToTypeOf(&ValidationError{}))
+
+		// Test events exceeding max batch size
+		largeEvents := make([]InputEvent, 1001) // Max batch size is 1000
+		for i := range largeEvents {
+			largeEvents[i] = NewInputEvent("TestEvent", NewTags("test", "value"), []byte(`{"data": "test"}`))
+		}
+		_, err = store.AppendEventsIfNotExists(ctx, largeEvents, condition)
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(BeAssignableToTypeOf(&ValidationError{}))
+	})
+
+	It("should maintain event relationships (causation and correlation)", func() {
+		// Create test events
+		events := []InputEvent{
+			NewInputEvent("TestEvent1", NewTags("test", "value"), []byte(`{"data": "test1"}`)),
+			NewInputEvent("TestEvent2", NewTags("test", "value"), []byte(`{"data": "test2"}`)),
+		}
+
+		condition := AppendCondition{
+			FailIfEventsMatch: NewQuery(NewTags("nonexistent", "value")),
+		}
+
+		// Append events
+		_, err := store.AppendEventsIfNotExists(ctx, events, condition)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Verify event relationships
+		rows, err := pool.Query(ctx, `
+			SELECT id, causation_id, correlation_id 
+			FROM events 
+			ORDER BY position
+		`)
+		Expect(err).NotTo(HaveOccurred())
+		defer rows.Close()
+
+		var firstID, firstCausationID, firstCorrelationID string
+		var secondID, secondCausationID, secondCorrelationID string
+
+		Expect(rows.Next()).To(BeTrue())
+		err = rows.Scan(&firstID, &firstCausationID, &firstCorrelationID)
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(rows.Next()).To(BeTrue())
+		err = rows.Scan(&secondID, &secondCausationID, &secondCorrelationID)
+		Expect(err).NotTo(HaveOccurred())
+
+		// First event should be self-caused and self-correlated
+		Expect(firstCausationID).To(Equal(firstID))
+		Expect(firstCorrelationID).To(Equal(firstID))
+
+		// Second event should be caused by first event and correlated with first event
+		Expect(secondCausationID).To(Equal(firstID))
+		Expect(secondCorrelationID).To(Equal(firstID))
+	})
+})
