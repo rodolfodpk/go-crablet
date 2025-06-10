@@ -1,6 +1,6 @@
 # Reading Events
 
-go-crablet provides a streaming interface for reading events that is both memory-efficient and DCB-compliant. Instead of loading all events into memory at once, events are streamed directly from PostgreSQL and processed one at a time.
+go-crablet provides a streaming interface for reading events that is both memory-efficient and inspired by the DCB pattern. Instead of loading all events into memory at once, events are streamed directly from PostgreSQL and processed one at a time.
 
 ## EventIterator Interface
 
@@ -200,7 +200,7 @@ position, state, err := store.ProjectState(ctx, projector)
 
 ## DCB Compliance
 
-The streaming interface fully complies with the DCB specification:
+The streaming interface aims to follow the DCB pattern:
 
 - ✅ **Streaming events**: Events are returned as a stream, not a complete list
 - ✅ **Query-based filtering**: Support for complex queries with multiple items
