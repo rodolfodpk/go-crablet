@@ -38,7 +38,7 @@ The documentation has been split into several files for better organization:
 - **Streaming Events**: Memory-efficient event iteration with keyset pagination
 - **State Projection**: Real-time state reconstruction from event streams
 - **Optimistic Locking**: Robust concurrent event appending with conflict detection
-- **DCB Compliance**: Inspired by and aims to follow the Database Change Broker pattern
+- **DCB Compliance**: Inspired by and aims to follow the Dynamic Consistency Boundary pattern
 
 ## Streaming & Memory Efficiency
 
