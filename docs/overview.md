@@ -99,4 +99,4 @@ The event store provides two streaming approaches for memory-efficient processin
 - **`ReadEvents`**: Application-level streaming with 1000-event batches
 - **`ProjectState`**: Database-level streaming with row-by-row processing
 
-Both methods ensure **O(1) memory complexity** even with millions of events. For detailed information, see [Streaming & Memory Efficiency](streaming.md).
+Both methods ensure **constant memory usage** regardless of total event count, making them suitable for processing millions of events. For detailed information, see [Streaming & Memory Efficiency](streaming.md).
