@@ -14,11 +14,11 @@ The implementation leverages PostgreSQL's robust concurrency control mechanisms 
 - **Flexible Boundaries**: No need for predefined aggregates or rigid transactional boundaries - consistency boundaries emerge naturally from your queries, though you can still use aggregates where they provide value
 - **Concurrent Operations**: The implementation allows true concurrent operations by leveraging PostgreSQL's concurrency control mechanisms, rather than using application-level locks
 - **Streaming Event Processing**: Events are processed in a streaming fashion, making it memory-efficient for large event streams
-- **Complex Query Support**: Support for complex queries with multiple items combined with OR logic, fully compliant with the DCB specification
+- **Complex Query Support**: Support for complex queries with multiple items combined with OR logic, inspired by the DCB pattern
 
 ## DCB Compliance
 
-go-crablet is fully compliant with the DCB specification:
+go-crablet aims to follow the DCB pattern:
 
 - ✅ **Streaming Events**: `ReadEvents()` returns an `EventIterator` for memory-efficient processing
 - ✅ **Query-based Filtering**: Support for complex queries with multiple `QueryItem`s and OR logic

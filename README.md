@@ -43,7 +43,7 @@ The documentation has been split into several files for better organization:
 - **Batch Operations**: Efficient batch operations for appending multiple events
 - **PostgreSQL Backend**: Uses PostgreSQL for reliable, ACID-compliant storage with optimistic concurrency control
 - **Go Native**: Written in Go with idiomatic Go patterns and interfaces
-- **DCB Compliant**: Full compliance with the Dynamic Consistency Boundary specification
+- **DCB Inspired**: Inspired by and aims to follow the Dynamic Consistency Boundary pattern
 
 ## Quick Start
 
