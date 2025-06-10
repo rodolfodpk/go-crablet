@@ -11,6 +11,8 @@ A Go library inspired by Sara Pellegrini's Dynamic Consistency Boundary (DCB) pa
 - Flexible querying across event streams
 - Easy state reconstruction at any point in time
 - Optimistic concurrency control with consistency boundaries
+- **Streaming event processing** for memory-efficient operations
+- **Complex query support** with multiple query items and OR logic
 
 Event sourcing is a pattern where all changes to application state are appended as a sequence of immutable events. Instead of updating the current state, you append new events that represent state changes. This append-only approach creates a complete, tamper-evident history that allows you to reconstruct past states, analyze how the system evolved, and build new views of the data without modifying the original event log.
 
@@ -26,6 +28,7 @@ The documentation has been split into several files for better organization:
 - [Implementation Details](docs/implementation.md): Detailed technical documentation about the implementation
 - [State Projection](docs/state-projection.md): Detailed guide on state projection
 - [Appending Events](docs/appending-events.md): Guide on appending events and handling concurrency
+- [Reading Events](docs/reading-events.md): Guide on streaming events efficiently
 - [Examples](docs/examples.md): Practical examples and use cases, including a complete course subscription system
 
 ## Features
@@ -33,12 +36,68 @@ The documentation has been split into several files for better organization:
 - **Event Storage**: Append events with unique IDs, types, and JSON payloads
 - **Consistency Boundaries**: Define and manage consistency boundaries for your events
 - **State Projection**: PostgreSQL-streamed event projection for efficient state reconstruction
-- **Flexible Querying**: Query events by type and tags to build different views of the same event stream
+- **Streaming Event Reading**: Memory-efficient streaming interface for reading events
+- **Flexible Querying**: Query events by type and tags with support for complex OR logic
 - **Concurrency Control**: Handle concurrent event appends with optimistic locking
 - **Event Causation**: Track event causation and correlation for event chains
 - **Batch Operations**: Efficient batch operations for appending multiple events
 - **PostgreSQL Backend**: Uses PostgreSQL for reliable, ACID-compliant storage with optimistic concurrency control
 - **Go Native**: Written in Go with idiomatic Go patterns and interfaces
+- **DCB Compliant**: Full compliance with the Dynamic Consistency Boundary specification
+
+## Quick Start
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+    
+    "github.com/rodolfodpk/go-crablet/pkg/dcb"
+    "github.com/jackc/pgx/v5/pgxpool"
+)
+
+func main() {
+    // Create database connection
+    pool, err := pgxpool.New(context.Background(), "postgres://user:pass@localhost/db")
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    // Create event store
+    store, err := dcb.NewEventStore(context.Background(), pool)
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    // Create a query for account events
+    query := dcb.NewLegacyQuery(
+        dcb.NewTags("account_id", "acc-123"),
+        []string{"AccountCreated", "AccountUpdated"},
+    )
+    
+    // Read events using streaming interface
+    iterator, err := store.ReadEvents(context.Background(), query, nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer iterator.Close()
+    
+    // Process events one by one
+    for {
+        event, err := iterator.Next()
+        if err != nil {
+            log.Fatal(err)
+        }
+        if event == nil {
+            break // No more events
+        }
+        
+        log.Printf("Event: %s at position %d", event.Type, event.Position)
+    }
+}
+```
 
 ## References
 

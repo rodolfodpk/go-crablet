@@ -68,10 +68,10 @@ func NewMoneyTransferredEvent(fromUsername, toUsername string, amount, fromBalan
 // IsUsernameClaimedProjection creates a projector to check if a username is claimed
 func IsUsernameClaimedProjection(username string) StateProjector {
 	return StateProjector{
-		Query: Query{
-			Tags:       NewTags("username", username),
-			EventTypes: []string{"AccountRegistered"},
-		},
+		Query: NewLegacyQuery(
+			NewTags("username", username),
+			[]string{"AccountRegistered"},
+		),
 		InitialState: false,
 		TransitionFn: func(state any, event Event) any {
 			return true
@@ -82,10 +82,10 @@ func IsUsernameClaimedProjection(username string) StateProjector {
 // AccountBalanceProjection creates a projector for account balance
 func AccountBalanceProjection(username string) StateProjector {
 	return StateProjector{
-		Query: Query{
-			Tags:       NewTags("username", username),
-			EventTypes: []string{"AccountBalance", "MoneyTransferred"},
-		},
+		Query: NewLegacyQuery(
+			NewTags("username", username),
+			[]string{"AccountBalance", "MoneyTransferred"},
+		),
 		InitialState: 0.0,
 		TransitionFn: func(state any, event Event) any {
 			balance := state.(float64)
@@ -213,10 +213,10 @@ func (a *AccountAPI) TransferMoney(ctx context.Context, cmd TransferMoneyCommand
 	transferEvent := NewMoneyTransferredEvent(cmd.FromUsername, cmd.ToUsername, cmd.Amount, fromNewBalance, toNewBalance)
 
 	// Get current positions for both accounts' streams
-	combinedQuery := Query{
-		Tags:       []Tag{{Key: "username", Value: cmd.FromUsername}, {Key: "username", Value: cmd.ToUsername}},
-		EventTypes: []string{"AccountBalance", "MoneyTransferred"},
-	}
+	combinedQuery := NewLegacyQuery(
+		[]Tag{{Key: "username", Value: cmd.FromUsername}, {Key: "username", Value: cmd.ToUsername}},
+		[]string{"AccountBalance", "MoneyTransferred"},
+	)
 
 	// Get position for the combined stream
 	pos, _, err := a.eventStore.ProjectState(ctx, StateProjector{
@@ -405,10 +405,10 @@ var _ = Describe("Account Registration", func() {
 
 				// Verify only one event exists
 				_, eventsResult, err := store.ProjectState(ctx, StateProjector{
-					Query: Query{
-						Tags:       []Tag{{Key: "username", Value: "concurrentuser"}},
-						EventTypes: []string{},
-					},
+					Query: NewLegacyQuery(
+						[]Tag{{Key: "username", Value: "concurrentuser"}},
+						[]string{"AccountRegistered"},
+					),
 					InitialState: []Event{},
 					TransitionFn: func(state any, event Event) any {
 						events := state.([]Event)
@@ -487,10 +487,10 @@ var _ = Describe("Account Money Transfer", func() {
 
 				// Verify transfer event was created
 				_, eventsResult, err := store.ProjectState(ctx, StateProjector{
-					Query: Query{
-						Tags:       []Tag{{Key: "username", Value: fromUsername}, {Key: "username", Value: toUsername}},
-						EventTypes: []string{"MoneyTransferred"},
-					},
+					Query: NewLegacyQuery(
+						[]Tag{{Key: "username", Value: fromUsername}, {Key: "username", Value: toUsername}},
+						[]string{"MoneyTransferred"},
+					),
 					InitialState: []Event{},
 					TransitionFn: func(state any, event Event) any {
 						events := state.([]Event)
@@ -614,10 +614,10 @@ var _ = Describe("Account Money Transfer", func() {
 				// Verify all transfer events were created
 				// Query for sender's events
 				_, senderEventsResult, err := store.ProjectState(ctx, StateProjector{
-					Query: Query{
-						Tags:       []Tag{{Key: "username", Value: fromUsername}},
-						EventTypes: []string{"MoneyTransferred"},
-					},
+					Query: NewLegacyQuery(
+						[]Tag{{Key: "username", Value: fromUsername}},
+						[]string{"MoneyTransferred"},
+					),
 					InitialState: []Event{},
 					TransitionFn: func(state any, event Event) any {
 						events := state.([]Event)
@@ -629,10 +629,10 @@ var _ = Describe("Account Money Transfer", func() {
 
 				// Query for receiver's events
 				_, receiverEventsResult, err := store.ProjectState(ctx, StateProjector{
-					Query: Query{
-						Tags:       []Tag{{Key: "username", Value: toUsername}},
-						EventTypes: []string{"MoneyTransferred"},
-					},
+					Query: NewLegacyQuery(
+						[]Tag{{Key: "username", Value: toUsername}},
+						[]string{"MoneyTransferred"},
+					),
 					InitialState: []Event{},
 					TransitionFn: func(state any, event Event) any {
 						events := state.([]Event)

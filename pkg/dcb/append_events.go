@@ -13,40 +13,48 @@ import (
 
 // validateQueryTags validates the query tags and returns a ValidationError if invalid
 func validateQueryTags(query Query) error {
-	// Validate individual tags if present
-	for i, t := range query.Tags {
-		if t.Key == "" {
-			return &ValidationError{
-				EventStoreError: EventStoreError{
-					Op:  "validateQueryTags",
-					Err: fmt.Errorf("empty key in tag %d", i),
-				},
-				Field: "tag.key",
-				Value: fmt.Sprintf("tag[%d]", i),
-			}
-		}
-		if t.Value == "" {
-			return &ValidationError{
-				EventStoreError: EventStoreError{
-					Op:  "validateQueryTags",
-					Err: fmt.Errorf("empty value for key %s in tag %d", t.Key, i),
-				},
-				Field: fmt.Sprintf("tag[%d].value", i),
-				Value: t.Key,
-			}
-		}
+	// Handle empty query (matches all events)
+	if len(query.Items) == 0 {
+		return nil
 	}
 
-	// Validate event types if present
-	for i, eventType := range query.EventTypes {
-		if eventType == "" {
-			return &ValidationError{
-				EventStoreError: EventStoreError{
-					Op:  "validateQueryTags",
-					Err: fmt.Errorf("empty event type at index %d", i),
-				},
-				Field: "eventTypes",
-				Value: fmt.Sprintf("index[%d]", i),
+	// Validate each query item
+	for itemIndex, item := range query.Items {
+		// Validate individual tags if present
+		for i, t := range item.Tags {
+			if t.Key == "" {
+				return &ValidationError{
+					EventStoreError: EventStoreError{
+						Op:  "validateQueryTags",
+						Err: fmt.Errorf("empty key in tag %d of item %d", i, itemIndex),
+					},
+					Field: fmt.Sprintf("item[%d].tag[%d].key", itemIndex, i),
+					Value: fmt.Sprintf("tag[%d]", i),
+				}
+			}
+			if t.Value == "" {
+				return &ValidationError{
+					EventStoreError: EventStoreError{
+						Op:  "validateQueryTags",
+						Err: fmt.Errorf("empty value for key %s in tag %d of item %d", t.Key, i, itemIndex),
+					},
+					Field: fmt.Sprintf("item[%d].tag[%d].value", itemIndex, i),
+					Value: t.Key,
+				}
+			}
+		}
+
+		// Validate event types if present
+		for i, eventType := range item.Types {
+			if eventType == "" {
+				return &ValidationError{
+					EventStoreError: EventStoreError{
+						Op:  "validateQueryTags",
+						Err: fmt.Errorf("empty event type at index %d of item %d", i, itemIndex),
+					},
+					Field: fmt.Sprintf("item[%d].types[%d]", itemIndex, i),
+					Value: fmt.Sprintf("index[%d]", i),
+				}
 			}
 		}
 	}
@@ -257,63 +265,109 @@ func executeBatchInsert(ctx context.Context, tx pgx.Tx, events []InputEvent, ids
 
 // checkForConflictingEvents checks for conflicting events in optimistic locking
 func checkForConflictingEvents(ctx context.Context, tx pgx.Tx, query Query, queryTagsJSON []byte, latestPosition int64) error {
-	if len(query.Tags) == 0 {
-		return nil // No query tags, no conflict check needed
+	if len(query.Items) == 0 {
+		return nil // No query items, no conflict check needed
+	}
+
+	// For optimistic locking, we only check the first query item
+	// This maintains backward compatibility while supporting the new structure
+	item := query.Items[0]
+
+	// Convert item tags to JSONB
+	itemTagMap := make(map[string]string)
+	for _, t := range item.Tags {
+		itemTagMap[t.Key] = t.Value
+	}
+	itemTagsJSON, err := json.Marshal(itemTagMap)
+	if err != nil {
+		return &EventStoreError{
+			Op:  "checkForConflictingEvents",
+			Err: fmt.Errorf("failed to marshal query tags: %w", err),
+		}
 	}
 
 	var exists bool
 	checkQuery := `
-		SELECT EXISTS (
-			SELECT 1
-			FROM events
-			WHERE position > $1
+		SELECT EXISTS(
+			SELECT 1 FROM events 
+			WHERE position > $1 
 			  AND tags @> $2::jsonb
 			  AND ($3::text[] IS NULL OR
 				   array_length($3::text[], 1) = 0 OR
 				   type = ANY($3::text[]))
 		)
 	`
-	err := tx.QueryRow(ctx, checkQuery, latestPosition, queryTagsJSON, query.EventTypes).Scan(&exists)
+	err = tx.QueryRow(ctx, checkQuery, latestPosition, itemTagsJSON, item.Types).Scan(&exists)
 	if err != nil {
 		return &EventStoreError{
 			Op:  "checkForConflictingEvents",
 			Err: fmt.Errorf("failed to check for conflicting events: %w", err),
 		}
 	}
+
 	if exists {
 		return &ConcurrencyError{
 			EventStoreError: EventStoreError{
 				Op:  "checkForConflictingEvents",
-				Err: fmt.Errorf("Consistency violation: new events match query since position %d", latestPosition),
+				Err: fmt.Errorf("conflicting events found after position %d", latestPosition),
 			},
 			ExpectedPosition: latestPosition,
 			ActualPosition:   latestPosition + 1, // Since we found a conflicting event, it must be at the next position
 		}
 	}
+
 	return nil
 }
 
-// checkForMatchingEvents checks for matching events in conditional append
+// checkForMatchingEvents checks if any events match the append condition
 func checkForMatchingEvents(ctx context.Context, tx pgx.Tx, condition AppendCondition, queryTagsJSON []byte) error {
-	// Fix: If EventTypes is empty, pass nil to the query so the type filter is ignored
-	var eventTypesParam interface{}
-	if len(condition.FailIfEventsMatch.EventTypes) == 0 {
-		eventTypesParam = nil
-	} else {
-		eventTypesParam = condition.FailIfEventsMatch.EventTypes
+	if len(condition.FailIfEventsMatch.Items) == 0 {
+		return nil // No query items, no check needed
+	}
+
+	// For append conditions, we only check the first query item
+	// This maintains backward compatibility while supporting the new structure
+	item := condition.FailIfEventsMatch.Items[0]
+
+	// Convert item tags to JSONB
+	itemTagMap := make(map[string]string)
+	for _, t := range item.Tags {
+		itemTagMap[t.Key] = t.Value
+	}
+	itemTagsJSON, err := json.Marshal(itemTagMap)
+	if err != nil {
+		return &EventStoreError{
+			Op:  "checkForMatchingEvents",
+			Err: fmt.Errorf("failed to marshal query tags: %w", err),
+		}
 	}
 
 	var exists bool
 	checkQuery := `
-		SELECT EXISTS (
-			SELECT 1
-			FROM events
+		SELECT EXISTS(
+			SELECT 1 FROM events 
 			WHERE tags @> $1::jsonb
-			  AND ($2::text[] IS NULL OR type = ANY($2::text[]))
-			  AND ($3::bigint IS NULL OR position > $3::bigint)
-		)
 	`
-	err := tx.QueryRow(ctx, checkQuery, queryTagsJSON, eventTypesParam, condition.After).Scan(&exists)
+	args := []interface{}{itemTagsJSON}
+	argIndex := 2
+
+	// Add position filtering if specified
+	if condition.After != nil {
+		checkQuery += fmt.Sprintf(" AND position > $%d", argIndex)
+		args = append(args, *condition.After)
+		argIndex++
+	}
+
+	// Add event type filtering if specified
+	if len(item.Types) > 0 {
+		checkQuery += fmt.Sprintf(" AND type = ANY($%d)", argIndex)
+		args = append(args, item.Types)
+		argIndex++
+	}
+
+	checkQuery += ")"
+
+	err = tx.QueryRow(ctx, checkQuery, args...).Scan(&exists)
 	if err != nil {
 		return &EventStoreError{
 			Op:  "checkForMatchingEvents",
@@ -325,12 +379,13 @@ func checkForMatchingEvents(ctx context.Context, tx pgx.Tx, condition AppendCond
 		return &ConcurrencyError{
 			EventStoreError: EventStoreError{
 				Op:  "checkForMatchingEvents",
-				Err: fmt.Errorf("append condition failed: matching events found"),
+				Err: fmt.Errorf("events matching condition found"),
 			},
-			ExpectedPosition: 0, // Not applicable in this case
-			ActualPosition:   0, // Not applicable in this case
+			ExpectedPosition: 0,
+			ActualPosition:   0,
 		}
 	}
+
 	return nil
 }
 
@@ -355,10 +410,24 @@ func (es *eventStore) AppendEvents(ctx context.Context, events []InputEvent, que
 	}
 
 	// Convert query tags to JSONB
-	queryTagsJSON, err := convertTagsToJSON(query.Tags)
-	if err != nil {
-		log.Printf("Failed to marshal query tags: %v", err)
-		return 0, fmt.Errorf("failed to marshal query tags: %w", err)
+	var queryTagsJSON []byte
+	if len(query.Items) > 0 {
+		// For optimistic locking, we only use the first query item
+		// This maintains backward compatibility while supporting the new structure
+		item := query.Items[0]
+		itemTagMap := make(map[string]string)
+		for _, t := range item.Tags {
+			itemTagMap[t.Key] = t.Value
+		}
+		var err error
+		queryTagsJSON, err = json.Marshal(itemTagMap)
+		if err != nil {
+			log.Printf("Failed to marshal query tags: %v", err)
+			return 0, &EventStoreError{
+				Op:  "AppendEvents",
+				Err: fmt.Errorf("failed to marshal query tags: %w", err),
+			}
+		}
 	}
 
 	// Start transaction
@@ -446,7 +515,7 @@ func (es *eventStore) AppendEventsIf(ctx context.Context, events []InputEvent, c
 	defer tx.Rollback(ctx) // Rollback if not committed
 
 	// Convert query tags to JSONB
-	queryTagsJSON, err := convertTagsToJSON(condition.FailIfEventsMatch.Tags)
+	queryTagsJSON, err := convertTagsToJSON(condition.FailIfEventsMatch.Items[0].Tags)
 	if err != nil {
 		log.Printf("Failed to marshal query tags: %v", err)
 		return 0, fmt.Errorf("failed to marshal query tags: %w", err)

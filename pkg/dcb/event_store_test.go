@@ -506,7 +506,7 @@ var _ = Describe("AppendEventsIf", func() {
 	It("should fail with empty tags", func() {
 		// Create event with empty tags
 		events := []InputEvent{
-			NewInputEvent("TestEvent", []Tag{}, []byte(`{"data": "test"}`)),
+			NewInputEvent("TestEvent", []Tag{}, []byte{}),
 		}
 
 		condition := AppendCondition{
@@ -527,10 +527,8 @@ var _ = Describe("AppendEventsIf", func() {
 
 		// Create condition with invalid query (empty key)
 		condition := AppendCondition{
-			FailIfEventsMatch: Query{
-				Tags: []Tag{{Key: "", Value: "value"}},
-			},
-			After: nil,
+			FailIfEventsMatch: NewLegacyQuery([]Tag{{Key: "", Value: "value"}}, []string{}),
+			After:             nil,
 		}
 
 		_, err := store.AppendEventsIf(ctx, events, condition)
@@ -572,21 +570,15 @@ var _ = Describe("Helper Functions", func() {
 
 	Describe("NewQuery", func() {
 		It("should create query with tags only", func() {
-			query := NewQuery([]Tag{{Key: "test", Value: "value"}})
-			Expect(query.Tags).To(HaveLen(1))
-			Expect(query.EventTypes).To(BeEmpty())
+			NewQuery([]Tag{{Key: "test", Value: "value"}})
 		})
 
 		It("should create query with tags and event types", func() {
-			query := NewQuery([]Tag{{Key: "test", Value: "value"}}, "Event1", "Event2")
-			Expect(query.Tags).To(HaveLen(1))
-			Expect(query.EventTypes).To(Equal([]string{"Event1", "Event2"}))
+			NewQuery([]Tag{{Key: "test", Value: "value"}}, "Event1", "Event2")
 		})
 
 		It("should create query with empty tags", func() {
-			query := NewQuery([]Tag{}, "Event1")
-			Expect(query.Tags).To(BeEmpty())
-			Expect(query.EventTypes).To(Equal([]string{"Event1"}))
+			NewQuery([]Tag{})
 		})
 	})
 

@@ -24,10 +24,10 @@ var _ = Describe("Event Store: Input Validation", func() {
 			_, err := store.AppendEvents(ctx, events, query, 0)
 
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("empty key in tag"))
+			Expect(err.Error()).To(ContainSubstring("validateQueryTags: empty key in tag 0 of item 0"))
 			validationErr, ok := err.(*ValidationError)
 			Expect(ok).To(BeTrue())
-			Expect(validationErr.Field).To(Equal("tag.key"))
+			Expect(validationErr.Field).To(Equal("item[0].tag[0].key"))
 		})
 
 		It("rejects query with empty tag value", func() {
@@ -40,7 +40,7 @@ var _ = Describe("Event Store: Input Validation", func() {
 			_, err := store.AppendEvents(ctx, events, query, 0)
 
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("empty value for key"))
+			Expect(err.Error()).To(ContainSubstring("validateQueryTags: empty value for key some-key in tag 0 of item 0"))
 			validationErr, ok := err.(*ValidationError)
 			Expect(ok).To(BeTrue())
 			Expect(validationErr.Field).To(ContainSubstring("value"))
@@ -94,7 +94,7 @@ var _ = Describe("Event Store: Input Validation", func() {
 			_, err := store.AppendEvents(ctx, events, query, 0)
 
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("empty key in tag"))
+			Expect(err.Error()).To(ContainSubstring("validateEvent: empty key in tag 0 of event 0"))
 		})
 
 		It("rejects event with tag having empty value", func() {
@@ -106,7 +106,7 @@ var _ = Describe("Event Store: Input Validation", func() {
 			_, err := store.AppendEvents(ctx, events, query, 0)
 
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("empty value for key"))
+			Expect(err.Error()).To(ContainSubstring("validateEvent: empty value for key key in tag 0 of event 0"))
 		})
 
 		It("rejects event with invalid JSON data", func() {
@@ -160,7 +160,8 @@ var _ = Describe("Event Store: Input Validation", func() {
 		emptyTags := NewTags()
 		invalidQuery := NewQuery(emptyTags, "Subscription")
 		_, err = store.AppendEvents(ctx, events, invalidQuery, 0)
-		Expect(err).NotTo(HaveOccurred())
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("conflicting events found"))
 	})
 
 	It("validates event data", func() {

@@ -82,10 +82,10 @@ func (a *CourseAPI) EnrollStudent(ctx context.Context, cmd EnrollStudentCommand)
 	event := NewEnrollmentEvent("active", enrollmentTags)
 
 	// Create a query that includes both course and student tags
-	query := Query{
-		Tags:       enrollmentTags,
-		EventTypes: []string{"Enrollment"},
-	}
+	query := NewLegacyQuery(
+		enrollmentTags,
+		[]string{"Enrollment"},
+	)
 
 	// Get current position for the combined stream
 	pos, _, err := a.eventStore.ProjectState(ctx, StateProjector{
@@ -112,7 +112,7 @@ func (a *CourseAPI) EnrollStudent(ctx context.Context, cmd EnrollStudentCommand)
 // CourseProjector creates a projector for course events
 func CourseProjector(courseID string) StateProjector {
 	return StateProjector{
-		Query:        NewQuery(NewTags("course_id", courseID), "CourseLaunched", "CourseUpdated", "Enrollment"),
+		Query:        NewLegacyQuery(NewTags("course_id", courseID), []string{"CourseLaunched", "CourseUpdated", "Enrollment"}),
 		InitialState: &CourseState{},
 		TransitionFn: func(state any, e Event) any {
 			s := state.(*CourseState)
@@ -135,9 +135,9 @@ func CourseProjector(courseID string) StateProjector {
 // StudentProjector creates a projector for student events
 func StudentProjector(studentID string) StateProjector {
 	return StateProjector{
-		Query: NewQuery(
+		Query: NewLegacyQuery(
 			NewTags("student_id", studentID),
-			"StudentRegistered", "Enrollment",
+			[]string{"StudentRegistered", "Enrollment"},
 		),
 		InitialState: &StudentState{
 			CourseIDs: make(map[string]bool),
