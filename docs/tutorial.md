@@ -72,8 +72,8 @@ type TodoState struct {
     CreatedAt   string
 }
 
-// TodoCreated event data
-type TodoCreated struct {
+// TodoAdded event data
+type TodoAdded struct {
     Title     string `json:"title"`
     CreatedAt string `json:"created_at"`
 }
@@ -111,20 +111,20 @@ func main() {
     todoTags := dcb.NewTags("todo_id", todoID)
     
     // Create the todo creation event
-    todoCreated := TodoCreated{
+    todoAdded := TodoAdded{
         Title:     "Learn go-crablet",
         CreatedAt: "2024-03-20T10:00:00Z",
     }
 
     // Marshal the event data to JSON
-    data, err := json.Marshal(todoCreated)
+    data, err := json.Marshal(todoAdded)
     if err != nil {
         log.Fatalf("Unable to marshal event data: %v", err)
     }
 
     // Create the event using NewInputEvent with pre-marshaled JSON data
     event := dcb.NewInputEvent(
-        "TodoCreated",
+        "TodoAdded",
         todoTags,
         data, // Pre-marshaled JSON data
     )
@@ -152,8 +152,8 @@ func main() {
         TransitionFn: func(state any, event dcb.Event) any {
             todo := state.(*TodoState)
             switch event.Type {
-            case "TodoCreated":
-                var data TodoCreated
+            case "TodoAdded":
+                var data TodoAdded
                 if err := json.Unmarshal(event.Data, &data); err != nil {
                     panic(err)
                 }

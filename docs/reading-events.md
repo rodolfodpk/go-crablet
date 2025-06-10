@@ -26,7 +26,7 @@ type EventIterator interface {
 // Create a query for account events
 query := dcb.NewLegacyQuery(
     dcb.NewTags("account_id", "acc-123"),
-    []string{"AccountCreated", "AccountUpdated"},
+    []string{"AccountRegistered", "AccountDetailsChanged"},
 )
 
 // Read events using streaming interface
@@ -82,7 +82,7 @@ The new Query structure supports complex queries with multiple items combined wi
 // 3. Any events tagged with "user_id" = "user-456"
 query := dcb.NewQueryFromItems(
     dcb.NewQueryItem(
-        []string{"AccountCreated", "AccountUpdated"},
+        []string{"AccountRegistered", "AccountDetailsChanged"},
         dcb.NewTags("account_id", "acc-123"),
     ),
     dcb.NewQueryItem(
@@ -106,13 +106,13 @@ For existing code, you can use the `NewLegacyQuery` helper function:
 // Old way (still works)
 query := dcb.Query{
     Tags:       dcb.NewTags("account_id", "acc-123"),
-    EventTypes: []string{"AccountCreated"},
+    EventTypes: []string{"AccountRegistered"},
 }
 
 // New way (recommended)
 query := dcb.NewLegacyQuery(
     dcb.NewTags("account_id", "acc-123"),
-    []string{"AccountCreated"},
+    []string{"AccountRegistered"},
 )
 ```
 

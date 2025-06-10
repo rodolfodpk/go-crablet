@@ -71,7 +71,7 @@ You can append multiple events in a single operation using the `NewEventBatch` h
 // Create multiple events using NewEventBatch helper
 events := dcb.NewEventBatch(
     dcb.NewInputEvent(
-        "OrderCreated",
+        "OrderPlaced",
         dcb.NewTags("order_id", "order123"),
         []byte(`{"amount": 100, "currency": "USD"}`),
     ),
@@ -85,7 +85,7 @@ events := dcb.NewEventBatch(
 // Define a query that includes all relevant event types
 query := dcb.NewQuery(
     dcb.NewTags("order_id", "order123"),
-    "OrderCreated",
+    "OrderPlaced",
     "PaymentProcessed",
 )
 
@@ -111,11 +111,11 @@ go-crablet performs several validations when appending events:
 event := dcb.NewInputEvent("", tags, []byte(`{"foo":"bar"}`))
 
 // This will fail validation - invalid JSON
-event := dcb.NewInputEvent("OrderCreated", tags, []byte(`invalid json`))
+event := dcb.NewInputEvent("OrderPlaced", tags, []byte(`invalid json`))
 
 // This will pass validation
 event := dcb.NewInputEvent(
-    "OrderCreated",
+    "OrderPlaced",
     dcb.NewTags("order_id", "order123"),
     []byte(`{"amount": 100}`),
 )
@@ -133,15 +133,14 @@ The `Query` parameter in `AppendEvents` defines the consistency boundary for you
 // Define a consistency boundary for an order
 query := dcb.NewQuery(
     dcb.NewTags("order_id", "order123"),
-    "OrderCreated",
-    "OrderUpdated",
-    "OrderCancelled",
+    "OrderPlaced",
+    "OrderStatusChanged",
 )
 
 // All events in this boundary will be processed together
 events := []dcb.InputEvent{
-    dcb.NewInputEvent("OrderCreated", tags, orderData),
-    dcb.NewInputEvent("OrderUpdated", tags, updateData),
+    dcb.NewInputEvent("OrderPlaced", tags, orderData),
+    dcb.NewInputEvent("OrderStatusChanged", tags, updateData),
 }
 
 // If another process tries to modify the same order concurrently,
@@ -164,13 +163,13 @@ newPosition, err := store.AppendEvents(ctx, events, query, position)
 2. **Define Clear Consistency Boundaries**
    ```go
    // ❌ Too broad - might cause unnecessary conflicts
-   query := dcb.NewQuery(nil, "OrderCreated")
+   query := dcb.NewQuery(nil, "OrderPlaced")
    
    // ✅ Specific to the entity
    query := dcb.NewQuery(
        dcb.NewTags("order_id", "order123"),
-       "OrderCreated",
-       "OrderUpdated",
+       "OrderPlaced",
+       "OrderStatusChanged",
    )
    ```
 
@@ -196,7 +195,7 @@ newPosition, err := store.AppendEvents(ctx, events, query, position)
 4. **Validate Event Data Before Appending**
    ```go
    // ❌ Relying only on go-crablet validation
-   event := dcb.NewInputEvent("OrderCreated", tags, []byte(`{"amount": "invalid"}`))
+   event := dcb.NewInputEvent("OrderPlaced", tags, []byte(`{"amount": "invalid"}`))
    
    // ✅ Validate data before appending
    type OrderData struct {
@@ -207,17 +206,17 @@ newPosition, err := store.AppendEvents(ctx, events, query, position)
    if err != nil {
        return err
    }
-   event := dcb.NewInputEvent("OrderCreated", tags, jsonData)
+   event := dcb.NewInputEvent("OrderPlaced", tags, jsonData)
    ```
 
 5. **Use Batch Operations for Related Events**
    ```go
    // ❌ Appending related events separately
-   store.AppendEvents(ctx, []dcb.InputEvent{orderCreated}, query, pos1)
+   store.AppendEvents(ctx, []dcb.InputEvent{orderPlaced}, query, pos1)
    store.AppendEvents(ctx, []dcb.InputEvent{paymentProcessed}, query, pos2)
    
    // ✅ Appending related events in a batch using NewEventBatch
-   events := dcb.NewEventBatch(orderCreated, paymentProcessed)
+   events := dcb.NewEventBatch(orderPlaced, paymentProcessed)
    store.AppendEvents(ctx, events, query, position)
    ```
 
@@ -226,3 +225,12 @@ newPosition, err := store.AppendEvents(ctx, events, query, position)
 - [State Projection](docs/state-projection.md): Learn how to project state from events
 - [Course Subscription Example](docs/course-subscription.md): See a complete example of event appending in a real application
 - [Examples](docs/examples.md): More examples of using go-crablet 
+
+## Example event types
+
+"AccountBalanceUpdated",
+"DepositMade",
+"WithdrawalProcessed",
+"OrderPlaced",
+"OrderStatusChanged",
+"PaymentProcessed", 

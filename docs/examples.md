@@ -270,15 +270,18 @@ func (s *CourseEnrollmentService) getCourseState(ctx context.Context, courseID s
         TransitionFn: func(state any, event dcb.Event) any {
             course := state.(*CourseState)
             switch event.Type {
-            case "CourseCreated":
+            case "CourseLaunched":
                 var data struct {
-                    Name string `json:"name"`
+                    Name        string `json:"name"`
+                    Capacity    int    `json:"capacity"`
                 }
                 if err := json.Unmarshal(event.Data, &data); err != nil {
-                    panic(err)
+                    return err
                 }
                 course.Name = data.Name
-                course.IsActive = true
+                course.Capacity = data.Capacity
+                course.EnrolledStudents = 0
+                course.Status = "active"
             case "StudentEnrolledInCourse":
                 for _, tag := range event.Tags {
                     if tag.Key == "student_id" {
@@ -407,11 +410,11 @@ These occur when event data doesn't meet the required format or constraints. For
 // Example of handling validation errors
 courseID := "C123"
 courseTags := dcb.NewTags("course_id", courseID)
-query := dcb.NewQuery(courseTags, "CourseUpdated")
+query := dcb.NewQuery(courseTags, "CourseModified")
 
 // Try to append with invalid event data
 invalidEvent := dcb.NewInputEvent(
-    "CourseUpdated", 
+    "CourseModified", 
     courseTags, 
     []byte(`invalid json`), // Invalid JSON data
 )
@@ -433,7 +436,7 @@ These occur when multiple processes try to modify the same event stream simultan
 // Example of handling concurrency errors
 // First append
 event1 := dcb.NewInputEvent(
-    "CourseUpdated", 
+    "CourseModified", 
     courseTags, 
     []byte(`{"title": "New Title"}`),
 )
@@ -444,7 +447,7 @@ if err != nil {
 
 // Try to append another event with the same query but old position
 event2 := dcb.NewInputEvent(
-    "CourseUpdated", 
+    "CourseModified", 
     courseTags, 
     []byte(`{"title": "Another Title"}`),
 )
@@ -546,7 +549,7 @@ func handleEventStoreError(err error, operation string) {
 ## Key Features Demonstrated
 
 1. **Event Types and Data**
-   - Course events: `CourseCreated`, `CourseCancelled`
+   - Course events: `CourseLaunched`, `CourseCancelled`
    - Student events: `StudentRegistered`, `StudentDeactivated`
    - Enrollment events: `StudentEnrolledInCourse`, `StudentUnenrolledFromCourse`
 
