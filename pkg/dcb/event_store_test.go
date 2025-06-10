@@ -156,6 +156,125 @@ var _ = AfterSuite(func() {
 	}
 })
 
+var _ = Describe("GetCurrentPosition", func() {
+	var (
+		ctx       context.Context
+		store     EventStore
+		pool      *pgxpool.Pool
+		postgresC testcontainers.Container
+	)
+
+	BeforeEach(func() {
+		ctx = context.Background()
+		var err error
+		pool, postgresC, err = setupPostgresContainer(ctx)
+		Expect(err).NotTo(HaveOccurred())
+
+		store, err = NewEventStore(ctx, pool)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Load schema
+		schema, err := os.ReadFile("../../docker-entrypoint-initdb.d/schema.sql")
+		Expect(err).NotTo(HaveOccurred())
+		_, err = pool.Exec(ctx, string(schema))
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		if pool != nil {
+			pool.Close()
+		}
+		if postgresC != nil {
+			Expect(postgresC.Terminate(ctx)).To(Succeed())
+		}
+	})
+
+	It("should return 0 for empty database", func() {
+		query := NewQuery([]Tag{{Key: "test", Value: "value"}}, "TestEvent")
+		position, err := store.GetCurrentPosition(ctx, query)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(position).To(Equal(int64(0)))
+	})
+
+	It("should return latest position for matching events", func() {
+		// Append some events
+		events := []InputEvent{
+			NewInputEvent("TestEvent", NewTags("test", "value"), []byte(`{"data": "test1"}`)),
+			NewInputEvent("TestEvent", NewTags("test", "value"), []byte(`{"data": "test2"}`)),
+			NewInputEvent("OtherEvent", NewTags("test", "value"), []byte(`{"data": "other"}`)),
+		}
+
+		query := NewQuery([]Tag{{Key: "test", Value: "value"}}, "TestEvent")
+		_, err := store.AppendEvents(ctx, events, query, 0)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Get current position
+		position, err := store.GetCurrentPosition(ctx, query)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(position).To(Equal(int64(2))) // Should return position of last TestEvent
+	})
+
+	It("should filter by event types", func() {
+		// Append events with different types
+		events := []InputEvent{
+			NewInputEvent("TypeA", NewTags("category", "test"), []byte(`{"data": "a"}`)),
+			NewInputEvent("TypeB", NewTags("category", "test"), []byte(`{"data": "b"}`)),
+			NewInputEvent("TypeC", NewTags("category", "test"), []byte(`{"data": "c"}`)),
+		}
+
+		query := NewQuery([]Tag{{Key: "category", Value: "test"}}, "TypeA", "TypeB")
+		_, err := store.AppendEvents(ctx, events, query, 0)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Get current position for TypeA and TypeB only
+		position, err := store.GetCurrentPosition(ctx, query)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(position).To(Equal(int64(2))) // Should return position of last TypeB event
+	})
+
+	It("should handle multiple tags", func() {
+		// Append events with multiple tags
+		events := []InputEvent{
+			NewInputEvent("MultiTag", []Tag{
+				{Key: "category", Value: "test"},
+				{Key: "priority", Value: "high"},
+			}, []byte(`{"data": "high"}`)),
+			NewInputEvent("MultiTag", []Tag{
+				{Key: "category", Value: "test"},
+				{Key: "priority", Value: "low"},
+			}, []byte(`{"data": "low"}`)),
+		}
+
+		query := NewQuery([]Tag{
+			{Key: "category", Value: "test"},
+			{Key: "priority", Value: "high"},
+		}, "MultiTag")
+		_, err := store.AppendEvents(ctx, events, query, 0)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Get current position for high priority events
+		position, err := store.GetCurrentPosition(ctx, query)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(position).To(Equal(int64(1))) // Should return position of high priority event
+	})
+
+	It("should handle empty event types", func() {
+		// Append events
+		events := []InputEvent{
+			NewInputEvent("AnyType", NewTags("test", "value"), []byte(`{"data": "test"}`)),
+		}
+
+		query := NewQuery([]Tag{{Key: "test", Value: "value"}}) // No event types specified
+		_, err := store.AppendEvents(ctx, events, query, 0)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Get current position
+		position, err := store.GetCurrentPosition(ctx, query)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(position).To(Equal(int64(1)))
+	})
+})
+
 var _ = Describe("AppendEventsIf", func() {
 	var (
 		ctx       context.Context
@@ -322,5 +441,163 @@ var _ = Describe("AppendEventsIf", func() {
 		position, err := store.AppendEventsIf(ctx, events, condition)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(position).To(Equal(int64(1)))
+	})
+
+	It("should fail with empty events slice", func() {
+		condition := AppendCondition{
+			FailIfEventsMatch: NewQuery([]Tag{{Key: "test", Value: "value"}}, "TestEvent"),
+			After:             nil,
+		}
+
+		_, err := store.AppendEventsIf(ctx, []InputEvent{}, condition)
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(BeAssignableToTypeOf(&ValidationError{}))
+	})
+
+	It("should fail with events exceeding max batch size", func() {
+		// Create events exceeding max batch size (1000)
+		largeEvents := make([]InputEvent, 1001)
+		for i := range largeEvents {
+			largeEvents[i] = NewInputEvent("TestEvent", NewTags("test", "value"), []byte(`{"data": "test"}`))
+		}
+
+		condition := AppendCondition{
+			FailIfEventsMatch: NewQuery([]Tag{{Key: "test", Value: "value"}}, "TestEvent"),
+			After:             nil,
+		}
+
+		_, err := store.AppendEventsIf(ctx, largeEvents, condition)
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(BeAssignableToTypeOf(&ValidationError{}))
+	})
+
+	It("should fail with invalid event data", func() {
+		// Create event with invalid JSON data
+		events := []InputEvent{
+			NewInputEvent("TestEvent", NewTags("test", "value"), []byte(`invalid json`)),
+		}
+
+		condition := AppendCondition{
+			FailIfEventsMatch: NewQuery([]Tag{{Key: "test", Value: "value"}}, "TestEvent"),
+			After:             nil,
+		}
+
+		_, err := store.AppendEventsIf(ctx, events, condition)
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(BeAssignableToTypeOf(&ValidationError{}))
+	})
+
+	It("should fail with empty event type", func() {
+		// Create event with empty type
+		events := []InputEvent{
+			NewInputEvent("", NewTags("test", "value"), []byte(`{"data": "test"}`)),
+		}
+
+		condition := AppendCondition{
+			FailIfEventsMatch: NewQuery([]Tag{{Key: "test", Value: "value"}}, "TestEvent"),
+			After:             nil,
+		}
+
+		_, err := store.AppendEventsIf(ctx, events, condition)
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(BeAssignableToTypeOf(&ValidationError{}))
+	})
+
+	It("should fail with empty tags", func() {
+		// Create event with empty tags
+		events := []InputEvent{
+			NewInputEvent("TestEvent", []Tag{}, []byte(`{"data": "test"}`)),
+		}
+
+		condition := AppendCondition{
+			FailIfEventsMatch: NewQuery([]Tag{{Key: "test", Value: "value"}}, "TestEvent"),
+			After:             nil,
+		}
+
+		_, err := store.AppendEventsIf(ctx, events, condition)
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(BeAssignableToTypeOf(&ValidationError{}))
+	})
+
+	It("should fail with invalid query tags", func() {
+		// Create valid events
+		events := []InputEvent{
+			NewInputEvent("TestEvent", NewTags("test", "value"), []byte(`{"data": "test"}`)),
+		}
+
+		// Create condition with invalid query (empty key)
+		condition := AppendCondition{
+			FailIfEventsMatch: Query{
+				Tags: []Tag{{Key: "", Value: "value"}},
+			},
+			After: nil,
+		}
+
+		_, err := store.AppendEventsIf(ctx, events, condition)
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(BeAssignableToTypeOf(&ValidationError{}))
+	})
+})
+
+var _ = Describe("Helper Functions", func() {
+	Describe("NewTags", func() {
+		It("should create empty tags slice", func() {
+			tags := NewTags()
+			Expect(tags).NotTo(BeNil())
+			Expect(tags).To(HaveLen(0))
+		})
+
+		It("should create single tag", func() {
+			tags := NewTags("key", "value")
+			Expect(tags).To(HaveLen(1))
+			Expect(tags[0].Key).To(Equal("key"))
+			Expect(tags[0].Value).To(Equal("value"))
+		})
+
+		It("should create multiple tags", func() {
+			tags := NewTags("key1", "value1", "key2", "value2")
+			Expect(tags).To(HaveLen(2))
+			Expect(tags[0].Key).To(Equal("key1"))
+			Expect(tags[0].Value).To(Equal("value1"))
+			Expect(tags[1].Key).To(Equal("key2"))
+			Expect(tags[1].Value).To(Equal("value2"))
+		})
+
+		It("should handle odd number of arguments", func() {
+			Expect(func() {
+				NewTags("key1", "value1", "key2")
+			}).To(PanicWith("NewTags: odd number of arguments"))
+		})
+	})
+
+	Describe("NewQuery", func() {
+		It("should create query with tags only", func() {
+			query := NewQuery([]Tag{{Key: "test", Value: "value"}})
+			Expect(query.Tags).To(HaveLen(1))
+			Expect(query.EventTypes).To(BeEmpty())
+		})
+
+		It("should create query with tags and event types", func() {
+			query := NewQuery([]Tag{{Key: "test", Value: "value"}}, "Event1", "Event2")
+			Expect(query.Tags).To(HaveLen(1))
+			Expect(query.EventTypes).To(Equal([]string{"Event1", "Event2"}))
+		})
+
+		It("should create query with empty tags", func() {
+			query := NewQuery([]Tag{}, "Event1")
+			Expect(query.Tags).To(BeEmpty())
+			Expect(query.EventTypes).To(Equal([]string{"Event1"}))
+		})
+	})
+
+	Describe("NewInputEvent", func() {
+		It("should create input event", func() {
+			event := NewInputEvent("TestEvent", NewTags("test", "value"), []byte(`{"data": "test"}`))
+			Expect(event.Type).To(Equal("TestEvent"))
+			Expect(event.Tags).To(HaveLen(1))
+			Expect(event.Tags[0].Key).To(Equal("test"))
+			Expect(event.Tags[0].Value).To(Equal("value"))
+			Expect(event.Data).To(Equal([]byte(`{"data": "test"}`)))
+		})
 	})
 })
