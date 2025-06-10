@@ -11,7 +11,7 @@ The event store provides two primary methods for reading events, both designed f
 
 ## ReadEvents - Application-Level Streaming
 
-`ReadEvents` implements the DCB specification for streaming events with application-level batching.
+`ReadEvents` provides streaming events with application-level batching inspired by the DCB pattern.
 
 ### How It Works
 

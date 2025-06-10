@@ -27,7 +27,7 @@ func NewQuery(tags []Tag, eventTypes ...string) Query {
 }
 
 // NewQueryFromItems creates a new Query from multiple QueryItems.
-// This follows the DCB specification for complex queries.
+// This is inspired by the DCB pattern for complex queries.
 func NewQueryFromItems(items ...QueryItem) Query {
 	return Query{Items: items}
 }

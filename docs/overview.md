@@ -1,6 +1,6 @@
 # Overview and Key Concepts
 
-go-crablet is a Go library that implements the [Dynamic Consistency Boundary (DCB)](https://dcb.events/) pattern, introduced by Sara Pellegrini in her blog post "Killing the Aggregate". DCB provides a pragmatic approach to balancing strong consistency with flexibility in event-driven systems, without relying on rigid transactional boundaries.
+go-crablet is a Go library that is inspired by the [Dynamic Consistency Boundary (DCB)](https://dcb.events/) pattern, introduced by Sara Pellegrini in her blog post "Killing the Aggregate". DCB provides a pragmatic approach to balancing strong consistency with flexibility in event-driven systems, without relying on rigid transactional boundaries.
 
 Unlike traditional event sourcing approaches that use strict constraints to maintain immediate consistency, DCB allows for selective enforcement of strong consistency where needed, particularly for operations that span multiple entities. This ensures critical business processes and cross-entity invariants remain reliable while avoiding the constraints of traditional transactional models.
 
@@ -18,7 +18,7 @@ The implementation leverages PostgreSQL's robust concurrency control mechanisms 
 
 ## DCB Compliance
 
-go-crablet aims to follow the DCB pattern:
+go-crablet aims to follow the DCB pattern principles:
 
 - ✅ **Streaming Events**: `ReadEvents()` returns an `EventIterator` for memory-efficient processing
 - ✅ **Query-based Filtering**: Support for complex queries with multiple `QueryItem`s and OR logic
@@ -99,4 +99,4 @@ The event store provides two streaming approaches for memory-efficient processin
 - **`ReadEvents`**: Application-level streaming with 1000-event batches
 - **`ProjectState`**: Database-level streaming with row-by-row processing
 
-Both methods ensure **O(1) memory complexity** even with millions of events. For detailed information, see [Streaming & Memory Efficiency](streaming.md). 
+Both methods ensure **O(1) memory complexity** even with millions of events. For detailed information, see [Streaming & Memory Efficiency](streaming.md).

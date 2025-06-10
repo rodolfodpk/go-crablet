@@ -67,7 +67,6 @@ for {
 - **Constant Memory Usage**: Only configurable batch size in memory at any time
 - **Keyset Pagination**: Efficient `position > lastPosition` queries
 - **Scalable**: Handles millions of events without memory issues
-- **DCB Compliant**: Follows streaming interface specifications
 - **Configurable**: Adjust batch size via `ReadOptions.BatchSize`
 
 ### **ProjectState - Database-Level Streaming**
