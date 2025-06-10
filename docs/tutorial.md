@@ -27,81 +27,23 @@ CREATE DATABASE todo_app;
 -- Connect to the database
 \c todo_app
 
--- Create the events table and functions
+-- Create the events table
 CREATE TABLE events (
-    id BIGSERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY,
     type TEXT NOT NULL,
     tags JSONB NOT NULL,
     data JSONB NOT NULL,
-    position BIGINT NOT NULL,
-    causation_id TEXT,
-    correlation_id TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    position BIGSERIAL NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    causation_id UUID NOT NULL REFERENCES events(id) DEFERRABLE INITIALLY DEFERRED,
+    correlation_id UUID NOT NULL REFERENCES events(id) DEFERRABLE INITIALLY DEFERRED
 );
 
 -- Create indexes for efficient querying
-CREATE INDEX events_tags_idx ON events USING GIN (tags);
-CREATE INDEX events_type_idx ON events (type);
-CREATE INDEX events_position_idx ON events (position);
-
--- Create the append_events_batch function
-CREATE OR REPLACE FUNCTION append_events_batch(
-    p_events JSONB,
-    p_query_tags JSONB,
-    p_query_event_types TEXT[] DEFAULT NULL,
-    p_expected_position BIGINT DEFAULT NULL
-) RETURNS BIGINT AS $$
-DECLARE
-    v_current_position BIGINT;
-    v_new_position BIGINT;
-    v_event JSONB;
-BEGIN
-    -- Get current position if expected_position is provided
-    IF p_expected_position IS NOT NULL THEN
-        SELECT COALESCE(MAX(position), 0)
-        INTO v_current_position
-        FROM events
-        WHERE tags @> p_query_tags
-        AND (p_query_event_types IS NULL OR type = ANY(p_query_event_types));
-
-        -- Check if current position matches expected position
-        IF v_current_position != p_expected_position THEN
-            RAISE EXCEPTION 'Concurrent modification detected. Expected position: %, current position: %',
-                p_expected_position, v_current_position;
-        END IF;
-    END IF;
-
-    -- Get the next position
-    SELECT COALESCE(MAX(position), 0) + 1
-    INTO v_new_position
-    FROM events
-    WHERE tags @> p_query_tags
-    AND (p_query_event_types IS NULL OR type = ANY(p_query_event_types));
-
-    -- Insert all events
-    FOR v_event IN SELECT * FROM jsonb_array_elements(p_events)
-    LOOP
-        INSERT INTO events (
-            type,
-            tags,
-            data,
-            position,
-            causation_id,
-            correlation_id
-        ) VALUES (
-            v_event->>'type',
-            v_event->'tags',
-            v_event->'data',
-            v_new_position,
-            v_event->>'causation_id',
-            v_event->>'correlation_id'
-        );
-        v_new_position := v_new_position + 1;
-    END LOOP;
-
-    RETURN v_new_position - 1;
-END;
-$$ LANGUAGE plpgsql;
+CREATE INDEX idx_events_position ON events (position);
+CREATE INDEX idx_events_tags ON events USING GIN (tags);
+CREATE INDEX idx_events_causation_id ON events (causation_id);
+CREATE INDEX idx_events_correlation_id ON events (correlation_id);
 ```
 
 ## Step 3: Create a Simple Todo Application
@@ -194,7 +136,7 @@ func main() {
         log.Fatalf("Unable to get current position: %v", err)
     }
 
-    // Append the event using append_events_batch
+    // Append the event
     newPosition, err := store.AppendEvents(ctx, []dcb.InputEvent{event}, query, position)
     if err != nil {
         log.Fatalf("Unable to append event: %v", err)
@@ -265,7 +207,7 @@ func main() {
         log.Fatalf("Unable to get current position: %v", err)
     }
 
-    // Append the completion event using append_events_batch
+    // Append the completion event
     newPosition, err = store.AppendEvents(ctx, []dcb.InputEvent{completionEvent}, query, position)
     if err != nil {
         log.Fatalf("Unable to append event: %v", err)
@@ -320,7 +262,7 @@ This tutorial demonstrated several key concepts of go-crablet:
 2. **Event Creation**: Defining and creating events with proper tags and data
 3. **Stream Position Handling**: Using current stream positions for optimistic concurrency control
 4. **State Projection**: Creating a projector to build the current state from events
-5. **Event Appending**: Appending events to the store with proper position handling
+5. **Event Appending**: Appending events to the store with proper position handling and UUID-based IDs
 
 ## Next Steps
 
