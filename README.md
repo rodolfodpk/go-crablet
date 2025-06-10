@@ -90,7 +90,7 @@ state, position, err := store.ProjectState(ctx, projector)
 | `ReadEvents` | Configurable batch size (default: 1000) | Event iteration, custom processing |
 | `ProjectState` | 1 event at a time | State reconstruction, projections |
 
-Both approaches ensure **O(1) memory complexity** even with millions of events.
+Both approaches ensure **constant memory usage** regardless of total event count, making them suitable for processing millions of events.
 
 ## Quick Start
 
