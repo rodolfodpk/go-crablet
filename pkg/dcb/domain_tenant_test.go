@@ -71,7 +71,7 @@ func NewOrderAssignedEvent(tenantID, orderID, status string) InputEvent {
 // TenantProjector creates a projector for tenant events
 func TenantProjector(tenantID string) StateProjector {
 	return StateProjector{
-		Query:        NewLegacyQuery(NewTags("tenant_id", tenantID), []string{}),
+		Query:        NewQuery(NewTags("tenant_id", tenantID)),
 		InitialState: &TenantState{},
 		TransitionFn: func(state any, e Event) any {
 			s := state.(*TenantState)

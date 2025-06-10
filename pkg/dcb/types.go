@@ -21,6 +21,7 @@ type (
 		FromPosition int64  // Start reading from this position (inclusive)
 		Limit        int    // Maximum number of events to return (0 = no limit)
 		OrderBy      string // Ordering: "asc" (default) or "desc"
+		BatchSize    int    // Number of events to fetch per batch (default: 1000)
 	}
 
 	// SequencedEvents represents a collection of events with their sequence positions
@@ -36,23 +37,15 @@ type (
 		Value string
 	}
 
-	// QueryItem represents a single query constraint
+	// QueryItem represents a single query condition
 	QueryItem struct {
-		Types []string // Event types to match (empty means match any type)
-		Tags  []Tag    // Tags that must all be present (empty means match any tags)
+		EventTypes []string
+		Tags       []Tag
 	}
 
-	// Query defines criteria for selecting events.
-	// DCB spec allows multiple QueryItems combined with OR logic.
+	// Query represents a query for events with multiple query items
 	Query struct {
-		Items []QueryItem // Query items combined with OR logic
-	}
-
-	// LegacyQuery provides backward compatibility with the old Query structure
-	// This allows existing code to continue working while we transition to the new structure
-	LegacyQuery struct {
-		Tags       []Tag    // Events must match all these tags (empty means match any tag)
-		EventTypes []string // Events must match one of these types (empty means match any type)
+		Items []QueryItem
 	}
 
 	// AppendCondition is used to enforce consistency when appending events.

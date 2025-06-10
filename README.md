@@ -33,17 +33,63 @@ The documentation has been split into several files for better organization:
 
 ## Features
 
-- **Event Storage**: Append events with unique IDs, types, and JSON payloads
-- **Consistency Boundaries**: Define and manage consistency boundaries for your events
-- **State Projection**: PostgreSQL-streamed event projection for efficient state reconstruction
-- **Streaming Event Reading**: Memory-efficient streaming interface for reading events
-- **Flexible Querying**: Query events by type and tags with support for complex OR logic
-- **Concurrency Control**: Handle concurrent event appends with optimistic locking
-- **Event Causation**: Track event causation and correlation for event chains
-- **Batch Operations**: Efficient batch operations for appending multiple events
-- **PostgreSQL Backend**: Uses PostgreSQL for reliable, ACID-compliant storage with optimistic concurrency control
-- **Go Native**: Written in Go with idiomatic Go patterns and interfaces
-- **DCB Inspired**: Inspired by and aims to follow the Dynamic Consistency Boundary pattern
+- **Event Sourcing**: Append-only event store with optimistic locking
+- **Complex Queries**: Support for multiple query items with OR logic
+- **Streaming Events**: Memory-efficient event iteration with keyset pagination
+- **State Projection**: Real-time state reconstruction from event streams
+- **Optimistic Locking**: Robust concurrent event appending with conflict detection
+- **DCB Compliance**: Inspired by and aims to follow the Database Change Broker pattern
+
+## Streaming & Memory Efficiency
+
+Both `ReadEvents` and `ProjectState` are designed for **memory-efficient streaming** of large event datasets:
+
+### **ReadEvents - Application-Level Streaming**
+```go
+// Stream events in configurable batches (default: 1000)
+iterator, err := store.ReadEvents(ctx, query, nil)
+defer iterator.Close()
+
+for {
+    event, err := iterator.Next()
+    if err != nil {
+        return err
+    }
+    if event == nil {
+        break // No more events
+    }
+    // Process single event
+    processEvent(event)
+}
+```
+
+**Benefits:**
+- **Constant Memory Usage**: Only configurable batch size in memory at any time
+- **Keyset Pagination**: Efficient `position > lastPosition` queries
+- **Scalable**: Handles millions of events without memory issues
+- **DCB Compliant**: Follows streaming interface specifications
+- **Configurable**: Adjust batch size via `ReadOptions.BatchSize`
+
+### **ProjectState - Database-Level Streaming**
+```go
+// Stream events directly from database
+state, position, err := store.ProjectState(ctx, projector)
+```
+
+**Benefits:**
+- **Native PostgreSQL Streaming**: Uses `rows.Next()` for row-by-row processing
+- **Zero Accumulation**: Processes one event at a time, no intermediate storage
+- **Real-time State**: Incremental state updates as events are processed
+- **Memory Efficient**: Constant memory usage regardless of event count
+
+### **Memory Usage Comparison**
+
+| Method | Memory Pattern | Use Case |
+|--------|---------------|----------|
+| `ReadEvents` | Configurable batch size (default: 1000) | Event iteration, custom processing |
+| `ProjectState` | 1 event at a time | State reconstruction, projections |
+
+Both approaches ensure **O(1) memory complexity** even with millions of events.
 
 ## Quick Start
 

@@ -45,14 +45,14 @@ func validateQueryTags(query Query) error {
 		}
 
 		// Validate event types if present
-		for i, eventType := range item.Types {
+		for i, eventType := range item.EventTypes {
 			if eventType == "" {
 				return &ValidationError{
 					EventStoreError: EventStoreError{
 						Op:  "validateQueryTags",
 						Err: fmt.Errorf("empty event type at index %d of item %d", i, itemIndex),
 					},
-					Field: fmt.Sprintf("item[%d].types[%d]", itemIndex, i),
+					Field: fmt.Sprintf("item[%d].eventTypes[%d]", itemIndex, i),
 					Value: fmt.Sprintf("index[%d]", i),
 				}
 			}
@@ -297,7 +297,7 @@ func checkForConflictingEvents(ctx context.Context, tx pgx.Tx, query Query, quer
 				   type = ANY($3::text[]))
 		)
 	`
-	err = tx.QueryRow(ctx, checkQuery, latestPosition, itemTagsJSON, item.Types).Scan(&exists)
+	err = tx.QueryRow(ctx, checkQuery, latestPosition, itemTagsJSON, item.EventTypes).Scan(&exists)
 	if err != nil {
 		return &EventStoreError{
 			Op:  "checkForConflictingEvents",
@@ -350,9 +350,9 @@ func checkForMatchingEvents(ctx context.Context, tx pgx.Tx, condition AppendCond
 	}
 
 	// Add event type filtering if specified
-	if len(item.Types) > 0 {
+	if len(item.EventTypes) > 0 {
 		checkQuery += fmt.Sprintf(" AND type = ANY($%d)", argIndex)
-		args = append(args, item.Types)
+		args = append(args, item.EventTypes)
 		argIndex++
 	}
 

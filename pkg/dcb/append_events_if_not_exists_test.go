@@ -13,7 +13,7 @@ var _ = Describe("Event Store: Idempotent Event Appending", func() {
 
 	It("appends events with idempotency check", func() {
 		tags := NewTags("course_id", "course1")
-		query := NewLegacyQuery(tags, []string{"Subscription"})
+		query := NewQuery(tags, "Subscription")
 		event := NewInputEvent("Subscription", tags, []byte(`{"foo":"bar"}`))
 		events := []InputEvent{event}
 
@@ -46,7 +46,7 @@ var _ = Describe("Event Store: Idempotent Event Appending", func() {
 
 	It("handles multiple events in a batch with idempotency", func() {
 		tags := NewTags("course_id", "course2")
-		query := NewLegacyQuery(tags, []string{"CourseLaunched", "LessonAdded"})
+		query := NewQuery(tags, "CourseLaunched", "LessonAdded")
 		events := []InputEvent{
 			NewInputEvent("CourseLaunched", tags, []byte(`{"title":"Go Programming"}`)),
 			NewInputEvent("LessonAdded", tags, []byte(`{"lesson_id":"L1"}`)),
@@ -82,7 +82,7 @@ var _ = Describe("Event Store: Idempotent Event Appending", func() {
 
 	It("handles partial event appending with idempotency", func() {
 		tags := NewTags("course_id", "course3")
-		query := NewLegacyQuery(tags, []string{"CourseLaunched", "LessonAdded"})
+		query := NewQuery(tags, "CourseLaunched", "LessonAdded")
 		initialEvents := NewEventBatch(
 			NewInputEvent("CourseLaunched", tags, []byte(`{"title":"Go Programming"}`)),
 			NewInputEvent("LessonAdded", tags, []byte(`{"lesson_id":"L1"}`)),
@@ -125,7 +125,7 @@ var _ = Describe("Event Store: Idempotent Event Appending", func() {
 
 	It("handles empty event list", func() {
 		tags := NewTags("course_id", "course4")
-		query := NewLegacyQuery(tags, []string{})
+		query := NewQuery(tags, "")
 		events := []InputEvent{}
 
 		pos, err := store.AppendEvents(ctx, events, query, 0)

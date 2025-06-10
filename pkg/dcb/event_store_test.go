@@ -547,7 +547,7 @@ var _ = Describe("AppendEventsIf", func() {
 
 		// Create condition with invalid query (empty key)
 		condition := AppendCondition{
-			FailIfEventsMatch: NewLegacyQuery([]Tag{{Key: "", Value: "value"}}, []string{}),
+			FailIfEventsMatch: NewQuery([]Tag{{Key: "", Value: "value"}}),
 			After:             nil,
 		}
 
