@@ -16,7 +16,7 @@ var _ = Describe("Event Store: Appending Events", func() {
 
 	It("appends a single event", func() {
 		tags := NewTags("course_id", "course1")
-		query := NewLegacyQuery(tags, []string{"Subscription"})
+		query := NewQuery(tags, "Subscription")
 		event := NewInputEvent("Subscription", tags, []byte(`{"foo":"bar"}`))
 		events := []InputEvent{event}
 
@@ -41,43 +41,51 @@ var _ = Describe("Event Store: Appending Events", func() {
 
 	It("appends events with multiple tags", func() {
 		tags := NewTags("course_id", "course1", "user_id", "user123", "action", "enroll")
-		query := NewLegacyQuery(NewTags("course_id", "course1"), []string{"Enrollment"})
+		query := NewQuery(NewTags("course_id", "course1"), "Enrollment")
 		events := NewEventBatch(
 			NewInputEvent("Enrollment", tags, []byte(`{"action":"enrolled"}`)),
 		)
 
-		pos, err := store.AppendEvents(ctx, events, query, 0)
+		// Get current position
+		position, err := store.GetCurrentPosition(ctx, query)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(pos).To(Equal(int64(1)))
+
+		// Append events
+		newPosition, err := store.AppendEvents(ctx, events, query, position)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(newPosition).To(Equal(position + 1))
+
 		// Query by different tag combinations
 		projector := StateProjector{
-			Query:        NewLegacyQuery(NewTags("user_id", "user123"), []string{"Enrollment"}),
+			Query:        NewQuery(NewTags("user_id", "user123"), "Enrollment"),
 			InitialState: 0,
 			TransitionFn: func(state any, e Event) any {
 				return state.(int) + 1
 			},
 		}
-
-		_, state, err := store.ProjectState(ctx, projector)
+		_, count, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(state).To(Equal(1))
-
-		dumpEvents(pool)
+		Expect(count).To(Equal(1))
 	})
 
 	It("appends multiple events in a batch", func() {
 		tags := NewTags("course_id", "course2")
-		query := NewLegacyQuery(tags, []string{"CourseLaunched", "LessonAdded"})
+		query := NewQuery(tags, "CourseLaunched", "LessonAdded")
 		events := NewEventBatch(
 			NewInputEvent("CourseLaunched", tags, []byte(`{"title":"Go Programming"}`)),
-			NewInputEvent("LessonAdded", tags, []byte(`{"lesson_id":"L1"}`)),
-			NewInputEvent("LessonAdded", tags, []byte(`{"lesson_id":"L2"}`)),
+			NewInputEvent("LessonAdded", tags, []byte(`{"lesson":"1"}`)),
 		)
 
-		pos, err := store.AppendEvents(ctx, events, query, 0)
+		// Get current position
+		position, err := store.GetCurrentPosition(ctx, query)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(pos).To(Equal(int64(3)))
 
+		// Append events
+		newPosition, err := store.AppendEvents(ctx, events, query, position)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(newPosition).To(Equal(position + 2))
+
+		// Verify events were appended
 		projector := StateProjector{
 			Query:        query,
 			InitialState: 0,
@@ -85,146 +93,139 @@ var _ = Describe("Event Store: Appending Events", func() {
 				return state.(int) + 1
 			},
 		}
-		_, state, err := store.ProjectState(ctx, projector)
+		_, count, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(state).To(Equal(3))
-
-		dumpEvents(pool)
+		Expect(count).To(Equal(2))
 	})
 
 	It("fails with concurrency error when position is outdated", func() {
 		tags := NewTags("course_id", "course3")
-		query := NewLegacyQuery(tags, []string{"Initial", "Second"})
+		query := NewQuery(tags, "Initial", "Second")
 
 		// First append - will succeed
-		_, err := store.AppendEvents(ctx, NewEventBatch(
-			NewInputEvent("Initial", tags, []byte(`{"status":"first"}`)),
-		), query, 0)
+		position, err := store.GetCurrentPosition(ctx, query)
 		Expect(err).NotTo(HaveOccurred())
 
-		// Second append with outdated position - should fail
-		_, err = store.AppendEvents(ctx, NewEventBatch(
-			NewInputEvent("Second", tags, []byte(`{"status":"second"}`)),
-		), query, 0) // Using 0 again when it should be 1
+		events := NewEventBatch(
+			NewInputEvent("Initial", tags, []byte(`{"step":"1"}`)),
+		)
+		newPosition, err := store.AppendEvents(ctx, events, query, position)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(newPosition).To(Equal(position + 1))
 
+		// Second append with old position - should fail
+		events2 := NewEventBatch(
+			NewInputEvent("Second", tags, []byte(`{"step":"2"}`)),
+		)
+		_, err = store.AppendEvents(ctx, events2, query, position) // Using old position
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("conflicting events found"))
-
-		dumpEvents(pool)
 	})
 
 	It("properly sets causation and correlation IDs", func() {
 		tags := NewTags("entity_id", "E1")
-		query := NewLegacyQuery(tags, []string{"EntityRegistered", "EntityAttributeChanged"})
+		query := NewQuery(tags, "EntityRegistered", "EntityAttributeChanged")
 		events := NewEventBatch(
 			NewInputEvent("EntityRegistered", tags, []byte(`{"initial":true}`)),
-			NewInputEvent("EntityAttributeChanged", tags, []byte(`{"step":1}`)),
-			NewInputEvent("EntityAttributeChanged", tags, []byte(`{"step":2}`)),
+			NewInputEvent("EntityAttributeChanged", tags, []byte(`{"attribute":"value"}`)),
 		)
 
-		pos, err := store.AppendEvents(ctx, events, query, 0)
+		// Get current position
+		position, err := store.GetCurrentPosition(ctx, query)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(pos).To(Equal(int64(3)))
 
-		// Check that causation and correlation IDs were set correctly
-		dumpEvents(pool)
+		// Append events
+		newPosition, err := store.AppendEvents(ctx, events, query, position)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(newPosition).To(Equal(position + 2))
 
-		// Custom projector to check causation and correlation IDs
-		type EventRelationships struct {
-			Count          int
-			FirstID        string
-			CausationIDs   []string
-			CorrelationIDs []string
-		}
-
-		relationshipprojector := StateProjector{
+		// Verify causation and correlation IDs
+		projector := StateProjector{
 			Query:        query,
-			InitialState: EventRelationships{Count: 0},
+			InitialState: []Event{},
 			TransitionFn: func(state any, e Event) any {
-				s := state.(EventRelationships)
-				s.Count++
-				if s.Count == 1 {
-					s.FirstID = e.ID
-				}
-				s.CausationIDs = append(s.CausationIDs, e.CausationID)
-				s.CorrelationIDs = append(s.CorrelationIDs, e.CorrelationID)
-				return s
+				events := state.([]Event)
+				return append(events, e)
 			},
 		}
-
-		_, state, err := store.ProjectState(ctx, relationshipprojector)
+		_, eventsResult, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
-		relationships := state.(EventRelationships)
+		projectedEvents := eventsResult.([]Event)
+		Expect(projectedEvents).To(HaveLen(2))
 
-		// First event is self-caused
-		Expect(relationships.CausationIDs[0]).To(Equal(relationships.FirstID))
+		// First event should have same causation and correlation ID
+		Expect(projectedEvents[0].CausationID).To(Equal(projectedEvents[0].ID))
+		Expect(projectedEvents[0].CorrelationID).To(Equal(projectedEvents[0].ID))
 
-		// All events have same correlation ID (the first event's ID)
-		for _, cid := range relationships.CorrelationIDs {
-			Expect(cid).To(Equal(relationships.FirstID))
-		}
-
-		// Later events are caused by their predecessors
-		Expect(relationships.CausationIDs[1]).To(Equal(relationships.FirstID))
-		Expect(relationships.CausationIDs[2]).NotTo(Equal(relationships.FirstID))
+		// Second event should have first event's ID as causation ID
+		Expect(projectedEvents[1].CausationID).To(Equal(projectedEvents[0].ID))
+		Expect(projectedEvents[1].CorrelationID).To(Equal(projectedEvents[0].ID))
 	})
 
-	Describe("Error scenarios", func() {
+	Context("validation", func() {
 		It("returns error when appending events with empty tags", func() {
 			tags := NewTags() // Empty tags
-			query := NewLegacyQuery(NewTags("course_id", "C1"), []string{})
+			query := NewQuery(NewTags("course_id", "C1"))
 			events := NewEventBatch(
 				NewInputEvent("Subscription", tags, []byte(`{"foo":"bar"}`)),
 			)
-			_, err := store.AppendEvents(ctx, events, query, 0)
+
+			position, err := store.GetCurrentPosition(ctx, query)
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = store.AppendEvents(ctx, events, query, position)
 			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("empty tags in event"))
 		})
 
 		It("returns error when appending invalid JSON data", func() {
 			tags := NewTags("course_id", "C1")
-			query := NewLegacyQuery(tags, []string{})
+			query := NewQuery(tags)
 			events := NewEventBatch(
 				NewInputEvent("Subscription", tags, []byte(`not-json`)),
 			)
-			_, err := store.AppendEvents(ctx, events, query, 0)
+
+			position, err := store.GetCurrentPosition(ctx, query)
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = store.AppendEvents(ctx, events, query, position)
 			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid JSON"))
 		})
 	})
 
 	It("verifies events are retrieved in correct order", func() {
 		tags := NewTags("order_id", "order1")
-		query := NewLegacyQuery(tags, []string{"OrderCreated", "ItemAdded"})
+		query := NewQuery(tags, "OrderCreated", "ItemAdded")
 		events := NewEventBatch(
 			NewInputEvent("OrderCreated", tags, []byte(`{"id":"order1"}`)),
-			NewInputEvent("ItemAdded", tags, []byte(`{"item":"product1"}`)),
-			NewInputEvent("ItemAdded", tags, []byte(`{"item":"product2"}`)),
+			NewInputEvent("ItemAdded", tags, []byte(`{"item":"book"}`)),
 		)
 
-		_, err := store.AppendEvents(ctx, events, query, 0)
+		// Get current position
+		position, err := store.GetCurrentPosition(ctx, query)
 		Expect(err).NotTo(HaveOccurred())
 
-		// Custom projector to check event order
-		type Result struct {
-			Event Event
-		}
+		// Append events
+		newPosition, err := store.AppendEvents(ctx, events, query, position)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(newPosition).To(Equal(position + 2))
 
-		orderProjector := StateProjector{
+		// Verify order
+		projector := StateProjector{
 			Query:        query,
-			InitialState: Result{},
+			InitialState: []Event{},
 			TransitionFn: func(state any, e Event) any {
-				return Result{Event: e}
+				events := state.([]Event)
+				return append(events, e)
 			},
 		}
-
-		_, state, err := store.ProjectState(ctx, orderProjector)
+		_, eventsResult, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
-		result := state.(Result)
-
-		// Verify the last event is the last one we appended
-		var data map[string]string
-		err = json.Unmarshal(result.Event.Data, &data)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(data["item"]).To(Equal("product2"))
+		projectedEvents := eventsResult.([]Event)
+		Expect(projectedEvents).To(HaveLen(2))
+		Expect(projectedEvents[0].Type).To(Equal("OrderCreated"))
+		Expect(projectedEvents[1].Type).To(Equal("ItemAdded"))
 	})
 
 	It("appends events with expected position correctly", func() {

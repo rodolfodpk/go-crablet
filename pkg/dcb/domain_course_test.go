@@ -82,9 +82,11 @@ func (a *CourseAPI) EnrollStudent(ctx context.Context, cmd EnrollStudentCommand)
 	event := NewEnrollmentEvent("active", enrollmentTags)
 
 	// Create a query that includes both course and student tags
-	query := NewLegacyQuery(
-		enrollmentTags,
-		[]string{"Enrollment"},
+	query := NewQuery(
+		NewTags("course_id", cmd.CourseID, "user_id", cmd.StudentID),
+		"CourseLaunched",
+		"StudentEnrolledInCourse",
+		"StudentUnenrolledFromCourse",
 	)
 
 	// Get current position for the combined stream
@@ -112,22 +114,22 @@ func (a *CourseAPI) EnrollStudent(ctx context.Context, cmd EnrollStudentCommand)
 // CourseProjector creates a projector for course events
 func CourseProjector(courseID string) StateProjector {
 	return StateProjector{
-		Query:        NewLegacyQuery(NewTags("course_id", courseID), []string{"CourseLaunched", "CourseUpdated", "Enrollment"}),
+		Query:        NewQuery(NewTags("course_id", courseID), "CourseLaunched", "CourseUpdated", "Enrollment"),
 		InitialState: &CourseState{},
 		TransitionFn: func(state any, e Event) any {
-			s := state.(*CourseState)
-			s.EventCount++
+			course := state.(*CourseState)
+			course.EventCount++
 
 			var data map[string]string
 			_ = json.Unmarshal(e.Data, &data)
 
 			switch e.Type {
 			case "CourseLaunched", "CourseUpdated":
-				s.Title = data["title"]
+				course.Title = data["title"]
 			case "Enrollment":
-				s.EnrollmentCount++
+				course.EnrollmentCount++
 			}
-			return s
+			return course
 		},
 	}
 }
@@ -135,31 +137,32 @@ func CourseProjector(courseID string) StateProjector {
 // StudentProjector creates a projector for student events
 func StudentProjector(studentID string) StateProjector {
 	return StateProjector{
-		Query: NewLegacyQuery(
+		Query: NewQuery(
 			NewTags("student_id", studentID),
-			[]string{"StudentRegistered", "Enrollment"},
+			"StudentRegistered",
+			"Enrollment",
 		),
 		InitialState: &StudentState{
 			CourseIDs: make(map[string]bool),
 		},
 		TransitionFn: func(state any, e Event) any {
-			s := state.(*StudentState)
-			s.EventCount++
+			student := state.(*StudentState)
+			student.EventCount++
 
 			var data map[string]string
 			_ = json.Unmarshal(e.Data, &data)
 
 			switch e.Type {
 			case "StudentRegistered":
-				s.Name = data["name"]
+				student.Name = data["name"]
 			case "Enrollment":
 				for _, tag := range e.Tags {
 					if tag.Key == "course_id" {
-						s.CourseIDs[tag.Value] = true
+						student.CourseIDs[tag.Value] = true
 					}
 				}
 			}
-			return s
+			return student
 		},
 	}
 }

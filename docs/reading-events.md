@@ -1,5 +1,9 @@
 # Reading Events
 
+> **Note**: For detailed information about streaming and memory efficiency, see [Streaming & Memory Efficiency](streaming.md).
+
+This document explains how to read events from the event store using the DCB-compliant streaming interface.
+
 go-crablet provides a streaming interface for reading events that is both memory-efficient and inspired by the DCB pattern. Instead of loading all events into memory at once, events are streamed directly from PostgreSQL and processed one at a time.
 
 ## EventIterator Interface
@@ -24,9 +28,9 @@ type EventIterator interface {
 
 ```go
 // Create a query for account events
-query := dcb.NewLegacyQuery(
+query := dcb.NewQuery(
     dcb.NewTags("account_id", "acc-123"),
-    []string{"AccountRegistered", "AccountDetailsChanged"},
+    "AccountRegistered", "AccountDetailsChanged",
 )
 
 // Read events using streaming interface
@@ -100,19 +104,19 @@ iterator, err := store.ReadEvents(ctx, query, nil)
 
 ## Backward Compatibility
 
-For existing code, you can use the `NewLegacyQuery` helper function:
+For existing code, you can use the `NewQuery` helper function:
 
 ```go
 // Old way (still works)
 query := dcb.Query{
-    Tags:       dcb.NewTags("account_id", "acc-123"),
-    EventTypes: []string{"AccountRegistered"},
+	Tags:       dcb.NewTags("account_id", "acc-123"),
+	EventTypes: []string{"AccountRegistered"},
 }
 
 // New way (recommended)
-query := dcb.NewLegacyQuery(
-    dcb.NewTags("account_id", "acc-123"),
-    []string{"AccountRegistered"},
+query := dcb.NewQuery(
+	dcb.NewTags("account_id", "acc-123"),
+	"AccountRegistered",
 )
 ```
 

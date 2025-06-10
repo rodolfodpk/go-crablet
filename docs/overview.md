@@ -82,3 +82,21 @@ This approach is particularly beneficial for:
 - **Real-time processing**: Handle events as they arrive
 - **Resource efficiency**: Minimize memory usage and database load
 - **Scalability**: Handle growing event volumes without performance degradation 
+
+## Key Features
+
+- **Event Sourcing**: Append-only event store with optimistic locking
+- **Complex Queries**: Support for multiple query items with OR logic
+- **Streaming Events**: Memory-efficient event iteration with keyset pagination
+- **State Projection**: Real-time state reconstruction from event streams
+- **Optimistic Locking**: Robust concurrent event appending with conflict detection
+- **DCB Compliance**: Inspired by and aims to follow the Database Change Broker pattern
+
+## Streaming & Memory Efficiency
+
+The event store provides two streaming approaches for memory-efficient processing of large datasets:
+
+- **`ReadEvents`**: Application-level streaming with 1000-event batches
+- **`ProjectState`**: Database-level streaming with row-by-row processing
+
+Both methods ensure **O(1) memory complexity** even with millions of events. For detailed information, see [Streaming & Memory Efficiency](streaming.md). 

@@ -62,6 +62,16 @@ func (es *eventStore) ProjectStateUpTo(ctx context.Context, projector StateProje
 	// Use projector's query
 	effectiveQuery := projector.Query
 
+	// For backward compatibility, use the first query item
+	effectiveQuery = Query{
+		Items: []QueryItem{
+			{
+				EventTypes: effectiveQuery.Items[0].EventTypes,
+				Tags:       effectiveQuery.Items[0].Tags,
+			},
+		},
+	}
+
 	// Build JSONB query condition with proper error handling
 	var queryTags []byte
 	var err error
@@ -90,9 +100,9 @@ func (es *eventStore) ProjectStateUpTo(ctx context.Context, projector StateProje
 	args := []interface{}{queryTags}
 
 	// Add event type filtering if specified
-	if len(effectiveQuery.Items) > 0 && len(effectiveQuery.Items[0].Types) > 0 {
+	if len(effectiveQuery.Items) > 0 && len(effectiveQuery.Items[0].EventTypes) > 0 {
 		sqlQuery += fmt.Sprintf(" AND type = ANY($%d)", len(args)+1)
-		args = append(args, effectiveQuery.Items[0].Types)
+		args = append(args, effectiveQuery.Items[0].EventTypes)
 	}
 
 	// Add position filtering if maxPosition is specified

@@ -12,7 +12,7 @@ Example of proper stream position handling:
 
 ```go
 // Get current stream position
-query := dcb.NewLegacyQuery(dcb.NewTags("account_id", "acc123"), nil)
+query := dcb.NewQuery(dcb.NewTags("account_id", "acc123"))
 position, err := store.GetCurrentPosition(ctx, query)
 if err != nil {
     return err
@@ -208,7 +208,7 @@ Example of state projection:
 ```go
 // Create a projector for account balances
 projector := dcb.StateProjector{
-    Query: dcb.NewLegacyQuery(dcb.NewTags("account_id", "acc123"), nil),
+    Query: dcb.NewQuery(dcb.NewTags("account_id", "acc123")),
     InitialState: &AccountState{},
     TransitionFn: func(state any, event dcb.Event) any {
         // Handle events and update state
@@ -232,7 +232,7 @@ Example of appending events:
 
 ```go
 // Get current stream position
-query := dcb.NewLegacyQuery(dcb.NewTags("account_id", "acc123"), nil)
+query := dcb.NewQuery(dcb.NewTags("account_id", "acc123"))
 position, err := store.GetCurrentPosition(ctx, query)
 if err != nil {
     return err

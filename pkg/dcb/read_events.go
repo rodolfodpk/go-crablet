@@ -4,19 +4,23 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-
-	"github.com/jackc/pgx/v5"
+	"strings"
 )
 
 // eventIterator implements EventIterator for streaming events
 type eventIterator struct {
-	rows     pgx.Rows
-	ctx      context.Context
-	position int64
-	limit    int
-	count    int
-	orderBy  string
-	closed   bool
+	store        *eventStore
+	query        Query
+	options      *ReadOptions
+	lastPosition int64
+	batchSize    int
+	currentBatch []Event
+	currentIndex int
+	closed       bool
+	hasMore      bool
+	initialized  bool
+	ctx          context.Context
+	totalFetched int
 }
 
 // ReadEvents reads events matching the query with optional configuration.
@@ -34,7 +38,13 @@ func (es *eventStore) ReadEvents(ctx context.Context, query Query, options *Read
 			FromPosition: 0,
 			Limit:        0, // No limit
 			OrderBy:      "asc",
+			BatchSize:    1000, // Default batch size
 		}
+	}
+
+	// Set default batch size if not specified
+	if options.BatchSize <= 0 {
+		options.BatchSize = 1000
 	}
 
 	// Validate options
@@ -60,13 +70,71 @@ func (es *eventStore) ReadEvents(ctx context.Context, query Query, options *Read
 		}
 	}
 
-	// Build SQL query
+	// Initialize iterator with streaming configuration
+	iterator := &eventIterator{
+		store:        es,
+		query:        query,
+		options:      options,
+		batchSize:    options.BatchSize, // Use configurable batch size
+		hasMore:      true,
+		ctx:          ctx,
+		totalFetched: 0,
+	}
+
+	// Set initial position based on options
+	if options.FromPosition > 0 {
+		iterator.lastPosition = options.FromPosition - 1 // Start from the position before FromPosition
+	} else {
+		iterator.lastPosition = 0
+	}
+
+	return iterator, nil
+}
+
+// Next returns the next event in the stream
+func (ei *eventIterator) Next() (*Event, error) {
+	if ei.closed {
+		return nil, fmt.Errorf("iterator is closed")
+	}
+
+	// Check if we need to fetch the first batch
+	if !ei.initialized {
+		if err := ei.fetchNextBatch(); err != nil {
+			return nil, err
+		}
+		ei.initialized = true
+	}
+
+	// Check if we need more events
+	if ei.currentIndex >= len(ei.currentBatch) {
+		if !ei.hasMore {
+			return nil, nil // No more events
+		}
+		if err := ei.fetchNextBatch(); err != nil {
+			return nil, err
+		}
+		if len(ei.currentBatch) == 0 {
+			ei.hasMore = false
+			return nil, nil
+		}
+	}
+
+	// Return next event from current batch
+	event := ei.currentBatch[ei.currentIndex]
+	ei.currentIndex++
+	ei.lastPosition = event.Position
+	return &event, nil
+}
+
+// fetchNextBatch loads the next batch of events using keyset pagination
+func (ei *eventIterator) fetchNextBatch() error {
+	// Build SQL query with keyset pagination
 	var sqlQuery string
 	var args []interface{}
 	argIndex := 1
 
 	// Handle empty query (matches all events)
-	if len(query.Items) == 0 {
+	if len(ei.query.Items) == 0 {
 		sqlQuery = `
 			SELECT id, type, tags, data, position, causation_id, correlation_id 
 			FROM events 
@@ -74,7 +142,7 @@ func (es *eventStore) ReadEvents(ctx context.Context, query Query, options *Read
 	} else {
 		// Build conditions for each query item (OR logic)
 		var conditions []string
-		for i, item := range query.Items {
+		for i, item := range ei.query.Items {
 			if i > 0 {
 				conditions = append(conditions, "OR")
 			}
@@ -86,8 +154,8 @@ func (es *eventStore) ReadEvents(ctx context.Context, query Query, options *Read
 			}
 			itemTagsJSON, err := json.Marshal(itemTagMap)
 			if err != nil {
-				return nil, &EventStoreError{
-					Op:  "ReadEvents",
+				return &EventStoreError{
+					Op:  "EventIterator.fetchNextBatch",
 					Err: fmt.Errorf("failed to marshal query item %d tags: %w", i, err),
 				}
 			}
@@ -98,10 +166,14 @@ func (es *eventStore) ReadEvents(ctx context.Context, query Query, options *Read
 			argIndex++
 
 			// Add event type filtering if specified
-			if len(item.Types) > 0 {
-				itemCondition += fmt.Sprintf(" AND type = ANY($%d)", argIndex)
-				args = append(args, item.Types)
-				argIndex++
+			if len(item.EventTypes) > 0 {
+				placeholders := make([]string, len(item.EventTypes))
+				for j := range item.EventTypes {
+					placeholders[j] = fmt.Sprintf("$%d", argIndex)
+					args = append(args, item.EventTypes[j])
+					argIndex++
+				}
+				itemCondition += fmt.Sprintf(" AND type IN (%s)", strings.Join(placeholders, ", "))
 			}
 
 			itemCondition += ")"
@@ -124,76 +196,96 @@ func (es *eventStore) ReadEvents(ctx context.Context, query Query, options *Read
 		}
 	}
 
-	// Add position filtering if specified
-	if options.FromPosition > 0 {
+	// Add keyset pagination condition
+	if ei.lastPosition > 0 {
+		if ei.options.OrderBy == "asc" {
+			sqlQuery += fmt.Sprintf(" AND position > $%d", argIndex)
+		} else {
+			sqlQuery += fmt.Sprintf(" AND position < $%d", argIndex)
+		}
+		args = append(args, ei.lastPosition)
+		argIndex++
+	} else if ei.options.FromPosition > 0 {
+		// Handle initial position filtering
 		sqlQuery += fmt.Sprintf(" AND position >= $%d", argIndex)
-		args = append(args, options.FromPosition)
+		args = append(args, ei.options.FromPosition)
 		argIndex++
 	}
 
 	// Add ordering
-	sqlQuery += fmt.Sprintf(" ORDER BY position %s", options.OrderBy)
+	sqlQuery += fmt.Sprintf(" ORDER BY position %s", ei.options.OrderBy)
 
-	// Add limit if specified
-	if options.Limit > 0 {
-		sqlQuery += fmt.Sprintf(" LIMIT $%d", argIndex)
-		args = append(args, options.Limit)
-	}
+	// Add batch size limit
+	sqlQuery += fmt.Sprintf(" LIMIT $%d", argIndex)
+	args = append(args, ei.batchSize)
+	argIndex++
 
 	// Execute query
-	rows, err := es.pool.Query(ctx, sqlQuery, args...)
+	rows, err := ei.store.pool.Query(ei.ctx, sqlQuery, args...)
 	if err != nil {
-		return nil, &ResourceError{
+		return &ResourceError{
 			EventStoreError: EventStoreError{
-				Op:  "ReadEvents",
+				Op:  "EventIterator.fetchNextBatch",
 				Err: fmt.Errorf("failed to execute query: %w", err),
 			},
 			Resource: "database",
 		}
 	}
+	defer rows.Close()
 
-	return &eventIterator{
-		rows:    rows,
-		ctx:     ctx,
-		limit:   options.Limit,
-		orderBy: options.OrderBy,
-	}, nil
-}
+	// Scan all rows in this batch
+	var batch []Event
+	for rows.Next() {
+		var row rowEvent
+		if err := rows.Scan(&row.ID, &row.Type, &row.Tags, &row.Data, &row.Position, &row.CausationID, &row.CorrelationID); err != nil {
+			return &ResourceError{
+				EventStoreError: EventStoreError{
+					Op:  "EventIterator.fetchNextBatch",
+					Err: fmt.Errorf("failed to scan event row: %w", err),
+				},
+				Resource: "database",
+			}
+		}
 
-// Next returns the next event in the stream
-func (ei *eventIterator) Next() (*Event, error) {
-	if ei.closed {
-		return nil, fmt.Errorf("iterator is closed")
+		event := convertRowToEvent(row)
+		batch = append(batch, event)
 	}
 
-	// Check limit
-	if ei.limit > 0 && ei.count >= ei.limit {
-		return nil, nil // No more events
-	}
-
-	// Get next row
-	if !ei.rows.Next() {
-		return nil, nil // No more events
-	}
-
-	// Scan row
-	var row rowEvent
-	if err := ei.rows.Scan(&row.ID, &row.Type, &row.Tags, &row.Data, &row.Position, &row.CausationID, &row.CorrelationID); err != nil {
-		return nil, &ResourceError{
+	// Check for errors from iterating over rows
+	if err := rows.Err(); err != nil {
+		return &ResourceError{
 			EventStoreError: EventStoreError{
-				Op:  "EventIterator.Next",
-				Err: fmt.Errorf("failed to scan event row: %w", err),
+				Op:  "EventIterator.fetchNextBatch",
+				Err: fmt.Errorf("error iterating over events: %w", err),
 			},
 			Resource: "database",
 		}
 	}
 
-	// Convert row to Event
-	event := convertRowToEvent(row)
-	ei.position = row.Position
-	ei.count++
+	// Update iterator state
+	ei.currentBatch = batch
+	ei.currentIndex = 0
 
-	return &event, nil
+	// Check if we have more events (if we got a full batch, there might be more)
+	if len(batch) < ei.batchSize {
+		ei.hasMore = false
+	}
+
+	// Apply global limit if specified
+	if ei.options.Limit > 0 {
+		totalFetched := ei.totalFetched + len(ei.currentBatch)
+		if totalFetched >= ei.options.Limit {
+			// Trim batch to respect limit
+			remaining := ei.options.Limit - ei.totalFetched
+			if remaining < len(ei.currentBatch) {
+				ei.currentBatch = ei.currentBatch[:remaining]
+			}
+			ei.hasMore = false
+		}
+		ei.totalFetched = totalFetched
+	}
+
+	return nil
 }
 
 // Close closes the iterator and releases resources
@@ -202,11 +294,11 @@ func (ei *eventIterator) Close() error {
 		return nil
 	}
 	ei.closed = true
-	ei.rows.Close()
+	ei.currentBatch = nil // Release memory
 	return nil
 }
 
 // Position returns the position of the last event read
 func (ei *eventIterator) Position() int64 {
-	return ei.position
+	return ei.lastPosition
 }

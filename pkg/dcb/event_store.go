@@ -79,7 +79,7 @@ func (es *eventStore) GetCurrentPosition(ctx context.Context, query Query) (int6
 		  AND ($2::text[] IS NULL OR
 			   array_length($2::text[], 1) = 0 OR
 			   type = ANY($2::text[]))
-	`, queryTagsJSON, item.Types).Scan(&position)
+	`, queryTagsJSON, item.EventTypes).Scan(&position)
 	if err != nil {
 		return 0, &EventStoreError{
 			Op:  "GetCurrentPosition",
