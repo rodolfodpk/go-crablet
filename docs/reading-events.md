@@ -55,6 +55,99 @@ for {
 }
 ```
 
+## How Pagination Works
+
+**One call to `ReadEvents` is enough** - the iterator handles all pagination complexity internally. You don't need to manage pagination manually.
+
+### What Happens When You Call ReadEvents
+
+```go
+// This ONE call returns an iterator, not all events
+iterator, err := store.ReadEvents(ctx, query, nil)
+if err != nil {
+    return err
+}
+defer iterator.Close()
+
+// The iterator handles pagination automatically
+for {
+    event, err := iterator.Next()
+    if err != nil {
+        return err
+    }
+    if event == nil {
+        break // No more events
+    }
+    
+    // Process this single event
+    processEvent(event)
+}
+```
+
+### What the Caller Sees vs. What Happens Internally
+
+#### **Caller's Perspective** (Simple):
+```go
+// 1. Get iterator (one call)
+iterator, err := store.ReadEvents(ctx, query, nil)
+
+// 2. Process events one by one
+for {
+    event, err := iterator.Next()
+    if event == nil {
+        break // Done!
+    }
+    // Process event
+}
+```
+
+#### **What Happens Internally** (Automatic):
+1. **First call to `Next()`**: Fetches first batch of 1000 events
+2. **Subsequent calls**: Returns events from current batch
+3. **When batch exhausted**: Automatically fetches next batch
+4. **When no more events**: Returns `nil` to signal completion
+
+### Key Points
+
+✅ **One call to `ReadEvents`** is enough to get started  
+✅ **Iterator handles pagination** automatically  
+✅ **Caller processes events one by one**  
+✅ **Memory efficient** - only batch size events in memory  
+✅ **No manual pagination management** required  
+
+### Example: Processing All Events
+
+```go
+// This will process ALL events matching the query, regardless of how many
+// The iterator handles fetching them in batches of 1000 internally
+func ProcessAllEvents(ctx context.Context, store dcb.EventStore) error {
+    query := dcb.NewQuery(dcb.NewTags("tenant_id", "tenant-123"))
+    
+    // ONE call to get iterator
+    iterator, err := store.ReadEvents(ctx, query, nil)
+    if err != nil {
+        return err
+    }
+    defer iterator.Close()
+    
+    // Process ALL events (iterator handles pagination)
+    for {
+        event, err := iterator.Next()
+        if err != nil {
+            return err
+        }
+        if event == nil {
+            break // All events processed
+        }
+        
+        // Process this event
+        fmt.Printf("Processing event %d: %s\n", event.Position, event.Type)
+    }
+    
+    return nil
+}
+```
+
 ## ReadOptions Configuration
 
 You can configure how events are read using `ReadOptions`:
