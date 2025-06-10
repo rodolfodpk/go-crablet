@@ -205,73 +205,93 @@ var _ = Describe("GetCurrentPosition", func() {
 		}
 
 		query := NewQuery([]Tag{{Key: "test", Value: "value"}}, "TestEvent")
-		_, err := store.AppendEvents(ctx, events, query, 0)
+		position, err := store.GetCurrentPosition(ctx, query)
+		Expect(err).NotTo(HaveOccurred())
+
+		_, err = store.AppendEvents(ctx, events, query, position)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Get current position
-		position, err := store.GetCurrentPosition(ctx, query)
+		currentPosition, err := store.GetCurrentPosition(ctx, query)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(position).To(Equal(int64(2))) // Should return position of last TestEvent
+		Expect(currentPosition).To(Equal(int64(2))) // Only TestEvent events count
 	})
 
-	It("should filter by event types", func() {
-		// Append events with different types
-		events := []InputEvent{
-			NewInputEvent("TypeA", NewTags("category", "test"), []byte(`{"data": "a"}`)),
-			NewInputEvent("TypeB", NewTags("category", "test"), []byte(`{"data": "b"}`)),
-			NewInputEvent("TypeC", NewTags("category", "test"), []byte(`{"data": "c"}`)),
-		}
-
-		query := NewQuery([]Tag{{Key: "category", Value: "test"}}, "TypeA", "TypeB")
-		_, err := store.AppendEvents(ctx, events, query, 0)
+	It("should return 0 for empty query", func() {
+		emptyQuery := Query{Items: []QueryItem{}}
+		position, err := store.GetCurrentPosition(ctx, emptyQuery)
 		Expect(err).NotTo(HaveOccurred())
-
-		// Get current position for TypeA and TypeB only
-		position, err := store.GetCurrentPosition(ctx, query)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(position).To(Equal(int64(2))) // Should return position of last TypeB event
+		Expect(position).To(Equal(int64(0)))
 	})
 
-	It("should handle multiple tags", func() {
-		// Append events with multiple tags
+	It("should return latest position for empty query with events", func() {
+		// Append some events
 		events := []InputEvent{
-			NewInputEvent("MultiTag", []Tag{
-				{Key: "category", Value: "test"},
-				{Key: "priority", Value: "high"},
-			}, []byte(`{"data": "high"}`)),
-			NewInputEvent("MultiTag", []Tag{
-				{Key: "category", Value: "test"},
-				{Key: "priority", Value: "low"},
-			}, []byte(`{"data": "low"}`)),
+			NewInputEvent("TestEvent", NewTags("test", "value"), []byte(`{"data": "test1"}`)),
+			NewInputEvent("OtherEvent", NewTags("other", "value"), []byte(`{"data": "test2"}`)),
 		}
 
-		query := NewQuery([]Tag{
-			{Key: "category", Value: "test"},
-			{Key: "priority", Value: "high"},
-		}, "MultiTag")
-		_, err := store.AppendEvents(ctx, events, query, 0)
-		Expect(err).NotTo(HaveOccurred())
-
-		// Get current position for high priority events
+		query := NewQuery(NewTags("test", "value"))
 		position, err := store.GetCurrentPosition(ctx, query)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(position).To(Equal(int64(1))) // Should return position of high priority event
+
+		_, err = store.AppendEvents(ctx, events, query, position)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Get current position with empty query (should return max position of all events)
+		emptyQuery := Query{Items: []QueryItem{}}
+		currentPosition, err := store.GetCurrentPosition(ctx, emptyQuery)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(currentPosition).To(Equal(int64(2)))
 	})
 
-	It("should handle empty event types", func() {
-		// Append events
+	It("should handle query with event type filtering", func() {
+		// Append some events
 		events := []InputEvent{
-			NewInputEvent("AnyType", NewTags("test", "value"), []byte(`{"data": "test"}`)),
+			NewInputEvent("TestEvent", NewTags("test", "value"), []byte(`{"data": "test1"}`)),
+			NewInputEvent("OtherEvent", NewTags("test", "value"), []byte(`{"data": "test2"}`)),
+			NewInputEvent("TestEvent", NewTags("test", "value"), []byte(`{"data": "test3"}`)),
 		}
 
-		query := NewQuery([]Tag{{Key: "test", Value: "value"}}) // No event types specified
-		_, err := store.AppendEvents(ctx, events, query, 0)
-		Expect(err).NotTo(HaveOccurred())
-
-		// Get current position
+		query := NewQuery(NewTags("test", "value"))
 		position, err := store.GetCurrentPosition(ctx, query)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(position).To(Equal(int64(1)))
+
+		_, err = store.AppendEvents(ctx, events, query, position)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Get current position with event type filter
+		filteredQuery := NewQuery(NewTags("test", "value"), "TestEvent")
+		currentPosition, err := store.GetCurrentPosition(ctx, filteredQuery)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(currentPosition).To(Equal(int64(3))) // Only TestEvent events count
+	})
+
+	It("should handle query with multiple tags", func() {
+		// Append some events
+		events := []InputEvent{
+			NewInputEvent("TestEvent", []Tag{
+				{Key: "test", Value: "value"},
+				{Key: "category", Value: "important"},
+			}, []byte(`{"data": "test1"}`)),
+			NewInputEvent("TestEvent", NewTags("test", "value"), []byte(`{"data": "test2"}`)),
+		}
+
+		query := NewQuery(NewTags("test", "value"))
+		position, err := store.GetCurrentPosition(ctx, query)
+		Expect(err).NotTo(HaveOccurred())
+
+		_, err = store.AppendEvents(ctx, events, query, position)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Get current position with multiple tags
+		multiTagQuery := NewQuery([]Tag{
+			{Key: "test", Value: "value"},
+			{Key: "category", Value: "important"},
+		})
+		currentPosition, err := store.GetCurrentPosition(ctx, multiTagQuery)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(currentPosition).To(Equal(int64(1))) // Only the first event matches both tags
 	})
 })
 

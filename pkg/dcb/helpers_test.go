@@ -156,3 +156,131 @@ func dumpEvents(pool *pgxpool.Pool) {
 	fmt.Println("------------------------------------")
 
 }
+
+var _ = Describe("Helper Functions", func() {
+	Describe("NewQueryFromItems", func() {
+		It("should create query from multiple items", func() {
+			item1 := QueryItem{
+				Types: []string{"Event1", "Event2"},
+				Tags:  []Tag{{Key: "key1", Value: "value1"}},
+			}
+			item2 := QueryItem{
+				Types: []string{"Event3"},
+				Tags:  []Tag{{Key: "key2", Value: "value2"}},
+			}
+
+			query := NewQueryFromItems(item1, item2)
+
+			Expect(query.Items).To(HaveLen(2))
+			Expect(query.Items[0]).To(Equal(item1))
+			Expect(query.Items[1]).To(Equal(item2))
+		})
+
+		It("should create empty query when no items provided", func() {
+			query := NewQueryFromItems()
+
+			Expect(query.Items).To(BeEmpty())
+		})
+	})
+
+	Describe("NewQueryAll", func() {
+		It("should create query that matches all events", func() {
+			query := NewQueryAll()
+
+			Expect(query.Items).To(HaveLen(1))
+			Expect(query.Items[0].Types).To(BeEmpty())
+			Expect(query.Items[0].Tags).To(BeEmpty())
+		})
+	})
+
+	Describe("NewQueryItem", func() {
+		It("should create query item with types and tags", func() {
+			types := []string{"Event1", "Event2"}
+			tags := []Tag{{Key: "key1", Value: "value1"}}
+
+			item := NewQueryItem(types, tags)
+
+			Expect(item.Types).To(Equal(types))
+			Expect(item.Tags).To(Equal(tags))
+		})
+
+		It("should create query item with empty slices", func() {
+			item := NewQueryItem([]string{}, []Tag{})
+
+			Expect(item.Types).To(BeEmpty())
+			Expect(item.Tags).To(BeEmpty())
+		})
+	})
+
+	Describe("ToLegacyQuery", func() {
+		It("should convert query to legacy query", func() {
+			query := Query{
+				Items: []QueryItem{
+					{
+						Types: []string{"Event1", "Event2"},
+						Tags:  []Tag{{Key: "key1", Value: "value1"}},
+					},
+				},
+			}
+
+			legacy := query.ToLegacyQuery()
+
+			Expect(legacy.EventTypes).To(Equal([]string{"Event1", "Event2"}))
+			Expect(legacy.Tags).To(Equal([]Tag{{Key: "key1", Value: "value1"}}))
+		})
+
+		It("should return empty legacy query when query has no items", func() {
+			query := Query{Items: []QueryItem{}}
+
+			legacy := query.ToLegacyQuery()
+
+			Expect(legacy.EventTypes).To(BeNil())
+			Expect(legacy.Tags).To(BeNil())
+		})
+
+		It("should use first item when query has multiple items", func() {
+			query := Query{
+				Items: []QueryItem{
+					{
+						Types: []string{"Event1"},
+						Tags:  []Tag{{Key: "key1", Value: "value1"}},
+					},
+					{
+						Types: []string{"Event2"},
+						Tags:  []Tag{{Key: "key2", Value: "value2"}},
+					},
+				},
+			}
+
+			legacy := query.ToLegacyQuery()
+
+			Expect(legacy.EventTypes).To(Equal([]string{"Event1"}))
+			Expect(legacy.Tags).To(Equal([]Tag{{Key: "key1", Value: "value1"}}))
+		})
+	})
+
+	Describe("FromLegacyQuery", func() {
+		It("should convert legacy query to query", func() {
+			legacy := LegacyQuery{
+				EventTypes: []string{"Event1", "Event2"},
+				Tags:       []Tag{{Key: "key1", Value: "value1"}},
+			}
+
+			query := FromLegacyQuery(legacy)
+
+			Expect(query.Items).To(HaveLen(1))
+			Expect(query.Items[0].Types).To(Equal([]string{"Event1", "Event2"}))
+			Expect(query.Items[0].Tags).To(Equal([]Tag{{Key: "key1", Value: "value1"}}))
+		})
+
+		It("should handle empty legacy query", func() {
+			legacy := LegacyQuery{}
+
+			query := FromLegacyQuery(legacy)
+
+			Expect(query.Items).To(HaveLen(1))
+			Expect(query.Items[0].Types).To(BeNil())
+			Expect(query.Items[0].Tags).To(BeNil())
+		})
+	})
+})
