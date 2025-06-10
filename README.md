@@ -71,10 +71,10 @@ func main() {
         log.Fatal(err)
     }
     
-    // Create a query for account events
-    query := dcb.NewLegacyQuery(
-        dcb.NewTags("account_id", "acc-123"),
-        []string{"AccountCreated", "AccountUpdated"},
+    // Read events with complex query
+    query := dcb.NewQueryFromItems(
+        dcb.NewQueryItem([]string{"AccountRegistered"}, []dcb.Tag{{Key: "user_id", Value: "123"}}),
+        dcb.NewQueryItem([]string{"AccountDetailsChanged"}, []dcb.Tag{{Key: "account_id", Value: "456"}}),
     )
     
     // Read events using streaming interface

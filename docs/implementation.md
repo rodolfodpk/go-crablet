@@ -143,9 +143,9 @@ go-crablet implements memory-efficient event reading through streaming:
 
 ```go
 // Create a query for account events
-query := dcb.NewLegacyQuery(
-    dcb.NewTags("account_id", "acc123"),
-    []string{"AccountCreated", "AccountUpdated"},
+query := dcb.NewQuery(
+	dcb.NewTags("account_id", "acc-123"),
+	"AccountRegistered", "AccountDetailsChanged",
 )
 
 // Read events using streaming interface
@@ -181,7 +181,7 @@ The new Query structure supports complex queries with multiple items:
 // 3. Any events tagged with "user_id" = "user-456"
 query := dcb.NewQueryFromItems(
     dcb.NewQueryItem(
-        []string{"AccountCreated", "AccountUpdated"},
+        []string{"AccountRegistered", "AccountDetailsChanged"},
         dcb.NewTags("account_id", "acc-123"),
     ),
     dcb.NewQueryItem(
