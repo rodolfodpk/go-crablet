@@ -3,6 +3,32 @@ package dcb
 import "context"
 
 type (
+	// EventIterator provides a streaming interface for reading events
+	EventIterator interface {
+		// Next returns the next event in the stream
+		// Returns nil when no more events are available
+		Next() (*Event, error)
+
+		// Close closes the iterator and releases resources
+		Close() error
+
+		// Position returns the position of the last event read
+		Position() int64
+	}
+
+	// ReadOptions provides configuration for reading events
+	ReadOptions struct {
+		FromPosition int64  // Start reading from this position (inclusive)
+		Limit        int    // Maximum number of events to return (0 = no limit)
+		OrderBy      string // Ordering: "asc" (default) or "desc"
+	}
+
+	// SequencedEvents represents a collection of events with their sequence positions
+	// This is kept for backward compatibility but should be used sparingly
+	SequencedEvents struct {
+		Events   []Event
+		Position int64 // Position of the last event in the stream
+	}
 
 	// Tag is a key-value pair for querying events.
 	Tag struct {
@@ -10,8 +36,21 @@ type (
 		Value string
 	}
 
+	// QueryItem represents a single query constraint
+	QueryItem struct {
+		Types []string // Event types to match (empty means match any type)
+		Tags  []Tag    // Tags that must all be present (empty means match any tags)
+	}
+
 	// Query defines criteria for selecting events.
+	// DCB spec allows multiple QueryItems combined with OR logic.
 	Query struct {
+		Items []QueryItem // Query items combined with OR logic
+	}
+
+	// LegacyQuery provides backward compatibility with the old Query structure
+	// This allows existing code to continue working while we transition to the new structure
+	LegacyQuery struct {
 		Tags       []Tag    // Events must match all these tags (empty means match any tag)
 		EventTypes []string // Events must match one of these types (empty means match any type)
 	}
@@ -51,6 +90,11 @@ type (
 
 	// EventStore provides methods to append and read events in a PostgreSQL database.
 	EventStore interface {
+		// ReadEvents reads events matching the query with optional configuration.
+		// This is the core DCB method for reading events.
+		// Returns an EventIterator for streaming events efficiently.
+		ReadEvents(ctx context.Context, query Query, options *ReadOptions) (EventIterator, error)
+
 		// AppendEvents appends events to the store, ensuring consistency with the given query and position.
 		AppendEvents(ctx context.Context, events []InputEvent, query Query, latestPosition int64) (int64, error)
 
@@ -60,6 +104,7 @@ type (
 		AppendEventsIf(ctx context.Context, events []InputEvent, condition AppendCondition) (int64, error)
 
 		// GetCurrentPosition returns the current position for the given query.
+		// This is a convenience method, not required by DCB spec.
 		GetCurrentPosition(ctx context.Context, query Query) (int64, error)
 
 		// ProjectState computes a state by streaming events matching the projector's query.

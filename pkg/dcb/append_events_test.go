@@ -14,12 +14,12 @@ var _ = Describe("Event Store: Appending Events", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("appends events successfully", func() {
+	It("appends a single event", func() {
 		tags := NewTags("course_id", "course1")
-		query := NewQuery(tags, "Subscription")
-		events := NewEventBatch(
-			NewInputEvent("Subscription", tags, []byte(`{"foo":"bar"}`)),
-		)
+		query := NewLegacyQuery(tags, []string{"Subscription"})
+		event := NewInputEvent("Subscription", tags, []byte(`{"foo":"bar"}`))
+		events := []InputEvent{event}
+
 		pos, err := store.AppendEvents(ctx, events, query, 0)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(pos).To(Equal(int64(1)))
@@ -41,7 +41,7 @@ var _ = Describe("Event Store: Appending Events", func() {
 
 	It("appends events with multiple tags", func() {
 		tags := NewTags("course_id", "course1", "user_id", "user123", "action", "enroll")
-		query := NewQuery(NewTags("course_id", "course1"), "Enrollment")
+		query := NewLegacyQuery(NewTags("course_id", "course1"), []string{"Enrollment"})
 		events := NewEventBatch(
 			NewInputEvent("Enrollment", tags, []byte(`{"action":"enrolled"}`)),
 		)
@@ -51,9 +51,11 @@ var _ = Describe("Event Store: Appending Events", func() {
 		Expect(pos).To(Equal(int64(1)))
 		// Query by different tag combinations
 		projector := StateProjector{
-			Query:        NewQuery(NewTags("user_id", "user123"), "Enrollment"),
+			Query:        NewLegacyQuery(NewTags("user_id", "user123"), []string{"Enrollment"}),
 			InitialState: 0,
-			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
+			TransitionFn: func(state any, e Event) any {
+				return state.(int) + 1
+			},
 		}
 
 		_, state, err := store.ProjectState(ctx, projector)
@@ -65,7 +67,7 @@ var _ = Describe("Event Store: Appending Events", func() {
 
 	It("appends multiple events in a batch", func() {
 		tags := NewTags("course_id", "course2")
-		query := NewQuery(tags, "CourseLaunched", "LessonAdded")
+		query := NewLegacyQuery(tags, []string{"CourseLaunched", "LessonAdded"})
 		events := NewEventBatch(
 			NewInputEvent("CourseLaunched", tags, []byte(`{"title":"Go Programming"}`)),
 			NewInputEvent("LessonAdded", tags, []byte(`{"lesson_id":"L1"}`)),
@@ -79,7 +81,9 @@ var _ = Describe("Event Store: Appending Events", func() {
 		projector := StateProjector{
 			Query:        query,
 			InitialState: 0,
-			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
+			TransitionFn: func(state any, e Event) any {
+				return state.(int) + 1
+			},
 		}
 		_, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
@@ -90,7 +94,7 @@ var _ = Describe("Event Store: Appending Events", func() {
 
 	It("fails with concurrency error when position is outdated", func() {
 		tags := NewTags("course_id", "course3")
-		query := NewQuery(tags, "Initial", "Second")
+		query := NewLegacyQuery(tags, []string{"Initial", "Second"})
 
 		// First append - will succeed
 		_, err := store.AppendEvents(ctx, NewEventBatch(
@@ -104,14 +108,14 @@ var _ = Describe("Event Store: Appending Events", func() {
 		), query, 0) // Using 0 again when it should be 1
 
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("Consistency"))
+		Expect(err.Error()).To(ContainSubstring("conflicting events found"))
 
 		dumpEvents(pool)
 	})
 
 	It("properly sets causation and correlation IDs", func() {
 		tags := NewTags("entity_id", "E1")
-		query := NewQuery(tags, "EntityRegistered", "EntityAttributeChanged")
+		query := NewLegacyQuery(tags, []string{"EntityRegistered", "EntityAttributeChanged"})
 		events := NewEventBatch(
 			NewInputEvent("EntityRegistered", tags, []byte(`{"initial":true}`)),
 			NewInputEvent("EntityAttributeChanged", tags, []byte(`{"step":1}`)),
@@ -168,7 +172,7 @@ var _ = Describe("Event Store: Appending Events", func() {
 	Describe("Error scenarios", func() {
 		It("returns error when appending events with empty tags", func() {
 			tags := NewTags() // Empty tags
-			query := NewQuery(NewTags("course_id", "C1"))
+			query := NewLegacyQuery(NewTags("course_id", "C1"), []string{})
 			events := NewEventBatch(
 				NewInputEvent("Subscription", tags, []byte(`{"foo":"bar"}`)),
 			)
@@ -178,7 +182,7 @@ var _ = Describe("Event Store: Appending Events", func() {
 
 		It("returns error when appending invalid JSON data", func() {
 			tags := NewTags("course_id", "C1")
-			query := NewQuery(tags)
+			query := NewLegacyQuery(tags, []string{})
 			events := NewEventBatch(
 				NewInputEvent("Subscription", tags, []byte(`not-json`)),
 			)
@@ -189,7 +193,7 @@ var _ = Describe("Event Store: Appending Events", func() {
 
 	It("verifies events are retrieved in correct order", func() {
 		tags := NewTags("order_id", "order1")
-		query := NewQuery(tags, "OrderCreated", "ItemAdded")
+		query := NewLegacyQuery(tags, []string{"OrderCreated", "ItemAdded"})
 		events := NewEventBatch(
 			NewInputEvent("OrderCreated", tags, []byte(`{"id":"order1"}`)),
 			NewInputEvent("ItemAdded", tags, []byte(`{"item":"product1"}`)),
@@ -221,8 +225,6 @@ var _ = Describe("Event Store: Appending Events", func() {
 		err = json.Unmarshal(result.Event.Data, &data)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(data["item"]).To(Equal("product2"))
-
-		dumpEvents(pool)
 	})
 
 	It("appends events with expected position correctly", func() {
@@ -331,7 +333,9 @@ var _ = Describe("Event Store: Appending Events", func() {
 		projector := StateProjector{
 			Query:        NewQuery(NewTags(), "TypeA"),
 			InitialState: 0,
-			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
+			TransitionFn: func(state any, e Event) any {
+				return state.(int) + 1
+			},
 		}
 		_, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
@@ -352,7 +356,9 @@ var _ = Describe("Event Store: Appending Events", func() {
 		projector := StateProjector{
 			Query:        NewQuery(NewTags("tag", "A"), "E1"),
 			InitialState: 0,
-			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
+			TransitionFn: func(state any, e Event) any {
+				return state.(int) + 1
+			},
 		}
 		_, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
@@ -372,7 +378,9 @@ var _ = Describe("Event Store: Appending Events", func() {
 		projector := StateProjector{
 			Query:        NewQuery(NewTags("combo", "yes"), "A"),
 			InitialState: 0,
-			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
+			TransitionFn: func(state any, e Event) any {
+				return state.(int) + 1
+			},
 		}
 		_, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
@@ -386,7 +394,9 @@ var _ = Describe("Event Store: Appending Events", func() {
 		projector := StateProjector{
 			Query:        query,
 			InitialState: 42,
-			TransitionFn: func(state any, e Event) any { return 0 },
+			TransitionFn: func(state any, e Event) any {
+				return 0
+			},
 		}
 		_, state, err := store.ProjectState(ctx, projector)
 		Expect(err).NotTo(HaveOccurred())
@@ -404,7 +414,9 @@ var _ = Describe("Event Store: Appending Events", func() {
 		projector := StateProjector{
 			Query:        query,
 			InitialState: 99,
-			TransitionFn: func(state any, e Event) any { return 0 },
+			TransitionFn: func(state any, e Event) any {
+				return 0
+			},
 		}
 		pos, state, err := store.ProjectStateUpTo(ctx, projector, 0)
 		Expect(err).NotTo(HaveOccurred())
@@ -425,7 +437,9 @@ var _ = Describe("Event Store: Appending Events", func() {
 		projector := StateProjector{
 			Query:        query,
 			InitialState: 0,
-			TransitionFn: func(state any, e Event) any { return state.(int) + 1 },
+			TransitionFn: func(state any, e Event) any {
+				return state.(int) + 1
+			},
 		}
 		pos, state, err := store.ProjectStateUpTo(ctx, projector, 2)
 		Expect(err).NotTo(HaveOccurred())

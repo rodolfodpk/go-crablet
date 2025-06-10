@@ -104,7 +104,7 @@ func (api *ProductAPI) OrderProduct(ctx context.Context, cmd OrderProductCommand
 
 	// Project current product price state
 	projector := StateProjector{
-		Query: NewQuery(NewTags("product", cmd.ProductID), "ProductDefined", "ProductPriceChanged"),
+		Query: NewLegacyQuery(NewTags("product", cmd.ProductID), []string{"ProductDefined", "ProductPriceChanged"}),
 		InitialState: ProductPriceState{
 			LastValidOldPrice: 0,
 			ValidNewPrices:    make([]float64, 0),
@@ -170,10 +170,10 @@ func (api *ProductAPI) OrderProduct(ctx context.Context, cmd OrderProductCommand
 	event := NewProductOrderedEvent(cmd.ProductID, cmd.DisplayedPrice)
 
 	// Create a query that filters by product tag and event type
-	appendQuery := Query{
-		Tags:       NewTags("product", cmd.ProductID),
-		EventTypes: []string{"ProductOrdered"},
-	}
+	appendQuery := NewLegacyQuery(
+		NewTags("product", cmd.ProductID),
+		[]string{"ProductOrdered"},
+	)
 
 	// Get the current position for this product's events
 	pos, _, err := api.store.ProjectState(ctx, StateProjector{
@@ -228,10 +228,8 @@ var _ = Describe("Product Events", func() {
 		BeforeEach(func() {
 			// Given
 			event := NewProductDefinedEvent(productID, 100.0, 0)
-			_, err := store.AppendEvents(ctx, []InputEvent{event}, Query{
-				Tags:       NewTags("product", productID),
-				EventTypes: []string{"ProductDefined"},
-			}, 0)
+			query := NewLegacyQuery(NewTags("product", productID), []string{"ProductDefined"})
+			_, err := store.AppendEvents(ctx, []InputEvent{event}, query, 0)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -248,10 +246,10 @@ var _ = Describe("Product Events", func() {
 
 				// Verify the event was created
 				_, eventsResult, err := store.ProjectState(ctx, StateProjector{
-					Query: Query{
-						Tags:       NewTags("product", productID),
-						EventTypes: []string{"ProductOrdered"},
-					},
+					Query: NewLegacyQuery(
+						NewTags("product", productID),
+						[]string{"ProductOrdered"},
+					),
 					InitialState: []Event{},
 					TransitionFn: func(state any, event Event) any {
 						events := state.([]Event)
@@ -285,10 +283,10 @@ var _ = Describe("Product Events", func() {
 
 				// Verify no order event was created
 				_, eventsResult, err := store.ProjectState(ctx, StateProjector{
-					Query: Query{
-						Tags:       NewTags("product", productID),
-						EventTypes: []string{"ProductOrdered"},
-					},
+					Query: NewLegacyQuery(
+						NewTags("product", productID),
+						[]string{"ProductOrdered"},
+					),
 					InitialState: []Event{},
 					TransitionFn: func(state any, event Event) any {
 						events := state.([]Event)
@@ -307,10 +305,8 @@ var _ = Describe("Product Events", func() {
 			// Given
 			defineEvent := NewProductDefinedEvent(productID, 100.0, 20)     // 20 minutes ago
 			changeEvent := NewProductPriceChangedEvent(productID, 200.0, 5) // 5 minutes ago
-			_, err := store.AppendEvents(ctx, []InputEvent{defineEvent, changeEvent}, Query{
-				Tags:       NewTags("product", productID),
-				EventTypes: []string{"ProductDefined", "ProductPriceChanged"},
-			}, 0)
+			query := NewLegacyQuery(NewTags("product", productID), []string{"ProductDefined", "ProductPriceChanged"})
+			_, err := store.AppendEvents(ctx, []InputEvent{defineEvent, changeEvent}, query, 0)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -327,10 +323,10 @@ var _ = Describe("Product Events", func() {
 
 				// Verify the event was created
 				_, eventsResult, err := store.ProjectState(ctx, StateProjector{
-					Query: Query{
-						Tags:       NewTags("product", productID),
-						EventTypes: []string{"ProductOrdered"},
-					},
+					Query: NewLegacyQuery(
+						NewTags("product", productID),
+						[]string{"ProductOrdered"},
+					),
 					InitialState: []Event{},
 					TransitionFn: func(state any, event Event) any {
 						events := state.([]Event)
@@ -364,10 +360,10 @@ var _ = Describe("Product Events", func() {
 
 				// Verify no order event was created
 				_, eventsResult, err := store.ProjectState(ctx, StateProjector{
-					Query: Query{
-						Tags:       NewTags("product", productID),
-						EventTypes: []string{"ProductOrdered"},
-					},
+					Query: NewLegacyQuery(
+						NewTags("product", productID),
+						[]string{"ProductOrdered"},
+					),
 					InitialState: []Event{},
 					TransitionFn: func(state any, event Event) any {
 						events := state.([]Event)
@@ -387,10 +383,8 @@ var _ = Describe("Product Events", func() {
 			defineEvent := NewProductDefinedEvent(productID, 100.0, 20)       // 20 minutes ago
 			changeEvent1 := NewProductPriceChangedEvent(productID, 200.0, 15) // 15 minutes ago
 			changeEvent2 := NewProductPriceChangedEvent(productID, 300.0, 5)  // 5 minutes ago
-			_, err := store.AppendEvents(ctx, []InputEvent{defineEvent, changeEvent1, changeEvent2}, Query{
-				Tags:       NewTags("product", productID),
-				EventTypes: []string{"ProductDefined", "ProductPriceChanged"},
-			}, 0)
+			query := NewLegacyQuery(NewTags("product", productID), []string{"ProductDefined", "ProductPriceChanged"})
+			_, err := store.AppendEvents(ctx, []InputEvent{defineEvent, changeEvent1, changeEvent2}, query, 0)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -420,10 +414,10 @@ var _ = Describe("Product Events", func() {
 
 				// Verify two order events were created
 				_, eventsResult, err := store.ProjectState(ctx, StateProjector{
-					Query: Query{
-						Tags:       NewTags("product", productID),
-						EventTypes: []string{"ProductOrdered"},
-					},
+					Query: NewLegacyQuery(
+						NewTags("product", productID),
+						[]string{"ProductOrdered"},
+					),
 					InitialState: []Event{},
 					TransitionFn: func(state any, event Event) any {
 						events := state.([]Event)

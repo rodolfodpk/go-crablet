@@ -12,7 +12,7 @@ Example of proper stream position handling:
 
 ```go
 // Get current stream position
-query := dcb.NewQuery(dcb.NewTags("account_id", "acc123"))
+query := dcb.NewLegacyQuery(dcb.NewTags("account_id", "acc123"), nil)
 position, err := store.GetCurrentPosition(ctx, query)
 if err != nil {
     return err
@@ -39,17 +39,53 @@ The core interface for event management:
 // within the same boundary are processed atomically and maintaining consistency
 // through optimistic locking.
 type EventStore interface {
+    // ReadEvents reads events matching the query with optional configuration.
+    // Returns an EventIterator for streaming events efficiently.
+    ReadEvents(ctx context.Context, query Query, options *ReadOptions) (EventIterator, error)
+    
     // AppendEvents adds multiple events to the stream and returns the latest position.
     // It ensures that no conflicting events have been appended since latestKnownPosition
     // for the given query, maintaining consistency boundaries.
     // Returns the new latest position or an error if the append fails.
     AppendEvents(ctx context.Context, events []InputEvent, query Query, latestKnownPosition int64) (int64, error)
     
+    // AppendEventsIf appends events only if no events match the append condition.
+    // It uses the condition to enforce consistency by failing if any events match the query
+    // after the specified position (if any).
+    AppendEventsIf(ctx context.Context, events []InputEvent, condition AppendCondition) (int64, error)
+    
+    // GetCurrentPosition returns the current position for the given query.
+    // This is a convenience method, not required by DCB spec.
+    GetCurrentPosition(ctx context.Context, query Query) (int64, error)
+    
     // ProjectState projects the current state using the provided projector.
     // It streams events from PostgreSQL that match the projector's query,
     // applying the transition function to build the current state.
     // Returns the latest position processed, the final state, and any error.
     ProjectState(ctx context.Context, projector StateProjector) (int64, any, error)
+    
+    // ProjectStateUpTo computes a state by streaming events matching the projector's query, up to maxPosition.
+    ProjectStateUpTo(ctx context.Context, projector StateProjector, maxPosition int64) (int64, any, error)
+}
+
+// EventIterator provides a streaming interface for reading events
+type EventIterator interface {
+    // Next returns the next event in the stream
+    // Returns nil when no more events are available
+    Next() (*Event, error)
+    
+    // Close closes the iterator and releases resources
+    Close() error
+    
+    // Position returns the position of the last event read
+    Position() int64
+}
+
+// ReadOptions provides configuration for reading events
+type ReadOptions struct {
+    FromPosition int64  // Start reading from this position (inclusive)
+    Limit        int    // Maximum number of events to return (0 = no limit)
+    OrderBy      string // Ordering: "asc" (default) or "desc"
 }
 
 // Event represents a persisted event in the system
@@ -82,13 +118,16 @@ type StateProjector struct {
     TransitionFn func(state any, event Event) any
 }
 
-// Query defines criteria for selecting events
+// QueryItem represents a single query constraint
+type QueryItem struct {
+    Types []string // Event types to match (empty means match any type)
+    Tags  []Tag    // Tags that must all be present (empty means match any tags)
+}
+
+// Query defines criteria for selecting events.
+// DCB spec allows multiple QueryItems combined with OR logic.
 type Query struct {
-    // Tags must match all specified tags (empty means match any tag)
-    Tags []Tag
-    
-    // EventTypes must match one of these types (empty means match any type)
-    EventTypes []string
+    Items []QueryItem // Query items combined with OR logic
 }
 
 // Tag is a key-value pair for querying events
@@ -98,7 +137,63 @@ type Tag struct {
 }
 ```
 
-For a practical example of using go-crablet to implement a course subscription system, see [Course Subscription Example](course-subscription.md).
+## Streaming Event Reading
+
+go-crablet implements memory-efficient event reading through streaming:
+
+```go
+// Create a query for account events
+query := dcb.NewLegacyQuery(
+    dcb.NewTags("account_id", "acc123"),
+    []string{"AccountCreated", "AccountUpdated"},
+)
+
+// Read events using streaming interface
+iterator, err := store.ReadEvents(ctx, query, nil)
+if err != nil {
+    return err
+}
+defer iterator.Close()
+
+// Process events one by one
+for {
+    event, err := iterator.Next()
+    if err != nil {
+        return err
+    }
+    if event == nil {
+        break // No more events
+    }
+    
+    // Process the event without loading all events into memory
+    fmt.Printf("Event: %s at position %d\n", event.Type, event.Position)
+}
+```
+
+## Complex Query Support
+
+The new Query structure supports complex queries with multiple items:
+
+```go
+// Query for events that are either:
+// 1. Account events for account "acc-123"
+// 2. Transaction events for account "acc-123"
+// 3. Any events tagged with "user_id" = "user-456"
+query := dcb.NewQueryFromItems(
+    dcb.NewQueryItem(
+        []string{"AccountCreated", "AccountUpdated"},
+        dcb.NewTags("account_id", "acc-123"),
+    ),
+    dcb.NewQueryItem(
+        []string{"TransactionCompleted"},
+        dcb.NewTags("account_id", "acc-123"),
+    ),
+    dcb.NewQueryItem(
+        []string{}, // Any event type
+        dcb.NewTags("user_id", "user-456"),
+    ),
+)
+```
 
 ## State Projection
 
@@ -113,7 +208,7 @@ Example of state projection:
 ```go
 // Create a projector for account balances
 projector := dcb.StateProjector{
-    Query: dcb.NewQuery(dcb.NewTags("account_id", "acc123")),
+    Query: dcb.NewLegacyQuery(dcb.NewTags("account_id", "acc123"), nil),
     InitialState: &AccountState{},
     TransitionFn: func(state any, event dcb.Event) any {
         // Handle events and update state
@@ -137,7 +232,7 @@ Example of appending events:
 
 ```go
 // Get current stream position
-query := dcb.NewQuery(dcb.NewTags("account_id", "acc123"))
+query := dcb.NewLegacyQuery(dcb.NewTags("account_id", "acc123"), nil)
 position, err := store.GetCurrentPosition(ctx, query)
 if err != nil {
     return err

@@ -13,7 +13,7 @@ var _ = Describe("Event Store: Idempotent Event Appending", func() {
 
 	It("appends events with idempotency check", func() {
 		tags := NewTags("course_id", "course1")
-		query := NewQuery(tags, "Subscription")
+		query := NewLegacyQuery(tags, []string{"Subscription"})
 		event := NewInputEvent("Subscription", tags, []byte(`{"foo":"bar"}`))
 		events := []InputEvent{event}
 
@@ -26,7 +26,7 @@ var _ = Describe("Event Store: Idempotent Event Appending", func() {
 		// This should fail with a concurrency error since we're using the wrong position
 		_, err = store.AppendEvents(ctx, events, query, 0)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("Consistency"))
+		Expect(err.Error()).To(ContainSubstring("conflicting events found"))
 
 		// Verify only one event exists
 		projector := StateProjector{
@@ -46,7 +46,7 @@ var _ = Describe("Event Store: Idempotent Event Appending", func() {
 
 	It("handles multiple events in a batch with idempotency", func() {
 		tags := NewTags("course_id", "course2")
-		query := NewQuery(tags, "CourseLaunched", "LessonAdded")
+		query := NewLegacyQuery(tags, []string{"CourseLaunched", "LessonAdded"})
 		events := []InputEvent{
 			NewInputEvent("CourseLaunched", tags, []byte(`{"title":"Go Programming"}`)),
 			NewInputEvent("LessonAdded", tags, []byte(`{"lesson_id":"L1"}`)),
@@ -62,7 +62,7 @@ var _ = Describe("Event Store: Idempotent Event Appending", func() {
 		// This should fail with a concurrency error
 		_, err = store.AppendEvents(ctx, events, query, 0)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("Consistency"))
+		Expect(err.Error()).To(ContainSubstring("conflicting events found"))
 
 		// Verify only the original events exist
 		projector := StateProjector{
@@ -82,7 +82,7 @@ var _ = Describe("Event Store: Idempotent Event Appending", func() {
 
 	It("handles partial event appending with idempotency", func() {
 		tags := NewTags("course_id", "course3")
-		query := NewQuery(tags, "CourseLaunched", "LessonAdded")
+		query := NewLegacyQuery(tags, []string{"CourseLaunched", "LessonAdded"})
 		initialEvents := NewEventBatch(
 			NewInputEvent("CourseLaunched", tags, []byte(`{"title":"Go Programming"}`)),
 			NewInputEvent("LessonAdded", tags, []byte(`{"lesson_id":"L1"}`)),
@@ -101,7 +101,7 @@ var _ = Describe("Event Store: Idempotent Event Appending", func() {
 		// This should fail with a concurrency error since we're using the wrong position
 		_, err = store.AppendEvents(ctx, newEvents, query, 0)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("Consistency"))
+		Expect(err.Error()).To(ContainSubstring("conflicting events found"))
 
 		// Append only the new event with the correct position
 		_, err = store.AppendEvents(ctx, []InputEvent{newEvents[1]}, query, pos)
@@ -125,7 +125,7 @@ var _ = Describe("Event Store: Idempotent Event Appending", func() {
 
 	It("handles empty event list", func() {
 		tags := NewTags("course_id", "course4")
-		query := NewQuery(tags)
+		query := NewLegacyQuery(tags, []string{})
 		events := []InputEvent{}
 
 		pos, err := store.AppendEvents(ctx, events, query, 0)

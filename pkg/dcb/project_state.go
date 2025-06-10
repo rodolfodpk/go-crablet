@@ -63,15 +63,25 @@ func (es *eventStore) ProjectStateUpTo(ctx context.Context, projector StateProje
 	effectiveQuery := projector.Query
 
 	// Build JSONB query condition with proper error handling
-	tagMap := make(map[string]string)
-	for _, t := range effectiveQuery.Tags {
-		tagMap[t.Key] = t.Value
-	}
-	queryTags, err := json.Marshal(tagMap)
-	if err != nil {
-		return 0, projector.InitialState, &EventStoreError{
-			Op:  "ProjectStateUpTo",
-			Err: fmt.Errorf("failed to marshal query tags %v: %w", tagMap, err),
+	var queryTags []byte
+	var err error
+
+	if len(effectiveQuery.Items) == 0 {
+		// Empty query matches all events
+		queryTags = []byte("{}")
+	} else {
+		// Use the first query item for projection
+		item := effectiveQuery.Items[0]
+		tagMap := make(map[string]string)
+		for _, t := range item.Tags {
+			tagMap[t.Key] = t.Value
+		}
+		queryTags, err = json.Marshal(tagMap)
+		if err != nil {
+			return 0, projector.InitialState, &EventStoreError{
+				Op:  "ProjectStateUpTo",
+				Err: fmt.Errorf("failed to marshal query tags %v: %w", tagMap, err),
+			}
 		}
 	}
 
@@ -80,9 +90,9 @@ func (es *eventStore) ProjectStateUpTo(ctx context.Context, projector StateProje
 	args := []interface{}{queryTags}
 
 	// Add event type filtering if specified
-	if len(effectiveQuery.EventTypes) > 0 {
+	if len(effectiveQuery.Items) > 0 && len(effectiveQuery.Items[0].Types) > 0 {
 		sqlQuery += fmt.Sprintf(" AND type = ANY($%d)", len(args)+1)
-		args = append(args, effectiveQuery.EventTypes)
+		args = append(args, effectiveQuery.Items[0].Types)
 	}
 
 	// Add position filtering if maxPosition is specified
@@ -100,7 +110,7 @@ func (es *eventStore) ProjectStateUpTo(ctx context.Context, projector StateProje
 		return 0, projector.InitialState, &ResourceError{
 			EventStoreError: EventStoreError{
 				Op:  "ProjectStateUpTo",
-				Err: fmt.Errorf("failed to execute query for tags %v: %w", tagMap, err),
+				Err: fmt.Errorf("failed to execute query for tags %v: %w", queryTags, err),
 			},
 			Resource: "database",
 		}
