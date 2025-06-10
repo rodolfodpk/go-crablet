@@ -47,6 +47,7 @@ Both `ReadEvents` and `ProjectState` are designed for **memory-efficient streami
 ### **ReadEvents - Application-Level Streaming**
 ```go
 // Stream events in configurable batches (default: 1000)
+// One call to ReadEvents returns an iterator that handles pagination automatically
 iterator, err := store.ReadEvents(ctx, query, nil)
 defer iterator.Close()
 
@@ -68,6 +69,7 @@ for {
 - **Keyset Pagination**: Efficient `position > lastPosition` queries
 - **Scalable**: Handles millions of events without memory issues
 - **Configurable**: Adjust batch size via `ReadOptions.BatchSize`
+- **Simple API**: One call to `ReadEvents` is enough - iterator handles pagination
 
 ### **ProjectState - Database-Level Streaming**
 ```go

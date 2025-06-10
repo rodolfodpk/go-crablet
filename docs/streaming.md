@@ -22,14 +22,14 @@ query := dcb.NewQuery(
     "AccountRegistered", "AccountDetailsChanged",
 )
 
-// Get streaming iterator
+// Get iterator (one call is enough)
 iterator, err := store.ReadEvents(ctx, query, nil)
 if err != nil {
     return err
 }
 defer iterator.Close()
 
-// Process events one by one
+// Process events one by one (iterator handles pagination)
 for {
     event, err := iterator.Next()
     if err != nil {
@@ -44,15 +44,40 @@ for {
 }
 ```
 
-### Memory Efficiency Features
+### Pagination: What the Caller Sees vs. What Happens Internally
 
-1. **Batch Processing**: Fetches events in configurable batches (default: 1000)
-2. **Keyset Pagination**: Uses `position > lastPosition` for efficient queries
-3. **Lazy Loading**: Only fetches next batch when current batch is exhausted
-4. **Constant Memory**: Memory usage remains constant regardless of total events
-5. **Configurable Batch Size**: Can be adjusted via `ReadOptions.BatchSize`
+#### **Caller's Perspective** (Simple):
+```go
+// 1. Get iterator (one call)
+iterator, err := store.ReadEvents(ctx, query, nil)
 
-### Implementation Details
+// 2. Process events one by one
+for {
+    event, err := iterator.Next()
+    if event == nil {
+        break // Done!
+    }
+    // Process event
+}
+```
+
+#### **What Happens Internally** (Automatic):
+1. **First call to `Next()`**: Fetches first batch of 1000 events
+2. **Subsequent calls**: Returns events from current batch
+3. **When batch exhausted**: Automatically fetches next batch
+4. **When no more events**: Returns `nil` to signal completion
+
+### Key Points
+
+✅ **One call to `ReadEvents`** is enough to get started  
+✅ **Iterator handles pagination** automatically  
+✅ **Caller processes events one by one**  
+✅ **Memory efficient** - only batch size events in memory  
+✅ **No manual pagination management** required  
+
+### Memory Management
+
+The iterator maintains only the current batch in memory:
 
 ```go
 type eventIterator struct {
@@ -70,6 +95,14 @@ type eventIterator struct {
     totalFetched  int
 }
 ```
+
+### Memory Efficiency Features
+
+1. **Batch Processing**: Fetches events in configurable batches (default: 1000)
+2. **Keyset Pagination**: Uses `position > lastPosition` for efficient queries
+3. **Lazy Loading**: Only fetches next batch when current batch is exhausted
+4. **Constant Memory**: Memory usage remains constant regardless of total events
+5. **Configurable Batch Size**: Can be adjusted via `ReadOptions.BatchSize`
 
 ### Use Cases
 
