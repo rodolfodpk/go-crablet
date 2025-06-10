@@ -7,6 +7,7 @@ import (
 	"log"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -144,11 +145,11 @@ func (es *eventStore) AppendEvents(ctx context.Context, events []InputEvent, que
 		}
 	}
 
-	// Prepare arrays for PL/pgSQL
+	// Prepare arrays for batch insert
 	ids := make([]pgtype.UUID, len(events))
 	types := make([]string, len(events))
-	tagsJSON := make([][]byte, len(events)) // Changed to [][]byte for JSONB
-	data := make([][]byte, len(events))     // Changed to [][]byte for JSONB
+	tagsJSON := make([][]byte, len(events))
+	data := make([][]byte, len(events))
 	causationIDs := make([]pgtype.UUID, len(events))
 	correlationIDs := make([]pgtype.UUID, len(events))
 
@@ -168,7 +169,7 @@ func (es *eventStore) AppendEvents(ctx context.Context, events []InputEvent, que
 		ids[i] = pgUUID
 
 		types[i] = e.Type
-		data[i] = e.Data // Store as []byte for JSONB
+		data[i] = e.Data
 
 		// Convert tags to JSONB
 		tagMap := make(map[string]string)
@@ -180,7 +181,7 @@ func (es *eventStore) AppendEvents(ctx context.Context, events []InputEvent, que
 			log.Printf("Failed to marshal tags for event %d: %v", i, err)
 			return 0, fmt.Errorf("failed to marshal tags for event %d: %w", i, err)
 		}
-		tagsJSON[i] = jsonBytes // Store as []byte for JSONB
+		tagsJSON[i] = jsonBytes
 
 		// Set causation_id
 		if i > 0 {
@@ -216,30 +217,104 @@ func (es *eventStore) AppendEvents(ctx context.Context, events []InputEvent, que
 		return 0, fmt.Errorf("failed to marshal query tags: %w", err)
 	}
 
-	// Append new events
-	var pgPositions pgtype.Array[int64]
-	err = es.pool.QueryRow(ctx, "SELECT append_events_batch($1, $2, $3::jsonb[], $4::jsonb[], $5::jsonb, $6, $7, $8, $9)",
-		ids, types, tagsJSON, data, queryTagsJSON, latestPosition, causationIDs, correlationIDs, query.EventTypes,
-	).Scan(&pgPositions)
+	// Start transaction
+	tx, err := es.pool.Begin(ctx)
 	if err != nil {
-		if err.Error() == "ERROR: Foreign key violation: invalid causation_id or correlation_id in batch (SQLSTATE P0001)" {
-			return 0, &ValidationError{
-				EventStoreError: EventStoreError{
-					Op:  "AppendEvents",
-					Err: fmt.Errorf("foreign key violation: one or more causation_id or correlation_id values are invalid"),
-				},
-				Field: "causation_id/correlation_id",
-				Value: "batch",
-			}
-		}
 		return 0, &EventStoreError{
 			Op:  "AppendEvents",
-			Err: fmt.Errorf("failed to append events: %w", err),
+			Err: fmt.Errorf("failed to begin transaction: %w", err),
+		}
+	}
+	defer tx.Rollback(ctx) // Rollback if not committed
+
+	// Check for conflicting events (optimistic locking)
+	if len(query.Tags) > 0 {
+		var exists bool
+		checkQuery := `
+			SELECT EXISTS (
+				SELECT 1
+				FROM events
+				WHERE position > $1
+				  AND tags @> $2::jsonb
+				  AND ($3::text[] IS NULL OR
+					   array_length($3::text[], 1) = 0 OR
+					   type = ANY($3::text[]))
+			)
+		`
+		err = tx.QueryRow(ctx, checkQuery, latestPosition, queryTagsJSON, query.EventTypes).Scan(&exists)
+		if err != nil {
+			return 0, &EventStoreError{
+				Op:  "AppendEvents",
+				Err: fmt.Errorf("failed to check for conflicting events: %w", err),
+			}
+		}
+		if exists {
+			return 0, &ConcurrencyError{
+				EventStoreError: EventStoreError{
+					Op:  "AppendEvents",
+					Err: fmt.Errorf("Consistency violation: new events match query since position %d", latestPosition),
+				},
+				ExpectedPosition: latestPosition,
+				ActualPosition:   latestPosition + 1, // Since we found a conflicting event, it must be at the next position
+			}
 		}
 	}
 
-	// Extract positions from pgtype.Array[int64]
-	positions := pgPositions.Elements
+	// Prepare batch insert
+	batch := &pgx.Batch{}
+	positions := make([]int64, len(events))
+
+	// Add insert statements to batch
+	for i := range events {
+		batch.Queue(`
+			INSERT INTO events (id, type, tags, data, causation_id, correlation_id)
+			VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6)
+			RETURNING position
+		`, ids[i], types[i], tagsJSON[i], data[i], causationIDs[i], correlationIDs[i])
+	}
+
+	// Execute batch
+	br := tx.SendBatch(ctx, batch)
+	// Get results
+	for i := range events {
+		err := br.QueryRow().Scan(&positions[i])
+		if err != nil {
+			if err.Error() == "ERROR: insert or update on table \"events\" violates foreign key constraint \"events_causation_id_fkey\" (SQLSTATE 23503)" ||
+				err.Error() == "ERROR: insert or update on table \"events\" violates foreign key constraint \"events_correlation_id_fkey\" (SQLSTATE 23503)" {
+				br.Close() // Ensure batch is closed before returning
+				return 0, &ValidationError{
+					EventStoreError: EventStoreError{
+						Op:  "AppendEvents",
+						Err: fmt.Errorf("foreign key violation: one or more causation_id or correlation_id values are invalid"),
+					},
+					Field: "causation_id/correlation_id",
+					Value: "batch",
+				}
+			}
+			br.Close() // Ensure batch is closed before returning
+			return 0, &EventStoreError{
+				Op:  "AppendEvents",
+				Err: fmt.Errorf("failed to insert event %d: %w", i, err),
+			}
+		}
+	}
+	// Close the batch before committing
+	if err := br.Close(); err != nil {
+		tx.Rollback(ctx)
+		return 0, &EventStoreError{
+			Op:  "AppendEvents",
+			Err: fmt.Errorf("failed to close batch: %w", err),
+		}
+	}
+	// Commit transaction
+	if err := tx.Commit(ctx); err != nil {
+		tx.Rollback(ctx)
+		return 0, &EventStoreError{
+			Op:  "AppendEvents",
+			Err: fmt.Errorf("failed to commit transaction: %w", err),
+		}
+	}
+
 	// Log successful append
 	log.Printf("Appended %d events, positions: %v", len(events), positions)
 
@@ -248,4 +323,227 @@ func (es *eventStore) AppendEvents(ctx context.Context, events []InputEvent, que
 		return positions[len(positions)-1], nil
 	}
 	return latestPosition, nil // Fallback, though unlikely
+}
+
+// AppendEventsIfNotExists appends events only if no events match the append condition.
+// It uses the condition to enforce consistency by failing if any events match the query
+// after the specified position (if any).
+func (es *eventStore) AppendEventsIf(ctx context.Context, events []InputEvent, condition AppendCondition) (int64, error) {
+	if len(events) > es.maxBatchSize {
+		return 0, &ValidationError{
+			EventStoreError: EventStoreError{
+				Op:  "AppendEventsIf",
+				Err: fmt.Errorf("batch size %d exceeds maximum %d", len(events), es.maxBatchSize),
+			},
+			Field: "batchSize",
+			Value: fmt.Sprintf("%d", len(events)),
+		}
+	}
+	if len(events) == 0 {
+		return 0, &ValidationError{
+			EventStoreError: EventStoreError{
+				Op:  "AppendEventsIf",
+				Err: fmt.Errorf("events slice cannot be empty"),
+			},
+			Field: "events",
+			Value: "[]",
+		}
+	}
+
+	// Validate query tags
+	if err := validateQueryTags(condition.FailIfEventsMatch); err != nil {
+		return 0, err
+	}
+
+	// Validate all events before proceeding
+	for i, event := range events {
+		if err := validateEvent(event, i); err != nil {
+			return 0, err
+		}
+	}
+
+	// Start transaction
+	tx, err := es.pool.Begin(ctx)
+	if err != nil {
+		return 0, &EventStoreError{
+			Op:  "AppendEventsIf",
+			Err: fmt.Errorf("failed to begin transaction: %w", err),
+		}
+	}
+	defer tx.Rollback(ctx) // Rollback if not committed
+
+	// Convert query tags to JSONB
+	queryTagMap := make(map[string]string)
+	for _, t := range condition.FailIfEventsMatch.Tags {
+		queryTagMap[t.Key] = t.Value
+	}
+	queryTagsJSON, err := json.Marshal(queryTagMap)
+	if err != nil {
+		log.Printf("Failed to marshal query tags: %v", err)
+		return 0, fmt.Errorf("failed to marshal query tags: %w", err)
+	}
+
+	// Fix: If EventTypes is empty, pass nil to the query so the type filter is ignored
+	var eventTypesParam interface{}
+	if len(condition.FailIfEventsMatch.EventTypes) == 0 {
+		eventTypesParam = nil
+	} else {
+		eventTypesParam = condition.FailIfEventsMatch.EventTypes
+	}
+
+	// Check for matching events
+	var exists bool
+	checkQuery := `
+		SELECT EXISTS (
+			SELECT 1
+			FROM events
+			WHERE tags @> $1::jsonb
+			  AND ($2::text[] IS NULL OR type = ANY($2::text[]))
+			  AND ($3::bigint IS NULL OR position > $3::bigint)
+		)
+	`
+	err = tx.QueryRow(ctx, checkQuery, queryTagsJSON, eventTypesParam, condition.After).Scan(&exists)
+	if err != nil {
+		return 0, &EventStoreError{
+			Op:  "AppendEventsIf",
+			Err: fmt.Errorf("failed to check for matching events: %w", err),
+		}
+	}
+
+	// If matching events exist, fail the append
+	if exists {
+		return 0, &ConcurrencyError{
+			EventStoreError: EventStoreError{
+				Op:  "AppendEventsIf",
+				Err: fmt.Errorf("append condition failed: matching events found"),
+			},
+			ExpectedPosition: 0, // Not applicable in this case
+			ActualPosition:   0, // Not applicable in this case
+		}
+	}
+
+	// Prepare arrays for batch insert
+	ids := make([]pgtype.UUID, len(events))
+	types := make([]string, len(events))
+	tagsJSON := make([][]byte, len(events))
+	data := make([][]byte, len(events))
+	causationIDs := make([]pgtype.UUID, len(events))
+	correlationIDs := make([]pgtype.UUID, len(events))
+
+	for i, e := range events {
+		// Generate UUID for event (UUIDv7)
+		uuidVal, err := uuid.NewV7()
+		if err != nil {
+			log.Printf("Failed to generate UUID for event %d: %v", i, err)
+			return 0, fmt.Errorf("failed to generate UUID for event %d: %w", i, err)
+		}
+		pgUUID := pgtype.UUID{}
+		err = pgUUID.Scan(uuidVal.String())
+		if err != nil {
+			log.Printf("Failed to parse UUID for event %d: %v", i, err)
+			return 0, fmt.Errorf("failed to parse UUID for event %d: %w", i, err)
+		}
+		ids[i] = pgUUID
+
+		types[i] = e.Type
+		data[i] = e.Data
+
+		// Convert tags to JSONB
+		tagMap := make(map[string]string)
+		for _, t := range e.Tags {
+			tagMap[t.Key] = t.Value
+		}
+		jsonBytes, err := json.Marshal(tagMap)
+		if err != nil {
+			log.Printf("Failed to marshal tags for event %d: %v", i, err)
+			return 0, fmt.Errorf("failed to marshal tags for event %d: %w", i, err)
+		}
+		tagsJSON[i] = jsonBytes
+
+		// Set causation_id
+		if i > 0 {
+			causationIDs[i] = ids[i-1] // Previous event's ID
+		} else {
+			// For first event, set causation_id to its own ID (self-caused)
+			causationIDs[i] = pgUUID
+		}
+
+		// Set correlation_id
+		if i == 0 {
+			// For first event, set correlation_id to its own ID
+			correlationIDs[i] = pgUUID
+		} else {
+			// For subsequent events, use the correlation_id of the first event
+			correlationIDs[i] = correlationIDs[0]
+		}
+
+		// Log event relationships
+		causationIDStr := causationIDs[i].String()
+		correlationIDStr := correlationIDs[i].String()
+		log.Printf("Appending event %d: ID=%s, CausationID=%s, CorrelationID=%s", i, uuidVal.String(), causationIDStr, correlationIDStr)
+	}
+
+	// Prepare batch insert
+	batch := &pgx.Batch{}
+	positions := make([]int64, len(events))
+
+	// Add insert statements to batch
+	for i := range events {
+		batch.Queue(`
+			INSERT INTO events (id, type, tags, data, causation_id, correlation_id)
+			VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6)
+			RETURNING position
+		`, ids[i], types[i], tagsJSON[i], data[i], causationIDs[i], correlationIDs[i])
+	}
+
+	// Execute batch
+	br := tx.SendBatch(ctx, batch)
+	// Get results
+	for i := range events {
+		err := br.QueryRow().Scan(&positions[i])
+		if err != nil {
+			if err.Error() == "ERROR: insert or update on table \"events\" violates foreign key constraint \"events_causation_id_fkey\" (SQLSTATE 23503)" ||
+				err.Error() == "ERROR: insert or update on table \"events\" violates foreign key constraint \"events_correlation_id_fkey\" (SQLSTATE 23503)" {
+				br.Close() // Ensure batch is closed before returning
+				return 0, &ValidationError{
+					EventStoreError: EventStoreError{
+						Op:  "AppendEventsIf",
+						Err: fmt.Errorf("foreign key violation: one or more causation_id or correlation_id values are invalid"),
+					},
+					Field: "causation_id/correlation_id",
+					Value: "batch",
+				}
+			}
+			br.Close() // Ensure batch is closed before returning
+			return 0, &EventStoreError{
+				Op:  "AppendEventsIf",
+				Err: fmt.Errorf("failed to insert event %d: %w", i, err),
+			}
+		}
+	}
+	// Close the batch before committing
+	if err := br.Close(); err != nil {
+		tx.Rollback(ctx)
+		return 0, &EventStoreError{
+			Op:  "AppendEventsIf",
+			Err: fmt.Errorf("failed to close batch: %w", err),
+		}
+	}
+	// Commit transaction
+	if err := tx.Commit(ctx); err != nil {
+		tx.Rollback(ctx)
+		return 0, &EventStoreError{
+			Op:  "AppendEventsIf",
+			Err: fmt.Errorf("failed to commit transaction: %w", err),
+		}
+	}
+
+	// Log successful append
+	log.Printf("Appended %d events, positions: %v", len(events), positions)
+
+	// Return the latest position
+	if len(positions) > 0 {
+		return positions[len(positions)-1], nil
+	}
+	return 0, nil // This should never happen due to validation at the start
 }

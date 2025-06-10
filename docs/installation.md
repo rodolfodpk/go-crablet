@@ -42,6 +42,6 @@ make help
 ### Prerequisites
 
 To use these commands, you'll need:
-- Go 1.21 or later
+- Go 1.24 or later
 - Docker and Docker Compose (required for both running PostgreSQL and running integration tests with testcontainers)
 - golangci-lint (for the `make lint` command) 
