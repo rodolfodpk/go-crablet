@@ -156,7 +156,7 @@ var _ = AfterSuite(func() {
 	}
 })
 
-var _ = Describe("AppendEventsIfNotExists", func() {
+var _ = Describe("AppendEventsIf", func() {
 	var (
 		ctx       context.Context
 		store     EventStore
@@ -202,7 +202,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		}
 
 		// Append events
-		position, err := store.AppendEventsIfNotExists(ctx, events, condition)
+		position, err := store.AppendEventsIf(ctx, events, condition)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(position).To(Equal(int64(2))) // Should be the position of the last event
 
@@ -231,7 +231,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		firstCondition := AppendCondition{
 			FailIfEventsMatch: NewQuery(NewTags("nonexistent", "value")),
 		}
-		_, err := store.AppendEventsIfNotExists(ctx, firstEvents, firstCondition)
+		_, err := store.AppendEventsIf(ctx, firstEvents, firstCondition)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Try to append more events with a condition that matches existing events
@@ -241,7 +241,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		secondCondition := AppendCondition{
 			FailIfEventsMatch: NewQuery(NewTags("test", "value")),
 		}
-		_, err = store.AppendEventsIfNotExists(ctx, secondEvents, secondCondition)
+		_, err = store.AppendEventsIf(ctx, secondEvents, secondCondition)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(BeAssignableToTypeOf(&ConcurrencyError{}))
 	})
@@ -254,7 +254,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		firstCondition := AppendCondition{
 			FailIfEventsMatch: NewQuery(NewTags("nonexistent", "value")),
 		}
-		position, err := store.AppendEventsIfNotExists(ctx, firstEvents, firstCondition)
+		position, err := store.AppendEventsIf(ctx, firstEvents, firstCondition)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Try to append more events with a condition that matches existing events but after the first position
@@ -265,7 +265,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 			FailIfEventsMatch: NewQuery(NewTags("test", "value")),
 			After:             &position, // Only check for matches after the first event
 		}
-		_, err = store.AppendEventsIfNotExists(ctx, secondEvents, secondCondition)
+		_, err = store.AppendEventsIf(ctx, secondEvents, secondCondition)
 		Expect(err).NotTo(HaveOccurred()) // Should succeed because we're only checking after the first event
 	})
 
@@ -284,11 +284,11 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		}
 
 		// First append should succeed
-		_, err := store.AppendEventsIfNotExists(ctx, events, condition)
+		_, err := store.AppendEventsIf(ctx, events, condition)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Second append should fail because events match the condition
-		_, err = store.AppendEventsIfNotExists(ctx, events, condition)
+		_, err = store.AppendEventsIf(ctx, events, condition)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(BeAssignableToTypeOf(&ConcurrencyError{}))
 	})
@@ -306,11 +306,11 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		}
 
 		// First append should succeed
-		_, err := store.AppendEventsIfNotExists(ctx, events, condition)
+		_, err := store.AppendEventsIf(ctx, events, condition)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Second append should fail because events match the condition
-		_, err = store.AppendEventsIfNotExists(ctx, events, condition)
+		_, err = store.AppendEventsIf(ctx, events, condition)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(BeAssignableToTypeOf(&ConcurrencyError{}))
 	})
@@ -320,7 +320,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		condition := AppendCondition{
 			FailIfEventsMatch: NewQuery(NewTags("test", "value")),
 		}
-		_, err := store.AppendEventsIfNotExists(ctx, []InputEvent{}, condition)
+		_, err := store.AppendEventsIf(ctx, []InputEvent{}, condition)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(BeAssignableToTypeOf(&ValidationError{}))
 
@@ -329,7 +329,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		for i := range largeEvents {
 			largeEvents[i] = NewInputEvent("TestEvent", NewTags("test", "value"), []byte(`{"data": "test"}`))
 		}
-		_, err = store.AppendEventsIfNotExists(ctx, largeEvents, condition)
+		_, err = store.AppendEventsIf(ctx, largeEvents, condition)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(BeAssignableToTypeOf(&ValidationError{}))
 	})
@@ -346,7 +346,7 @@ var _ = Describe("AppendEventsIfNotExists", func() {
 		}
 
 		// Append events
-		_, err := store.AppendEventsIfNotExists(ctx, events, condition)
+		_, err := store.AppendEventsIf(ctx, events, condition)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Verify event relationships

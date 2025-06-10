@@ -54,10 +54,10 @@ type (
 		// AppendEvents appends events to the store, ensuring consistency with the given query and position.
 		AppendEvents(ctx context.Context, events []InputEvent, query Query, latestPosition int64) (int64, error)
 
-		// AppendEventsIfNotExists appends events only if no events match the append condition.
+		// AppendEventsIf appends events only if no events match the append condition.
 		// It uses the condition to enforce consistency by failing if any events match the query
 		// after the specified position (if any).
-		AppendEventsIfNotExists(ctx context.Context, events []InputEvent, condition AppendCondition) (int64, error)
+		AppendEventsIf(ctx context.Context, events []InputEvent, condition AppendCondition) (int64, error)
 
 		// GetCurrentPosition returns the current position for the given query.
 		GetCurrentPosition(ctx context.Context, query Query) (int64, error)

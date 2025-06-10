@@ -328,11 +328,11 @@ func (es *eventStore) AppendEvents(ctx context.Context, events []InputEvent, que
 // AppendEventsIfNotExists appends events only if no events match the append condition.
 // It uses the condition to enforce consistency by failing if any events match the query
 // after the specified position (if any).
-func (es *eventStore) AppendEventsIfNotExists(ctx context.Context, events []InputEvent, condition AppendCondition) (int64, error) {
+func (es *eventStore) AppendEventsIf(ctx context.Context, events []InputEvent, condition AppendCondition) (int64, error) {
 	if len(events) > es.maxBatchSize {
 		return 0, &ValidationError{
 			EventStoreError: EventStoreError{
-				Op:  "AppendEventsIfNotExists",
+				Op:  "AppendEventsIf",
 				Err: fmt.Errorf("batch size %d exceeds maximum %d", len(events), es.maxBatchSize),
 			},
 			Field: "batchSize",
@@ -342,7 +342,7 @@ func (es *eventStore) AppendEventsIfNotExists(ctx context.Context, events []Inpu
 	if len(events) == 0 {
 		return 0, &ValidationError{
 			EventStoreError: EventStoreError{
-				Op:  "AppendEventsIfNotExists",
+				Op:  "AppendEventsIf",
 				Err: fmt.Errorf("events slice cannot be empty"),
 			},
 			Field: "events",
@@ -366,7 +366,7 @@ func (es *eventStore) AppendEventsIfNotExists(ctx context.Context, events []Inpu
 	tx, err := es.pool.Begin(ctx)
 	if err != nil {
 		return 0, &EventStoreError{
-			Op:  "AppendEventsIfNotExists",
+			Op:  "AppendEventsIf",
 			Err: fmt.Errorf("failed to begin transaction: %w", err),
 		}
 	}
@@ -405,7 +405,7 @@ func (es *eventStore) AppendEventsIfNotExists(ctx context.Context, events []Inpu
 	err = tx.QueryRow(ctx, checkQuery, queryTagsJSON, eventTypesParam, condition.After).Scan(&exists)
 	if err != nil {
 		return 0, &EventStoreError{
-			Op:  "AppendEventsIfNotExists",
+			Op:  "AppendEventsIf",
 			Err: fmt.Errorf("failed to check for matching events: %w", err),
 		}
 	}
@@ -414,7 +414,7 @@ func (es *eventStore) AppendEventsIfNotExists(ctx context.Context, events []Inpu
 	if exists {
 		return 0, &ConcurrencyError{
 			EventStoreError: EventStoreError{
-				Op:  "AppendEventsIfNotExists",
+				Op:  "AppendEventsIf",
 				Err: fmt.Errorf("append condition failed: matching events found"),
 			},
 			ExpectedPosition: 0, // Not applicable in this case
@@ -507,7 +507,7 @@ func (es *eventStore) AppendEventsIfNotExists(ctx context.Context, events []Inpu
 				br.Close() // Ensure batch is closed before returning
 				return 0, &ValidationError{
 					EventStoreError: EventStoreError{
-						Op:  "AppendEventsIfNotExists",
+						Op:  "AppendEventsIf",
 						Err: fmt.Errorf("foreign key violation: one or more causation_id or correlation_id values are invalid"),
 					},
 					Field: "causation_id/correlation_id",
@@ -516,7 +516,7 @@ func (es *eventStore) AppendEventsIfNotExists(ctx context.Context, events []Inpu
 			}
 			br.Close() // Ensure batch is closed before returning
 			return 0, &EventStoreError{
-				Op:  "AppendEventsIfNotExists",
+				Op:  "AppendEventsIf",
 				Err: fmt.Errorf("failed to insert event %d: %w", i, err),
 			}
 		}
@@ -525,7 +525,7 @@ func (es *eventStore) AppendEventsIfNotExists(ctx context.Context, events []Inpu
 	if err := br.Close(); err != nil {
 		tx.Rollback(ctx)
 		return 0, &EventStoreError{
-			Op:  "AppendEventsIfNotExists",
+			Op:  "AppendEventsIf",
 			Err: fmt.Errorf("failed to close batch: %w", err),
 		}
 	}
@@ -533,7 +533,7 @@ func (es *eventStore) AppendEventsIfNotExists(ctx context.Context, events []Inpu
 	if err := tx.Commit(ctx); err != nil {
 		tx.Rollback(ctx)
 		return 0, &EventStoreError{
-			Op:  "AppendEventsIfNotExists",
+			Op:  "AppendEventsIf",
 			Err: fmt.Errorf("failed to commit transaction: %w", err),
 		}
 	}
