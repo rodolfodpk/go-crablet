@@ -2,7 +2,7 @@
 
 > **Note**: For detailed information about streaming and memory efficiency, see [Streaming & Memory Efficiency](streaming.md).
 
-This document explains how to read events from the event store using the DCB-compliant streaming interface.
+This document explains how to read events from the event store using the streaming interface inspired by the DCB pattern.
 
 go-crablet provides a streaming interface for reading events that is both memory-efficient and inspired by the DCB pattern. Instead of loading all events into memory at once, events are streamed directly from PostgreSQL and processed one at a time.
 
@@ -145,68 +145,3 @@ for {
     // Process event
 }
 ```
-
-## Memory Efficiency
-
-The streaming approach is particularly beneficial for large event streams:
-
-```go
-// This approach processes events one at a time
-// No matter how many events match the query
-iterator, err := store.ReadEvents(ctx, query, nil)
-if err != nil {
-    return err
-}
-defer iterator.Close()
-
-var count int
-for {
-    event, err := iterator.Next()
-    if err != nil {
-        return err
-    }
-    if event == nil {
-        break
-    }
-    
-    count++
-    // Process event without loading all events into memory
-}
-
-fmt.Printf("Processed %d events\n", count)
-```
-
-## Integration with State Projection
-
-The streaming approach is consistent with the existing state projection functionality:
-
-```go
-// Both use the same streaming approach internally
-projector := dcb.StateProjector{
-    Query:        query,
-    InitialState: &AccountState{},
-    TransitionFn: func(state any, event dcb.Event) any {
-        // Process event and update state
-        return state
-    },
-}
-
-position, state, err := store.ProjectState(ctx, projector)
-```
-
-## Performance Considerations
-
-- **Use limits** when you only need a subset of events
-- **Use FromPosition** to resume reading from where you left off
-- **Close iterators** to release database resources
-- **Handle errors** appropriately to avoid resource leaks
-- **Consider ordering** - "desc" can be faster for recent events
-
-## DCB Compliance
-
-The streaming interface aims to follow the DCB pattern:
-
-- ✅ **Streaming events**: Events are returned as a stream, not a complete list
-- ✅ **Query-based filtering**: Support for complex queries with multiple items
-- ✅ **Position tracking**: Each event includes its sequence position
-- ✅ **Efficient processing**: Memory-efficient for large event streams 
