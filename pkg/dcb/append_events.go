@@ -329,18 +329,9 @@ func checkForMatchingEvents(ctx context.Context, tx pgx.Tx, condition AppendCond
 	// This maintains backward compatibility while supporting the new structure
 	item := condition.FailIfEventsMatch.Items[0]
 
-	// Convert item tags to JSONB
-	itemTagMap := make(map[string]string)
-	for _, t := range item.Tags {
-		itemTagMap[t.Key] = t.Value
-	}
-	itemTagsJSON, err := json.Marshal(itemTagMap)
-	if err != nil {
-		return &EventStoreError{
-			Op:  "checkForMatchingEvents",
-			Err: fmt.Errorf("failed to marshal query tags: %w", err),
-		}
-	}
+	// Use the passed queryTagsJSON instead of re-converting
+	// This ensures consistency with the calling function
+	itemTagsJSON := queryTagsJSON
 
 	var exists bool
 	checkQuery := `
@@ -367,7 +358,7 @@ func checkForMatchingEvents(ctx context.Context, tx pgx.Tx, condition AppendCond
 
 	checkQuery += ")"
 
-	err = tx.QueryRow(ctx, checkQuery, args...).Scan(&exists)
+	err := tx.QueryRow(ctx, checkQuery, args...).Scan(&exists)
 	if err != nil {
 		return &EventStoreError{
 			Op:  "checkForMatchingEvents",
