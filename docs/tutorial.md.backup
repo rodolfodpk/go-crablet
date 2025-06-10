@@ -175,16 +175,10 @@ func main() {
     }
 
     // Marshal the event data to JSON
-    data, err := json.Marshal(todoCreated)
-    if err != nil {
-        log.Fatalf("Unable to marshal event data: %v", err)
-    }
-
-    // Create the event using NewInputEvent with pre-marshaled JSON data
     event := dcb.NewInputEvent(
         "TodoCreated",
         todoTags,
-        data, // Pre-marshaled JSON data
+        todoCreated, // NewInputEvent will handle the JSON marshaling
     )
 
     // Get current stream position
@@ -247,7 +241,7 @@ func main() {
     }
 
     // Marshal the event data to JSON
-    data, err = json.Marshal(todoCompleted)
+    data, err := json.Marshal(todoCompleted)
     if err != nil {
         log.Fatalf("Unable to marshal event data: %v", err)
     }
