@@ -2,68 +2,25 @@ package dcb
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("ReadEvents", func() {
 	var (
-		ctx   context.Context
-		pool  *pgxpool.Pool
-		store EventStore
+		ctx context.Context
 	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		var err error
+		// Use shared container and store from event_store_test.go BeforeSuite
+		Expect(store).NotTo(BeNil())
+		Expect(pool).NotTo(BeNil())
 
-		Eventually(func() error {
-			pool, _, err = setupPostgresContainer(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to setup postgres container: %w", err)
-			}
-			return nil
-		}, 30*time.Second, 1*time.Second).Should(Succeed(), "Failed to setup postgres container after multiple attempts")
-
-		Eventually(func() error {
-			// Check basic connectivity
-			if err := pool.Ping(ctx); err != nil {
-				return fmt.Errorf("database ping failed: %w", err)
-			}
-			// Verify we can execute queries
-			var result int
-			if err := pool.QueryRow(ctx, "SELECT 1").Scan(&result); err != nil {
-				return fmt.Errorf("database query test failed: %w", err)
-			}
-			if result != 1 {
-				return fmt.Errorf("unexpected query result: %d", result)
-			}
-			return nil
-		}, 10*time.Second, 100*time.Millisecond).Should(Succeed(), "Database connectivity test failed")
-
-		store, err = NewEventStore(ctx, pool)
+		// Clean up any existing data
+		err := truncateEventsTable(ctx, pool)
 		Expect(err).NotTo(HaveOccurred())
-
-		// Load schema
-		schema, err := os.ReadFile("../../docker-entrypoint-initdb.d/schema.sql")
-		Expect(err).NotTo(HaveOccurred())
-		_, err = pool.Exec(ctx, string(schema))
-		Expect(err).NotTo(HaveOccurred())
-
-		// Truncate events table before each test
-		err = truncateEventsTable(ctx, pool)
-		Expect(err).NotTo(HaveOccurred())
-	})
-
-	AfterEach(func() {
-		if pool != nil {
-			pool.Close()
-		}
 	})
 
 	Describe("ReadEvents", func() {
