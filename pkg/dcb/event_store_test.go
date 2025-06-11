@@ -158,35 +158,18 @@ var _ = AfterSuite(func() {
 
 var _ = Describe("GetCurrentPosition", func() {
 	var (
-		ctx       context.Context
-		store     EventStore
-		pool      *pgxpool.Pool
-		postgresC testcontainers.Container
+		ctx context.Context
 	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		var err error
-		pool, postgresC, err = setupPostgresContainer(ctx)
-		Expect(err).NotTo(HaveOccurred())
+		// Use shared container and store from BeforeSuite
+		Expect(store).NotTo(BeNil())
+		Expect(pool).NotTo(BeNil())
 
-		store, err = NewEventStore(ctx, pool)
+		// Clean up any existing data
+		err := truncateEventsTable(ctx, pool)
 		Expect(err).NotTo(HaveOccurred())
-
-		// Load schema
-		schema, err := os.ReadFile("../../docker-entrypoint-initdb.d/schema.sql")
-		Expect(err).NotTo(HaveOccurred())
-		_, err = pool.Exec(ctx, string(schema))
-		Expect(err).NotTo(HaveOccurred())
-	})
-
-	AfterEach(func() {
-		if pool != nil {
-			pool.Close()
-		}
-		if postgresC != nil {
-			Expect(postgresC.Terminate(ctx)).To(Succeed())
-		}
 	})
 
 	It("should return 0 for empty database", func() {
@@ -297,35 +280,18 @@ var _ = Describe("GetCurrentPosition", func() {
 
 var _ = Describe("AppendEventsIf", func() {
 	var (
-		ctx       context.Context
-		store     EventStore
-		pool      *pgxpool.Pool
-		postgresC testcontainers.Container
+		ctx context.Context
 	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		var err error
-		pool, postgresC, err = setupPostgresContainer(ctx)
-		Expect(err).NotTo(HaveOccurred())
+		// Use shared container and store from BeforeSuite
+		Expect(store).NotTo(BeNil())
+		Expect(pool).NotTo(BeNil())
 
-		store, err = NewEventStore(ctx, pool)
+		// Clean up any existing data
+		err := truncateEventsTable(ctx, pool)
 		Expect(err).NotTo(HaveOccurred())
-
-		// Load schema
-		schema, err := os.ReadFile("../../docker-entrypoint-initdb.d/schema.sql")
-		Expect(err).NotTo(HaveOccurred())
-		_, err = pool.Exec(ctx, string(schema))
-		Expect(err).NotTo(HaveOccurred())
-	})
-
-	AfterEach(func() {
-		if pool != nil {
-			pool.Close()
-		}
-		if postgresC != nil {
-			Expect(postgresC.Terminate(ctx)).To(Succeed())
-		}
 	})
 
 	It("should append events when no matching events exist", func() {
