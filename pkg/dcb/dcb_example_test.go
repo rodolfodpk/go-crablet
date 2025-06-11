@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"testing"
 	"time"
 
 	"os"
@@ -644,12 +643,6 @@ var _ = Describe("DCB Pattern Example", func() {
 		})
 	})
 })
-
-// Standard Go test function to run the suite
-func TestDCBExample(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "DCB Example Suite")
-}
 
 // --- Test helpers for integration (self-contained) ---
 func newTestEventStore() (EventStore, func()) {
