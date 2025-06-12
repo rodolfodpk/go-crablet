@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // validateQueryTags validates the query tags and returns a ValidationError if invalid
@@ -160,28 +158,18 @@ func convertTagsToJSON(tags []Tag) ([]byte, error) {
 }
 
 // prepareEventBatch prepares arrays for batch insert from events
-func prepareEventBatch(events []InputEvent) ([]pgtype.UUID, []string, [][]byte, [][]byte, []pgtype.UUID, []pgtype.UUID, error) {
-	ids := make([]pgtype.UUID, len(events))
+func prepareEventBatch(events []InputEvent) ([]string, []string, [][]byte, [][]byte, []string, []string, error) {
+	ids := make([]string, len(events))
 	types := make([]string, len(events))
 	tagsJSON := make([][]byte, len(events))
 	data := make([][]byte, len(events))
-	causationIDs := make([]pgtype.UUID, len(events))
-	correlationIDs := make([]pgtype.UUID, len(events))
+	causationIDs := make([]string, len(events))
+	correlationIDs := make([]string, len(events))
 
 	for i, e := range events {
-		// Generate UUID for event (UUIDv7)
-		uuidVal, err := uuid.NewV7()
-		if err != nil {
-			log.Printf("Failed to generate UUID for event %d: %v", i, err)
-			return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to generate UUID for event %d: %w", i, err)
-		}
-		pgUUID := pgtype.UUID{}
-		err = pgUUID.Scan(uuidVal.String())
-		if err != nil {
-			log.Printf("Failed to parse UUID for event %d: %v", i, err)
-			return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to parse UUID for event %d: %w", i, err)
-		}
-		ids[i] = pgUUID
+		// Generate TypeID for event based on sorted tag keys
+		eventID := generateTagBasedTypeID(e.Tags)
+		ids[i] = eventID
 
 		types[i] = e.Type
 		data[i] = e.Data
@@ -196,32 +184,27 @@ func prepareEventBatch(events []InputEvent) ([]pgtype.UUID, []string, [][]byte, 
 
 		// Set causation_id
 		if i > 0 {
-			causationIDs[i] = ids[i-1] // Previous event's ID
+			causationIDs[i] = ids[i-1] // Previous event's TypeID
 		} else {
-			// For first event, set causation_id to its own ID (self-caused)
-			causationIDs[i] = pgUUID
+			causationIDs[i] = eventID // Self-caused
 		}
 
 		// Set correlation_id
 		if i == 0 {
-			// For first event, set correlation_id to its own ID
-			correlationIDs[i] = pgUUID
+			correlationIDs[i] = eventID // Root event
 		} else {
-			// For subsequent events, use the correlation_id of the first event
-			correlationIDs[i] = correlationIDs[0]
+			correlationIDs[i] = correlationIDs[0] // Same correlation chain
 		}
 
 		// Log event relationships
-		causationIDStr := causationIDs[i].String()
-		correlationIDStr := correlationIDs[i].String()
-		log.Printf("Appending event %d: ID=%s, CausationID=%s, CorrelationID=%s", i, uuidVal.String(), causationIDStr, correlationIDStr)
+		log.Printf("Appending event %d: ID=%s, CausationID=%s, CorrelationID=%s", i, eventID, causationIDs[i], correlationIDs[i])
 	}
 
 	return ids, types, tagsJSON, data, causationIDs, correlationIDs, nil
 }
 
 // executeBatchInsert executes the batch insert and returns positions
-func executeBatchInsert(ctx context.Context, tx pgx.Tx, events []InputEvent, ids []pgtype.UUID, types []string, tagsJSON [][]byte, data [][]byte, causationIDs []pgtype.UUID, correlationIDs []pgtype.UUID) ([]int64, error) {
+func executeBatchInsert(ctx context.Context, tx pgx.Tx, events []InputEvent, ids []string, types []string, tagsJSON [][]byte, data [][]byte, causationIDs []string, correlationIDs []string) ([]int64, error) {
 	batch := &pgx.Batch{}
 	positions := make([]int64, len(events))
 
@@ -378,171 +361,4 @@ func checkForMatchingEvents(ctx context.Context, tx pgx.Tx, condition AppendCond
 	}
 
 	return nil
-}
-
-// AppendEvents adds multiple events to the stream and returns the latest position.
-func (es *eventStore) AppendEvents(ctx context.Context, events []InputEvent, query Query, latestPosition int64) (int64, error) {
-	// Validate batch size
-	if err := es.validateBatchSize(events, "AppendEvents"); err != nil {
-		return 0, err
-	}
-	if len(events) == 0 {
-		return latestPosition, nil
-	}
-
-	// Validate query tags
-	if err := validateQueryTags(query); err != nil {
-		return 0, err
-	}
-
-	// Validate all events before proceeding
-	if err := validateEvents(events); err != nil {
-		return 0, err
-	}
-
-	// Convert query tags to JSONB
-	var queryTagsJSON []byte
-	if len(query.Items) > 0 {
-		// For optimistic locking, we only use the first query item
-		// This maintains backward compatibility while supporting the new structure
-		item := query.Items[0]
-		itemTagMap := make(map[string]string)
-		for _, t := range item.Tags {
-			itemTagMap[t.Key] = t.Value
-		}
-		var err error
-		queryTagsJSON, err = json.Marshal(itemTagMap)
-		if err != nil {
-			log.Printf("Failed to marshal query tags: %v", err)
-			return 0, &EventStoreError{
-				Op:  "AppendEvents",
-				Err: fmt.Errorf("failed to marshal query tags: %w", err),
-			}
-		}
-	}
-
-	// Start transaction
-	tx, err := es.pool.Begin(ctx)
-	if err != nil {
-		return 0, &EventStoreError{
-			Op:  "AppendEvents",
-			Err: fmt.Errorf("failed to begin transaction: %w", err),
-		}
-	}
-	defer tx.Rollback(ctx) // Rollback if not committed
-
-	// Check for conflicting events (optimistic locking)
-	if err := checkForConflictingEvents(ctx, tx, query, queryTagsJSON, latestPosition); err != nil {
-		return 0, err
-	}
-
-	// Prepare arrays for batch insert
-	ids, types, tagsJSON, data, causationIDs, correlationIDs, err := prepareEventBatch(events)
-	if err != nil {
-		return 0, err
-	}
-
-	// Execute batch insert
-	positions, err := executeBatchInsert(ctx, tx, events, ids, types, tagsJSON, data, causationIDs, correlationIDs)
-	if err != nil {
-		return 0, err
-	}
-
-	// Commit transaction
-	if err := tx.Commit(ctx); err != nil {
-		return 0, &EventStoreError{
-			Op:  "AppendEvents",
-			Err: fmt.Errorf("failed to commit transaction: %w", err),
-		}
-	}
-
-	// Log successful append
-	log.Printf("Appended %d events, positions: %v", len(events), positions)
-
-	// Return the latest position
-	if len(positions) > 0 {
-		return positions[len(positions)-1], nil
-	}
-	return latestPosition, nil // Fallback, though unlikely
-}
-
-// AppendEventsIfNotExists appends events only if no events match the append condition.
-// It uses the condition to enforce consistency by failing if any events match the query
-// after the specified position (if any).
-func (es *eventStore) AppendEventsIf(ctx context.Context, events []InputEvent, condition AppendCondition) (int64, error) {
-	// Validate batch size
-	if err := es.validateBatchSize(events, "AppendEventsIf"); err != nil {
-		return 0, err
-	}
-	if len(events) == 0 {
-		return 0, &ValidationError{
-			EventStoreError: EventStoreError{
-				Op:  "AppendEventsIf",
-				Err: fmt.Errorf("events slice cannot be empty"),
-			},
-			Field: "events",
-			Value: "[]",
-		}
-	}
-
-	// Validate query tags
-	if err := validateQueryTags(condition.FailIfEventsMatch); err != nil {
-		return 0, err
-	}
-
-	// Validate all events before proceeding
-	if err := validateEvents(events); err != nil {
-		return 0, err
-	}
-
-	// Start transaction
-	tx, err := es.pool.Begin(ctx)
-	if err != nil {
-		return 0, &EventStoreError{
-			Op:  "AppendEventsIf",
-			Err: fmt.Errorf("failed to begin transaction: %w", err),
-		}
-	}
-	defer tx.Rollback(ctx) // Rollback if not committed
-
-	// Convert query tags to JSONB
-	queryTagsJSON, err := convertTagsToJSON(condition.FailIfEventsMatch.Items[0].Tags)
-	if err != nil {
-		log.Printf("Failed to marshal query tags: %v", err)
-		return 0, fmt.Errorf("failed to marshal query tags: %w", err)
-	}
-
-	// Check for matching events
-	if err := checkForMatchingEvents(ctx, tx, condition, queryTagsJSON); err != nil {
-		return 0, err
-	}
-
-	// Prepare arrays for batch insert
-	ids, types, tagsJSON, data, causationIDs, correlationIDs, err := prepareEventBatch(events)
-	if err != nil {
-		return 0, err
-	}
-
-	// Execute batch insert
-	positions, err := executeBatchInsert(ctx, tx, events, ids, types, tagsJSON, data, causationIDs, correlationIDs)
-	if err != nil {
-		return 0, err
-	}
-
-	// Commit transaction
-	if err := tx.Commit(ctx); err != nil {
-		return 0, &EventStoreError{
-			Op:  "AppendEventsIf",
-			Err: fmt.Errorf("failed to commit transaction: %w", err),
-		}
-	}
-
-	// Log successful append
-	log.Printf("Appended %d events, positions: %v", len(events), positions)
-
-	// Return the latest position
-	if len(positions) > 0 {
-		return positions[len(positions)-1], nil
-	}
-	return 0, nil // This should never happen due to validation at the start
 }

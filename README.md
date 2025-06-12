@@ -29,6 +29,8 @@ The documentation has been split into several files for better organization:
 - [State Projection](docs/state-projection.md): Detailed guide on state projection
 - [Appending Events](docs/appending-events.md): Guide on appending events and handling concurrency
 - [Reading Events](docs/reading-events.md): Guide on streaming events efficiently
+- [TypeID Integration](docs/typeid-integration.md): Guide on TypeID features for enhanced debugging and traceability
+- [Dependencies](docs/dependencies.md): Detailed information about external dependencies and their purposes
 - [Examples](docs/examples.md): Practical examples and use cases, including a complete course subscription system
 
 ## Features

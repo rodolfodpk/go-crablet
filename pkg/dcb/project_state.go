@@ -4,28 +4,24 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-
-	"github.com/jackc/pgx/v5/pgtype"
+	"strings"
 )
 
 // rowEvent is a helper struct for scanning database rows.
 type rowEvent struct {
-	ID            pgtype.UUID
+	ID            string
 	Type          string
 	Tags          []byte
 	Data          []byte
 	Position      int64
-	CausationID   pgtype.UUID
-	CorrelationID pgtype.UUID
+	CausationID   string
+	CorrelationID string
 }
 
 // convertRowToEvent converts a database row to an Event
 func convertRowToEvent(row rowEvent) Event {
 	var e Event
-	if !row.ID.Valid {
-		panic(fmt.Sprintf("invalid UUID for id at position %d", row.Position))
-	}
-	e.ID = row.ID.String()
+	e.ID = row.ID
 	e.Type = row.Type
 	var tagMap map[string]string
 	if err := json.Unmarshal(row.Tags, &tagMap); err != nil {
@@ -36,121 +32,86 @@ func convertRowToEvent(row rowEvent) Event {
 	}
 	e.Data = row.Data
 	e.Position = row.Position
-	e.CausationID = row.CausationID.String()
-	e.CorrelationID = row.CorrelationID.String()
+	e.CausationID = row.CausationID
+	e.CorrelationID = row.CorrelationID
 	return e
 }
 
-// ProjectState computes a state by streaming events matching the projector's query.
-func (es *eventStore) ProjectState(ctx context.Context, projector StateProjector) (int64, any, error) {
-	return es.ProjectStateUpTo(ctx, projector, -1)
+// ProjectBatch projects multiple states using multiple projectors in a single database query.
+func (es *eventStore) ProjectBatch(ctx context.Context, projectors []BatchProjector) (BatchProjectionResult, error) {
+	return es.ProjectBatchUpTo(ctx, projectors, -1)
 }
 
-// ProjectStateUpTo computes a state by streaming events matching the projector's query, up to maxPosition.
-func (es *eventStore) ProjectStateUpTo(ctx context.Context, projector StateProjector, maxPosition int64) (int64, any, error) {
-	if projector.TransitionFn == nil {
-		return 0, projector.InitialState, &ValidationError{
-			EventStoreError: EventStoreError{
-				Op:  "ProjectStateUpTo",
-				Err: fmt.Errorf("projector function cannot be nil"),
-			},
-			Field: "projector",
-			Value: "nil",
-		}
+// ProjectBatchUpTo projects multiple states up to a specific position using multiple projectors.
+func (es *eventStore) ProjectBatchUpTo(ctx context.Context, projectors []BatchProjector, maxPosition int64) (BatchProjectionResult, error) {
+	if len(projectors) == 0 {
+		return BatchProjectionResult{Position: 0, States: make(map[string]any)}, nil
 	}
 
-	// Use projector's query
-	effectiveQuery := projector.Query
-
-	// For backward compatibility, use the first query item
-	effectiveQuery = Query{
-		Items: []QueryItem{
-			{
-				EventTypes: effectiveQuery.Items[0].EventTypes,
-				Tags:       effectiveQuery.Items[0].Tags,
-			},
-		},
-	}
-
-	// Build JSONB query condition with proper error handling
-	var queryTags []byte
-	var err error
-
-	if len(effectiveQuery.Items) == 0 {
-		// Empty query matches all events
-		queryTags = []byte("{}")
-	} else {
-		// Use the first query item for projection
-		item := effectiveQuery.Items[0]
-		tagMap := make(map[string]string)
-		for _, t := range item.Tags {
-			tagMap[t.Key] = t.Value
-		}
-		queryTags, err = json.Marshal(tagMap)
-		if err != nil {
-			return 0, projector.InitialState, &EventStoreError{
-				Op:  "ProjectStateUpTo",
-				Err: fmt.Errorf("failed to marshal query tags %v: %w", tagMap, err),
+	// Validate all projectors have transition functions
+	for _, bp := range projectors {
+		if bp.StateProjector.TransitionFn == nil {
+			return BatchProjectionResult{}, &ValidationError{
+				EventStoreError: EventStoreError{
+					Op:  "ProjectBatchUpTo",
+					Err: fmt.Errorf("projector %s has nil transition function", bp.ID),
+				},
+				Field: "projector",
+				Value: bp.ID,
 			}
 		}
 	}
 
-	// Construct SQL query with proper error context
-	sqlQuery := "SELECT id, type, tags, data, position, causation_id, correlation_id FROM events WHERE tags @> $1"
-	args := []interface{}{queryTags}
+	// Combine all projector queries into a single OR query
+	combinedQuery := es.combineProjectorQueries(projectors)
 
-	// Add event type filtering if specified
-	if len(effectiveQuery.Items) > 0 && len(effectiveQuery.Items[0].EventTypes) > 0 {
-		sqlQuery += fmt.Sprintf(" AND type = ANY($%d)", len(args)+1)
-		args = append(args, effectiveQuery.Items[0].EventTypes)
+	// Build the combined SQL query
+	sqlQuery, args, err := es.buildCombinedQuerySQL(combinedQuery, maxPosition)
+	if err != nil {
+		return BatchProjectionResult{}, err
 	}
 
-	// Add position filtering if maxPosition is specified
-	// If maxPosition is -1, it means no limit
-	// If maxPosition is 0, it means no events should be returned
-	// If maxPosition is greater than 0, we filter events up to that position
-	if maxPosition >= 0 {
-		sqlQuery += fmt.Sprintf(" AND position <= $%d", len(args)+1)
-		args = append(args, maxPosition)
-	}
-
-	// Query and stream rows with proper error handling
+	// Execute the combined query
 	rows, err := es.pool.Query(ctx, sqlQuery, args...)
 	if err != nil {
-		return 0, projector.InitialState, &ResourceError{
+		return BatchProjectionResult{}, &ResourceError{
 			EventStoreError: EventStoreError{
-				Op:  "ProjectStateUpTo",
-				Err: fmt.Errorf("failed to execute query for tags %v: %w", queryTags, err),
+				Op:  "ProjectBatchUpTo",
+				Err: fmt.Errorf("failed to execute combined query: %w", err),
 			},
 			Resource: "database",
 		}
 	}
 	defer rows.Close()
 
-	// Initialize state
-	state := projector.InitialState
+	// Initialize states for all projectors
+	states := make(map[string]any)
+	for _, bp := range projectors {
+		states[bp.ID] = bp.StateProjector.InitialState
+	}
+
 	position := int64(0)
 
-	// Process events with proper error handling
+	// Process events and route to appropriate projectors
 	for rows.Next() {
 		var row rowEvent
 		if err := rows.Scan(&row.ID, &row.Type, &row.Tags, &row.Data, &row.Position, &row.CausationID, &row.CorrelationID); err != nil {
-			return 0, projector.InitialState, &ResourceError{
+			return BatchProjectionResult{}, &ResourceError{
 				EventStoreError: EventStoreError{
-					Op:  "ProjectStateUpTo",
+					Op:  "ProjectBatchUpTo",
 					Err: fmt.Errorf("failed to scan event row at position %d: %w", position, err),
 				},
 				Resource: "database",
 			}
 		}
 
-		// Convert row to Event with panic recovery
+		// Convert row to Event
 		var event Event
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
 					err = &EventStoreError{
-						Op:  "ProjectStateUpTo",
+						Op:  "ProjectBatchUpTo",
 						Err: fmt.Errorf("panic converting row to event at position %d: %v", row.Position, r),
 					}
 				}
@@ -158,23 +119,28 @@ func (es *eventStore) ProjectStateUpTo(ctx context.Context, projector StateProje
 			event = convertRowToEvent(row)
 		}()
 		if err != nil {
-			return 0, projector.InitialState, err
+			return BatchProjectionResult{}, err
 		}
 
-		// Apply projector with panic recovery
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					err = &EventStoreError{
-						Op:  "ProjectStateUpTo",
-						Err: fmt.Errorf("panic in projector for event type %s at position %d: %v", event.Type, event.Position, r),
-					}
+		// Route event to matching projectors
+		for _, bp := range projectors {
+			if es.eventMatchesProjector(event, bp.StateProjector) {
+				// Apply projector with panic recovery
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							err = &EventStoreError{
+								Op:  "ProjectBatchUpTo",
+								Err: fmt.Errorf("panic in projector %s for event type %s at position %d: %v", bp.ID, event.Type, event.Position, r),
+							}
+						}
+					}()
+					states[bp.ID] = bp.StateProjector.TransitionFn(states[bp.ID], event)
+				}()
+				if err != nil {
+					return BatchProjectionResult{}, err
 				}
-			}()
-			state = projector.TransitionFn(state, event)
-		}()
-		if err != nil {
-			return 0, projector.InitialState, err
+			}
 		}
 
 		position = row.Position
@@ -182,14 +148,168 @@ func (es *eventStore) ProjectStateUpTo(ctx context.Context, projector StateProje
 
 	// Check for errors from iterating over rows
 	if err := rows.Err(); err != nil {
-		return 0, projector.InitialState, &ResourceError{
+		return BatchProjectionResult{}, &ResourceError{
 			EventStoreError: EventStoreError{
-				Op:  "ProjectStateUpTo",
+				Op:  "ProjectBatchUpTo",
 				Err: fmt.Errorf("error iterating over events: %w", err),
 			},
 			Resource: "database",
 		}
 	}
 
-	return position, state, nil
+	return BatchProjectionResult{Position: position, States: states}, nil
+}
+
+// combineProjectorQueries combines multiple projector queries into a single OR query
+func (es *eventStore) combineProjectorQueries(projectors []BatchProjector) Query {
+	var combinedItems []QueryItem
+
+	for _, bp := range projectors {
+		// Add all items from this projector's query
+		for _, item := range bp.StateProjector.Query.Items {
+			combinedItems = append(combinedItems, item)
+		}
+	}
+
+	return Query{Items: combinedItems}
+}
+
+// buildCombinedQuerySQL builds the SQL query for the combined projector queries
+func (es *eventStore) buildCombinedQuerySQL(query Query, maxPosition int64) (string, []interface{}, error) {
+	if len(query.Items) == 0 {
+		// Empty query matches all events
+		sqlQuery := "SELECT id, type, tags, data, position, causation_id, correlation_id FROM events"
+		args := []interface{}{}
+
+		if maxPosition >= 0 {
+			sqlQuery += " WHERE position <= $1"
+			args = append(args, maxPosition)
+		}
+
+		sqlQuery += " ORDER BY position ASC"
+		return sqlQuery, args, nil
+	}
+
+	// Build OR conditions for each query item
+	var conditions []string
+	var args []interface{}
+
+	for i, item := range query.Items {
+		var condition string
+		argIndex := len(args) + 1
+
+		// Build tag condition
+		tagMap := make(map[string]string)
+		for _, t := range item.Tags {
+			tagMap[t.Key] = t.Value
+		}
+		queryTags, err := json.Marshal(tagMap)
+		if err != nil {
+			return "", nil, &EventStoreError{
+				Op:  "buildCombinedQuerySQL",
+				Err: fmt.Errorf("failed to marshal query tags for item %d: %w", i, err),
+			}
+		}
+
+		condition = fmt.Sprintf("tags @> $%d", argIndex)
+		args = append(args, queryTags)
+
+		// Add event type filtering if specified
+		if len(item.EventTypes) > 0 {
+			argIndex = len(args) + 1
+			condition += fmt.Sprintf(" AND type = ANY($%d)", argIndex)
+			args = append(args, item.EventTypes)
+		}
+
+		conditions = append(conditions, condition)
+	}
+
+	// Combine conditions with OR
+	sqlQuery := fmt.Sprintf("SELECT id, type, tags, data, position, causation_id, correlation_id FROM events WHERE (%s)", strings.Join(conditions, " OR "))
+
+	// Add position filtering if specified
+	if maxPosition >= 0 {
+		argIndex := len(args) + 1
+		sqlQuery += fmt.Sprintf(" AND position <= $%d", argIndex)
+		args = append(args, maxPosition)
+	}
+
+	sqlQuery += " ORDER BY position ASC"
+	return sqlQuery, args, nil
+}
+
+// eventMatchesProjector checks if an event matches a projector's query criteria
+func (es *eventStore) eventMatchesProjector(event Event, projector StateProjector) bool {
+	if len(projector.Query.Items) == 0 {
+		return true // Empty query matches all events
+	}
+
+	// Check if event matches any of the query items (OR logic)
+	for _, item := range projector.Query.Items {
+		if es.eventMatchesQueryItem(event, item) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// eventMatchesQueryItem checks if an event matches a specific query item
+func (es *eventStore) eventMatchesQueryItem(event Event, item QueryItem) bool {
+	// Check event type filtering
+	if len(item.EventTypes) > 0 {
+		typeMatches := false
+		for _, eventType := range item.EventTypes {
+			if event.Type == eventType {
+				typeMatches = true
+				break
+			}
+		}
+		if !typeMatches {
+			return false
+		}
+	}
+
+	// Check tag filtering
+	if len(item.Tags) > 0 {
+		// Convert event tags to map for efficient lookup
+		eventTagMap := make(map[string]string)
+		for _, tag := range event.Tags {
+			eventTagMap[tag.Key] = tag.Value
+		}
+
+		// Check if all required tags are present
+		for _, requiredTag := range item.Tags {
+			if eventTagMap[requiredTag.Key] != requiredTag.Value {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+// CombineProjectorQueries combines multiple projector queries into a single OR query.
+// This is useful for creating AppendCondition queries that ensure consistency
+// across all projectors used in a decision model.
+func CombineProjectorQueries(projectors []BatchProjector) Query {
+	var combinedItems []QueryItem
+
+	for _, bp := range projectors {
+		// Add all items from this projector's query
+		for _, item := range bp.StateProjector.Query.Items {
+			combinedItems = append(combinedItems, item)
+		}
+	}
+
+	return Query{Items: combinedItems}
+}
+
+// SingleProjector creates a BatchProjector for single projector usage.
+// This provides a clean API for the common case of projecting a single state.
+func SingleProjector(id string, projector StateProjector) BatchProjector {
+	return BatchProjector{
+		ID:             id,
+		StateProjector: projector,
+	}
 }

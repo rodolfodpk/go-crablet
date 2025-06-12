@@ -66,6 +66,16 @@ type EventStore interface {
     
     // ProjectStateUpTo computes a state by streaming events matching the projector's query, up to maxPosition.
     ProjectStateUpTo(ctx context.Context, projector StateProjector, maxPosition int64) (int64, any, error)
+    
+    // ProjectBatch projects multiple states using multiple projectors in a single database query.
+    // This is more efficient than calling ProjectState multiple times as it uses one combined query
+    // and streams events once, routing them to the appropriate projectors.
+    // Returns the latest position processed and a map of projector results keyed by projector ID.
+    ProjectBatch(ctx context.Context, projectors []BatchProjector) (BatchProjectionResult, error)
+    
+    // ProjectBatchUpTo projects multiple states up to a specific position using multiple projectors.
+    // Similar to ProjectBatch but limits the events processed to those up to maxPosition.
+    ProjectBatchUpTo(ctx context.Context, projectors []BatchProjector, maxPosition int64) (BatchProjectionResult, error)
 }
 
 // EventIterator provides a streaming interface for reading events

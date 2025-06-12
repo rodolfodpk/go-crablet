@@ -1,31 +1,12 @@
 package dcb
 
-import "context"
+import (
+	"context"
+)
 
 type (
-	// EventIterator provides a streaming interface for reading events
-	EventIterator interface {
-		// Next returns the next event in the stream
-		// Returns nil when no more events are available
-		Next() (*Event, error)
-
-		// Close closes the iterator and releases resources
-		Close() error
-
-		// Position returns the position of the last event read
-		Position() int64
-	}
-
-	// ReadOptions provides configuration for reading events
-	ReadOptions struct {
-		FromPosition int64  // Start reading from this position (inclusive)
-		Limit        int    // Maximum number of events to return (0 = no limit)
-		OrderBy      string // Ordering: "asc" (default) or "desc"
-		BatchSize    int    // Number of events to fetch per batch (default: 1000)
-	}
-
 	// SequencedEvents represents a collection of events with their sequence positions
-	// This is kept for backward compatibility but should be used sparingly
+	// This matches the DCB specification for the return type of read operations
 	SequencedEvents struct {
 		Events   []Event
 		Position int64 // Position of the last event in the stream
@@ -49,8 +30,7 @@ type (
 	}
 
 	// AppendCondition is used to enforce consistency when appending events.
-	// It ensures that between the time of building the Decision Model and appending the events,
-	// no new events were stored by another client that match the same query.
+	// This matches the DCB specification exactly
 	AppendCondition struct {
 		FailIfEventsMatch Query  // Query that must not match any events for the append to succeed
 		After             *int64 // Optional sequence position to ignore events before this position
@@ -58,9 +38,29 @@ type (
 
 	// StateProjector defines how to project state from events.
 	StateProjector struct {
-		Query        Query // Query to filter events for this projector
+		Query        Query
 		InitialState any
-		TransitionFn func(any, Event) any // TODO should this receive only the JSON-encoded data?
+		TransitionFn func(state any, e Event) any
+	}
+
+	// BatchProjectionResult represents the result of projecting multiple states
+	BatchProjectionResult struct {
+		Position int64
+		States   map[string]any // Key is projector identifier
+	}
+
+	// StreamingProjectionResult represents a streaming result for multiple projectors
+	StreamingProjectionResult struct {
+		Position        int64           // Position of the last event processed
+		States          map[string]any  // Key is projector identifier
+		Iterator        EventIterator   // For streaming access to processed events
+		AppendCondition AppendCondition // For optimistic locking when appending new events
+	}
+
+	// BatchProjector defines a projector with an identifier for batch operations
+	BatchProjector struct {
+		ID             string // Unique identifier for this projector
+		StateProjector StateProjector
 	}
 
 	// InputEvent represents an event to be appended to the store.
@@ -81,29 +81,46 @@ type (
 		CorrelationID string // UUID linking to the root event or process
 	}
 
-	// EventStore provides methods to append and read events in a PostgreSQL database.
+	// EventStore provides methods to read and append events in a PostgreSQL database.
+	// This interface matches the DCB specification with Read() and Append() methods
 	EventStore interface {
-		// ReadEvents reads events matching the query with optional configuration.
-		// This is the core DCB method for reading events.
-		// Returns an EventIterator for streaming events efficiently.
-		ReadEvents(ctx context.Context, query Query, options *ReadOptions) (EventIterator, error)
+		// Read reads events matching a query, optionally starting from a specified sequence position
+		// This matches the DCB specification exactly
+		Read(ctx context.Context, query Query, options *ReadOptions) (SequencedEvents, error)
 
-		// AppendEvents appends events to the store, ensuring consistency with the given query and position.
-		AppendEvents(ctx context.Context, events []InputEvent, query Query, latestPosition int64) (int64, error)
+		// ReadStream returns a pure event iterator for streaming events from PostgreSQL
+		ReadStream(ctx context.Context, query Query, options *ReadOptions) (EventIterator, error)
 
-		// AppendEventsIf appends events only if no events match the append condition.
-		// It uses the condition to enforce consistency by failing if any events match the query
-		// after the specified position (if any).
-		AppendEventsIf(ctx context.Context, events []InputEvent, condition AppendCondition) (int64, error)
+		// ProjectDecisionModel projects multiple states using projectors and returns final states and append condition
+		ProjectDecisionModel(ctx context.Context, query Query, options *ReadOptions, projectors []BatchProjector) (map[string]any, AppendCondition, error)
 
-		// GetCurrentPosition returns the current position for the given query.
-		// This is a convenience method, not required by DCB spec.
-		GetCurrentPosition(ctx context.Context, query Query) (int64, error)
+		// Append atomically persists one or more events, optionally with an append condition
+		// This matches the DCB specification exactly
+		Append(ctx context.Context, events []InputEvent, condition *AppendCondition) (int64, error)
 
-		// ProjectState computes a state by streaming events matching the projector's query.
-		ProjectState(ctx context.Context, projector StateProjector) (int64, any, error)
+		// ProjectBatch projects multiple states using multiple projectors in a single database query.
+		// This is more efficient than calling ProjectState multiple times as it uses one combined query
+		// and streams events once, routing them to the appropriate projectors.
+		// Returns the latest position processed and a map of projector results keyed by projector ID.
+		ProjectBatch(ctx context.Context, projectors []BatchProjector) (BatchProjectionResult, error)
 
-		// ProjectStateUpTo computes a state by streaming events matching the projector's query, up to maxPosition.
-		ProjectStateUpTo(ctx context.Context, projector StateProjector, maxPosition int64) (int64, any, error)
+		// ProjectBatchUpTo projects multiple states up to a specific position using multiple projectors.
+		// Similar to ProjectBatch but limits the events processed to those up to maxPosition.
+		ProjectBatchUpTo(ctx context.Context, projectors []BatchProjector, maxPosition int64) (BatchProjectionResult, error)
+	}
+
+	// ReadOptions represents options for reading events
+	// This matches the DCB specification for read options
+	ReadOptions struct {
+		FromPosition *int64 // Optional starting sequence position
+		Limit        *int   // Optional limit on number of events to read
+	}
+
+	// EventIterator allows streaming access to events from the store
+	EventIterator interface {
+		Next() bool
+		Event() Event
+		Err() error
+		Close() error
 	}
 )

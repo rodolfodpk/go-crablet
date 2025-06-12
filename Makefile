@@ -8,9 +8,9 @@ DOCKER_COMPOSE=docker-compose
 # Default target
 all: build
 
-# Build the application
+# Build all packages (library approach)
 build:
-	$(GO) build -o bin/$(BINARY_NAME) ./...
+	$(GO) build ./...
 
 # Run tests
 test:
@@ -45,8 +45,8 @@ docs:
 # Show help
 help:
 	@echo "Available targets:"
-	@echo "  all            - Build the application (default)"
-	@echo "  build          - Build the application"
+	@echo "  all            - Build all packages (default)"
+	@echo "  build          - Build all packages"
 	@echo "  test           - Run tests"
 	@echo "  test-coverage  - Run tests with coverage report"
 	@echo "  clean          - Remove build artifacts"
