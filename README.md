@@ -6,24 +6,24 @@
 
 # go-crablet
 
-A Go library for event sourcing, inspired by Sara Pellegrini's Dynamic Consistency Boundary (DCB) pattern. go-crablet enables you to build event-driven systems with:
+A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini's Dynamic Consistency Boundary (DCB) pattern. go-crablet enables you to build event-driven systems with:
 
 - **Batch projection**: Project multiple states using a single streamlined PostgreSQL query with native streaming
-- **DCB-style consistency**: Optimistic locking using the same query combination scope for projection and append
+- **DCB-inspired consistency**: Optimistic locking using the same query combination scope for projection and append
 - **Streaming**: Memory-efficient event processing for large event streams
 - **Flexible queries**: Tag-based, OR-combined queries for cross-entity invariants
 
 ## Key Features
 
-- **DCB-compliant decision models**: Project multiple states and build append conditions in one step
+- **DCB-inspired decision models**: Project multiple states and build append conditions in one step
 - **Single streamlined query**: Efficiently project all relevant states using PostgreSQL's native streaming via pgx
 - **Optimistic concurrency**: Append events only if no conflicting events have appeared within the same query combination scope
 - **Streaming**: Process events row-by-row, suitable for millions of events
 - **PostgreSQL-backed**: Uses PostgreSQL for robust, concurrent event storage
 
-## DCB Pattern in Go
+## Exploring the DCB Pattern in Go
 
-The Dynamic Consistency Boundary (DCB) pattern lets you:
+We're learning about the Dynamic Consistency Boundary (DCB) pattern by exploring how to:
 - Define projections ("decision models") that provide the data business rules need
 - Project all relevant state in a single query
 - Build a combined append condition for optimistic locking
@@ -56,7 +56,7 @@ func main() {
     pool, _ := pgxpool.New(context.Background(), "postgres://user:pass@localhost/db")
     store, _ := dcb.NewEventStore(context.Background(), pool)
 
-    // Projectors for DCB decision model
+    // Projectors for DCB-inspired decision model
     projectors := []dcb.BatchProjector{
         {ID: "courseExists", StateProjector: dcb.StateProjector{
             Query: dcb.NewQuery(dcb.NewTags("course_id", "c1"), "CourseDefined"),
@@ -92,8 +92,8 @@ func main() {
 ```
 
 ## Documentation
-- [Overview](docs/overview.md): DCB pattern, batch projection, and streaming
-- [Examples](docs/examples.md): DCB-aligned use cases
+- [Overview](docs/overview.md): DCB pattern exploration, batch projection, and streaming
+- [Examples](docs/examples.md): DCB-inspired use cases
 - [Implementation](docs/implementation.md): Technical details
 
 ## References

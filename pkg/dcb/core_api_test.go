@@ -224,15 +224,15 @@ var _ = Describe("Core API Tests", func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 
-			// Try to append with wrong position (should fail)
+			// Try to append with conflicting condition (should fail)
 			events2 := []InputEvent{
 				NewInputEvent("Event2", tags, []byte(`{"data":"second"}`)),
 			}
-			wrongPosition := int64(0)
-			q = NewQuery(tags, "Event2")
+			// Use the same query that matches existing events
+			conflictingQuery := NewQuery(tags, "Event1")
 			_, err = store.Append(ctx, events2, &AppendCondition{
-				FailIfEventsMatch: &q,
-				After:             &wrongPosition,
+				FailIfEventsMatch: &conflictingQuery,
+				After:             nil,
 			})
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("append condition violated"))

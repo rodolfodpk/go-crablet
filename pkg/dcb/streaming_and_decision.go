@@ -61,9 +61,11 @@ func (es *eventStore) projectDecisionModelWithCursor(ctx context.Context, query 
 
 	// Process events using the streaming iterator
 	var lastPosition int64
+	var hasEvents bool
 	for iterator.Next() {
 		event := iterator.Event()
 		lastPosition = event.Position
+		hasEvents = true
 
 		// Update AppendCondition.After field with current position
 		appendCondition.After = &lastPosition
@@ -74,6 +76,11 @@ func (es *eventStore) projectDecisionModelWithCursor(ctx context.Context, query 
 				states[bp.ID] = bp.StateProjector.TransitionFn(states[bp.ID], event)
 			}
 		}
+	}
+
+	// Only set After field if we actually processed events
+	if !hasEvents {
+		appendCondition.After = nil
 	}
 
 	// Check for iteration errors
@@ -122,6 +129,7 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 
 	// Process all events to build final states
 	var lastPosition int64
+	var hasEvents bool
 	for rows.Next() {
 		var row rowEvent
 		if err := rows.Scan(&row.ID, &row.Type, &row.Tags, &row.Data, &row.Position, &row.CausationID, &row.CorrelationID); err != nil {
@@ -137,6 +145,7 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 		// Convert row to Event
 		event := convertRowToEvent(row)
 		lastPosition = row.Position
+		hasEvents = true
 
 		// Update AppendCondition.After field with current position
 		appendCondition.After = &lastPosition
@@ -147,6 +156,11 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 				states[bp.ID] = bp.StateProjector.TransitionFn(states[bp.ID], event)
 			}
 		}
+	}
+
+	// Only set After field if we actually processed events
+	if !hasEvents {
+		appendCondition.After = nil
 	}
 
 	// Check for iteration errors

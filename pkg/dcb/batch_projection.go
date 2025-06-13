@@ -67,41 +67,46 @@ func (es *eventStore) buildCombinedQuerySQL(query Query, maxPosition int64) (str
 	}
 
 	// Build OR conditions for each query item
-	var conditions []string
+	var orConditions []string
 	var args []interface{}
 
-	for i, item := range query.Items {
-		var condition string
+	for _, item := range query.Items {
+		var andConditions []string
 		argIndex := len(args) + 1
-
-		// Build tag condition
-		tagMap := make(map[string]string)
-		for _, t := range item.Tags {
-			tagMap[t.Key] = t.Value
-		}
-		queryTags, err := json.Marshal(tagMap)
-		if err != nil {
-			return "", nil, &EventStoreError{
-				Op:  "buildCombinedQuerySQL",
-				Err: fmt.Errorf("failed to marshal query tags for item %d: %w", i, err),
-			}
-		}
-
-		condition = fmt.Sprintf("tags @> $%d", argIndex)
-		args = append(args, queryTags)
 
 		// Add event type filtering if specified
 		if len(item.EventTypes) > 0 {
-			argIndex = len(args) + 1
-			condition += fmt.Sprintf(" AND type = ANY($%d)", argIndex)
+			andConditions = append(andConditions, fmt.Sprintf("type = ANY($%d)", argIndex))
 			args = append(args, item.EventTypes)
+			argIndex++
 		}
 
-		conditions = append(conditions, condition)
+		// Add tag conditions - use contains operator for DCB semantics
+		if len(item.Tags) > 0 {
+			tagMap := make(map[string]string)
+			for _, tag := range item.Tags {
+				tagMap[tag.Key] = tag.Value
+			}
+			queryTags, err := json.Marshal(tagMap)
+			if err != nil {
+				return "", nil, &EventStoreError{
+					Op:  "buildCombinedQuerySQL",
+					Err: fmt.Errorf("failed to marshal query tags: %w", err),
+				}
+			}
+			andConditions = append(andConditions, fmt.Sprintf("tags @> $%d", argIndex))
+			args = append(args, queryTags)
+			argIndex++
+		}
+
+		// Combine AND conditions for this item
+		if len(andConditions) > 0 {
+			orConditions = append(orConditions, "("+strings.Join(andConditions, " AND ")+")")
+		}
 	}
 
-	// Combine conditions with OR
-	sqlQuery := fmt.Sprintf("SELECT id, type, tags, data, position, causation_id, correlation_id FROM events WHERE (%s)", strings.Join(conditions, " OR "))
+	// Combine OR conditions for all items
+	sqlQuery := fmt.Sprintf("SELECT id, type, tags, data, position, causation_id, correlation_id FROM events WHERE (%s)", strings.Join(orConditions, " OR "))
 
 	// Add position filtering if specified
 	if maxPosition >= 0 {

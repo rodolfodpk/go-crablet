@@ -242,12 +242,12 @@ func (es *eventStore) buildReadQuerySQL(query Query, options *ReadOptions) (stri
 
 			// Add event type conditions
 			if len(item.EventTypes) > 0 {
-				orConditions = append(orConditions, fmt.Sprintf("type = ANY($%d::text[])", argIndex))
+				andConditions = append(andConditions, fmt.Sprintf("type = ANY($%d::text[])", argIndex))
 				args = append(args, item.EventTypes)
 				argIndex++
 			}
 
-			// Add tag conditions
+			// Add tag conditions - use contains operator for DCB semantics
 			if len(item.Tags) > 0 {
 				tagMap := make(map[string]string)
 				for _, tag := range item.Tags {
@@ -260,16 +260,18 @@ func (es *eventStore) buildReadQuerySQL(query Query, options *ReadOptions) (stri
 						Err: fmt.Errorf("failed to marshal tags: %w", err),
 					}
 				}
-				orConditions = append(orConditions, fmt.Sprintf("tags @> $%d::jsonb", argIndex))
+				andConditions = append(andConditions, fmt.Sprintf("tags @> $%d::jsonb", argIndex))
 				args = append(args, tagJSON)
 				argIndex++
 			}
 
+			// Combine AND conditions for this item
 			if len(andConditions) > 0 {
 				orConditions = append(orConditions, "("+strings.Join(andConditions, " AND ")+")")
 			}
 		}
 
+		// Combine OR conditions for all items
 		if len(orConditions) > 0 {
 			conditions = append(conditions, "("+strings.Join(orConditions, " OR ")+")")
 		}
@@ -299,39 +301,106 @@ func (es *eventStore) buildReadQuerySQL(query Query, options *ReadOptions) (stri
 
 // checkAppendCondition checks if the append condition is satisfied
 func (es *eventStore) checkAppendCondition(ctx context.Context, condition AppendCondition) error {
-	if condition.FailIfEventsMatch == nil {
-		return nil // No condition to check
-	}
+	// Check FailIfEventsMatch condition if provided
+	if condition.FailIfEventsMatch != nil {
+		// Build query to check for conflicting events
+		sqlQuery, args, err := es.buildReadQuerySQL(*condition.FailIfEventsMatch, &ReadOptions{
+			FromPosition: condition.After,
+			Limit:        &[]int{1}[0], // Just need to know if any exist
+		})
+		if err != nil {
+			return err
+		}
 
-	// Build query to check for conflicting events
-	sqlQuery, args, err := es.buildReadQuerySQL(*condition.FailIfEventsMatch, &ReadOptions{
-		FromPosition: condition.After,
-		Limit:        &[]int{1}[0], // Just need to know if any exist
-	})
-	if err != nil {
-		return err
-	}
+		// Execute the query
+		rows, err := es.pool.Query(ctx, sqlQuery, args...)
+		if err != nil {
+			return &ResourceError{
+				EventStoreError: EventStoreError{
+					Op:  "checkAppendCondition",
+					Err: fmt.Errorf("failed to check append condition: %w", err),
+				},
+				Resource: "database",
+			}
+		}
+		defer rows.Close()
 
-	// Execute the query
-	rows, err := es.pool.Query(ctx, sqlQuery, args...)
-	if err != nil {
-		return &ResourceError{
-			EventStoreError: EventStoreError{
-				Op:  "checkAppendCondition",
-				Err: fmt.Errorf("failed to check append condition: %w", err),
-			},
-			Resource: "database",
+		// If we get any rows, the condition is violated
+		if rows.Next() {
+			return &ConcurrencyError{
+				EventStoreError: EventStoreError{
+					Op:  "append",
+					Err: fmt.Errorf("append condition violated: events matching query already exist"),
+				},
+			}
 		}
 	}
-	defer rows.Close()
 
-	// If we get any rows, the condition is violated
-	if rows.Next() {
-		return &ConcurrencyError{
-			EventStoreError: EventStoreError{
-				Op:  "append",
-				Err: fmt.Errorf("append condition violated: events matching query already exist"),
-			},
+	// Check After field for optimistic locking if provided
+	if condition.After != nil {
+		// For optimistic locking with After field, we need to check if any events exist
+		// after the specified position that match the same query scope as the projection.
+		// Since we don't have the original query here, we use the FailIfEventsMatch query
+		// as a proxy for the query scope, or check for any events if no query is provided.
+		if condition.FailIfEventsMatch != nil {
+			// Use the same query scope as the FailIfEventsMatch condition
+			sqlQuery, args, err := es.buildReadQuerySQL(*condition.FailIfEventsMatch, &ReadOptions{
+				FromPosition: condition.After,
+				Limit:        &[]int{1}[0], // Just need to know if any exist
+			})
+			if err != nil {
+				return err
+			}
+
+			// Execute the query
+			rows, err := es.pool.Query(ctx, sqlQuery, args...)
+			if err != nil {
+				return &ResourceError{
+					EventStoreError: EventStoreError{
+						Op:  "checkAppendCondition",
+						Err: fmt.Errorf("failed to check optimistic locking condition: %w", err),
+					},
+					Resource: "database",
+				}
+			}
+			defer rows.Close()
+
+			// If we get any rows, there are events after the specified position
+			if rows.Next() {
+				return &ConcurrencyError{
+					EventStoreError: EventStoreError{
+						Op:  "append",
+						Err: fmt.Errorf("optimistic concurrency conflict: events exist after position %d", *condition.After),
+					},
+					ExpectedPosition: *condition.After,
+					ActualPosition:   *condition.After + 1, // Since we found events after, they must be at next position
+				}
+			}
+		} else {
+			// If no query scope is provided, check for any events after the position (global optimistic locking)
+			var exists bool
+			checkQuery := `SELECT EXISTS(SELECT 1 FROM events WHERE position > $1)`
+			err := es.pool.QueryRow(ctx, checkQuery, *condition.After).Scan(&exists)
+			if err != nil {
+				return &ResourceError{
+					EventStoreError: EventStoreError{
+						Op:  "checkAppendCondition",
+						Err: fmt.Errorf("failed to check optimistic locking condition: %w", err),
+					},
+					Resource: "database",
+				}
+			}
+
+			if exists {
+				return &ConcurrencyError{
+					EventStoreError: EventStoreError{
+						Op:  "append",
+						Err: fmt.Errorf("optimistic concurrency conflict: events exist after position %d", *condition.After),
+					},
+					ExpectedPosition: *condition.After,
+					ActualPosition:   *condition.After + 1, // Since we found events after, they must be at next position
+				}
+			}
 		}
 	}
 

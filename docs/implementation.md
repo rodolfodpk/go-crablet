@@ -1,8 +1,8 @@
 # Implementation Details
 
-## DCB Pattern Implementation
+## DCB Pattern Exploration
 
-go-crablet implements the Dynamic Consistency Boundary (DCB) pattern using:
+go-crablet explores the Dynamic Consistency Boundary (DCB) pattern using:
 
 1. **Batch Projection**: Project multiple states in a single streamlined PostgreSQL query
 2. **Combined Append Conditions**: Use the same query scope for projection and optimistic locking
@@ -10,7 +10,7 @@ go-crablet implements the Dynamic Consistency Boundary (DCB) pattern using:
 
 ## Event Store Interface
 
-The core interface for DCB-compliant event management:
+The core interface for our DCB-inspired event management:
 
 ```go
 type EventStore interface {
@@ -24,14 +24,14 @@ type EventStore interface {
     Append(ctx context.Context, events []InputEvent, condition *AppendCondition) (int64, error)
 
     // ProjectDecisionModel projects multiple states using projectors and returns final states and append condition
-    // This is the primary DCB API for building decision models in command handlers
+    // This is our primary API for building decision models in command handlers, inspired by DCB
     ProjectDecisionModel(ctx context.Context, query Query, options *ReadOptions, projectors []BatchProjector) (map[string]any, AppendCondition, error)
 }
 ```
 
-## DCB Decision Model Pattern
+## DCB Decision Model Pattern (Our Approach)
 
-The core DCB pattern for command handlers:
+Our understanding of the DCB pattern for command handlers:
 
 ```go
 // 1. Define projectors for the decision model

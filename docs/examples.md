@@ -1,6 +1,6 @@
-# DCB Example: Course Subscription with Invariants
+# DCB-Inspired Example: Course Subscription with Invariants
 
-This example demonstrates the Dynamic Consistency Boundary (DCB) pattern using go-crablet. It shows how to:
+This example demonstrates our exploration of the Dynamic Consistency Boundary (DCB) pattern using go-crablet. It shows how we're learning to:
 - Project multiple states (decision model) in a single query
 - Enforce business invariants (course exists, not full, student not already subscribed)
 - Use a combined append condition for optimistic concurrency
@@ -80,7 +80,7 @@ func main() {
 }
 ```
 
-**Key points:**
+**Key points we're exploring:**
 - All invariants are checked in a single query (batch projection)
 - The append condition is the OR-combination of all projector queries
 - Only one database round trip is needed for all business rules
