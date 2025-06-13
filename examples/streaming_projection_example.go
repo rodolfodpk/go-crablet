@@ -30,25 +30,21 @@ func main() {
 
 	// Define projectors for different business concerns
 	accountProjector := dcb.StateProjector{
-		Query: dcb.Query{
-			Items: []dcb.QueryItem{
-				{
-					EventTypes: []string{"AccountCreated", "AccountUpdated"},
-					Tags:       []dcb.Tag{{Key: "account_id", Value: "acc123"}},
-				},
-			},
-		},
+		Query: dcb.NewQuery(
+			dcb.NewTags("account_id", "acc123"),
+			"AccountOpened", "AccountBalanceChanged",
+		),
 		InitialState: &AccountState{ID: "acc123", Balance: 0, CreatedAt: time.Now()},
 		TransitionFn: func(state any, event dcb.Event) any {
 			account := state.(*AccountState)
 			switch event.Type {
-			case "AccountCreated":
-				var data AccountCreatedData
+			case "AccountOpened":
+				var data AccountOpenedData
 				json.Unmarshal(event.Data, &data)
 				account.Balance = data.InitialBalance
 				account.CreatedAt = time.Now()
-			case "AccountUpdated":
-				var data AccountUpdatedData
+			case "AccountBalanceChanged":
+				var data AccountBalanceChangedData
 				json.Unmarshal(event.Data, &data)
 				account.Balance = data.NewBalance
 				account.UpdatedAt = time.Now()
@@ -58,19 +54,15 @@ func main() {
 	}
 
 	transactionProjector := dcb.StateProjector{
-		Query: dcb.Query{
-			Items: []dcb.QueryItem{
-				{
-					EventTypes: []string{"TransactionCompleted"},
-					Tags:       []dcb.Tag{{Key: "account_id", Value: "acc123"}},
-				},
-			},
-		},
+		Query: dcb.NewQuery(
+			dcb.NewTags("account_id", "acc123"),
+			"TransactionProcessed",
+		),
 		InitialState: &TransactionState{Count: 0, TotalAmount: 0, LastTransaction: time.Time{}},
 		TransitionFn: func(state any, event dcb.Event) any {
 			transactions := state.(*TransactionState)
-			if event.Type == "TransactionCompleted" {
-				var data TransactionCompletedData
+			if event.Type == "TransactionProcessed" {
+				var data TransactionProcessedData
 				json.Unmarshal(event.Data, &data)
 				transactions.Count++
 				transactions.TotalAmount += data.Amount
@@ -81,32 +73,28 @@ func main() {
 	}
 
 	balanceProjector := dcb.StateProjector{
-		Query: dcb.Query{
-			Items: []dcb.QueryItem{
-				{
-					EventTypes: []string{"AccountCreated", "AccountUpdated", "TransactionCompleted"},
-					Tags:       []dcb.Tag{{Key: "account_id", Value: "acc123"}},
-				},
-			},
-		},
+		Query: dcb.NewQuery(
+			dcb.NewTags("account_id", "acc123"),
+			"AccountOpened", "AccountBalanceChanged", "TransactionProcessed",
+		),
 		InitialState: &BalanceState{CurrentBalance: 0, LastUpdated: time.Time{}, ChangeCount: 0},
 		TransitionFn: func(state any, event dcb.Event) any {
 			balance := state.(*BalanceState)
 			switch event.Type {
-			case "AccountCreated":
-				var data AccountCreatedData
+			case "AccountOpened":
+				var data AccountOpenedData
 				json.Unmarshal(event.Data, &data)
 				balance.CurrentBalance = data.InitialBalance
 				balance.LastUpdated = time.Now()
 				balance.ChangeCount++
-			case "AccountUpdated":
-				var data AccountUpdatedData
+			case "AccountBalanceChanged":
+				var data AccountBalanceChangedData
 				json.Unmarshal(event.Data, &data)
 				balance.CurrentBalance = data.NewBalance
 				balance.LastUpdated = time.Now()
 				balance.ChangeCount++
-			case "TransactionCompleted":
-				var data TransactionCompletedData
+			case "TransactionProcessed":
+				var data TransactionProcessedData
 				json.Unmarshal(event.Data, &data)
 				balance.CurrentBalance += data.Amount
 				balance.LastUpdated = time.Now()
@@ -124,33 +112,58 @@ func main() {
 	}
 
 	// Create test events
-	events := []dcb.InputEvent{
-		{
-			Type: "AccountCreated",
-			Tags: []dcb.Tag{{Key: "account_id", Value: "acc123"}},
-			Data: mustMarshal(AccountCreatedData{InitialBalance: 1000}),
-		},
-		{
-			Type: "TransactionCompleted",
-			Tags: []dcb.Tag{{Key: "account_id", Value: "acc123"}},
-			Data: mustMarshal(TransactionCompletedData{Amount: 500, Description: "Deposit"}),
-		},
-		{
-			Type: "AccountUpdated",
-			Tags: []dcb.Tag{{Key: "account_id", Value: "acc123"}},
-			Data: mustMarshal(AccountUpdatedData{NewBalance: 2000, Reason: "Manual adjustment"}),
-		},
-		{
-			Type: "TransactionCompleted",
-			Tags: []dcb.Tag{{Key: "account_id", Value: "acc123"}},
-			Data: mustMarshal(TransactionCompletedData{Amount: -300, Description: "Withdrawal"}),
-		},
-		{
-			Type: "TransactionCompleted",
-			Tags: []dcb.Tag{{Key: "account_id", Value: "acc123"}},
-			Data: mustMarshal(TransactionCompletedData{Amount: 100, Description: "Interest"}),
-		},
+	accountOpenedEvent, err := dcb.NewInputEvent(
+		"AccountOpened",
+		dcb.NewTags("account_id", "acc123"),
+		mustMarshal(AccountOpenedData{InitialBalance: 1000}),
+	)
+	if err != nil {
+		log.Fatalf("Failed to create account opened event: %v", err)
 	}
+
+	transaction1Event, err := dcb.NewInputEvent(
+		"TransactionProcessed",
+		dcb.NewTags("account_id", "acc123"),
+		mustMarshal(TransactionProcessedData{Amount: 500, Description: "Deposit"}),
+	)
+	if err != nil {
+		log.Fatalf("Failed to create transaction 1 event: %v", err)
+	}
+
+	accountBalanceChangedEvent, err := dcb.NewInputEvent(
+		"AccountBalanceChanged",
+		dcb.NewTags("account_id", "acc123"),
+		mustMarshal(AccountBalanceChangedData{NewBalance: 2000, Reason: "Manual adjustment"}),
+	)
+	if err != nil {
+		log.Fatalf("Failed to create account balance changed event: %v", err)
+	}
+
+	transaction2Event, err := dcb.NewInputEvent(
+		"TransactionProcessed",
+		dcb.NewTags("account_id", "acc123"),
+		mustMarshal(TransactionProcessedData{Amount: -300, Description: "Withdrawal"}),
+	)
+	if err != nil {
+		log.Fatalf("Failed to create transaction 2 event: %v", err)
+	}
+
+	transaction3Event, err := dcb.NewInputEvent(
+		"TransactionProcessed",
+		dcb.NewTags("account_id", "acc123"),
+		mustMarshal(TransactionProcessedData{Amount: 100, Description: "Interest"}),
+	)
+	if err != nil {
+		log.Fatalf("Failed to create transaction 3 event: %v", err)
+	}
+
+	events := dcb.NewEventBatch(
+		accountOpenedEvent,
+		transaction1Event,
+		accountBalanceChangedEvent,
+		transaction2Event,
+		transaction3Event,
+	)
 
 	// Append events
 	fmt.Println("Appending events...")
@@ -184,13 +197,16 @@ func main() {
 	fmt.Printf("After position: %d\n", *appendCondition.After)
 
 	// Example: Use the AppendCondition to append new events
-	newEvents := []dcb.InputEvent{
-		{
-			Type: "TransactionCompleted",
-			Tags: []dcb.Tag{{Key: "account_id", Value: "acc123"}},
-			Data: mustMarshal(TransactionCompletedData{Amount: 200}),
-		},
+	newTransactionEvent, err := dcb.NewInputEvent(
+		"TransactionProcessed",
+		dcb.NewTags("account_id", "acc123"),
+		mustMarshal(TransactionProcessedData{Amount: 200}),
+	)
+	if err != nil {
+		log.Fatalf("Failed to create new transaction event: %v", err)
 	}
+
+	newEvents := dcb.NewEventBatch(newTransactionEvent)
 
 	fmt.Println("\n=== Appending New Events with Optimistic Locking ===")
 	newPosition, err := store.Append(ctx, newEvents, &appendCondition)
@@ -220,16 +236,16 @@ type BalanceState struct {
 	ChangeCount    int       `json:"change_count"`
 }
 
-type AccountCreatedData struct {
+type AccountOpenedData struct {
 	InitialBalance int `json:"initial_balance"`
 }
 
-type AccountUpdatedData struct {
+type AccountBalanceChangedData struct {
 	NewBalance int    `json:"new_balance"`
 	Reason     string `json:"reason"`
 }
 
-type TransactionCompletedData struct {
+type TransactionProcessedData struct {
 	Amount      int    `json:"amount"`
 	Description string `json:"description"`
 }

@@ -29,24 +29,20 @@ func main() {
 
 	// Define projectors for decision model
 	accountProjector := dcb.StateProjector{
-		Query: dcb.Query{
-			Items: []dcb.QueryItem{
-				{
-					EventTypes: []string{"AccountCreated", "AccountUpdated"},
-					Tags:       []dcb.Tag{{Key: "account_id", Value: "acc123"}},
-				},
-			},
-		},
+		Query: dcb.NewQuery(
+			dcb.NewTags("account_id", "acc123"),
+			"AccountOpened", "AccountBalanceChanged",
+		),
 		InitialState: &AccountState{ID: "acc123", Balance: 0},
 		TransitionFn: func(state any, event dcb.Event) any {
 			account := state.(*AccountState)
 			switch event.Type {
-			case "AccountCreated":
-				var data AccountCreatedData
+			case "AccountOpened":
+				var data AccountOpenedData
 				json.Unmarshal(event.Data, &data)
 				account.Balance = data.InitialBalance
-			case "AccountUpdated":
-				var data AccountUpdatedData
+			case "AccountBalanceChanged":
+				var data AccountBalanceChangedData
 				json.Unmarshal(event.Data, &data)
 				account.Balance = data.NewBalance
 			}
@@ -55,19 +51,15 @@ func main() {
 	}
 
 	transactionProjector := dcb.StateProjector{
-		Query: dcb.Query{
-			Items: []dcb.QueryItem{
-				{
-					EventTypes: []string{"TransactionCompleted"},
-					Tags:       []dcb.Tag{{Key: "account_id", Value: "acc123"}},
-				},
-			},
-		},
+		Query: dcb.NewQuery(
+			dcb.NewTags("account_id", "acc123"),
+			"TransactionProcessed",
+		),
 		InitialState: &TransactionState{Count: 0, TotalAmount: 0},
 		TransitionFn: func(state any, event dcb.Event) any {
 			transactions := state.(*TransactionState)
-			if event.Type == "TransactionCompleted" {
-				var data TransactionCompletedData
+			if event.Type == "TransactionProcessed" {
+				var data TransactionProcessedData
 				json.Unmarshal(event.Data, &data)
 				transactions.Count++
 				transactions.TotalAmount += data.Amount
@@ -83,18 +75,25 @@ func main() {
 	}
 
 	// Create some test events
-	events := []dcb.InputEvent{
-		{
-			Type: "AccountCreated",
-			Tags: []dcb.Tag{{Key: "account_id", Value: "acc123"}},
-			Data: toJSON(AccountCreatedData{InitialBalance: 1000}),
-		},
-		{
-			Type: "TransactionCompleted",
-			Tags: []dcb.Tag{{Key: "account_id", Value: "acc123"}},
-			Data: toJSON(TransactionCompletedData{Amount: 500}),
-		},
+	accountOpenedEvent, err := dcb.NewInputEvent(
+		"AccountOpened",
+		dcb.NewTags("account_id", "acc123"),
+		toJSON(AccountOpenedData{InitialBalance: 1000}),
+	)
+	if err != nil {
+		log.Fatalf("Failed to create account opened event: %v", err)
 	}
+
+	transactionProcessedEvent, err := dcb.NewInputEvent(
+		"TransactionProcessed",
+		dcb.NewTags("account_id", "acc123"),
+		toJSON(TransactionProcessedData{Amount: 500}),
+	)
+	if err != nil {
+		log.Fatalf("Failed to create transaction processed event: %v", err)
+	}
+
+	events := dcb.NewEventBatch(accountOpenedEvent, transactionProcessedEvent)
 
 	// Append events
 	position, err := store.Append(ctx, events, nil)
@@ -127,13 +126,16 @@ func main() {
 	fmt.Printf("After position: %d\n", *appendCondition.After)
 
 	// Example: Use the AppendCondition to append new events
-	newEvents := []dcb.InputEvent{
-		{
-			Type: "TransactionCompleted",
-			Tags: []dcb.Tag{{Key: "account_id", Value: "acc123"}},
-			Data: toJSON(TransactionCompletedData{Amount: 200}),
-		},
+	newTransactionEvent, err := dcb.NewInputEvent(
+		"TransactionProcessed",
+		dcb.NewTags("account_id", "acc123"),
+		toJSON(TransactionProcessedData{Amount: 200}),
+	)
+	if err != nil {
+		log.Fatalf("Failed to create new transaction event: %v", err)
 	}
+
+	newEvents := dcb.NewEventBatch(newTransactionEvent)
 
 	fmt.Println("\n=== Appending New Events with Optimistic Locking ===")
 	newPosition, err := store.Append(ctx, newEvents, &appendCondition)
@@ -154,15 +156,15 @@ type TransactionState struct {
 	TotalAmount int
 }
 
-type AccountCreatedData struct {
+type AccountOpenedData struct {
 	InitialBalance int `json:"initial_balance"`
 }
 
-type AccountUpdatedData struct {
+type AccountBalanceChangedData struct {
 	NewBalance int `json:"new_balance"`
 }
 
-type TransactionCompletedData struct {
+type TransactionProcessedData struct {
 	Amount int `json:"amount"`
 }
 

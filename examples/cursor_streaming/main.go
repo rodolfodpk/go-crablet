@@ -44,14 +44,10 @@ func main() {
 		{
 			ID: "order_count",
 			StateProjector: dcb.StateProjector{
-				Query: dcb.Query{
-					Items: []dcb.QueryItem{
-						{
-							EventTypes: []string{"OrderCreated"},
-							Tags:       []dcb.Tag{{Key: "customer_id", Value: "customer-1"}},
-						},
-					},
-				},
+				Query: dcb.NewQuery(
+					dcb.NewTags("customer_id", "customer-1"),
+					"OrderCreated",
+				),
 				InitialState: 0,
 				TransitionFn: func(state any, event dcb.Event) any {
 					count := state.(int)
@@ -62,14 +58,10 @@ func main() {
 		{
 			ID: "total_amount",
 			StateProjector: dcb.StateProjector{
-				Query: dcb.Query{
-					Items: []dcb.QueryItem{
-						{
-							EventTypes: []string{"OrderCreated"},
-							Tags:       []dcb.Tag{{Key: "customer_id", Value: "customer-1"}},
-						},
-					},
-				},
+				Query: dcb.NewQuery(
+					dcb.NewTags("customer_id", "customer-1"),
+					"OrderCreated",
+				),
 				InitialState: 0.0,
 				TransitionFn: func(state any, event dcb.Event) any {
 					total := state.(float64)
@@ -86,14 +78,10 @@ func main() {
 	}
 
 	// Query for events
-	query := dcb.Query{
-		Items: []dcb.QueryItem{
-			{
-				EventTypes: []string{"OrderCreated"},
-				Tags:       []dcb.Tag{{Key: "customer_id", Value: "customer-1"}},
-			},
-		},
-	}
+	query := dcb.NewQuery(
+		dcb.NewTags("customer_id", "customer-1"),
+		"OrderCreated",
+	)
 
 	fmt.Println("\n=== Using cursor-based streaming (BatchSize: 100) ===")
 	batchSize := 100
@@ -143,14 +131,19 @@ func createTestEvents(count int) []dcb.InputEvent {
 			"amount":   amount,
 		})
 
-		events[i] = dcb.InputEvent{
-			Type: "OrderCreated",
-			Tags: []dcb.Tag{
-				{Key: "customer_id", Value: customerID},
-				{Key: "order_id", Value: fmt.Sprintf("order-%d", i+1)},
-			},
-			Data: data,
+		event, err := dcb.NewInputEvent(
+			"OrderCreated",
+			dcb.NewTags(
+				"customer_id", customerID,
+				"order_id", fmt.Sprintf("order-%d", i+1),
+			),
+			data,
+		)
+		if err != nil {
+			panic(fmt.Sprintf("Failed to create event %d: %v", i, err))
 		}
+
+		events[i] = event
 	}
 	return events
 }

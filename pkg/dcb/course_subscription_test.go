@@ -66,7 +66,7 @@ type EnrollmentState struct {
 
 // Event Constructors
 func NewCourseCreatedEvent(courseID, name, instructor string, capacity int) InputEvent {
-	return NewInputEvent("CourseCreated", NewTags("course_id", courseID), toJSON(CourseCreated{
+	return NewInputEventUnsafe("CourseCreated", NewTags("course_id", courseID), toJSON(CourseCreated{
 		CourseID:   courseID,
 		Name:       name,
 		Capacity:   capacity,
@@ -75,7 +75,7 @@ func NewCourseCreatedEvent(courseID, name, instructor string, capacity int) Inpu
 }
 
 func NewStudentRegisteredEvent(studentID, name, email string) InputEvent {
-	return NewInputEvent("StudentRegistered", NewTags("student_id", studentID), toJSON(StudentRegistered{
+	return NewInputEventUnsafe("StudentRegistered", NewTags("student_id", studentID), toJSON(StudentRegistered{
 		StudentID: studentID,
 		Name:      name,
 		Email:     email,
@@ -83,7 +83,7 @@ func NewStudentRegisteredEvent(studentID, name, email string) InputEvent {
 }
 
 func NewStudentEnrolledEvent(studentID, courseID, enrolledAt string) InputEvent {
-	return NewInputEvent("StudentEnrolledInCourse", NewTags("student_id", studentID, "course_id", courseID), toJSON(StudentEnrolledInCourse{
+	return NewInputEventUnsafe("StudentEnrolledInCourse", NewTags("student_id", studentID, "course_id", courseID), toJSON(StudentEnrolledInCourse{
 		StudentID:  studentID,
 		CourseID:   courseID,
 		EnrolledAt: enrolledAt,
@@ -91,7 +91,7 @@ func NewStudentEnrolledEvent(studentID, courseID, enrolledAt string) InputEvent 
 }
 
 func NewStudentDroppedEvent(studentID, courseID, droppedAt string) InputEvent {
-	return NewInputEvent("StudentDroppedFromCourse", NewTags("student_id", studentID, "course_id", courseID), toJSON(StudentDroppedFromCourse{
+	return NewInputEventUnsafe("StudentDroppedFromCourse", NewTags("student_id", studentID, "course_id", courseID), toJSON(StudentDroppedFromCourse{
 		StudentID: studentID,
 		CourseID:  courseID,
 		DroppedAt: droppedAt,
@@ -99,7 +99,7 @@ func NewStudentDroppedEvent(studentID, courseID, droppedAt string) InputEvent {
 }
 
 func NewCourseCapacityChangedEvent(courseID string, newCapacity int) InputEvent {
-	return NewInputEvent("CourseCapacityChanged", NewTags("course_id", courseID), toJSON(CourseCapacityChanged{
+	return NewInputEventUnsafe("CourseCapacityChanged", NewTags("course_id", courseID), toJSON(CourseCapacityChanged{
 		CourseID:    courseID,
 		NewCapacity: newCapacity,
 	}))
@@ -764,4 +764,265 @@ var _ = Describe("Course Subscription Domain", func() {
 			Expect(states["student2Enrollment"]).To(Equal(2)) // student-2 in 2 courses
 		})
 	})
+
+	Describe("High Priority Missing Scenarios", func() {
+		Describe("ReadStream Error Scenarios", func() {
+			It("should handle ReadStream with empty queries (not allowed)", func() {
+				// Test with empty query - current implementation doesn't allow empty queries
+				emptyQuery := NewQueryFromItems()
+				_, err := store.ReadStream(ctx, emptyQuery, nil)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("query must contain at least one item"))
+			})
+
+			It("should handle ReadStream iterator behavior", func() {
+				// Setup some data
+				err := api.CreateCourse("course-1", "Math 101", "Dr. Smith", 25)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Test iterator with data
+				query := NewQuerySimple(NewTags("course_id", "course-1"), "CourseCreated")
+				iterator, err := store.ReadStream(ctx, query, nil)
+				Expect(err).NotTo(HaveOccurred())
+				defer iterator.Close()
+
+				// Test Next() and Event()
+				Expect(iterator.Next()).To(BeTrue())
+				event := iterator.Event()
+				Expect(event.Type).To(Equal("CourseCreated"))
+
+				// Test that there are no more events
+				Expect(iterator.Next()).To(BeFalse())
+
+				// Test Err() when no error
+				Expect(iterator.Err()).NotTo(HaveOccurred())
+			})
+
+			It("should handle ReadStream with empty result sets", func() {
+				query := NewQuerySimple(NewTags("course_id", "non-existent"), "CourseCreated")
+				iterator, err := store.ReadStream(ctx, query, nil)
+				Expect(err).NotTo(HaveOccurred())
+				defer iterator.Close()
+
+				// Should not have any events
+				Expect(iterator.Next()).To(BeFalse())
+				Expect(iterator.Err()).NotTo(HaveOccurred())
+			})
+
+			It("should handle ReadStream with different batch sizes", func() {
+				// Create multiple courses
+				for i := 1; i <= 5; i++ {
+					err := api.CreateCourse(fmt.Sprintf("course-%d", i), fmt.Sprintf("Course %d", i), "Instructor", 20)
+					Expect(err).NotTo(HaveOccurred())
+				}
+
+				// Test with small batch size
+				query := NewQuerySimple(NewTags(), "CourseCreated")
+				options := &ReadOptions{BatchSize: intPtr(2)}
+				iterator, err := store.ReadStream(ctx, query, options)
+				Expect(err).NotTo(HaveOccurred())
+				defer iterator.Close()
+
+				count := 0
+				for iterator.Next() {
+					event := iterator.Event()
+					Expect(event.Type).To(Equal("CourseCreated"))
+					count++
+				}
+				Expect(count).To(Equal(5))
+				Expect(iterator.Err()).NotTo(HaveOccurred())
+			})
+		})
+
+		Describe("Validation Error Scenarios", func() {
+			It("should handle invalid JSON data in events", func() {
+				_, err := NewInputEvent("TestEvent", NewTags("test", "value"), []byte("invalid json"))
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("invalid JSON data"))
+			})
+
+			It("should handle empty event types in queries", func() {
+				query := NewQueryFromItems(NewQueryItem([]string{""}, NewTags("course_id", "test")))
+
+				_, err := store.Read(ctx, query, nil)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("empty event type"))
+			})
+
+			It("should handle empty tag keys/values", func() {
+				// Test empty tag key
+				_, err := NewInputEvent("TestEvent", []Tag{{Key: "", Value: "value"}}, toJSON(map[string]string{"test": "data"}))
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("empty key"))
+
+				// Test empty tag value
+				_, err = NewInputEvent("TestEvent", []Tag{{Key: "test", Value: ""}}, toJSON(map[string]string{"test": "data"}))
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("empty value"))
+			})
+
+			It("should handle batch size limit validation", func() {
+				// Create events exceeding the batch size limit
+				events := make([]InputEvent, 1001) // Exceeds default limit of 1000
+				for i := 0; i < 1001; i++ {
+					events[i] = NewInputEventUnsafe("TestEvent", NewTags("test", fmt.Sprintf("value-%d", i)), toJSON(map[string]string{"index": fmt.Sprintf("%d", i)}))
+				}
+
+				_, err := store.Append(ctx, events, nil)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("exceeds maximum"))
+			})
+
+			It("should handle empty events slice", func() {
+				_, err := store.Append(ctx, []InputEvent{}, nil)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("empty"))
+			})
+		})
+
+		Describe("ConcurrencyError Scenarios", func() {
+			It("should handle optimistic locking failures", func() {
+				// Create course
+				err := api.CreateCourse("course-1", "Math 101", "Dr. Smith", 25)
+				Expect(err).NotTo(HaveOccurred())
+
+				// First projection
+				projectors := []BatchProjector{
+					{ID: "courseState", StateProjector: CourseStateProjector("course-1")},
+				}
+				_, appendCondition1, err := store.ProjectDecisionModel(ctx, projectors, nil)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Make a change that invalidates the append condition
+				_, err = store.Append(ctx, []InputEvent{
+					NewCourseCapacityChangedEvent("course-1", 30),
+				}, nil)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Try to use the old append condition (should fail)
+				_, err = store.Append(ctx, []InputEvent{
+					NewCourseCapacityChangedEvent("course-1", 35),
+				}, &appendCondition1)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("append condition violated"))
+			})
+
+			It("should handle concurrent append conflicts", func() {
+				// Create course
+				err := api.CreateCourse("course-1", "Math 101", "Dr. Smith", 25)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Register two students
+				err = api.RegisterStudent("student-1", "Alice", "alice@example.com")
+				Expect(err).NotTo(HaveOccurred())
+				err = api.RegisterStudent("student-2", "Bob", "bob@example.com")
+				Expect(err).NotTo(HaveOccurred())
+
+				// Both students try to enroll simultaneously
+				// This should cause a concurrency conflict
+				projectors := []BatchProjector{
+					{ID: "courseEnrollmentCount", StateProjector: CourseEnrollmentCountProjector("course-1")},
+				}
+
+				// First enrollment
+				_, appendCondition1, err := store.ProjectDecisionModel(ctx, projectors, nil)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Second enrollment (should conflict)
+				_, appendCondition2, err := store.ProjectDecisionModel(ctx, projectors, nil)
+				Expect(err).NotTo(HaveOccurred())
+
+				// First enrollment succeeds
+				_, err = store.Append(ctx, []InputEvent{
+					NewStudentEnrolledEvent("student-1", "course-1", "2024-01-01T10:00:00Z"),
+				}, &appendCondition1)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Second enrollment should fail due to concurrency conflict
+				_, err = store.Append(ctx, []InputEvent{
+					NewStudentEnrolledEvent("student-2", "course-1", "2024-01-01T10:00:00Z"),
+				}, &appendCondition2)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("append condition violated"))
+			})
+		})
+
+		Describe("EventIterator Interface Tests", func() {
+			It("should handle iterator error propagation", func() {
+				// Create a query that might cause an error
+				query := NewQueryFromItems(NewQueryItem([]string{"NonExistentEvent"}, NewTags("invalid", "tag")))
+
+				iterator, err := store.ReadStream(ctx, query, nil)
+				Expect(err).NotTo(HaveOccurred())
+				defer iterator.Close()
+
+				// Try to iterate (should not cause error, just no results)
+				for iterator.Next() {
+					// Should not reach here
+					Fail("Should not have any events")
+				}
+
+				// Err should be nil for empty results
+				Expect(iterator.Err()).NotTo(HaveOccurred())
+			})
+
+			It("should handle iterator resource cleanup", func() {
+				// Setup data
+				err := api.CreateCourse("course-1", "Math 101", "Dr. Smith", 25)
+				Expect(err).NotTo(HaveOccurred())
+
+				query := NewQuerySimple(NewTags("course_id", "course-1"), "CourseCreated")
+				iterator, err := store.ReadStream(ctx, query, nil)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Read one event
+				Expect(iterator.Next()).To(BeTrue())
+				event := iterator.Event()
+				Expect(event.Type).To(Equal("CourseCreated"))
+
+				// Close iterator
+				err = iterator.Close()
+				Expect(err).NotTo(HaveOccurred())
+
+				// Try to use iterator after close (should not panic)
+				Expect(func() {
+					iterator.Next()
+				}).NotTo(Panic())
+			})
+
+			It("should handle multiple iterator operations", func() {
+				// Create multiple courses
+				for i := 1; i <= 3; i++ {
+					err := api.CreateCourse(fmt.Sprintf("course-%d", i), fmt.Sprintf("Course %d", i), "Instructor", 20)
+					Expect(err).NotTo(HaveOccurred())
+				}
+
+				query := NewQuerySimple(NewTags(), "CourseCreated")
+				iterator, err := store.ReadStream(ctx, query, nil)
+				Expect(err).NotTo(HaveOccurred())
+				defer iterator.Close()
+
+				// Test multiple Event() calls on same position
+				Expect(iterator.Next()).To(BeTrue())
+				event1 := iterator.Event()
+				event2 := iterator.Event() // Should return same event
+				Expect(event1.ID).To(Equal(event2.ID))
+
+				// Test iteration through all events
+				count := 1 // We already read one
+				for iterator.Next() {
+					event := iterator.Event()
+					Expect(event.Type).To(Equal("CourseCreated"))
+					count++
+				}
+				Expect(count).To(Equal(3))
+				Expect(iterator.Err()).NotTo(HaveOccurred())
+			})
+		})
+	})
 })
+
+// Helper function for creating int pointers
+func intPtr(i int) *int {
+	return &i
+}

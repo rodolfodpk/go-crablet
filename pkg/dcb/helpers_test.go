@@ -62,8 +62,10 @@ var _ = Describe("Helper Functions", func() {
 
 	Describe("NewEventBatch", func() {
 		It("should create event batch", func() {
-			event1 := NewInputEvent("Event1", []Tag{{Key: "key1", Value: "value1"}}, []byte("data1"))
-			event2 := NewInputEvent("Event2", []Tag{{Key: "key2", Value: "value2"}}, []byte("data2"))
+			event1, err := NewInputEvent("Event1", []Tag{{Key: "key1", Value: "value1"}}, []byte(`{"data": "value1"}`))
+			Expect(err).NotTo(HaveOccurred())
+			event2, err := NewInputEvent("Event2", []Tag{{Key: "key2", Value: "value2"}}, []byte(`{"data": "value2"}`))
+			Expect(err).NotTo(HaveOccurred())
 
 			batch := NewEventBatch(event1, event2)
 

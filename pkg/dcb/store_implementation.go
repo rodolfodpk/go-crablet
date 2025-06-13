@@ -54,6 +54,11 @@ func (es *eventStore) Read(ctx context.Context, query Query, options *ReadOption
 		}
 	}
 
+	// Validate query items
+	if err := validateQueryTags(query); err != nil {
+		return SequencedEvents{}, err
+	}
+
 	// Build SQL query based on query items
 	sqlQuery, args, err := es.buildReadQuerySQL(query, options)
 	if err != nil {
