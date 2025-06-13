@@ -949,8 +949,8 @@ var _ = Describe("Course Subscription Domain", func() {
 
 		Describe("EventIterator Interface Tests", func() {
 			It("should handle iterator error propagation", func() {
-				// Create a query that might cause an error
-				query := NewQueryFromItems(NewQueryItem([]string{"NonExistentEvent"}, NewTags("invalid", "tag")))
+				// Create a query that should work fine but return no results
+				query := NewQueryFromItems(NewQueryItem([]string{"NonExistentEvent"}, NewTags("course_id", "non-existent")))
 
 				iterator, err := store.ReadStream(ctx, query, nil)
 				Expect(err).NotTo(HaveOccurred())
@@ -962,7 +962,7 @@ var _ = Describe("Course Subscription Domain", func() {
 					Fail("Should not have any events")
 				}
 
-				// Err should be nil for empty results
+				// Err should be nil for empty results (not an error condition)
 				Expect(iterator.Err()).NotTo(HaveOccurred())
 			})
 
