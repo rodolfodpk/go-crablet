@@ -103,16 +103,17 @@ func main() {
 		},
 	}
 
-	// Project both states in a single query
-	result, err := store.ProjectBatch(ctx, []dcb.BatchProjector{
+	// Project both states using the DCB decision model pattern
+	query := dcb.NewQuery(dcb.NewTags("course_id", cmd.CourseID, "student_id", cmd.StudentID))
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, query, nil, []dcb.BatchProjector{
 		{ID: "course", StateProjector: courseProjector},
 		{ID: "student", StateProjector: studentProjector},
 	})
 	if err != nil {
 		log.Fatalf("projection failed: %v", err)
 	}
-	course := result.States["course"].(*CourseState)
-	student := result.States["student"].(*StudentState)
+	course := states["course"].(*CourseState)
+	student := states["student"].(*StudentState)
 
 	// Business rules
 	if course.EnrolledStudents >= course.MaxStudents {
@@ -132,11 +133,8 @@ func main() {
 		Data: mustJSON(map[string]any{"CourseID": cmd.CourseID, "StudentID": cmd.StudentID}),
 	}
 
-	// Append event with optimistic locking
-	_, err = store.Append(ctx, []dcb.InputEvent{enrollEvent}, &dcb.AppendCondition{
-		FailIfEventsMatch: dcb.NewQuery(dcb.NewTags("course_id", cmd.CourseID)),
-		After:             &result.Position,
-	})
+	// Use the append condition from the decision model for optimistic locking
+	_, err = store.Append(ctx, []dcb.InputEvent{enrollEvent}, &appendCondition)
 	if err != nil {
 		log.Fatalf("append failed: %v", err)
 	}

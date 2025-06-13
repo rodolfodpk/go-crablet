@@ -93,15 +93,16 @@ func main() {
 		},
 	}
 
-	// Project both accounts in a single query
-	result, err := store.ProjectBatch(ctx, []dcb.BatchProjector{
+	// Project both accounts using the DCB decision model pattern
+	query := dcb.NewQuery(dcb.NewTags("account_id", cmd.FromAccount, "account_id", cmd.ToAccount))
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, query, nil, []dcb.BatchProjector{
 		{ID: "from", StateProjector: fromProjector},
 		{ID: "to", StateProjector: toProjector},
 	})
 	if err != nil {
 		log.Fatalf("projection failed: %v", err)
 	}
-	from := result.States["from"].(*AccountState)
+	from := states["from"].(*AccountState)
 
 	// Business rules
 	if from.Balance < cmd.Amount {
@@ -123,11 +124,8 @@ func main() {
 		Data: mustJSON(map[string]any{"Amount": cmd.Amount}),
 	}
 
-	// Append events with optimistic locking
-	_, err = store.Append(ctx, []dcb.InputEvent{withdrawEvent, depositEvent}, &dcb.AppendCondition{
-		FailIfEventsMatch: dcb.NewQuery(dcb.NewTags("account_id", cmd.FromAccount)),
-		After:             &result.Position,
-	})
+	// Use the append condition from the decision model for optimistic locking
+	_, err = store.Append(ctx, []dcb.InputEvent{withdrawEvent, depositEvent}, &appendCondition)
 	if err != nil {
 		log.Fatalf("append failed: %v", err)
 	}

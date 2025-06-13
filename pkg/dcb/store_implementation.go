@@ -299,8 +299,12 @@ func (es *eventStore) buildReadQuerySQL(query Query, options *ReadOptions) (stri
 
 // checkAppendCondition checks if the append condition is satisfied
 func (es *eventStore) checkAppendCondition(ctx context.Context, condition AppendCondition) error {
+	if condition.FailIfEventsMatch == nil {
+		return nil // No condition to check
+	}
+
 	// Build query to check for conflicting events
-	sqlQuery, args, err := es.buildReadQuerySQL(condition.FailIfEventsMatch, &ReadOptions{
+	sqlQuery, args, err := es.buildReadQuerySQL(*condition.FailIfEventsMatch, &ReadOptions{
 		FromPosition: condition.After,
 		Limit:        &[]int{1}[0], // Just need to know if any exist
 	})
