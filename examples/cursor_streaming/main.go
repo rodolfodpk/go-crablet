@@ -100,7 +100,7 @@ func main() {
 	options := &dcb.ReadOptions{BatchSize: &batchSize}
 
 	// Test ProjectDecisionModel with cursor streaming
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, query, options, projectors)
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
 	if err != nil {
 		log.Fatalf("Failed to project decision model: %v", err)
 	}

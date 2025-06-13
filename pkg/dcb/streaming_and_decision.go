@@ -6,18 +6,9 @@ import (
 )
 
 // ProjectDecisionModel projects multiple states using projectors and returns final states and append condition
-func (es *eventStore) ProjectDecisionModel(ctx context.Context, query Query, options *ReadOptions, projectors []BatchProjector) (map[string]any, AppendCondition, error) {
-	if len(query.Items) == 0 {
-		return nil, AppendCondition{}, &ValidationError{
-			EventStoreError: EventStoreError{
-				Op:  "ProjectDecisionModel",
-				Err: fmt.Errorf("query must contain at least one item"),
-			},
-			Field: "query",
-			Value: "empty",
-		}
-	}
-
+// This is the primary DCB API for building decision models in command handlers
+// The function internally computes the combined query from all projectors for the append condition
+func (es *eventStore) ProjectDecisionModel(ctx context.Context, projectors []BatchProjector, options *ReadOptions) (map[string]any, AppendCondition, error) {
 	// Validate projectors
 	for _, bp := range projectors {
 		if bp.StateProjector.TransitionFn == nil {
@@ -32,12 +23,15 @@ func (es *eventStore) ProjectDecisionModel(ctx context.Context, query Query, opt
 		}
 	}
 
+	// Compute the combined query from all projectors (DCB pattern)
+	query := es.combineProjectorQueries(projectors)
+
 	// Check if we should use cursor-based streaming
 	if options != nil && options.BatchSize != nil && *options.BatchSize > 0 {
 		return es.projectDecisionModelWithCursor(ctx, query, options, projectors)
 	}
 
-	// Use the original approach for small datasets
+	// Use regular query for smaller datasets
 	return es.projectDecisionModelWithQuery(ctx, query, options, projectors)
 }
 

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -14,6 +15,15 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
+
+// toJSON marshals a struct to JSON bytes, panicking on error (for test convenience)
+func toJSON(v any) []byte {
+	data, err := json.Marshal(v)
+	if err != nil {
+		panic(fmt.Sprintf("failed to marshal to JSON: %v", err))
+	}
+	return data
+}
 
 // generateRandomPassword creates a random password string
 func generateRandomPassword(length int) (string, error) {
@@ -141,4 +151,27 @@ func dumpEvents(pool *pgxpool.Pool) {
 	fmt.Println(string(jsonData))
 	fmt.Printf("Total events: %d\n", len(events))
 	fmt.Println("------------------------------------")
+}
+
+// newTestEventStore creates a new isolated Postgres container and EventStore for each test
+func newTestEventStore() EventStore {
+	ctx := context.Background()
+	pool, container, err := setupPostgresContainer(ctx)
+	Expect(err).NotTo(HaveOccurred())
+
+	schemaSQL, err := os.ReadFile("../../docker-entrypoint-initdb.d/schema.sql")
+	Expect(err).NotTo(HaveOccurred())
+	_, err = pool.Exec(ctx, string(schemaSQL))
+	Expect(err).NotTo(HaveOccurred())
+
+	eventStore, err := NewEventStore(ctx, pool)
+	Expect(err).NotTo(HaveOccurred())
+
+	// Cleanup container after test
+	DeferCleanup(func() {
+		pool.Close()
+		container.Terminate(ctx)
+	})
+
+	return eventStore
 }

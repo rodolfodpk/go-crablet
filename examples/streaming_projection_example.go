@@ -123,16 +123,6 @@ func main() {
 		{ID: "balance", StateProjector: balanceProjector},
 	}
 
-	// Create query for events
-	query := dcb.Query{
-		Items: []dcb.QueryItem{
-			{
-				EventTypes: []string{"AccountCreated", "AccountUpdated", "TransactionCompleted"},
-				Tags:       []dcb.Tag{{Key: "account_id", Value: "acc123"}},
-			},
-		},
-	}
-
 	// Create test events
 	events := []dcb.InputEvent{
 		{
@@ -172,7 +162,7 @@ func main() {
 
 	// Use ProjectDecisionModel to build decision model
 	fmt.Println("\n=== Using ProjectDecisionModel API ===")
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, query, nil, projectors)
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
 	if err != nil {
 		log.Fatalf("Failed to read stream: %v", err)
 	}

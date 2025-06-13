@@ -104,11 +104,10 @@ func main() {
 	}
 
 	// Project both states using the DCB decision model pattern
-	query := dcb.NewQuery(dcb.NewTags("course_id", cmd.CourseID, "student_id", cmd.StudentID))
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, query, nil, []dcb.BatchProjector{
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, []dcb.BatchProjector{
 		{ID: "course", StateProjector: courseProjector},
 		{ID: "student", StateProjector: studentProjector},
-	})
+	}, nil)
 	if err != nil {
 		log.Fatalf("projection failed: %v", err)
 	}

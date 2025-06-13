@@ -17,7 +17,8 @@ type EventStore interface {
 
 	// ProjectDecisionModel projects multiple states using projectors and returns final states and append condition
 	// This is the primary DCB API for building decision models in command handlers
-	ProjectDecisionModel(ctx context.Context, query Query, options *ReadOptions, projectors []BatchProjector) (map[string]any, AppendCondition, error)
+	// The function internally computes the combined query from all projectors for the append condition
+	ProjectDecisionModel(ctx context.Context, projectors []BatchProjector, options *ReadOptions) (map[string]any, AppendCondition, error)
 }
 
 // EventIterator provides a streaming interface for reading events

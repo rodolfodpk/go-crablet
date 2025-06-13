@@ -94,11 +94,10 @@ func main() {
 	}
 
 	// Project both accounts using the DCB decision model pattern
-	query := dcb.NewQuery(dcb.NewTags("account_id", cmd.FromAccount, "account_id", cmd.ToAccount))
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, query, nil, []dcb.BatchProjector{
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, []dcb.BatchProjector{
 		{ID: "from", StateProjector: fromProjector},
 		{ID: "to", StateProjector: toProjector},
-	})
+	}, nil)
 	if err != nil {
 		log.Fatalf("projection failed: %v", err)
 	}

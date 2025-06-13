@@ -82,27 +82,17 @@ func main() {
 		{ID: "transactions", StateProjector: transactionProjector},
 	}
 
-	// Create query for events
-	query := dcb.Query{
-		Items: []dcb.QueryItem{
-			{
-				EventTypes: []string{"AccountCreated", "AccountUpdated", "TransactionCompleted"},
-				Tags:       []dcb.Tag{{Key: "account_id", Value: "acc123"}},
-			},
-		},
-	}
-
 	// Create some test events
 	events := []dcb.InputEvent{
 		{
 			Type: "AccountCreated",
 			Tags: []dcb.Tag{{Key: "account_id", Value: "acc123"}},
-			Data: mustMarshal(AccountCreatedData{InitialBalance: 1000}),
+			Data: toJSON(AccountCreatedData{InitialBalance: 1000}),
 		},
 		{
 			Type: "TransactionCompleted",
 			Tags: []dcb.Tag{{Key: "account_id", Value: "acc123"}},
-			Data: mustMarshal(TransactionCompletedData{Amount: 500}),
+			Data: toJSON(TransactionCompletedData{Amount: 500}),
 		},
 	}
 
@@ -115,7 +105,7 @@ func main() {
 
 	// Use ProjectDecisionModel to build decision model
 	fmt.Println("\n=== Using ProjectDecisionModel API ===")
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, query, nil, projectors)
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
 	if err != nil {
 		log.Fatalf("Failed to read stream: %v", err)
 	}
@@ -141,7 +131,7 @@ func main() {
 		{
 			Type: "TransactionCompleted",
 			Tags: []dcb.Tag{{Key: "account_id", Value: "acc123"}},
-			Data: mustMarshal(TransactionCompletedData{Amount: 200}),
+			Data: toJSON(TransactionCompletedData{Amount: 200}),
 		},
 	}
 
@@ -176,7 +166,7 @@ type TransactionCompletedData struct {
 	Amount int `json:"amount"`
 }
 
-func mustMarshal(v any) []byte {
+func toJSON(v any) []byte {
 	data, err := json.Marshal(v)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to marshal: %v", err))
