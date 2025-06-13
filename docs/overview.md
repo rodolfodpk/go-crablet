@@ -1,102 +1,47 @@
-# Overview and Key Concepts
+# Overview: Dynamic Consistency Boundary (DCB) in go-crablet
 
-go-crablet is a Go library that is inspired by the [Dynamic Consistency Boundary (DCB)](https://dcb.events/) pattern, introduced by Sara Pellegrini in her blog post "Killing the Aggregate". DCB provides a pragmatic approach to balancing strong consistency with flexibility in event-driven systems, without relying on rigid transactional boundaries.
+go-crablet is a Go library for event sourcing, built around the [Dynamic Consistency Boundary (DCB)](https://dcb.events/) pattern. DCB enables you to:
 
-Unlike traditional event sourcing approaches that use strict constraints to maintain immediate consistency, DCB allows for selective enforcement of strong consistency where needed, particularly for operations that span multiple entities. This ensures critical business processes and cross-entity invariants remain reliable while avoiding the constraints of traditional transactional models.
-
-The implementation leverages PostgreSQL's robust concurrency control mechanisms (MVCC and optimistic locking) to handle concurrent operations efficiently, while maintaining ACID guarantees at the database level.
+- Project multiple states and check business invariants in a single query
+- Use tag-based, OR-combined queries for cross-entity consistency
+- Enforce optimistic concurrency with combined append conditions
+- Stream events efficiently for large datasets
 
 ## Key Concepts
 
-- **Single Event Stream**: While traditional event sourcing uses one stream per aggregate (e.g., one stream for Course aggregate, another for Student aggregate), DCB uses a single event stream per bounded context. You can still use aggregates if they make sense for your domain, but they're not required to enforce consistency
-- **Tag-based Events**: Events are tagged with relevant identifiers, allowing one event to affect multiple concepts without artificial boundaries
-- **Dynamic Consistency**: Consistency is enforced by checking if any events matching a query appeared after a known position. This ensures that events affecting the same concept are processed in order
-- **Flexible Boundaries**: No need for predefined aggregates or rigid transactional boundaries - consistency boundaries emerge naturally from your queries, though you can still use aggregates where they provide value
-- **Concurrent Operations**: The implementation allows true concurrent operations by leveraging PostgreSQL's concurrency control mechanisms, rather than using application-level locks
-- **Streaming Event Processing**: Events are processed in a streaming fashion, making it memory-efficient for large event streams
-- **Complex Query Support**: Support for complex queries with multiple items combined with OR logic, inspired by the DCB pattern
+- **Batch Projection**: Project multiple states (decision model) in one database query
+- **Combined Append Condition**: Use a single, OR-combined query for optimistic locking
+- **Streaming**: Process events row-by-row, suitable for millions of events
+- **Tag-based Queries**: Flexible, cross-entity queries using tags
 
-## DCB Compliance
+## DCB Decision Model Pattern
 
-go-crablet aims to follow the DCB pattern principles:
+A DCB decision model is built by:
+1. Defining projectors for each business rule or invariant
+2. Projecting all states in a single query
+3. Building a combined append condition
+4. Appending new events only if all invariants still hold
 
-- ✅ **Streaming Events**: `ReadEvents()` returns an `EventIterator` for memory-efficient processing
-- ✅ **Query-based Filtering**: Support for complex queries with multiple `QueryItem`s and OR logic
-- ✅ **Position Tracking**: Each event includes its sequence position for consistency checks
-- ✅ **Append Conditions**: Conditional event appending with `AppendEventsIf()`
-- ✅ **State Projection**: Efficient state reconstruction through streaming projection
-
-## Comparison with Traditional Event Sourcing
-
-The key difference from traditional event sourcing:
-
-Traditional Event Sourcing | DCB Approach
--------------------------|------------
-One stream per aggregate (required) | One stream per bounded context (aggregates optional)
-Aggregates enforce consistency | Query-based position checks
-Rigid aggregate boundaries | Dynamic query-based boundaries
-Predefined consistency rules | Emergent consistency through queries
-Application-level locking | Database-level concurrency control
-Batch event loading | Streaming event processing
-Simple query structure | Complex queries with OR logic
-
-For example, in a course subscription system:
-
-Traditional Approach | DCB Approach
--------------------|------------
-Separate streams for `Course` and `Student` aggregates | Single stream with events tagged with both `course_id` and `student_id`
-Saga to coordinate subscription | Single event with both tags
-Two separate events for the same fact | One event affecting multiple concepts
-Aggregate boundaries limit flexibility | Natural consistency through query-based position checks
-Load all events into memory | Stream events one at a time
-Simple tag matching | Complex queries with multiple conditions
-
-## Streaming Architecture
-
-The library implements a streaming architecture that processes events one at a time:
+## Example: Course Subscription
 
 ```go
-// Memory-efficient event processing
-iterator, err := store.ReadEvents(ctx, query, nil)
-if err != nil {
-    return err
+projectors := []dcb.BatchProjector{
+    {ID: "courseExists", StateProjector: dcb.StateProjector{...}},
+    {ID: "numSubscriptions", StateProjector: dcb.StateProjector{...}},
 }
-defer iterator.Close()
-
-for {
-    event, err := iterator.Next()
-    if err != nil {
-        return err
-    }
-    if event == nil {
-        break // No more events
-    }
-    
-    // Process event without loading all events into memory
-    processEvent(event)
-}
+query := dcb.NewQueryFromItems(...)
+states, appendCond, _ := store.ProjectDecisionModel(ctx, query, nil, projectors)
+if !states["courseExists"].(bool) { /* append CourseDefined */ }
+if states["numSubscriptions"].(int) < 2 { /* append StudentSubscribed */ }
 ```
 
-This approach is particularly beneficial for:
-- **Large event streams**: Process millions of events without memory issues
-- **Real-time processing**: Handle events as they arrive
-- **Resource efficiency**: Minimize memory usage and database load
-- **Scalability**: Handle growing event volumes without performance degradation 
-
-## Key Features
-
-- **Event Sourcing**: Append-only event store with optimistic locking
-- **Complex Queries**: Support for multiple query items with OR logic
-- **Streaming Events**: Memory-efficient event iteration with keyset pagination
-- **State Projection**: Real-time state reconstruction from event streams
-- **Optimistic Locking**: Robust concurrent event appending with conflict detection
-- **DCB Compliance**: Inspired by and aims to follow the Dynamic Consistency Boundary pattern
-
 ## Streaming & Memory Efficiency
+- **ProjectDecisionModel**: Projects all states in one query, streams events row-by-row
+- **ReadStream**: Streams events for custom processing
 
-The event store provides two streaming approaches for memory-efficient processing of large datasets:
+## Why DCB?
+- **Single-query consistency**: All invariants checked atomically
+- **No aggregates required**: Consistency boundaries are defined by your queries
+- **Efficient**: One database round trip for all business rules
 
-- **`ReadEvents`**: Application-level streaming with 1000-event batches
-- **`ProjectState`**: Database-level streaming with row-by-row processing
-
-Both methods ensure **constant memory usage** regardless of total event count, making them suitable for processing millions of events. For detailed information, see [Streaming & Memory Efficiency](streaming.md).
+See the [README](../README.md) and [examples](examples.md) for more.
