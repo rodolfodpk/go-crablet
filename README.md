@@ -1,153 +1,118 @@
-# go-crablet
-
 [![Go Report Card](https://goreportcard.com/badge/github.com/rodolfodpk/go-crablet)](https://goreportcard.com/report/github.com/rodolfodpk/go-crablet)
 [![codecov](https://codecov.io/gh/rodolfodpk/go-crablet/branch/main/graph/badge.svg)](https://codecov.io/gh/rodolfodpk/go-crablet)
 [![GoDoc](https://godoc.org/github.com/rodolfodpk/go-crablet?status.svg)](https://godoc.org/github.com/rodolfodpk/go-crablet)
 [![License](https://img.shields.io/github/license/rodolfodpk/go-crablet)](https://github.com/rodolfodpk/go-crablet/blob/main/LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/rodolfodpk/go-crablet)](https://github.com/rodolfodpk/go-crablet/blob/main/go.mod)
 
-A Go library inspired by Sara Pellegrini's Dynamic Consistency Boundary (DCB) pattern, providing a simpler and more flexible approach to consistency in event-driven systems. This library aims to help with event sourcing applications that need:
-- Reliable audit trail of all state changes
-- Flexible querying across event streams
-- Easy state reconstruction at any point in time
-- Optimistic concurrency control with consistency boundaries
-- **Streaming event processing** for memory-efficient operations
-- **Complex query support** with multiple query items and OR logic
+# go-crablet
 
-Event sourcing is a pattern where all changes to application state are appended as a sequence of immutable events. Instead of updating the current state, you append new events that represent state changes. This append-only approach creates a complete, tamper-evident history that allows you to reconstruct past states, analyze how the system evolved, and build new views of the data without modifying the original event log.
+A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini's Dynamic Consistency Boundary (DCB) pattern. go-crablet enables you to build event-driven systems with:
 
-The library provides a focused, single-responsibility component that can be easily integrated into any Go application. It gives you full control over your event structure and state management while handling the complexities of event storage, consistency boundaries, and state projection.
+- **Batch projection**: Project multiple states using a single streamlined PostgreSQL query with native streaming
+- **DCB-inspired consistency**: Optimistic locking using the same query combination scope for projection and append
+- **Streaming**: Memory-efficient event processing for large event streams
+- **Flexible queries**: Tag-based, OR-combined queries for cross-entity invariants
 
-## Documentation
+## Key Features
 
-The documentation has been split into several files for better organization:
+- **DCB-inspired decision models**: Project multiple states and build append conditions in one step
+- **Single streamlined query**: Efficiently project all relevant states using PostgreSQL's native streaming via pgx
+- **Optimistic concurrency**: Append events only if no conflicting events have appeared within the same query combination scope
+- **Streaming**: Process events row-by-row, suitable for millions of events
+- **PostgreSQL-backed**: Uses PostgreSQL for robust, concurrent event storage
 
-- [Overview](docs/overview.md): High-level overview of go-crablet
-- [Installation](docs/installation.md): Installation and setup guide
-- [Tutorial](docs/tutorial.md): Step-by-step guide to get started with go-crablet
-- [Implementation Details](docs/implementation.md): Detailed technical documentation about the implementation
-- [State Projection](docs/state-projection.md): Detailed guide on state projection
-- [Appending Events](docs/appending-events.md): Guide on appending events and handling concurrency
-- [Reading Events](docs/reading-events.md): Guide on streaming events efficiently
-- [Examples](docs/examples.md): Practical examples and use cases, including a complete course subscription system
+## Exploring the DCB Pattern in Go
 
-## Features
+We're learning about the Dynamic Consistency Boundary (DCB) pattern by exploring how to:
+- Define projections ("decision models") that provide the data business rules need
+- Project all relevant state in a single query
+- Build a combined append condition for optimistic locking
+- Append new events only if all invariants still hold
 
-- **Event Sourcing**: Append-only event store with optimistic locking
-- **Complex Queries**: Support for multiple query items with OR logic
-- **Streaming Events**: Memory-efficient event iteration with keyset pagination
-- **State Projection**: Real-time state reconstruction from event streams
-- **Optimistic Locking**: Robust concurrent event appending with conflict detection
-- **DCB Compliance**: Inspired by and aims to follow the Dynamic Consistency Boundary pattern
-
-## Streaming & Memory Efficiency
-
-Both `ReadEvents` and `ProjectState` are designed for **memory-efficient streaming** of large event datasets:
-
-### **ReadEvents - Application-Level Streaming**
-```go
-// Stream events in configurable batches (default: 1000)
-// One call to ReadEvents returns an iterator that handles pagination automatically
-iterator, err := store.ReadEvents(ctx, query, nil)
-defer iterator.Close()
-
-for {
-    event, err := iterator.Next()
-    if err != nil {
-        return err
-    }
-    if event == nil {
-        break // No more events
-    }
-    // Process single event
-    processEvent(event)
-}
-```
-
-**Benefits:**
-- **Constant Memory Usage**: Only configurable batch size in memory at any time
-- **Keyset Pagination**: Efficient `position > lastPosition` queries
-- **Scalable**: Handles millions of events without memory issues
-- **Configurable**: Adjust batch size via `ReadOptions.BatchSize`
-- **Simple API**: One call to `ReadEvents` is enough - iterator handles pagination
-
-### **ProjectState - Database-Level Streaming**
-```go
-// Stream events directly from database
-state, position, err := store.ProjectState(ctx, projector)
-```
-
-**Benefits:**
-- **Native PostgreSQL Streaming**: Uses `rows.Next()` for row-by-row processing
-- **Zero Accumulation**: Processes one event at a time, no intermediate storage
-- **Real-time State**: Incremental state updates as events are processed
-- **Memory Efficient**: Constant memory usage regardless of event count
-
-### **Memory Usage Comparison**
-
-| Method | Memory Pattern | Use Case |
-|--------|---------------|----------|
-| `ReadEvents` | Configurable batch size (default: 1000) | Event iteration, custom processing |
-| `ProjectState` | 1 event at a time | State reconstruction, projections |
-
-Both approaches ensure **constant memory usage** regardless of total event count, making them suitable for processing millions of events.
-
-## Quick Start
+## Minimal Example: Course Subscription
 
 ```go
 package main
 
 import (
     "context"
-    "log"
-    
+    "encoding/json"
+    "fmt"
     "github.com/rodolfodpk/go-crablet/pkg/dcb"
     "github.com/jackc/pgx/v5/pgxpool"
 )
 
+type CourseDefined struct {
+    CourseID string
+    Capacity int
+}
+
+type StudentSubscribed struct {
+    StudentID string
+    CourseID  string
+}
+
 func main() {
-    // Create database connection
-    pool, err := pgxpool.New(context.Background(), "postgres://user:pass@localhost/db")
-    if err != nil {
-        log.Fatal(err)
+    pool, _ := pgxpool.New(context.Background(), "postgres://user:pass@localhost/db")
+    store, _ := dcb.NewEventStore(context.Background(), pool)
+
+    // Projectors for DCB-inspired decision model
+    projectors := []dcb.BatchProjector{
+        {ID: "courseExists", StateProjector: dcb.StateProjector{
+            Query: dcb.NewQuery(dcb.NewTags("course_id", "c1"), "CourseDefined"),
+            InitialState: false,
+            TransitionFn: func(state any, e dcb.Event) any { return true },
+        }},
+        {ID: "numSubscriptions", StateProjector: dcb.StateProjector{
+            Query: dcb.NewQuery(dcb.NewTags("course_id", "c1"), "StudentSubscribed"),
+            InitialState: 0,
+            TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
+        }},
     }
-    
-    // Create event store
-    store, err := dcb.NewEventStore(context.Background(), pool)
-    if err != nil {
-        log.Fatal(err)
-    }
-    
-    // Read events with complex query
     query := dcb.NewQueryFromItems(
-        dcb.NewQueryItem([]string{"AccountRegistered"}, []dcb.Tag{{Key: "user_id", Value: "123"}}),
-        dcb.NewQueryItem([]string{"AccountDetailsChanged"}, []dcb.Tag{{Key: "account_id", Value: "456"}}),
+        dcb.NewQueryItem([]string{"CourseDefined"}, dcb.NewTags("course_id", "c1")),
+        dcb.NewQueryItem([]string{"StudentSubscribed"}, dcb.NewTags("course_id", "c1")),
     )
-    
-    // Read events using streaming interface
-    iterator, err := store.ReadEvents(context.Background(), query, nil)
-    if err != nil {
-        log.Fatal(err)
+    states, appendCond, _ := store.ProjectDecisionModel(context.Background(), query, nil, projectors)
+    if !states["courseExists"].(bool) {
+        // Append CourseDefined event
+        data, _ := json.Marshal(CourseDefined{"c1", 2})
+        store.Append(context.Background(), []dcb.InputEvent{
+            dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", "c1"), data),
+        }, &appendCond)
     }
-    defer iterator.Close()
-    
-    // Process events one by one
-    for {
-        event, err := iterator.Next()
-        if err != nil {
-            log.Fatal(err)
-        }
-        if event == nil {
-            break // No more events
-        }
-        
-        log.Printf("Event: %s at position %d", event.Type, event.Position)
+    // Subscribe a student if not full
+    if states["numSubscriptions"].(int) < 2 {
+        data, _ := json.Marshal(StudentSubscribed{"s1", "c1"})
+        store.Append(context.Background(), []dcb.InputEvent{
+            dcb.NewInputEvent("StudentSubscribed", dcb.NewTags("student_id", "s1", "course_id", "c1"), data),
+        }, &appendCond)
     }
 }
 ```
+
+## Documentation
+- [Overview](docs/overview.md): DCB pattern exploration, batch projection, and streaming
+- [Examples](docs/examples.md): DCB-inspired use cases
+- [Implementation](docs/implementation.md): Technical details
+
+## Examples
+
+Ready-to-run examples demonstrating different aspects of the DCB pattern:
+
+- **[Transfer Example](examples/transfer/main.go)**: Money transfer between accounts with balance validation and optimistic locking
+- **[Course Enrollment](examples/enrollment/main.go)**: Student course enrollment with capacity limits and business rules
+- **[Streaming Projections](examples/streaming_projection_example.go)**: Memory-efficient event processing with multiple projections
+- **[Decision Model](examples/decision_model/decision_model_example.go)**: Complete DCB pattern implementation with multiple projectors
+- **[Cursor Streaming](examples/cursor_streaming/main.go)**: Large dataset processing with batching and streaming
+- **[ReadStream](examples/readstream/readstream_example.go)**: Event streaming with projections and optimistic locking
+
+Run any example with: `go run examples/[example-name]/main.go`
+
+**Note**: Examples require a PostgreSQL database. You can use the provided `docker-compose.yaml` to start a local PostgreSQL instance.
 
 ## References
 
 - [Dynamic Consistency Boundary (DCB)](https://dcb.events/) - A very good resource to understand the DCB pattern and its applications in event-driven systems
 - [I am here to kill the aggregate](https://sara.event-thinking.io/2023/04/kill-aggregate-chapter-1-I-am-here-to-kill-the-aggregate.html) - Sara Pellegrini's blog post about moving beyond aggregates in event-driven systems
-- [Kill Aggregate - Volume 2 - Sara Pellegrini at JOTB25](https://www.youtube.com/watch?v=AQ5fk4D3u9I)
+- [Kill Aggregate - Volume 2 - Sara Pellegrini at JOTB25](https://www.youtube.com/watch?v=AQ5fk4D3u9I) 

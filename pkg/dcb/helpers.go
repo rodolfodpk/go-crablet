@@ -26,6 +26,12 @@ func NewQuery(tags []Tag, eventTypes ...string) Query {
 	}
 }
 
+// NewQuerySimple creates a new Query with the given tags and event types.
+// This is a convenience function that combines NewTags and NewQuery.
+func NewQuerySimple(tags []Tag, eventTypes ...string) Query {
+	return NewQuery(tags, eventTypes...)
+}
+
 // NewQueryFromItems creates a new Query from multiple QueryItems.
 // This is inspired by the DCB pattern for complex queries.
 func NewQueryFromItems(items ...QueryItem) Query {
