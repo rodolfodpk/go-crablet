@@ -96,6 +96,21 @@ func main() {
 - [Examples](docs/examples.md): DCB-inspired use cases
 - [Implementation](docs/implementation.md): Technical details
 
+## Examples
+
+Ready-to-run examples demonstrating different aspects of the DCB pattern:
+
+- **[Transfer Example](examples/transfer/main.go)**: Money transfer between accounts with balance validation and optimistic locking
+- **[Course Enrollment](examples/enrollment/main.go)**: Student course enrollment with capacity limits and business rules
+- **[Streaming Projections](examples/streaming_projection_example.go)**: Memory-efficient event processing with multiple projections
+- **[Decision Model](examples/decision_model/decision_model_example.go)**: Complete DCB pattern implementation with multiple projectors
+- **[Cursor Streaming](examples/cursor_streaming/main.go)**: Large dataset processing with batching and streaming
+- **[ReadStream](examples/readstream/readstream_example.go)**: Event streaming with projections and optimistic locking
+
+Run any example with: `go run examples/[example-name]/main.go`
+
+**Note**: Examples require a PostgreSQL database. You can use the provided `docker-compose.yaml` to start a local PostgreSQL instance.
+
 ## References
 
 - [Dynamic Consistency Boundary (DCB)](https://dcb.events/) - A very good resource to understand the DCB pattern and its applications in event-driven systems
