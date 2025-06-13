@@ -74,6 +74,7 @@ type QueryItem struct {
 type ReadOptions struct {
 	FromPosition *int64 `json:"from_position"`
 	Limit        *int   `json:"limit"`
+	BatchSize    *int   `json:"batch_size"` // Batch size for cursor-based streaming
 }
 
 // SequencedEvents represents a collection of events with their final position

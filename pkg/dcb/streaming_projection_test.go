@@ -100,6 +100,68 @@ var _ = Describe("Streaming Projection", func() {
 			Expect(processedEvents[1].Type).To(Equal("TransactionCompleted"))
 		})
 	})
+
+	Describe("ProjectDecisionModel with cursor streaming", func() {
+		It("should use cursor-based streaming when BatchSize is specified", func() {
+			// Create test events
+			events := []InputEvent{
+				{Type: "CourseCreated", Tags: []Tag{{Key: "course_id", Value: "course-1"}}, Data: []byte(`{"name":"Math 101"}`)},
+				{Type: "StudentEnrolled", Tags: []Tag{{Key: "course_id", Value: "course-1"}, {Key: "student_id", Value: "student-1"}}, Data: []byte(`{"student_name":"Alice"}`)},
+				{Type: "StudentEnrolled", Tags: []Tag{{Key: "course_id", Value: "course-1"}, {Key: "student_id", Value: "student-2"}}, Data: []byte(`{"student_name":"Bob"}`)},
+			}
+
+			// Append events
+			_, err := store.Append(ctx, events, nil)
+			Expect(err).To(BeNil())
+
+			// Define projectors
+			projectors := []BatchProjector{
+				{
+					ID: "course_enrollment",
+					StateProjector: StateProjector{
+						Query: Query{
+							Items: []QueryItem{
+								{
+									EventTypes: []string{"CourseCreated", "StudentEnrolled"},
+									Tags:       []Tag{{Key: "course_id", Value: "course-1"}},
+								},
+							},
+						},
+						InitialState: 0,
+						TransitionFn: func(state any, event Event) any {
+							count := state.(int)
+							if event.Type == "StudentEnrolled" {
+								return count + 1
+							}
+							return count
+						},
+					},
+				},
+			}
+
+			// Query for events
+			query := Query{
+				Items: []QueryItem{
+					{
+						EventTypes: []string{"CourseCreated", "StudentEnrolled"},
+						Tags:       []Tag{{Key: "course_id", Value: "course-1"}},
+					},
+				},
+			}
+
+			// Use cursor-based streaming with small batch size
+			batchSize := 2
+			options := &ReadOptions{BatchSize: &batchSize}
+
+			// Test ProjectDecisionModel with cursor streaming
+			states, appendCondition, err := store.ProjectDecisionModel(ctx, query, options, projectors)
+			Expect(err).To(BeNil())
+			Expect(states).To(HaveKey("course_enrollment"))
+			Expect(states["course_enrollment"]).To(Equal(2)) // 2 StudentEnrolled events
+			Expect(appendCondition.After).To(Not(BeNil()))
+			Expect(*appendCondition.After).To(Equal(int64(3))) // Last event position
+		})
+	})
 })
 
 // Helper types for testing

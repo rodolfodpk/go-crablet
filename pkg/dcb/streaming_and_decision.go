@@ -32,6 +32,66 @@ func (es *eventStore) ProjectDecisionModel(ctx context.Context, query Query, opt
 		}
 	}
 
+	// Check if we should use cursor-based streaming
+	if options != nil && options.BatchSize != nil && *options.BatchSize > 0 {
+		return es.projectDecisionModelWithCursor(ctx, query, options, projectors)
+	}
+
+	// Use the original approach for small datasets
+	return es.projectDecisionModelWithQuery(ctx, query, options, projectors)
+}
+
+// projectDecisionModelWithCursor uses cursor-based streaming for large datasets
+func (es *eventStore) projectDecisionModelWithCursor(ctx context.Context, query Query, options *ReadOptions, projectors []BatchProjector) (map[string]any, AppendCondition, error) {
+	// Initialize states for all projectors
+	states := make(map[string]any)
+	for _, bp := range projectors {
+		states[bp.ID] = bp.StateProjector.InitialState
+	}
+
+	// Build AppendCondition from projector queries for optimistic locking
+	appendCondition := es.buildAppendConditionFromProjectors(projectors)
+
+	// Use ReadStream for cursor-based processing
+	iterator, err := es.ReadStream(ctx, query, options)
+	if err != nil {
+		return nil, AppendCondition{}, err
+	}
+	defer iterator.Close()
+
+	// Process events using the streaming iterator
+	var lastPosition int64
+	for iterator.Next() {
+		event := iterator.Event()
+		lastPosition = event.Position
+
+		// Update AppendCondition.After field with current position
+		appendCondition.After = &lastPosition
+
+		// Apply projectors
+		for _, bp := range projectors {
+			if es.eventMatchesProjector(event, bp.StateProjector) {
+				states[bp.ID] = bp.StateProjector.TransitionFn(states[bp.ID], event)
+			}
+		}
+	}
+
+	// Check for iteration errors
+	if err := iterator.Err(); err != nil {
+		return nil, AppendCondition{}, &ResourceError{
+			EventStoreError: EventStoreError{
+				Op:  "ProjectDecisionModel",
+				Err: fmt.Errorf("error iterating over events: %w", err),
+			},
+			Resource: "database",
+		}
+	}
+
+	return states, appendCondition, nil
+}
+
+// projectDecisionModelWithQuery uses the original query-based approach for small datasets
+func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Query, options *ReadOptions, projectors []BatchProjector) (map[string]any, AppendCondition, error) {
 	// Build SQL query based on query items
 	sqlQuery, args, err := es.buildReadQuerySQL(query, options)
 	if err != nil {
