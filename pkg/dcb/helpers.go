@@ -1,10 +1,5 @@
 package dcb
 
-import (
-	"encoding/json"
-	"fmt"
-)
-
 // NewTags creates a slice of tags from key-value pairs.
 // It panics if the number of arguments is odd.
 func NewTags(kv ...string) []Tag {
@@ -66,31 +61,19 @@ func NewQueryItem(types []string, tags []Tag) QueryItem {
 // NewInputEvent creates a new InputEvent with the given type, tags, and data.
 // It validates that the data is valid JSON and returns an error if validation fails.
 func NewInputEvent(eventType string, tags []Tag, data []byte) (InputEvent, error) {
-	// Validate event type
-	if eventType == "" {
-		return InputEvent{}, fmt.Errorf("event type cannot be empty")
-	}
-
-	// Validate tags
-	for i, tag := range tags {
-		if tag.Key == "" {
-			return InputEvent{}, fmt.Errorf("tag at index %d has empty key", i)
-		}
-		if tag.Value == "" {
-			return InputEvent{}, fmt.Errorf("tag at index %d has empty value for key '%s'", i, tag.Key)
-		}
-	}
-
-	// Validate JSON data
-	if len(data) > 0 && !json.Valid(data) {
-		return InputEvent{}, fmt.Errorf("invalid JSON data: %s", string(data))
-	}
-
-	return InputEvent{
+	// Create the event first
+	event := InputEvent{
 		Type: eventType,
 		Tags: tags,
 		Data: data,
-	}, nil
+	}
+
+	// Use the same validation logic as the main validation
+	if err := validateEvent(event, 0); err != nil {
+		return InputEvent{}, err
+	}
+
+	return event, nil
 }
 
 // NewInputEventUnsafe creates a new InputEvent without validation.
