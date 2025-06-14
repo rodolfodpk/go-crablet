@@ -28,11 +28,11 @@ If you're new to Go and want to run the examples, follow these essential steps:
 
 ## Available Examples
 
-- `examples/decision_model/decision_model_example.go` - Complete DCB pattern
+- `examples/decision_model/main.go` - Complete DCB pattern
 - `examples/enrollment/main.go` - Course enrollment with business rules
 - `examples/transfer/main.go` - Money transfer between accounts
-- `examples/readstream/readstream_example.go` - Event streaming basics
-- `examples/streaming_projection_example.go` - Streaming projections
+- `examples/readstream/main.go` - Event streaming basics
+- `examples/streaming_projection/main.go` - Streaming projections
 
 ## Troubleshooting
 

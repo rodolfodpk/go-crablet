@@ -111,10 +111,10 @@ Ready-to-run examples demonstrating different aspects of the DCB pattern:
 
 - **[Transfer Example](examples/transfer/main.go)**: Money transfer between accounts with balance validation and optimistic locking
 - **[Course Enrollment](examples/enrollment/main.go)**: Student course enrollment with capacity limits and business rules
-- **[Streaming Projections](examples/streaming_projection_example.go)**: Memory-efficient event processing with multiple projections
-- **[Decision Model](examples/decision_model/decision_model_example.go)**: Complete DCB pattern implementation with multiple projectors
+- **[Streaming Projections](examples/streaming_projection/main.go)**: Memory-efficient event processing with multiple projections
+- **[Decision Model](examples/decision_model/main.go)**: Complete DCB pattern implementation with multiple projectors
 - **[Cursor Streaming](examples/cursor_streaming/main.go)**: Large dataset processing with batching and streaming
-- **[ReadStream](examples/readstream/readstream_example.go)**: Event streaming with projections and optimistic locking
+- **[ReadStream](examples/readstream/main.go)**: Event streaming with projections and optimistic locking
 
 Run any example with: `go run examples/[example-name]/main.go`
 
@@ -147,10 +147,10 @@ If you're new to Go and want to run the examples, follow these essential steps:
    ```
 
 ### Available Examples
-- `examples/decision_model/decision_model_example.go` - Complete DCB pattern
+- `examples/decision_model/main.go` - Complete DCB pattern
 - `examples/enrollment/main.go` - Course enrollment with business rules
 - `examples/transfer/main.go` - Money transfer between accounts
-- `examples/readstream/readstream_example.go` - Event streaming basics
+- `examples/readstream/main.go` - Event streaming basics
 
 ### Troubleshooting
 - **Database connection error**: Make sure PostgreSQL is running with `docker-compose ps`
