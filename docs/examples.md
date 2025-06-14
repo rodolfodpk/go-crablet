@@ -31,8 +31,9 @@ type StudentSubscribed struct {
 }
 
 func main() {
-    pool, _ := pgxpool.New(context.Background(), "postgres://user:pass@localhost/db")
-    store, _ := dcb.NewEventStore(context.Background(), pool)
+    ctx := context.Background()
+    pool, _ := pgxpool.New(ctx, "postgres://user:pass@localhost/db")
+    store, _ := dcb.NewEventStore(ctx, pool)
 
     courseID := "c1"
     studentID := "s1"
@@ -57,12 +58,12 @@ func main() {
     }
 
     // Project all states in single query (traditional cursor-based approach)
-    states, appendCond, _ := store.ProjectDecisionModel(context.Background(), projectors, nil)
+    states, appendCond, _ := store.ProjectDecisionModel(ctx, projectors, nil)
 
     if !states["courseExists"].(bool) {
         // Append CourseDefined event
         data, _ := json.Marshal(CourseDefined{courseID, 2})
-        store.Append(context.Background(), []dcb.InputEvent{
+        store.Append(ctx, []dcb.InputEvent{
             dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", courseID), data),
         }, &appendCond)
     }
@@ -74,7 +75,7 @@ func main() {
     }
     // Subscribe student
     data, _ := json.Marshal(StudentSubscribed{studentID, courseID})
-    store.Append(context.Background(), []dcb.InputEvent{
+    store.Append(ctx, []dcb.InputEvent{
         dcb.NewInputEvent("StudentSubscribed", dcb.NewTags("student_id", studentID, "course_id", courseID), data),
     }, &appendCond)
 }
@@ -84,8 +85,9 @@ func main() {
 
 ```go
 func channelBasedExample() {
-    pool, _ := pgxpool.New(context.Background(), "postgres://user:pass@localhost/db")
-    store, _ := dcb.NewEventStore(context.Background(), pool)
+    ctx := context.Background()
+    pool, _ := pgxpool.New(ctx, "postgres://user:pass@localhost/db")
+    store, _ := dcb.NewEventStore(ctx, pool)
     
     // Get channel-based store
     channelStore := store.(dcb.ChannelEventStore)
@@ -113,7 +115,7 @@ func channelBasedExample() {
     }
 
     // Channel-based projection with immediate feedback
-    resultChan, _ := channelStore.ProjectDecisionModelChannel(context.Background(), projectors, nil)
+    resultChan, _ := channelStore.ProjectDecisionModelChannel(ctx, projectors, nil)
     
     // Process results as they come in
     finalStates := make(map[string]interface{})
@@ -146,8 +148,9 @@ func channelBasedExample() {
 
 ```go
 func channelStreamingExample() {
-    pool, _ := pgxpool.New(context.Background(), "postgres://user:pass@localhost/db")
-    store, _ := dcb.NewEventStore(context.Background(), pool)
+    ctx := context.Background()
+    pool, _ := pgxpool.New(ctx, "postgres://user:pass@localhost/db")
+    store, _ := dcb.NewEventStore(ctx, pool)
     
     // Get channel-based store
     channelStore := store.(dcb.ChannelEventStore)
@@ -156,7 +159,7 @@ func channelStreamingExample() {
     query := dcb.NewQuerySimple(dcb.NewTags("course_id", "c1"), "CourseDefined", "StudentSubscribed")
 
     // Channel-based streaming
-    eventChan, err := channelStore.ReadStreamChannel(context.Background(), query, nil)
+    eventChan, err := channelStore.ReadStreamChannel(ctx, query, nil)
     if err != nil {
         panic(err)
     }
@@ -199,4 +202,4 @@ func channelStreamingExample() {
 - **`examples/channel_projection/`** - Channel-based projection with immediate feedback
 - **`examples/extension_interface/`** - Extension interface pattern demonstration
 - **`examples/transfer/`** - Event sourcing with semantic event names
-- **`examples/enrollment/`** - Course enrollment with business rules 
+- **`examples/enrollment/`** - Course enrollment with business rules

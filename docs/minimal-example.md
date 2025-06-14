@@ -16,8 +16,9 @@ import (
 )
 
 func main() {
-    pool, _ := pgxpool.New(context.Background(), "postgres://user:pass@localhost/db")
-    store, _ := dcb.NewEventStore(context.Background(), pool)
+    ctx := context.Background()
+    pool, _ := pgxpool.New(ctx, "postgres://user:pass@localhost/db")
+    store, _ := dcb.NewEventStore(ctx, pool)
 
     // Define projectors for business rules
     projectors := []dcb.BatchProjector{
@@ -39,14 +40,14 @@ func main() {
     }
 
     // Project states and get append condition (DCB pattern)
-    states, appendCond, _ := store.ProjectDecisionModel(context.Background(), projectors, nil)
+    states, appendCond, _ := store.ProjectDecisionModel(ctx, projectors, nil)
     
     // Business logic: create course if it doesn't exist
     if !states["courseExists"].(bool) {
         data, _ := json.Marshal(map[string]any{"CourseID": "c1", "Capacity": 2})
         courseEvent := dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", "c1"), data)
         courseEvent.CorrelationID = "enrollment-123"
-        store.Append(context.Background(), []dcb.InputEvent{courseEvent}, &appendCond)
+        store.Append(ctx, []dcb.InputEvent{courseEvent}, &appendCond)
     }
     
     // Business logic: create student if doesn't exist
@@ -54,7 +55,7 @@ func main() {
         data, _ := json.Marshal(map[string]any{"StudentID": "s1", "Name": "Alice", "Email": "alice@example.com"})
         studentEvent := dcb.NewInputEvent("StudentRegistered", dcb.NewTags("student_id", "s1"), data)
         studentEvent.CorrelationID = "enrollment-123"
-        store.Append(context.Background(), []dcb.InputEvent{studentEvent}, &appendCond)
+        store.Append(ctx, []dcb.InputEvent{studentEvent}, &appendCond)
     }
     
     // Business logic: subscribe student if course not full
@@ -62,11 +63,11 @@ func main() {
         data, _ := json.Marshal(map[string]any{"StudentID": "s1", "CourseID": "c1"})
         enrollEvent := dcb.NewInputEvent("StudentSubscribed", dcb.NewTags("student_id", "s1", "course_id", "c1"), data)
         enrollEvent.CorrelationID = "enrollment-123"
-        store.Append(context.Background(), []dcb.InputEvent{enrollEvent}, &appendCond)
+        store.Append(ctx, []dcb.InputEvent{enrollEvent}, &appendCond)
     }
 
     // Change course capacity with proper causation/correlation
-    changeCourseCapacity(context.Background(), store, "c1", 5)
+    changeCourseCapacity(ctx, store, "c1", 5)
 }
 
 // Change course capacity with proper causation/correlation
