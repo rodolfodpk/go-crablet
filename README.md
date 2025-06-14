@@ -58,6 +58,11 @@ func main() {
             InitialState: false,
             TransitionFn: func(state any, e dcb.Event) any { return true },
         }},
+        {ID: "studentExists", StateProjector: dcb.StateProjector{
+            Query: dcb.NewQuery(dcb.NewTags("student_id", "s1"), "StudentRegistered"),
+            InitialState: false,
+            TransitionFn: func(state any, e dcb.Event) any { return true },
+        }},
         {ID: "numSubscriptions", StateProjector: dcb.StateProjector{
             Query: dcb.NewQuery(dcb.NewTags("course_id", "c1"), "StudentSubscribed"),
             InitialState: 0,
@@ -71,17 +76,25 @@ func main() {
     // Business logic: create course if it doesn't exist
     if !states["courseExists"].(bool) {
         data, _ := json.Marshal(map[string]any{"CourseID": "c1", "Capacity": 2})
-        store.Append(context.Background(), []dcb.InputEvent{
-            dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", "c1"), data),
-        }, &appendCond)
+        courseEvent := dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", "c1"), data)
+        courseEvent.CorrelationID = "enrollment-123"
+        store.Append(context.Background(), []dcb.InputEvent{courseEvent}, &appendCond)
+    }
+    
+    // Business logic: create student if doesn't exist
+    if !states["studentExists"].(bool) {
+        data, _ := json.Marshal(map[string]any{"StudentID": "s1", "Name": "Alice", "Email": "alice@example.com"})
+        studentEvent := dcb.NewInputEvent("StudentRegistered", dcb.NewTags("student_id", "s1"), data)
+        studentEvent.CorrelationID = "enrollment-123"
+        store.Append(context.Background(), []dcb.InputEvent{studentEvent}, &appendCond)
     }
     
     // Business logic: subscribe student if course not full
     if states["numSubscriptions"].(int) < 2 {
         data, _ := json.Marshal(map[string]any{"StudentID": "s1", "CourseID": "c1"})
-        store.Append(context.Background(), []dcb.InputEvent{
-            dcb.NewInputEvent("StudentSubscribed", dcb.NewTags("student_id", "s1", "course_id", "c1"), data),
-        }, &appendCond)
+        enrollEvent := dcb.NewInputEvent("StudentSubscribed", dcb.NewTags("student_id", "s1", "course_id", "c1"), data)
+        enrollEvent.CorrelationID = "enrollment-123"
+        store.Append(context.Background(), []dcb.InputEvent{enrollEvent}, &appendCond)
     }
 }
 
@@ -89,6 +102,29 @@ func main() {
 - **ProjectDecisionModel**: Projects multiple states in one query
 - **AppendCondition**: Optimistic locking for consistency
 - **BatchProjector**: Defines business rules and state transitions
+
+## Resulting Events
+
+After running the minimal example, the events table will contain:
+
+```sql
+SELECT id, type, tags, data, position, causation_id, correlation_id 
+FROM events 
+ORDER BY position;
+```
+
+| id | type | tags | data | position | causation_id | correlation_id |
+|----|------|------|------|----------|--------------|----------------|
+| 1 | CourseDefined | `{"course_id": "c1"}` | `{"CourseID": "c1", "Capacity": 2}` | 1 | course_id_01h2xcejqtf2nbrexx3vqjhp41 | course_id_01h2xcejqtf2nbrexx3vqjhp41 |
+| 2 | StudentRegistered | `{"student_id": "s1"}` | `{"StudentID": "s1", "Name": "Alice", "Email": "alice@example.com"}` | 2 | student_id_01h2xcejqtf2nbrexx3vqjhp42 | student_id_01h2xcejqtf2nbrexx3vqjhp42 |
+| 3 | StudentSubscribed | `{"student_id": "s1", "course_id": "c1"}` | `{"StudentID": "s1", "CourseID": "c1"}` | 3 | course_id_student_id_01h2xcejqtf2nbrexx3vqjhp43 | course_id_student_id_01h2xcejqtf2nbrexx3vqjhp43 |
+
+**Event Flow:**
+1. **CourseDefined**: Creates course "c1" with capacity 2
+2. **StudentRegistered**: Registers student "s1" (Alice)
+3. **StudentSubscribed**: Enrolls student "s1" in course "c1"
+
+**Note**: All events share the same correlation ID (`enrollment-123`) to group them as part of the same enrollment operation.
 
 ## Examples
 
