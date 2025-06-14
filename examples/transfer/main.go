@@ -1,5 +1,5 @@
 // This example is standalone. Run with: go run examples/transfer/main.go
-package transfer
+package main
 
 import (
 	"context"
@@ -53,7 +53,7 @@ type TransferCommand struct {
 
 func main() {
 	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, "postgres://user:password@localhost:5432/db")
+	pool, err := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")
 	if err != nil {
 		log.Fatalf("failed to connect to db: %v", err)
 	}

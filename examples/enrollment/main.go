@@ -1,5 +1,5 @@
-// This example is standalone. Run with: go run examples/projection_based_enrollment_example.go
-package enrollment
+// This example is standalone. Run with: go run examples/enrollment/main.go
+package main
 
 import (
 	"context"
@@ -28,7 +28,7 @@ type StudentState struct {
 
 func main() {
 	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, "postgres://user:password@localhost:5432/db")
+	pool, err := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")
 	if err != nil {
 		log.Fatalf("failed to connect to db: %v", err)
 	}

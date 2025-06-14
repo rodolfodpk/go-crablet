@@ -36,7 +36,7 @@ func main() {
 	ctx := context.Background()
 
 	// Connect to database
-	pool, err := pgxpool.New(ctx, "postgres://postgres:password@localhost:5432/events?sslmode=disable")
+	pool, err := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
