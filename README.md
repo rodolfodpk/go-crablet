@@ -34,6 +34,7 @@ We're learning about the Dynamic Consistency Boundary (DCB) pattern by exploring
 - [Examples](docs/examples.md): DCB-inspired use cases
 - [Implementation](docs/implementation.md): Technical details
 - [Causation and Correlation](docs/causation-correlation.md): Understanding event relationships and tracing
+- [Minimal Example](docs/minimal-example.md): Detailed walkthrough of the course subscription example
 
 ## Minimal Example: Course Subscription
 
@@ -97,34 +98,12 @@ func main() {
         store.Append(context.Background(), []dcb.InputEvent{enrollEvent}, &appendCond)
     }
 }
+```
 
-**Key DCB Concepts:**
+**What we're exploring:**
 - **ProjectDecisionModel**: Projects multiple states in one query
 - **AppendCondition**: Optimistic locking for consistency
 - **BatchProjector**: Defines business rules and state transitions
-
-## Resulting Events
-
-After running the minimal example, the events table will contain:
-
-```sql
-SELECT id, type, tags, data, position, causation_id, correlation_id 
-FROM events 
-ORDER BY position;
-```
-
-| id | type | tags | data | position | causation_id | correlation_id |
-|----|------|------|------|----------|--------------|----------------|
-| 1 | CourseDefined | `{"course_id": "c1"}` | `{"CourseID": "c1", "Capacity": 2}` | 1 | course_id_01h2xcejqtf2nbrexx3vqjhp41 | course_id_01h2xcejqtf2nbrexx3vqjhp41 |
-| 2 | StudentRegistered | `{"student_id": "s1"}` | `{"StudentID": "s1", "Name": "Alice", "Email": "alice@example.com"}` | 2 | student_id_01h2xcejqtf2nbrexx3vqjhp42 | student_id_01h2xcejqtf2nbrexx3vqjhp42 |
-| 3 | StudentSubscribed | `{"student_id": "s1", "course_id": "c1"}` | `{"StudentID": "s1", "CourseID": "c1"}` | 3 | course_id_student_id_01h2xcejqtf2nbrexx3vqjhp43 | course_id_student_id_01h2xcejqtf2nbrexx3vqjhp43 |
-
-**Event Flow:**
-1. **CourseDefined**: Creates course "c1" with capacity 2
-2. **StudentRegistered**: Registers student "s1" (Alice)
-3. **StudentSubscribed**: Enrolls student "s1" in course "c1"
-
-**Note**: All events share the same correlation ID (`enrollment-123`) to group them as part of the same enrollment operation.
 
 ## Examples
 
