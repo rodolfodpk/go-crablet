@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 
+	"go-crablet/internal/examples/utils"
 	"go-crablet/pkg/dcb"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -139,6 +140,10 @@ func main() {
 	}
 
 	fmt.Println("Student enrolled successfully!")
+
+	// Dump all events to show what was created
+	fmt.Println("\n=== Events in Database ===")
+	utils.DumpEvents(ctx, pool)
 }
 
 func mustJSON(v any) []byte {

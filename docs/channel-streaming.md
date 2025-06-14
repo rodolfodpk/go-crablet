@@ -236,9 +236,9 @@ if stream.err != nil {
 
 See the following examples for complete implementations:
 
-- **`examples/channel_streaming/`** - Basic channel-based event streaming
-- **`examples/channel_projection/`** - Channel-based state projection
-- **`examples/extension_interface/`** - Extension interface pattern demonstration
+- **`internal/examples/channel_streaming/`** - Basic channel-based event streaming
+- **`internal/examples/channel_projection/`** - Channel-based state projection
+- **`internal/examples/extension_interface/`** - Extension interface pattern demonstration
 
 ## Migration from Traditional Approach
 

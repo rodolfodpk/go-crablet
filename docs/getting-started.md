@@ -23,16 +23,16 @@ If you're new to Go and want to run the examples, follow these essential steps:
 
 3. **Run an example:**
    ```bash
-   go run examples/decision_model/decision_model_example.go
+   go run internal/examples/decision_model/main.go
    ```
 
 ## Available Examples
 
-- `examples/decision_model/main.go` - Complete DCB pattern
-- `examples/enrollment/main.go` - Course enrollment with business rules
-- `examples/transfer/main.go` - Money transfer between accounts
-- `examples/readstream/main.go` - Event streaming basics
-- `examples/streaming_projection/main.go` - Streaming projections
+- `internal/examples/decision_model/main.go` - Complete DCB pattern
+- `internal/examples/enrollment/main.go` - Course enrollment with business rules
+- `internal/examples/transfer/main.go` - Money transfer between accounts
+- `internal/examples/readstream/main.go` - Event streaming basics
+- `internal/examples/streaming_projection/main.go` - Streaming projections
 
 ## Troubleshooting
 

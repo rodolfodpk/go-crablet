@@ -7,6 +7,7 @@ import (
 	"log"
 	"time"
 
+	"go-crablet/internal/examples/utils"
 	"go-crablet/pkg/dcb"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -196,6 +197,10 @@ func main() {
 		log.Fatalf("Failed to append new events: %v", err)
 	}
 	fmt.Printf("Successfully appended new events up to position: %d\n", newPosition)
+
+	// Dump all events to show what was created
+	fmt.Println("\n=== Events in Database ===")
+	utils.DumpEvents(ctx, pool)
 }
 
 // Helper types

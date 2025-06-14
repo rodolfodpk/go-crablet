@@ -109,14 +109,14 @@ func main() {
 
 Ready-to-run examples demonstrating different aspects of the DCB pattern:
 
-- **[Transfer Example](examples/transfer/main.go)**: Money transfer between accounts with balance validation and optimistic locking
-- **[Course Enrollment](examples/enrollment/main.go)**: Student course enrollment with capacity limits and business rules
-- **[Streaming Projections](examples/streaming_projection/main.go)**: Memory-efficient event processing with multiple projections
-- **[Decision Model](examples/decision_model/main.go)**: Complete DCB pattern implementation with multiple projectors
-- **[Cursor Streaming](examples/cursor_streaming/main.go)**: Large dataset processing with batching and streaming
-- **[ReadStream](examples/readstream/main.go)**: Event streaming with projections and optimistic locking
+- **[Transfer Example](internal/examples/transfer/main.go)**: Money transfer between accounts with balance validation and optimistic locking
+- **[Course Enrollment](internal/examples/enrollment/main.go)**: Student course enrollment with capacity limits and business rules
+- **[Streaming Projections](internal/examples/streaming_projection/main.go)**: Memory-efficient event processing with multiple projections
+- **[Decision Model](internal/examples/decision_model/main.go)**: Complete DCB pattern implementation with multiple projectors
+- **[Cursor Streaming](internal/examples/cursor_streaming/main.go)**: Large dataset processing with batching and streaming
+- **[ReadStream](internal/examples/readstream/main.go)**: Event streaming with projections and optimistic locking
 
-Run any example with: `go run examples/[example-name]/main.go`
+Run any example with: `go run internal/examples/[example-name]/main.go`
 
 **Note**: Examples require a PostgreSQL 17.5+ database. You can use the provided `docker-compose.yaml` to start a local PostgreSQL instance.
 
@@ -143,14 +143,14 @@ If you're new to Go and want to run the examples, follow these essential steps:
 
 3. **Run an example:**
    ```bash
-   go run examples/decision_model/decision_model_example.go
+   go run internal/examples/decision_model/main.go
    ```
 
 ### Available Examples
-- `examples/decision_model/main.go` - Complete DCB pattern
-- `examples/enrollment/main.go` - Course enrollment with business rules
-- `examples/transfer/main.go` - Money transfer between accounts
-- `examples/readstream/main.go` - Event streaming basics
+- `internal/examples/decision_model/main.go` - Complete DCB pattern
+- `internal/examples/enrollment/main.go` - Course enrollment with business rules
+- `internal/examples/transfer/main.go` - Money transfer between accounts
+- `internal/examples/readstream/main.go` - Event streaming basics
 
 ### Troubleshooting
 - **Database connection error**: Make sure PostgreSQL is running with `docker-compose ps`

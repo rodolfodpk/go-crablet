@@ -197,9 +197,9 @@ func channelStreamingExample() {
 
 ## Available Examples
 
-- **`examples/cursor_streaming/`** - Cursor-based streaming for large datasets
-- **`examples/channel_streaming/`** - Channel-based streaming for small-medium datasets
-- **`examples/channel_projection/`** - Channel-based projection with immediate feedback
-- **`examples/extension_interface/`** - Extension interface pattern demonstration
-- **`examples/transfer/`** - Event sourcing with semantic event names
-- **`examples/enrollment/`** - Course enrollment with business rules
+- **`internal/examples/cursor_streaming/`** - Cursor-based streaming for large datasets
+- **`internal/examples/channel_streaming/`** - Channel-based streaming for small-medium datasets
+- **`internal/examples/channel_projection/`** - Channel-based projection with immediate feedback
+- **`internal/examples/extension_interface/`** - Extension interface pattern demonstration
+- **`internal/examples/transfer/`** - Event sourcing with semantic event names
+- **`internal/examples/enrollment/`** - Course enrollment with business rules

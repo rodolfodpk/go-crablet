@@ -8,6 +8,7 @@ import (
 	"log"
 	"time"
 
+	"go-crablet/internal/examples/utils"
 	"go-crablet/pkg/dcb"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -88,6 +89,10 @@ func main() {
 	}
 
 	fmt.Printf("Transfer successful! Transfer ID: %s\n", cmd.TransferID)
+
+	// Dump all events to show what was created
+	fmt.Println("\n=== Events in Database ===")
+	utils.DumpEvents(ctx, pool)
 }
 
 // createAccountIfNotExists creates an account if it doesn't already exist

@@ -86,7 +86,7 @@ This allows you to:
 
 For a complete working example of causation and correlation in the Account domain, see:
 
-**[Transfer Example](examples/transfer/main.go)**: Complete implementation showing AccountOpened and MoneyTransferred events with automatic causation and correlation IDs.
+**[Transfer Example](internal/examples/transfer/main.go)**: Complete implementation showing AccountOpened and MoneyTransferred events with automatic causation and correlation IDs.
 
 ### Key Concepts in the Example:
 
