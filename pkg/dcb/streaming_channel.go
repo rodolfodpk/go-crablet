@@ -108,3 +108,95 @@ func (es *eventStore) ReadStreamChannel(ctx context.Context, query Query, option
 
 // Ensure eventStore implements ChannelEventStore interface
 var _ ChannelEventStore = (*eventStore)(nil)
+
+// ProjectDecisionModelChannel projects multiple states using channel-based streaming
+// This is optimized for small to medium datasets (< 500 events) and provides
+// a more Go-idiomatic interface using channels for state projection
+func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector, options *ReadOptions) (<-chan ProjectionResult, error) {
+	if len(projectors) == 0 {
+		return nil, fmt.Errorf("at least one projector is required")
+	}
+
+	// Validate projectors
+	for _, bp := range projectors {
+		if bp.StateProjector.TransitionFn == nil {
+			return nil, &ValidationError{
+				EventStoreError: EventStoreError{
+					Op:  "ProjectDecisionModelChannel",
+					Err: fmt.Errorf("projector %s has nil transition function", bp.ID),
+				},
+				Field: "transitionFn",
+				Value: "nil",
+			}
+		}
+	}
+
+	// Build combined query from all projectors
+	query := es.combineProjectorQueries(projectors)
+
+	// Create event stream
+	eventStream, err := es.NewEventStream(ctx, query, options)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create event stream: %w", err)
+	}
+
+	// Create result channel
+	resultChan := make(chan ProjectionResult, 100)
+
+	// Start projection processing in a goroutine
+	go func() {
+		defer eventStream.Close()
+		defer close(resultChan)
+
+		// Initialize projector states
+		projectorStates := make(map[string]interface{})
+		for _, projector := range projectors {
+			projectorStates[projector.ID] = projector.StateProjector.InitialState
+		}
+
+		// Process events
+		for event := range eventStream.Events() {
+			select {
+			case <-ctx.Done():
+				resultChan <- ProjectionResult{
+					Error: ctx.Err(),
+				}
+				return
+			default:
+				// Process event with each projector
+				for _, projector := range projectors {
+					// Check if projector should process this event
+					if !es.eventMatchesProjector(event, projector.StateProjector) {
+						continue
+					}
+
+					// Get current state for this projector
+					currentState := projectorStates[projector.ID]
+
+					// Project the event using the transition function
+					newState := projector.StateProjector.TransitionFn(currentState, event)
+
+					// Update state
+					projectorStates[projector.ID] = newState
+
+					// Send result
+					resultChan <- ProjectionResult{
+						ProjectorID: projector.ID,
+						State:       newState,
+						Event:       event,
+						Position:    event.Position,
+					}
+				}
+			}
+		}
+
+		// Check for stream errors
+		if eventStream.err != nil {
+			resultChan <- ProjectionResult{
+				Error: fmt.Errorf("event stream error: %w", eventStream.err),
+			}
+		}
+	}()
+
+	return resultChan, nil
+}

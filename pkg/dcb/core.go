@@ -19,6 +19,24 @@ type EventStore interface {
 	ProjectDecisionModel(ctx context.Context, projectors []BatchProjector, options *ReadOptions) (map[string]any, AppendCondition, error)
 }
 
+// ProjectionResult represents a single projection result from channel-based projection
+type ProjectionResult struct {
+	// ProjectorID identifies which projector produced this result
+	ProjectorID string
+
+	// State is the projected state for this projector
+	State interface{}
+
+	// Event is the event that was processed to produce this state
+	Event Event
+
+	// Position is the sequence position of the event
+	Position int64
+
+	// Error is set if there was an error processing this event
+	Error error
+}
+
 // ChannelEventStore extends EventStore with channel-based streaming capabilities
 // This provides an alternative Go-idiomatic interface for event streaming
 type ChannelEventStore interface {
@@ -32,6 +50,11 @@ type ChannelEventStore interface {
 	// NewEventStream creates a new EventStream for the given query
 	// This provides more control over the streaming process
 	NewEventStream(ctx context.Context, query Query, options *ReadOptions) (*EventStream, error)
+
+	// ProjectDecisionModelChannel projects multiple states using channel-based streaming
+	// This is optimized for small to medium datasets (< 500 events) and provides
+	// a more Go-idiomatic interface using channels for state projection
+	ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector, options *ReadOptions) (<-chan ProjectionResult, error)
 }
 
 // EventIterator provides a streaming interface for reading events
