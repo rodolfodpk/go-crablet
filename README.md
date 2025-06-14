@@ -29,6 +29,12 @@ We're learning about the Dynamic Consistency Boundary (DCB) pattern by exploring
 - Build a combined append condition for optimistic locking
 - Append new events only if all invariants still hold
 
+## Documentation
+- [Overview](docs/overview.md): DCB pattern exploration, batch projection, and streaming
+- [Examples](docs/examples.md): DCB-inspired use cases
+- [Implementation](docs/implementation.md): Technical details
+- [Causation and Correlation](docs/causation-correlation.md): Understanding event relationships and tracing
+
 ## Minimal Example: Course Subscription
 
 ```go
@@ -37,26 +43,15 @@ package main
 import (
     "context"
     "encoding/json"
-    "fmt"
     "github.com/rodolfodpk/go-crablet/pkg/dcb"
     "github.com/jackc/pgx/v5/pgxpool"
 )
-
-type CourseDefined struct {
-    CourseID string
-    Capacity int
-}
-
-type StudentSubscribed struct {
-    StudentID string
-    CourseID  string
-}
 
 func main() {
     pool, _ := pgxpool.New(context.Background(), "postgres://user:pass@localhost/db")
     store, _ := dcb.NewEventStore(context.Background(), pool)
 
-    // Projectors for DCB-inspired decision model
+    // Define projectors for business rules
     projectors := []dcb.BatchProjector{
         {ID: "courseExists", StateProjector: dcb.StateProjector{
             Query: dcb.NewQuery(dcb.NewTags("course_id", "c1"), "CourseDefined"),
@@ -69,32 +64,31 @@ func main() {
             TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
         }},
     }
-    query := dcb.NewQueryFromItems(
-        dcb.NewQueryItem([]string{"CourseDefined"}, dcb.NewTags("course_id", "c1")),
-        dcb.NewQueryItem([]string{"StudentSubscribed"}, dcb.NewTags("course_id", "c1")),
-    )
-    states, appendCond, _ := store.ProjectDecisionModel(context.Background(), query, nil, projectors)
+
+    // Project states and get append condition (DCB pattern)
+    states, appendCond, _ := store.ProjectDecisionModel(context.Background(), projectors, nil)
+    
+    // Business logic: create course if it doesn't exist
     if !states["courseExists"].(bool) {
-        // Append CourseDefined event
-        data, _ := json.Marshal(CourseDefined{"c1", 2})
+        data, _ := json.Marshal(map[string]any{"CourseID": "c1", "Capacity": 2})
         store.Append(context.Background(), []dcb.InputEvent{
             dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", "c1"), data),
         }, &appendCond)
     }
-    // Subscribe a student if not full
+    
+    // Business logic: subscribe student if course not full
     if states["numSubscriptions"].(int) < 2 {
-        data, _ := json.Marshal(StudentSubscribed{"s1", "c1"})
+        data, _ := json.Marshal(map[string]any{"StudentID": "s1", "CourseID": "c1"})
         store.Append(context.Background(), []dcb.InputEvent{
             dcb.NewInputEvent("StudentSubscribed", dcb.NewTags("student_id", "s1", "course_id", "c1"), data),
         }, &appendCond)
     }
 }
-```
 
-## Documentation
-- [Overview](docs/overview.md): DCB pattern exploration, batch projection, and streaming
-- [Examples](docs/examples.md): DCB-inspired use cases
-- [Implementation](docs/implementation.md): Technical details
+**Key DCB Concepts:**
+- **ProjectDecisionModel**: Projects multiple states in one query
+- **AppendCondition**: Optimistic locking for consistency
+- **BatchProjector**: Defines business rules and state transitions
 
 ## Examples
 
