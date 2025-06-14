@@ -10,6 +10,7 @@ package main
 import (
     "context"
     "encoding/json"
+    "time"
     "github.com/rodolfodpk/go-crablet/pkg/dcb"
     "github.com/jackc/pgx/v5/pgxpool"
 )
@@ -63,35 +64,11 @@ func main() {
         enrollEvent.CorrelationID = "enrollment-123"
         store.Append(context.Background(), []dcb.InputEvent{enrollEvent}, &appendCond)
     }
+
+    // Change course capacity with proper causation/correlation
+    changeCourseCapacity(context.Background(), store, "c1", 5)
 }
-```
 
-## Resulting Events
-
-After running the minimal example, the events table will contain:
-
-```sql
-SELECT id, type, tags, data, position, causation_id, correlation_id 
-FROM events 
-ORDER BY position;
-```
-
-| id | type | tags | data | position | causation_id | correlation_id |
-|----|------|------|------|----------|--------------|----------------|
-| 1 | CourseDefined | `{"course_id": "c1"}` | `{"CourseID": "c1", "Capacity": 2}` | 1 | course_id_01h2xcejqtf2nbrexx3vqjhp41 | course_id_01h2xcejqtf2nbrexx3vqjhp41 |
-| 2 | StudentRegistered | `{"student_id": "s1"}` | `{"StudentID": "s1", "Name": "Alice", "Email": "alice@example.com"}` | 2 | student_id_01h2xcejqtf2nbrexx3vqjhp42 | student_id_01h2xcejqtf2nbrexx3vqjhp42 |
-| 3 | StudentSubscribed | `{"student_id": "s1", "course_id": "c1"}` | `{"StudentID": "s1", "CourseID": "c1"}` | 3 | course_id_student_id_01h2xcejqtf2nbrexx3vqjhp43 | course_id_student_id_01h2xcejqtf2nbrexx3vqjhp43 |
-
-**Event Flow:**
-1. **CourseDefined**: Creates course "c1" with capacity 2
-2. **StudentRegistered**: Registers student "s1" (Alice)
-3. **StudentSubscribed**: Enrolls student "s1" in course "c1"
-
-## Causation and Correlation Example: Change Course Capacity
-
-Here's how causation and correlation work when changing course capacity:
-
-```go
 // Change course capacity with proper causation/correlation
 func changeCourseCapacity(ctx context.Context, store dcb.EventStore, courseID string, newCapacity int) error {
     // Project current course state
@@ -138,11 +115,28 @@ func changeCourseCapacity(ctx context.Context, store dcb.EventStore, courseID st
 }
 ```
 
-**Resulting Events with Causation/Correlation:**
+## Resulting Events
+
+After running the minimal example, the events table will contain:
+
+```sql
+SELECT id, type, tags, data, position, causation_id, correlation_id 
+FROM events 
+ORDER BY position;
+```
 
 | id | type | tags | data | position | causation_id | correlation_id |
 |----|------|------|------|----------|--------------|----------------|
+| 1 | CourseDefined | `{"course_id": "c1"}` | `{"CourseID": "c1", "Capacity": 2}` | 1 | course_id_01h2xcejqtf2nbrexx3vqjhp41 | course_id_01h2xcejqtf2nbrexx3vqjhp41 |
+| 2 | StudentRegistered | `{"student_id": "s1"}` | `{"StudentID": "s1", "Name": "Alice", "Email": "alice@example.com"}` | 2 | student_id_01h2xcejqtf2nbrexx3vqjhp42 | student_id_01h2xcejqtf2nbrexx3vqjhp42 |
+| 3 | StudentSubscribed | `{"student_id": "s1", "course_id": "c1"}` | `{"StudentID": "s1", "CourseID": "c1"}` | 3 | course_id_student_id_01h2xcejqtf2nbrexx3vqjhp43 | course_id_student_id_01h2xcejqtf2nbrexx3vqjhp43 |
 | 4 | CourseCapacityChanged | `{"course_id": "c1"}` | `{"CourseID": "c1", "OldCapacity": 2, "NewCapacity": 5, "ChangedAt": "..."}` | 4 | course_id_01h2xcejqtf2nbrexx3vqjhp44 | capacity-change-c1 |
+
+**Event Flow:**
+1. **CourseDefined**: Creates course "c1" with capacity 2
+2. **StudentRegistered**: Registers student "s1" (Alice)
+3. **StudentSubscribed**: Enrolls student "s1" in course "c1"
+4. **CourseCapacityChanged**: Increases course capacity from 2 to 5
 
 **Causation and Correlation Benefits:**
 - **Correlation ID**: Groups all capacity change operations for the same course
