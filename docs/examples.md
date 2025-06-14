@@ -112,7 +112,7 @@ func channelBasedExample() {
         }},
     }
 
-    // Channel-based projection with real-time feedback
+    // Channel-based projection with immediate feedback
     resultChan, _ := channelStore.ProjectDecisionModelChannel(context.Background(), projectors, nil)
     
     // Process results as they come in
@@ -161,9 +161,9 @@ func channelStreamingExample() {
         panic(err)
     }
 
-    // Process events in real-time
+    // Process events with immediate delivery
     for event := range eventChan {
-        fmt.Printf("Processing event: %s at position %d\n", event.Type, event.Position)
+        fmt.Printf("Event: %s at position %d\n", event.Type, event.Position)
         
         // Process event based on type
         switch event.Type {
@@ -182,22 +182,21 @@ func channelStreamingExample() {
 - **The append condition is the OR-combination of all projector queries**
 - **Only one database round trip is needed for all business rules**
 - **No aggregates or legacy event sourcing patterns required**
-- **Channel-based streaming provides real-time processing feedback**
+- **Channel-based streaming provides immediate processing feedback**
 - **Choose the right streaming approach for your dataset size**
 
 ## Performance Comparison
 
-| Approach | Best For | Real-time Feedback | Memory Usage |
+| Approach | Best For | Immediate Feedback | Memory Usage |
 |----------|----------|-------------------|--------------|
-| **Traditional** | < 100 events | ❌ No | High |
-| **Cursor-based** | > 1000 events | ❌ No | Low |
-| **Channel-based** | 100-500 events | ✅ Yes | Moderate |
+| **Cursor-based** | Large datasets | ❌ No | Low |
+| **Channel-based** | Small-medium datasets | ✅ Yes | Moderate |
 
 ## Available Examples
 
 - **`examples/cursor_streaming/`** - Cursor-based streaming for large datasets
 - **`examples/channel_streaming/`** - Channel-based streaming for small-medium datasets
-- **`examples/channel_projection/`** - Channel-based projection with real-time feedback
+- **`examples/channel_projection/`** - Channel-based projection with immediate feedback
 - **`examples/extension_interface/`** - Extension interface pattern demonstration
 - **`examples/transfer/`** - Event sourcing with semantic event names
 - **`examples/enrollment/`** - Course enrollment with business rules 

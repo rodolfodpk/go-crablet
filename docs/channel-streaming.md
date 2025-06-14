@@ -6,7 +6,7 @@ go-crablet provides **channel-based streaming** as an alternative to the traditi
 
 Channel-based streaming is optimized for **small to medium datasets** (< 500 events) and provides:
 
-- **Real-time processing feedback** - see results as they're computed
+- **Immediate event delivery** - events are processed and delivered as soon as they're read from the result set
 - **Go-idiomatic interface** - uses channels for streaming
 - **Backward compatibility** - existing code continues to work
 - **Extension interface pattern** - clean separation of concerns
@@ -54,7 +54,7 @@ if err != nil {
     log.Fatal(err)
 }
 
-// Process events in real-time
+// Process events with immediate delivery
 for event := range eventChan {
     fmt.Printf("Processing event: %s at position %d\n", event.Type, event.Position)
     
@@ -102,18 +102,9 @@ if err != nil {
     log.Fatal(err)
 }
 
-// Process projection results in real-time
-finalStates := make(map[string]interface{})
+// Process projection results with immediate feedback
 for result := range resultChan {
-    if result.Error != nil {
-        fmt.Printf("Error: %v\n", result.Error)
-        continue
-    }
-    
-    finalStates[result.ProjectorID] = result.State
-    
-    fmt.Printf("Projector %s processed event %s (position %d)\n", 
-        result.ProjectorID, result.Event.Type, result.Position)
+    fmt.Printf("Projector %s: %v\n", result.ProjectorID, result.State)
 }
 
 // Use final states
@@ -152,7 +143,7 @@ if stream.err != nil {
 
 ## Performance Characteristics
 
-| Method | Best For | Memory Usage | Real-time Feedback | Scalability |
+| Method | Best For | Memory Usage | Immediate Feedback | Scalability |
 |--------|----------|--------------|-------------------|-------------|
 | `Read()` | < 100 events | High | ❌ No | Limited |
 | `ReadStream()` | > 1000 events | Low | ❌ No | Excellent |
@@ -164,7 +155,7 @@ if stream.err != nil {
 
 ### ✅ Use Channel-Based When:
 - **Small to medium datasets** (< 500 events)
-- **Real-time feedback** is needed
+- **Immediate feedback** is needed during processing
 - **Go-idiomatic code** is preferred
 - **Interactive processing** is required
 - **Debugging and monitoring** projection progress
@@ -174,6 +165,22 @@ if stream.err != nil {
 - **Memory efficiency** is critical
 - **Batch processing** is sufficient
 - **Maximum scalability** is needed
+
+## Processing Differences
+
+### Cursor-Based (Batch Processing)
+- **Batch-oriented**: Fetches events in chunks (default 1000 events per batch)
+- **Blocking**: Waits for entire batch to be processed before moving to next
+- **Memory-efficient**: Optimized for large datasets with server-side cursors
+- **Processing pattern**: `FETCH 1000 → process all 1000 → FETCH 1000 → repeat`
+
+### Channel-Based (Streaming Processing)
+- **Event-by-event**: Processes and delivers each event immediately as it's read
+- **Non-blocking**: Events flow through channels as they become available
+- **Immediate delivery**: Consumers receive events as soon as they're processed
+- **Processing pattern**: `row.Next() → process 1 event → send to channel → row.Next() → repeat`
+
+**Note**: Both approaches read from the same database query results. The difference is in how quickly events are delivered to the consumer, not when the events actually occurred in the system.
 
 ## Type Definitions
 
@@ -256,17 +263,13 @@ if err != nil {
     return err
 }
 
-// Process results in real-time
-finalStates := make(map[string]interface{})
+// Process results with immediate feedback
 for result := range resultChan {
-    if result.Error != nil {
-        return result.Error
-    }
-    finalStates[result.ProjectorID] = result.State
+    fmt.Printf("Projector %s: %v\n", result.ProjectorID, result.State)
 }
 
 // Use final states
 courseExists := finalStates["courseExists"].(bool)
 ```
 
-The channel-based approach provides the same functionality with real-time feedback and a more Go-idiomatic interface. 
+The channel-based approach provides the same functionality with immediate feedback and a more Go-idiomatic interface. 

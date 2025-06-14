@@ -124,16 +124,15 @@ if err != nil {
     return err
 }
 
-// Process events using Go channels
+// Process events with immediate delivery
 for event := range eventChan {
-    // Process event in real-time
     fmt.Printf("Event: %s at position %d\n", event.Type, event.Position)
 }
 ```
 
 ### Channel-Based Projection (New!)
 
-Real-time projection results via channels:
+Immediate projection results via channels:
 
 ```go
 // Channel-based projection
@@ -142,24 +141,15 @@ if err != nil {
     return err
 }
 
-// Process projection results in real-time
+// Process projection results with immediate feedback
 for result := range resultChan {
-    if result.Error != nil {
-        // Handle error
-        continue
-    }
-    
-    fmt.Printf("Projector %s processed event %s (position %d)\n", 
-        result.ProjectorID, result.Event.Type, result.Position)
-    
-    // Access current state
-    currentState := result.State
+    fmt.Printf("Projector %s: %v\n", result.ProjectorID, result.State)
 }
 ```
 
 ## Performance Characteristics
 
-| Method | Best For | Memory Usage | Real-time Feedback | Scalability |
+| Method | Best For | Memory Usage | Immediate Feedback | Scalability |
 |--------|----------|--------------|-------------------|-------------|
 | `Read()` | < 100 events | High | ❌ No | Limited |
 | `ReadStream()` | > 1000 events | Low | ❌ No | Excellent |

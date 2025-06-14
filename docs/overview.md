@@ -66,19 +66,19 @@ if states["numSubscriptions"].(int) < 2 { /* append StudentSubscribed */ }
 // Get channel-based store
 channelStore := store.(dcb.ChannelEventStore)
 
-// Real-time projection with feedback
-resultChan, _ := channelStore.ProjectDecisionModelChannel(ctx, projectors, nil)
+// Immediate projection with feedback
+resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors, nil)
+
+// Process results with immediate feedback
 for result := range resultChan {
-    fmt.Printf("Projector %s processed event %s\n", 
-        result.ProjectorID, result.Event.Type)
-    // Process results in real-time
+    fmt.Printf("Projector %s: %v\n", result.ProjectorID, result.State)
 }
 ```
 
 ## Streaming & Memory Efficiency
 
 ### Performance Characteristics
-| Approach | Best For | Memory Usage | Real-time Feedback | Scalability |
+| Approach | Best For | Memory Usage | Immediate Feedback | Scalability |
 |----------|----------|--------------|-------------------|-------------|
 | **Read()** | < 100 events | High | ❌ No | Limited |
 | **ReadStream()** | > 1000 events | Low | ❌ No | Excellent |
@@ -90,13 +90,13 @@ for result := range resultChan {
 - **ProjectDecisionModel**: Projects all states in one query, streams events row-by-row (cursor-based)
 - **ReadStream**: Streams events for custom processing (cursor-based)
 - **ReadStreamChannel**: Channel-based streaming for Go-idiomatic processing
-- **ProjectDecisionModelChannel**: Real-time projection results via channels
+- **ProjectDecisionModelChannel**: Immediate projection results via channels
 
 ## Why Explore DCB?
 - **Single-query consistency**: All invariants checked atomically
 - **No aggregates required**: Consistency boundaries are defined by your queries
 - **Efficient**: One database round trip for all business rules
-- **Go-idiomatic**: Channel-based streaming for real-time processing
+- **Go-idiomatic**: Channel-based streaming for immediate processing
 - **Flexible**: Choose the right streaming approach for your dataset size
 
 See the [README](../README.md) and [examples](examples.md) for more.
