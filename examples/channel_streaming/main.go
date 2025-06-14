@@ -29,9 +29,18 @@ func main() {
 
 	// Create some test events
 	events := []dcb.InputEvent{
-		dcb.NewInputEventUnsafe("UserCreated", dcb.NewTags("user_id", "user-1"), []byte(`{"name": "Alice"}`)),
-		dcb.NewInputEventUnsafe("UserCreated", dcb.NewTags("user_id", "user-2"), []byte(`{"name": "Bob"}`)),
-		dcb.NewInputEventUnsafe("UserCreated", dcb.NewTags("user_id", "user-3"), []byte(`{"name": "Charlie"}`)),
+		func() dcb.InputEvent {
+			event := dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", "user-1"), []byte(`{"name": "Alice"}`))
+			return event
+		}(),
+		func() dcb.InputEvent {
+			event := dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", "user-2"), []byte(`{"name": "Bob"}`))
+			return event
+		}(),
+		func() dcb.InputEvent {
+			event := dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", "user-3"), []byte(`{"name": "Charlie"}`))
+			return event
+		}(),
 	}
 
 	// Append events

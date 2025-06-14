@@ -131,7 +131,7 @@ func createTestEvents(count int) []dcb.InputEvent {
 			"amount":   amount,
 		})
 
-		event, err := dcb.NewInputEvent(
+		event := dcb.NewInputEvent(
 			"OrderCreated",
 			dcb.NewTags(
 				"customer_id", customerID,
@@ -139,9 +139,6 @@ func createTestEvents(count int) []dcb.InputEvent {
 			),
 			data,
 		)
-		if err != nil {
-			panic(fmt.Sprintf("Failed to create event %d: %v", i, err))
-		}
 
 		events[i] = event
 	}

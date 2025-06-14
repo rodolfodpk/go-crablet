@@ -75,23 +75,17 @@ func main() {
 	}
 
 	// Create some test events
-	accountOpenedEvent, err := dcb.NewInputEvent(
+	accountOpenedEvent := dcb.NewInputEvent(
 		"AccountOpened",
 		dcb.NewTags("account_id", "acc123"),
 		mustMarshal(AccountOpenedData{InitialBalance: 1000}),
 	)
-	if err != nil {
-		log.Fatalf("Failed to create account opened event: %v", err)
-	}
 
-	transactionProcessedEvent, err := dcb.NewInputEvent(
+	transactionProcessedEvent := dcb.NewInputEvent(
 		"TransactionProcessed",
 		dcb.NewTags("account_id", "acc123"),
 		mustMarshal(TransactionProcessedData{Amount: 500}),
 	)
-	if err != nil {
-		log.Fatalf("Failed to create transaction processed event: %v", err)
-	}
 
 	events := dcb.NewEventBatch(accountOpenedEvent, transactionProcessedEvent)
 
@@ -126,14 +120,11 @@ func main() {
 	fmt.Printf("After position: %d\n", *appendCondition.After)
 
 	// Example: Use the AppendCondition to append new events
-	newTransactionEvent, err := dcb.NewInputEvent(
+	newTransactionEvent := dcb.NewInputEvent(
 		"TransactionProcessed",
 		dcb.NewTags("account_id", "acc123"),
 		mustMarshal(TransactionProcessedData{Amount: 200}),
 	)
-	if err != nil {
-		log.Fatalf("Failed to create new transaction event: %v", err)
-	}
 
 	newEvents := dcb.NewEventBatch(newTransactionEvent)
 

@@ -112,50 +112,35 @@ func main() {
 	}
 
 	// Create test events
-	accountOpenedEvent, err := dcb.NewInputEvent(
+	accountOpenedEvent := dcb.NewInputEvent(
 		"AccountOpened",
 		dcb.NewTags("account_id", "acc123"),
 		mustMarshal(AccountOpenedData{InitialBalance: 1000}),
 	)
-	if err != nil {
-		log.Fatalf("Failed to create account opened event: %v", err)
-	}
 
-	transaction1Event, err := dcb.NewInputEvent(
+	transaction1Event := dcb.NewInputEvent(
 		"TransactionProcessed",
 		dcb.NewTags("account_id", "acc123"),
 		mustMarshal(TransactionProcessedData{Amount: 500, Description: "Deposit"}),
 	)
-	if err != nil {
-		log.Fatalf("Failed to create transaction 1 event: %v", err)
-	}
 
-	accountBalanceChangedEvent, err := dcb.NewInputEvent(
+	accountBalanceChangedEvent := dcb.NewInputEvent(
 		"AccountBalanceChanged",
 		dcb.NewTags("account_id", "acc123"),
 		mustMarshal(AccountBalanceChangedData{NewBalance: 2000, Reason: "Manual adjustment"}),
 	)
-	if err != nil {
-		log.Fatalf("Failed to create account balance changed event: %v", err)
-	}
 
-	transaction2Event, err := dcb.NewInputEvent(
+	transaction2Event := dcb.NewInputEvent(
 		"TransactionProcessed",
 		dcb.NewTags("account_id", "acc123"),
 		mustMarshal(TransactionProcessedData{Amount: -300, Description: "Withdrawal"}),
 	)
-	if err != nil {
-		log.Fatalf("Failed to create transaction 2 event: %v", err)
-	}
 
-	transaction3Event, err := dcb.NewInputEvent(
+	transaction3Event := dcb.NewInputEvent(
 		"TransactionProcessed",
 		dcb.NewTags("account_id", "acc123"),
 		mustMarshal(TransactionProcessedData{Amount: 100, Description: "Interest"}),
 	)
-	if err != nil {
-		log.Fatalf("Failed to create transaction 3 event: %v", err)
-	}
 
 	events := dcb.NewEventBatch(
 		accountOpenedEvent,
@@ -197,14 +182,11 @@ func main() {
 	fmt.Printf("After position: %d\n", *appendCondition.After)
 
 	// Example: Use the AppendCondition to append new events
-	newTransactionEvent, err := dcb.NewInputEvent(
+	newTransactionEvent := dcb.NewInputEvent(
 		"TransactionProcessed",
 		dcb.NewTags("account_id", "acc123"),
 		mustMarshal(TransactionProcessedData{Amount: 200}),
 	)
-	if err != nil {
-		log.Fatalf("Failed to create new transaction event: %v", err)
-	}
 
 	newEvents := dcb.NewEventBatch(newTransactionEvent)
 

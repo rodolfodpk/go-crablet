@@ -1,10 +1,11 @@
 package dcb
 
 // NewTags creates a slice of tags from key-value pairs.
-// It panics if the number of arguments is odd.
+// Validation is performed when the tags are used in EventStore operations.
 func NewTags(kv ...string) []Tag {
 	if len(kv)%2 != 0 {
-		panic("NewTags: odd number of arguments")
+		// Return empty tags instead of panicking - validation will happen in EventStore operations
+		return []Tag{}
 	}
 	tags := make([]Tag, len(kv)/2)
 	for i := 0; i < len(kv); i += 2 {
@@ -28,12 +29,24 @@ func NewQuery(tags []Tag, eventTypes ...string) Query {
 
 // NewQuerySimple creates a new Query with the given tags and event types.
 // This is a convenience function that combines NewTags and NewQuery.
+// Validation is performed when the query is used in EventStore operations.
 func NewQuerySimple(tags []Tag, eventTypes ...string) Query {
+	// Remove validation from constructor - validation will happen in EventStore operations
 	return NewQuery(tags, eventTypes...)
 }
 
-// NewQueryFromItems creates a new Query from multiple QueryItems.
-// This is inspired by the DCB pattern for complex queries.
+// NewQuerySimpleUnsafe creates a new Query without validation.
+// Use this only when you're certain the data is valid and you need maximum performance.
+func NewQuerySimpleUnsafe(tags []Tag, eventTypes ...string) Query {
+	return NewQuery(tags, eventTypes...)
+}
+
+// NewQueryEmpty creates a new empty query
+func NewQueryEmpty() Query {
+	return Query{Items: []QueryItem{}}
+}
+
+// NewQueryFromItems creates a new query from a list of query items
 func NewQueryFromItems(items ...QueryItem) Query {
 	return Query{Items: items}
 }
@@ -59,21 +72,13 @@ func NewQueryItem(types []string, tags []Tag) QueryItem {
 }
 
 // NewInputEvent creates a new InputEvent with the given type, tags, and data.
-// It validates that the data is valid JSON and returns an error if validation fails.
-func NewInputEvent(eventType string, tags []Tag, data []byte) (InputEvent, error) {
-	// Create the event first
-	event := InputEvent{
+// Validation is performed when the event is used in EventStore operations.
+func NewInputEvent(eventType string, tags []Tag, data []byte) InputEvent {
+	return InputEvent{
 		Type: eventType,
 		Tags: tags,
 		Data: data,
 	}
-
-	// Use the same validation logic as the main validation
-	if err := validateEvent(event, 0); err != nil {
-		return InputEvent{}, err
-	}
-
-	return event, nil
 }
 
 // NewInputEventUnsafe creates a new InputEvent without validation.

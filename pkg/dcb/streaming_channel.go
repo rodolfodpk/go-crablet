@@ -3,6 +3,7 @@ package dcb
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -10,15 +11,29 @@ import (
 // EventStream provides a channel-based streaming interface for events.
 // This is part of the ChannelEventStore extension interface.
 type EventStream struct {
-	rows pgx.Rows
-	ch   chan Event
-	err  error
-	ctx  context.Context
+	rows    pgx.Rows
+	ch      chan Event
+	err     error
+	ctx     context.Context
+	closed  bool
+	closeMu sync.Mutex
 }
 
 // NewEventStream creates a new EventStream for the given query.
 // This method is part of the ChannelEventStore interface.
 func (es *eventStore) NewEventStream(ctx context.Context, query Query, options *ReadOptions) (*EventStream, error) {
+	// Validate that the query is not empty (same validation as Read method)
+	if len(query.Items) == 0 {
+		return nil, &ValidationError{
+			EventStoreError: EventStoreError{
+				Op:  "NewEventStream",
+				Err: fmt.Errorf("query must contain at least one item"),
+			},
+			Field: "query",
+			Value: "empty",
+		}
+	}
+
 	// Build the SQL query
 	sqlQuery, args, err := es.buildReadQuerySQL(query, options)
 	if err != nil {
@@ -50,17 +65,44 @@ func (s *EventStream) Events() <-chan Event {
 
 // Close closes the stream and underlying resources.
 func (s *EventStream) Close() error {
+	s.closeMu.Lock()
+	defer s.closeMu.Unlock()
+
+	if s.closed {
+		return s.err
+	}
+
+	s.closed = true
+
 	if s.rows != nil {
 		s.rows.Close()
 	}
-	close(s.ch)
+
+	// Only close the channel if it hasn't been closed by streamEvents
+	select {
+	case <-s.ch:
+		// Channel is already closed
+	default:
+		close(s.ch)
+	}
+
 	return s.err
 }
 
 // streamEvents processes rows and sends them to the channel.
 func (s *EventStream) streamEvents() {
-	defer s.rows.Close()
-	defer close(s.ch)
+	defer func() {
+		s.closeMu.Lock()
+		defer s.closeMu.Unlock()
+
+		if s.rows != nil {
+			s.rows.Close()
+		}
+
+		if !s.closed {
+			close(s.ch)
+		}
+	}()
 
 	for s.rows.Next() {
 		select {
@@ -133,6 +175,18 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 
 	// Build combined query from all projectors
 	query := es.combineProjectorQueries(projectors)
+
+	// Validate that the combined query is not empty (same validation as Read method)
+	if len(query.Items) == 0 {
+		return nil, &ValidationError{
+			EventStoreError: EventStoreError{
+				Op:  "ProjectDecisionModelChannel",
+				Err: fmt.Errorf("query must contain at least one item"),
+			},
+			Field: "query",
+			Value: "empty",
+		}
+	}
 
 	// Create event stream
 	eventStream, err := es.NewEventStream(ctx, query, options)

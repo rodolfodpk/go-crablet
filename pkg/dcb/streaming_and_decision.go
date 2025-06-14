@@ -26,6 +26,18 @@ func (es *eventStore) ProjectDecisionModel(ctx context.Context, projectors []Bat
 	// Compute the combined query from all projectors (DCB pattern)
 	query := es.combineProjectorQueries(projectors)
 
+	// Validate that the combined query is not empty (same validation as Read method)
+	if len(query.Items) == 0 {
+		return nil, AppendCondition{}, &ValidationError{
+			EventStoreError: EventStoreError{
+				Op:  "ProjectDecisionModel",
+				Err: fmt.Errorf("query must contain at least one item"),
+			},
+			Field: "query",
+			Value: "empty",
+		}
+	}
+
 	// Check if we should use cursor-based streaming
 	if options != nil && options.BatchSize != nil && *options.BatchSize > 0 {
 		return es.projectDecisionModelWithCursor(ctx, query, options, projectors)

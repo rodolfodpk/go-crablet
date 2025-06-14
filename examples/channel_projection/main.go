@@ -50,18 +50,34 @@ func main() {
 
 	// Create some test events
 	events := []dcb.InputEvent{
-		// Course events
-		dcb.NewInputEventUnsafe("CourseCreated", dcb.NewTags("course_id", "course-1"), []byte(`{"name": "Go Programming", "capacity": 30}`)),
-		dcb.NewInputEventUnsafe("CourseCreated", dcb.NewTags("course_id", "course-2"), []byte(`{"name": "Event Sourcing", "capacity": 25}`)),
-
-		// Student events
-		dcb.NewInputEventUnsafe("StudentRegistered", dcb.NewTags("student_id", "student-1"), []byte(`{"name": "Alice"}`)),
-		dcb.NewInputEventUnsafe("StudentRegistered", dcb.NewTags("student_id", "student-2"), []byte(`{"name": "Bob"}`)),
-
-		// Enrollment events
-		dcb.NewInputEventUnsafe("StudentEnrolled", dcb.NewTags("course_id", "course-1", "student_id", "student-1"), []byte(`{"enrolled_at": "2024-01-15T10:00:00Z"}`)),
-		dcb.NewInputEventUnsafe("StudentEnrolled", dcb.NewTags("course_id", "course-1", "student_id", "student-2"), []byte(`{"enrolled_at": "2024-01-15T11:00:00Z"}`)),
-		dcb.NewInputEventUnsafe("StudentEnrolled", dcb.NewTags("course_id", "course-2", "student_id", "student-1"), []byte(`{"enrolled_at": "2024-01-15T12:00:00Z"}`)),
+		func() dcb.InputEvent {
+			event := dcb.NewInputEvent("CourseCreated", dcb.NewTags("course_id", "course-1"), []byte(`{"name": "Go Programming", "capacity": 30}`))
+			return event
+		}(),
+		func() dcb.InputEvent {
+			event := dcb.NewInputEvent("CourseCreated", dcb.NewTags("course_id", "course-2"), []byte(`{"name": "Event Sourcing", "capacity": 25}`))
+			return event
+		}(),
+		func() dcb.InputEvent {
+			event := dcb.NewInputEvent("StudentRegistered", dcb.NewTags("student_id", "student-1"), []byte(`{"name": "Alice"}`))
+			return event
+		}(),
+		func() dcb.InputEvent {
+			event := dcb.NewInputEvent("StudentRegistered", dcb.NewTags("student_id", "student-2"), []byte(`{"name": "Bob"}`))
+			return event
+		}(),
+		func() dcb.InputEvent {
+			event := dcb.NewInputEvent("StudentEnrolled", dcb.NewTags("course_id", "course-1", "student_id", "student-1"), []byte(`{"enrolled_at": "2024-01-15T10:00:00Z"}`))
+			return event
+		}(),
+		func() dcb.InputEvent {
+			event := dcb.NewInputEvent("StudentEnrolled", dcb.NewTags("course_id", "course-1", "student_id", "student-2"), []byte(`{"enrolled_at": "2024-01-15T11:00:00Z"}`))
+			return event
+		}(),
+		func() dcb.InputEvent {
+			event := dcb.NewInputEvent("StudentEnrolled", dcb.NewTags("course_id", "course-2", "student_id", "student-1"), []byte(`{"enrolled_at": "2024-01-15T12:00:00Z"}`))
+			return event
+		}(),
 	}
 
 	// Append events

@@ -117,7 +117,7 @@ func createAccountIfNotExists(ctx context.Context, store dcb.EventStore, account
 	}
 
 	// Create account
-	accountOpenedEvent, err := dcb.NewInputEvent(
+	accountOpenedEvent := dcb.NewInputEvent(
 		"AccountOpened",
 		dcb.NewTags("account_id", accountID),
 		mustJSON(AccountOpened{
@@ -127,9 +127,6 @@ func createAccountIfNotExists(ctx context.Context, store dcb.EventStore, account
 			OpenedAt:       time.Now(),
 		}),
 	)
-	if err != nil {
-		return fmt.Errorf("failed to create account opened event: %w", err)
-	}
 
 	_, err = store.Append(ctx, dcb.NewEventBatch(accountOpenedEvent), &appendCondition)
 	if err != nil {
@@ -237,7 +234,7 @@ func executeTransfer(ctx context.Context, store dcb.EventStore, cmd TransferComm
 	newToBalance := to.Balance + cmd.Amount
 
 	// Create the MoneyTransferred event with final balances
-	transferEvent, err := dcb.NewInputEvent(
+	transferEvent := dcb.NewInputEvent(
 		"MoneyTransferred",
 		dcb.NewTags(
 			"transfer_id", cmd.TransferID,
@@ -255,9 +252,6 @@ func executeTransfer(ctx context.Context, store dcb.EventStore, cmd TransferComm
 			Description:   cmd.Description,
 		}),
 	)
-	if err != nil {
-		return fmt.Errorf("failed to create transfer event: %w", err)
-	}
 
 	// Use the append condition from the decision model for optimistic locking
 	_, err = store.Append(ctx, dcb.NewEventBatch(transferEvent), &appendCondition)

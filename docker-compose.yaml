@@ -3,7 +3,7 @@
 # when trying any code using this library.
 services:
   postgres:
-    image: postgres:latest
+    image: postgres:17.5
     container_name: ${POSTGRES_CONTAINER_NAME:-postgres_db}
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}

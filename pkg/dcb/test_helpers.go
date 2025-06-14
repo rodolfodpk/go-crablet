@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -43,7 +42,7 @@ func setupPostgresContainer(ctx context.Context) (*pgxpool.Pool, testcontainers.
 	}
 
 	req := testcontainers.ContainerRequest{
-		Image:        "postgres:15-alpine",
+		Image:        "postgres:17.5-alpine",
 		ExposedPorts: []string{"5432/tcp"},
 		Env: map[string]string{
 			"POSTGRES_PASSWORD": password,
@@ -153,25 +152,11 @@ func dumpEvents(pool *pgxpool.Pool) {
 	fmt.Println("------------------------------------")
 }
 
-// newTestEventStore creates a new isolated Postgres container and EventStore for each test
-func newTestEventStore() EventStore {
-	ctx := context.Background()
-	pool, container, err := setupPostgresContainer(ctx)
-	Expect(err).NotTo(HaveOccurred())
-
-	schemaSQL, err := os.ReadFile("../../docker-entrypoint-initdb.d/schema.sql")
-	Expect(err).NotTo(HaveOccurred())
-	_, err = pool.Exec(ctx, string(schemaSQL))
-	Expect(err).NotTo(HaveOccurred())
-
-	eventStore, err := NewEventStore(ctx, pool)
-	Expect(err).NotTo(HaveOccurred())
-
-	// Cleanup container after test
-	DeferCleanup(func() {
-		pool.Close()
-		container.Terminate(ctx)
-	})
-
-	return eventStore
+// NewEventStoreFromPool creates a new EventStore from an existing pool without connection testing
+// This is used for tests that share a PostgreSQL container
+func NewEventStoreFromPool(pool *pgxpool.Pool) EventStore {
+	return &eventStore{
+		pool:         pool,
+		maxBatchSize: 1000, // Default maximum batch size
+	}
 }

@@ -223,6 +223,30 @@ func (es *eventStore) Append(ctx context.Context, events []InputEvent, condition
 
 	// Check append condition if provided
 	if condition != nil {
+		// Check if After position exists
+		if condition.After != nil {
+			var exists bool
+			err := es.pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM events WHERE position = $1)", *condition.After).Scan(&exists)
+			if err != nil {
+				return 0, &ResourceError{
+					EventStoreError: EventStoreError{
+						Op:  "append",
+						Err: fmt.Errorf("failed to check After position existence: %w", err),
+					},
+					Resource: "database",
+				}
+			}
+			if !exists {
+				return 0, &ConcurrencyError{
+					EventStoreError: EventStoreError{
+						Op:  "append",
+						Err: fmt.Errorf("optimistic concurrency conflict: After position %d does not exist", *condition.After),
+					},
+					ExpectedPosition: *condition.After,
+					ActualPosition:   0,
+				}
+			}
+		}
 		if err := es.checkAppendCondition(ctx, *condition); err != nil {
 			return 0, err
 		}

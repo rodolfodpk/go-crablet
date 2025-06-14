@@ -123,7 +123,7 @@ func main() {
 	}
 
 	// Prepare events
-	enrollEvent, err := dcb.NewInputEvent(
+	enrollEvent := dcb.NewInputEvent(
 		"StudentEnrolled",
 		dcb.NewTags(
 			"course_id", cmd.CourseID,
@@ -131,9 +131,6 @@ func main() {
 		),
 		mustJSON(map[string]any{"CourseID": cmd.CourseID, "StudentID": cmd.StudentID}),
 	)
-	if err != nil {
-		log.Fatalf("failed to create enroll event: %v", err)
-	}
 
 	// Use the append condition from the decision model for optimistic locking
 	_, err = store.Append(ctx, dcb.NewEventBatch(enrollEvent), &appendCondition)
