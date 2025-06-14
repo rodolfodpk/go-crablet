@@ -9,16 +9,29 @@ type EventStore interface {
 	// Read reads events matching a query, optionally starting from a specified sequence position
 	Read(ctx context.Context, query Query, options *ReadOptions) (SequencedEvents, error)
 
-	// ReadStream returns a streaming iterator for events matching a query
+	// ReadStream creates a stream of events matching a query
 	ReadStream(ctx context.Context, query Query, options *ReadOptions) (EventIterator, error)
 
 	// Append atomically persists one or more events, optionally with an append condition
 	Append(ctx context.Context, events []InputEvent, condition *AppendCondition) (int64, error)
 
-	// ProjectDecisionModel projects multiple states using projectors and returns final states and append condition
-	// This is the primary DCB API for building decision models in command handlers
-	// The function internally computes the combined query from all projectors for the append condition
+	// ProjectDecisionModel projects multiple states using multiple projectors and returns final states with append condition
 	ProjectDecisionModel(ctx context.Context, projectors []BatchProjector, options *ReadOptions) (map[string]any, AppendCondition, error)
+}
+
+// ChannelEventStore extends EventStore with channel-based streaming capabilities
+// This provides an alternative Go-idiomatic interface for event streaming
+type ChannelEventStore interface {
+	EventStore
+
+	// ReadStreamChannel creates a channel-based stream of events matching a query
+	// This is optimized for small to medium datasets (< 500 events) and provides
+	// a more Go-idiomatic interface using channels
+	ReadStreamChannel(ctx context.Context, query Query, options *ReadOptions) (<-chan Event, error)
+
+	// NewEventStream creates a new EventStream for the given query
+	// This provides more control over the streaming process
+	NewEventStream(ctx context.Context, query Query, options *ReadOptions) (*EventStream, error)
 }
 
 // EventIterator provides a streaming interface for reading events
