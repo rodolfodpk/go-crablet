@@ -168,4 +168,17 @@ For more detailed examples and documentation, see the [Examples](docs/examples.m
 ## Similar Projects
 
 - [shamresh/DynamicConsistencyBoundary](https://github.com/shamresh/DynamicConsistencyBoundary) - C# implementation of the Dynamic Consistency Boundary pattern
-- [Axon Framework](https://axoniq.io/) - Java framework with DCB support planned for version 5 
+- [Axon Framework](https://axoniq.io/) - Java framework with DCB support planned for version 5
+
+## Code Coverage
+
+> **Note**: The Codecov badge above is currently being set up. Until it's working, here's the current code coverage:
+
+**Current Coverage: 68.6%** (as of latest test run)
+
+```bash
+$ go test -v -coverprofile=coverage.out ./pkg/...
+coverage: 68.6% of statements
+```
+
+This coverage includes all the core DCB functionality in the `pkg/dcb` package. The coverage will be automatically updated once the Codecov integration is complete. 
