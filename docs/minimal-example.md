@@ -46,7 +46,6 @@ func main() {
     if !states["courseExists"].(bool) {
         data, _ := json.Marshal(map[string]any{"CourseID": "c1", "Capacity": 2})
         courseEvent := dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", "c1"), data)
-        courseEvent.CorrelationID = "enrollment-123"
         store.Append(ctx, []dcb.InputEvent{courseEvent}, &appendCond)
     }
     
@@ -54,7 +53,6 @@ func main() {
     if !states["studentExists"].(bool) {
         data, _ := json.Marshal(map[string]any{"StudentID": "s1", "Name": "Alice", "Email": "alice@example.com"})
         studentEvent := dcb.NewInputEvent("StudentRegistered", dcb.NewTags("student_id", "s1"), data)
-        studentEvent.CorrelationID = "enrollment-123"
         store.Append(ctx, []dcb.InputEvent{studentEvent}, &appendCond)
     }
     
@@ -62,7 +60,6 @@ func main() {
     if states["numSubscriptions"].(int) < 2 {
         data, _ := json.Marshal(map[string]any{"StudentID": "s1", "CourseID": "c1"})
         enrollEvent := dcb.NewInputEvent("StudentSubscribed", dcb.NewTags("student_id", "s1", "course_id", "c1"), data)
-        enrollEvent.CorrelationID = "enrollment-123"
         store.Append(ctx, []dcb.InputEvent{enrollEvent}, &appendCond)
     }
 
@@ -97,7 +94,6 @@ func changeCourseCapacity(ctx context.Context, store dcb.EventStore, courseID st
     currentCapacity := states["courseCapacity"].(int)
     
     // Create capacity change event with causation/correlation
-    correlationID := "capacity-change-" + courseID
     data, _ := json.Marshal(map[string]any{
         "CourseID": courseID,
         "OldCapacity": currentCapacity,
@@ -106,7 +102,6 @@ func changeCourseCapacity(ctx context.Context, store dcb.EventStore, courseID st
     })
     
     capacityEvent := dcb.NewInputEvent("CourseCapacityChanged", dcb.NewTags("course_id", courseID), data)
-    capacityEvent.CorrelationID = correlationID
     
     // If we had a previous event, we could set causation:
     // capacityEvent.CausationID = previousEventID

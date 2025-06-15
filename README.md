@@ -85,7 +85,6 @@ func main() {
     if !states["courseExists"].(bool) {
         data, _ := json.Marshal(map[string]any{"CourseID": "c1", "Capacity": 2})
         courseEvent := dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", "c1"), data)
-        courseEvent.CorrelationID = "enrollment-123"
         store.Append(ctx, []dcb.InputEvent{courseEvent}, &appendCondition)
     }
     
@@ -93,7 +92,6 @@ func main() {
     if !states["studentExists"].(bool) {
         data, _ := json.Marshal(map[string]any{"StudentID": "s1", "Name": "Alice", "Email": "alice@example.com"})
         studentEvent := dcb.NewInputEvent("StudentRegistered", dcb.NewTags("student_id", "s1"), data)
-        studentEvent.CorrelationID = "enrollment-123"
         store.Append(ctx, []dcb.InputEvent{studentEvent}, &appendCondition)
     }
     
@@ -110,7 +108,6 @@ func main() {
     // Business logic: subscribe student (all invariants satisfied)
     data, _ := json.Marshal(map[string]any{"StudentID": "s1", "CourseID": "c1"})
     enrollEvent := dcb.NewInputEvent("StudentSubscribed", dcb.NewTags("student_id", "s1", "course_id", "c1"), data)
-    enrollEvent.CorrelationID = "enrollment-123"
     store.Append(ctx, []dcb.InputEvent{enrollEvent}, &appendCondition)
 }
 ```
