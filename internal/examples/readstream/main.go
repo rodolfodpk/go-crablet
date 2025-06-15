@@ -99,7 +99,14 @@ func main() {
 
 	// Use ProjectDecisionModel to build decision model
 	fmt.Println("\n=== Using ProjectDecisionModel API ===")
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
+
+	// Define read options for efficient processing
+	readOptions := &dcb.ReadOptions{
+		Limit:     &[]int{1000}[0], // Limit to 1000 events for efficiency
+		BatchSize: &[]int{100}[0],  // Process in batches of 100
+	}
+
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, readOptions)
 	if err != nil {
 		log.Fatalf("Failed to read stream: %v", err)
 	}
