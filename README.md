@@ -120,35 +120,6 @@ func main() {
 - **AppendCondition**: Optimistic locking for consistency
 - **BatchProjector**: Defines business rules and state transitions
 
-## Query Building with Helper Functions
-
-go-crablet provides concise helper functions to simplify query building:
-
-### QItem and QItemKV Helpers
-
-**Before (verbose):**
-```go
-{EventTypes: []string{"CourseDefined"}, Tags: dcb.NewTags("course_id", "c1")}
-```
-
-**After (concise):**
-```go
-dcb.QItemKV("CourseDefined", "course_id", "c1")
-```
-
-**Complete example with helpers:**
-```go
-// Build queries using the new helper functions
-query := dcb.NewQueryFromItems(
-    dcb.QItemKV("CourseDefined", "course_id", "c1"),
-    dcb.QItemKV("StudentRegistered", "student_id", "s1"),
-    dcb.QItemKV("StudentSubscribed", "course_id", "c1"),
-)
-
-// Read events with the combined query
-events, err := store.Read(ctx, query, nil)
-```
-
 ## Examples
 
 Ready-to-run examples demonstrating different aspects of the DCB pattern:
@@ -169,7 +140,7 @@ Run any example with: `go run internal/examples/[example-name]/main.go`
 If you're new to Go and want to run the examples, follow these essential steps:
 
 ### Prerequisites
-1. **Install Go** (1.22+): Download from [golang.org](https://golang.org/dl/)
+1. **Install Go** (1.24+): Download from [golang.org](https://golang.org/dl/)
 2. **Install Docker**: Download from [docker.com](https://docker.com/get-started/)
 3. **Install Git**: Download from [git-scm.com](https://git-scm.com/)
 
