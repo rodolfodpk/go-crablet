@@ -200,12 +200,86 @@ type BatchProjector struct {
     StateProjector StateProjector `json:"state_projector"`
 }
 
-// AppendCondition represents conditions for optimistic locking during append operations
-type AppendCondition struct {
-    FailIfEventsMatch *Query `json:"fail_if_events_match"`
-    After             *int64 `json:"after"`
+// Query represents a composite query with multiple conditions combined with OR logic
+type Query struct {
+    Items []QueryItem `json:"items"`
+}
+
+// QueryItem represents a single atomic query condition
+type QueryItem struct {
+    EventTypes []string `json:"event_types"`
+    Tags       []Tag    `json:"tags"`
+}
+
+// ReadOptions provides options for reading events (position, limits, batch size)
+type ReadOptions struct {
+    FromPosition *int64 `json:"from_position"`
+    Limit        *int   `json:"limit"`
+    BatchSize    *int   `json:"batch_size"`
 }
 ```
+
+## Query Computation
+
+Understanding how the EventStore methods compute the queries they need to fetch events is crucial for the DCB pattern.
+
+### Read / ReadStream Methods
+
+**How the query is computed:**
+- The **caller** (your application code) is responsible for building the `Query` object
+- This `Query` is typically constructed using helper functions like `dcb.NewQuery`, `dcb.NewQueryFromItems`, or the new `QItem`/`QItemKV` helpers
+- The `Query` contains all the filtering logic: event types and tags (OR-combined)
+- The `ReadOptions` only controls things like position, limit, and batch size—not the query itself
+
+**Example:**
+```go
+// Using the new QItemKV helper for concise syntax
+query := dcb.NewQueryFromItems(
+    dcb.QItemKV("CourseDefined", "course_id", "c1"),
+    dcb.QItemKV("StudentRegistered", "student_id", "s1"),
+    dcb.QItemKV("StudentSubscribed", "course_id", "c1"),
+)
+
+// Or using the traditional approach
+query := dcb.NewQuery(dcb.NewTags("course_id", "c1"), "CourseDefined")
+
+events, err := store.Read(ctx, query, &dcb.ReadOptions{Limit: &limit})
+```
+
+### ProjectDecisionModel / ProjectDecisionModelChannel
+
+**How the query is computed:**
+- Each `BatchProjector` contains a `StateProjector`, which has its own `Query`
+- The method **combines all the queries** from each projector into a single `Query` object
+- This is done by collecting all `QueryItem`s from all projectors and OR-combining them into one `Query`
+- This combined query is then used to fetch all relevant events from the event store
+
+**Example (pseudo-code of internal implementation):**
+```go
+func (es *eventStore) combineProjectorQueries(projectors []BatchProjector) Query {
+    var combinedItems []QueryItem
+    for _, bp := range projectors {
+        for _, item := range bp.StateProjector.Query.Items {
+            combinedItems = append(combinedItems, item)
+        }
+    }
+    return Query{Items: combinedItems}
+}
+```
+
+**Why this matters for DCB:**
+- The combined query ensures that **all relevant events** for all projectors are fetched in a single database operation
+- This is the foundation of the DCB pattern: using the same query scope for both projection and optimistic locking
+- The `AppendCondition` returned by `ProjectDecisionModel` uses this same combined query to ensure consistency
+
+### Query Computation Summary
+
+| Method                        | How Query is Computed                | DCB Alignment |
+|-------------------------------|--------------------------------------|---------------|
+| `Read` / `ReadStream`         | Passed directly by caller            | Manual query building |
+| `ProjectDecisionModel`        | OR-combination of all projectors' queries | Automatic query combination |
+
+This approach is fully aligned with the [DCB specification](https://dcb.events/specification/#concepts), where queries are always explicit and based on event type/tags, and projectors define their own queries that get combined for batch projection.
 
 ## Single Streamlined Query
 

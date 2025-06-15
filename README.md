@@ -56,32 +56,37 @@ func main() {
     // Define projectors for business rules
     projectors := []dcb.BatchProjector{
         {ID: "courseExists", StateProjector: dcb.StateProjector{
-            Query: dcb.NewQuery(dcb.NewTags("course_id", "c1"), "CourseDefined"),
+            Query: dcb.NewQueryFromItems(dcb.QItemKV("CourseDefined", "course_id", "c1")),
             InitialState: false,
             TransitionFn: func(state any, e dcb.Event) any { return true },
         }},
         {ID: "studentExists", StateProjector: dcb.StateProjector{
-            Query: dcb.NewQuery(dcb.NewTags("student_id", "s1"), "StudentRegistered"),
+            Query: dcb.NewQueryFromItems(dcb.QItemKV("StudentRegistered", "student_id", "s1")),
             InitialState: false,
             TransitionFn: func(state any, e dcb.Event) any { return true },
         }},
         {ID: "numSubscriptions", StateProjector: dcb.StateProjector{
-            Query: dcb.NewQuery(dcb.NewTags("course_id", "c1"), "StudentSubscribed"),
+            Query: dcb.NewQueryFromItems(dcb.QItemKV("StudentSubscribed", "course_id", "c1")),
             InitialState: 0,
             TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
         }},
     }
 
-    // Define read options to limit events processed
+    // Define read options for position and limits (DCB pattern)
+    from := int64(1000)
+    limit := 1000
+    batch := 100
     readOptions := &dcb.ReadOptions{
-        QueryItems: []dcb.QueryItem{
-            {EventTypes: []string{"CourseDefined"}, Tags: dcb.NewTags("course_id", "c1")},
-            {EventTypes: []string{"StudentRegistered"}, Tags: dcb.NewTags("student_id", "s1")},
-            {EventTypes: []string{"StudentSubscribed"}, Tags: dcb.NewTags("course_id", "c1")},
-        },
+        // Optional: start from a specific position
+        // FromPosition: &from,
+        // Optional: limit number of events processed
+        // Limit: &limit,
+        // Optional: batch size for streaming
+        // BatchSize: &batch,
     }
 
     // Project states and get append condition (DCB pattern)
+    // The query is automatically combined from all projectors using OR logic
     states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors, readOptions)
     
     // Business logic: create course if it doesn't exist
@@ -114,6 +119,41 @@ func main() {
 - **ProjectDecisionModel**: Projects multiple states in one query
 - **AppendCondition**: Optimistic locking for consistency
 - **BatchProjector**: Defines business rules and state transitions
+
+## Query Building with Helper Functions
+
+go-crablet provides concise helper functions to simplify query building:
+
+### QItem and QItemKV Helpers
+
+**Before (verbose):**
+```go
+{EventTypes: []string{"CourseDefined"}, Tags: dcb.NewTags("course_id", "c1")}
+```
+
+**After (concise):**
+```go
+dcb.QItemKV("CourseDefined", "course_id", "c1")
+```
+
+**Complete example with helpers:**
+```go
+// Build queries using the new helper functions
+query := dcb.NewQueryFromItems(
+    dcb.QItemKV("CourseDefined", "course_id", "c1"),
+    dcb.QItemKV("StudentRegistered", "student_id", "s1"),
+    dcb.QItemKV("StudentSubscribed", "course_id", "c1"),
+)
+
+// Read events with the combined query
+events, err := store.Read(ctx, query, nil)
+```
+
+### Available Helper Functions
+
+- **`QItem(eventType string, tags []Tag) QueryItem`**: Create a QueryItem with a single event type and existing tags
+- **`QItemKV(eventType string, kv ...string) QueryItem`**: Create a QueryItem with a single event type and key-value pairs
+- **`NewQueryFromItems(items ...QueryItem) Query`**: Combine multiple QueryItems into a Query
 
 ## Examples
 
@@ -158,37 +198,3 @@ If you're new to Go and want to run the examples, follow these essential steps:
 
 ### Available Examples
 - `internal/examples/decision_model/main.go` - Complete DCB pattern
-- `internal/examples/enrollment/main.go` - Course enrollment with business rules
-- `internal/examples/transfer/main.go` - Money transfer between accounts
-- `internal/examples/readstream/main.go` - Event streaming basics
-
-### Troubleshooting
-- **Database connection error**: Make sure PostgreSQL is running with `docker-compose ps`
-- **Go module error**: Run `go mod download` to download dependencies
-- **Permission error**: Make sure Docker is running and you have permissions
-
-For more detailed examples and documentation, see the [Examples](docs/examples.md) guide.
-
-## References
-
-- [Dynamic Consistency Boundary (DCB)](https://dcb.events/) - The best resource to understand the DCB pattern and its applications in event-driven systems
-- [I am here to kill the aggregate](https://sara.event-thinking.io/2023/04/kill-aggregate-chapter-1-I-am-here-to-kill-the-aggregate.html) - Sara Pellegrini's blog post about moving beyond aggregates in event-driven systems
-- [Kill Aggregate - Volume 2 - Sara Pellegrini at JOTB25](https://www.youtube.com/watch?v=AQ5fk4D3u9I)
-
-## Similar Projects
-
-- [shamresh/DynamicConsistencyBoundary](https://github.com/shamresh/DynamicConsistencyBoundary) - C# implementation of the Dynamic Consistency Boundary pattern
-- [Axon Framework](https://axoniq.io/) - Java framework with DCB support planned for version 5
-
-## Code Coverage
-
-> **Note**: The Codecov badge above is currently being set up. Until it's working, here's the current code coverage:
-
-**Current Coverage: 68.6%** (as of latest test run)
-
-```bash
-$ go test -v -coverprofile=coverage.out ./pkg/...
-coverage: 68.6% of statements
-```
-
-This coverage includes all the core DCB functionality in the `

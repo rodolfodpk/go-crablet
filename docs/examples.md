@@ -188,6 +188,61 @@ func channelStreamingExample() {
 - **Channel-based streaming provides immediate processing feedback**
 - **Choose the right streaming approach for your dataset size**
 
+## Query Building with Helper Functions
+
+go-crablet provides concise helper functions to simplify query building:
+
+### Using QItem and QItemKV Helpers
+
+**Before (verbose):**
+```go
+Query: dcb.NewQuerySimple(dcb.NewTags("course_id", courseID), "CourseDefined")
+```
+
+**After (concise):**
+```go
+Query: dcb.NewQueryFromItems(dcb.QItemKV("CourseDefined", "course_id", courseID))
+```
+
+**Complete example with helpers:**
+```go
+// Define projectors using the new helper functions
+projectors := []dcb.BatchProjector{
+    {ID: "courseExists", StateProjector: dcb.StateProjector{
+        Query: dcb.NewQueryFromItems(dcb.QItemKV("CourseDefined", "course_id", courseID)),
+        InitialState: false,
+        TransitionFn: func(state any, e dcb.Event) any { return true },
+    }},
+    {ID: "numSubscriptions", StateProjector: dcb.StateProjector{
+        Query: dcb.NewQueryFromItems(dcb.QItemKV("StudentSubscribed", "course_id", courseID)),
+        InitialState: 0,
+        TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
+    }},
+    {ID: "alreadySubscribed", StateProjector: dcb.StateProjector{
+        Query: dcb.NewQueryFromItems(dcb.QItemKV("StudentSubscribed", "student_id", studentID, "course_id", courseID)),
+        InitialState: false,
+        TransitionFn: func(state any, e dcb.Event) any { return true },
+    }},
+}
+```
+
+### Building Complex Queries
+
+For more complex queries with multiple conditions:
+
+```go
+// Build a query with multiple event types and tags
+query := dcb.NewQueryFromItems(
+    dcb.QItemKV("CourseDefined", "course_id", "c1"),
+    dcb.QItemKV("StudentRegistered", "student_id", "s1"),
+    dcb.QItemKV("StudentSubscribed", "course_id", "c1"),
+    dcb.QItemKV("StudentSubscribed", "student_id", "s1"),
+)
+
+// Read events with the combined query
+events, err := store.Read(ctx, query, nil)
+```
+
 ## Performance Comparison
 
 | Approach | Best For | Immediate Feedback | Memory Usage |

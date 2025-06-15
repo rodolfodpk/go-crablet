@@ -97,3 +97,27 @@ func NewInputEventUnsafe(eventType string, tags []Tag, data []byte) InputEvent {
 func NewEventBatch(events ...InputEvent) []InputEvent {
 	return events
 }
+
+// QItem creates a new QueryItem with a single event type and tags.
+// This simplifies the common case of querying for one event type.
+func QItem(eventType string, tags []Tag) QueryItem {
+	return QueryItem{
+		EventTypes: []string{eventType},
+		Tags:       tags,
+	}
+}
+
+// QItemKV creates a new QueryItem with a single event type and key-value tags.
+// This is the most concise way to create a QueryItem for a single event type.
+func QItemKV(eventType string, kv ...string) QueryItem {
+	return QueryItem{
+		EventTypes: []string{eventType},
+		Tags:       NewTags(kv...),
+	}
+}
+
+// Ptr returns a pointer to the given int64 value.
+// This is useful for creating optional fields in ReadOptions.
+func Ptr(v int64) *int64 {
+	return &v
+}
