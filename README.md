@@ -70,24 +70,16 @@ func main() {
             InitialState: 0,
             TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
         }},
-    }
-
-    // Define read options for position and limits (DCB pattern)
-    from := int64(1000)
-    limit := 1000
-    batch := 100
-    readOptions := &dcb.ReadOptions{
-        // Optional: start from a specific position
-        // FromPosition: &from,
-        // Optional: limit number of events processed
-        // Limit: &limit,
-        // Optional: batch size for streaming
-        // BatchSize: &batch,
+        {ID: "studentCourseCount", StateProjector: dcb.StateProjector{
+            Query: dcb.NewQueryFromItems(dcb.QItemKV("StudentSubscribed", "student_id", "s1")),
+            InitialState: 0,
+            TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
+        }},
     }
 
     // Project states and get append condition (DCB pattern)
     // The query is automatically combined from all projectors using OR logic
-    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors, readOptions)
+    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors, nil)
     
     // Business logic: create course if it doesn't exist
     if !states["courseExists"].(bool) {
@@ -105,13 +97,21 @@ func main() {
         store.Append(ctx, []dcb.InputEvent{studentEvent}, &appendCondition)
     }
     
-    // Business logic: subscribe student if course not full
-    if states["numSubscriptions"].(int) < 2 {
-        data, _ := json.Marshal(map[string]any{"StudentID": "s1", "CourseID": "c1"})
-        enrollEvent := dcb.NewInputEvent("StudentSubscribed", dcb.NewTags("student_id", "s1", "course_id", "c1"), data)
-        enrollEvent.CorrelationID = "enrollment-123"
-        store.Append(ctx, []dcb.InputEvent{enrollEvent}, &appendCondition)
+    // Business logic: check course capacity (max 2 students)
+    if states["numSubscriptions"].(int) >= 2 {
+        panic("course is full")
     }
+    
+    // Business logic: check student course limit (max 10 courses)
+    if states["studentCourseCount"].(int) >= 10 {
+        panic("student cannot subscribe to more than 10 courses")
+    }
+    
+    // Business logic: subscribe student (all invariants satisfied)
+    data, _ := json.Marshal(map[string]any{"StudentID": "s1", "CourseID": "c1"})
+    enrollEvent := dcb.NewInputEvent("StudentSubscribed", dcb.NewTags("student_id", "s1", "course_id", "c1"), data)
+    enrollEvent.CorrelationID = "enrollment-123"
+    store.Append(ctx, []dcb.InputEvent{enrollEvent}, &appendCondition)
 }
 ```
 
@@ -148,12 +148,6 @@ query := dcb.NewQueryFromItems(
 // Read events with the combined query
 events, err := store.Read(ctx, query, nil)
 ```
-
-### Available Helper Functions
-
-- **`QItem(eventType string, tags []Tag) QueryItem`**: Create a QueryItem with a single event type and existing tags
-- **`QItemKV(eventType string, kv ...string) QueryItem`**: Create a QueryItem with a single event type and key-value pairs
-- **`NewQueryFromItems(items ...QueryItem) Query`**: Combine multiple QueryItems into a Query
 
 ## Examples
 

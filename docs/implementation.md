@@ -299,3 +299,50 @@ This query:
 - Uses channel-based streaming for small-medium datasets
 - Routes each event to appropriate projectors as it's streamed
 - Maintains constant memory usage regardless of event count 
+
+## ReadOptions Usage
+
+**Important:** `ReadOptions` is used for controlling **how** events are read, not **which** events are read. The query logic (event types and tags) is handled by the `Query` parameter, not by `ReadOptions`.
+
+### Common Usage Patterns
+
+**Most common case (no options):**
+```go
+// Use nil for default behavior
+states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
+```
+
+**With position limits:**
+```go
+from := int64(1000)
+readOptions := &dcb.ReadOptions{
+    FromPosition: &from,  // Start reading from position 1000
+}
+states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, readOptions)
+```
+
+**With result limits:**
+```go
+limit := 1000
+readOptions := &dcb.ReadOptions{
+    Limit: &limit,  // Process at most 1000 events
+}
+states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, readOptions)
+```
+
+**With streaming batch size:**
+```go
+batch := 100
+readOptions := &dcb.ReadOptions{
+    BatchSize: &batch,  // Process events in batches of 100
+}
+states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, readOptions)
+```
+
+### When to Use ReadOptions
+
+- **`FromPosition`**: Resume processing from a specific event position
+- **`Limit`**: Prevent processing too many events (safety mechanism)
+- **`BatchSize`**: Control memory usage in streaming operations
+
+**Note:** For most DCB use cases, using `nil` for `ReadOptions` is sufficient and recommended. 
