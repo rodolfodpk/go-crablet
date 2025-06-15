@@ -37,6 +37,7 @@ We're learning about the Dynamic Consistency Boundary (DCB) pattern by exploring
 - [Minimal Example](docs/minimal-example.md): Detailed walkthrough of the course subscription example
 - [Performance Benchmarks](internal/benchmarks/README.md): Comprehensive performance testing and analysis
 - [Code Coverage](docs/code-coverage.md): Test coverage analysis and improvement guidelines
+- [Coverage Badge](docs/coverage-badge.md): Custom coverage badge and CI integration
 
 ## Minimal Example: Course Subscription
 
@@ -162,37 +163,6 @@ If you're new to Go and want to run the examples, follow these essential steps:
 
 ### Available Examples
 - `internal/examples/decision_model/main.go` - Complete DCB pattern
-
-## 📊 **Code Coverage**
-
-The core DCB library (`pkg/dcb`) maintains **86.7% test coverage** with comprehensive testing of all critical operations.
-
-📊 **[View Detailed Coverage Analysis](docs/code-coverage.md)** - Complete coverage breakdown, improvement guidelines, and testing strategies.
-
-### **Quick Status**
-
-| Package | Coverage | Status |
-|---------|----------|---------|
-| **pkg/dcb** (Core Library) | **86.7%** | ✅ Good |
-
-### **Running Coverage Tests**
-
-```bash
-# Run tests with coverage for core library
-go test -coverprofile=coverage.out ./pkg/dcb
-
-# View detailed coverage report
-go tool cover -func=coverage.out
-```
-
-### **Coverage Exclusions**
-
-The following are excluded from coverage calculations:
-- **`internal/benchmarks/`**: Performance benchmarks (not unit tests)
-- **`internal/examples/`**: Example applications and demonstrations
-- **`docs/`**: Documentation files
-
-These directories contain examples, benchmarks, and documentation rather than core library code.
 
 ---
 
