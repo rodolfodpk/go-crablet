@@ -72,14 +72,17 @@ func main() {
         }},
     }
 
-    // Project states and get append condition (DCB pattern)
-    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors, &dcb.ReadOptions{
+    // Define read options to limit events processed
+    readOptions := &dcb.ReadOptions{
         QueryItems: []dcb.QueryItem{
             {EventTypes: []string{"CourseDefined"}, Tags: dcb.NewTags("course_id", "c1")},
             {EventTypes: []string{"StudentRegistered"}, Tags: dcb.NewTags("student_id", "s1")},
             {EventTypes: []string{"StudentSubscribed"}, Tags: dcb.NewTags("course_id", "c1")},
         },
-    })
+    }
+
+    // Project states and get append condition (DCB pattern)
+    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors, readOptions)
     
     // Business logic: create course if it doesn't exist
     if !states["courseExists"].(bool) {
