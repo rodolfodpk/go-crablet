@@ -35,6 +35,7 @@ We're learning about the Dynamic Consistency Boundary (DCB) pattern by exploring
 - [Implementation](docs/implementation.md): Technical details
 - [Causation and Correlation](docs/causation-correlation.md): Understanding event relationships and tracing
 - [Minimal Example](docs/minimal-example.md): Detailed walkthrough of the course subscription example
+- [Performance Benchmarks](internal/benchmarks/README.md): Comprehensive performance testing and analysis
 
 ## Minimal Example: Course Subscription
 
