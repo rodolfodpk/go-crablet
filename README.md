@@ -49,8 +49,9 @@ import (
 )
 
 func main() {
-    pool, _ := pgxpool.New(context.Background(), "postgres://user:pass@localhost/db")
-    store, _ := dcb.NewEventStore(context.Background(), pool)
+    ctx := context.Background()
+    pool, _ := pgxpool.New(ctx, "postgres://user:pass@localhost/db")
+    store, _ := dcb.NewEventStore(ctx, pool)
 
     // Define projectors for business rules
     projectors := []dcb.BatchProjector{
@@ -72,14 +73,20 @@ func main() {
     }
 
     // Project states and get append condition (DCB pattern)
-    states, appendCond, _ := store.ProjectDecisionModel(context.Background(), projectors, nil)
+    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors, &dcb.ReadOptions{
+        QueryItems: []dcb.QueryItem{
+            {EventTypes: []string{"CourseDefined"}, Tags: dcb.NewTags("course_id", "c1")},
+            {EventTypes: []string{"StudentRegistered"}, Tags: dcb.NewTags("student_id", "s1")},
+            {EventTypes: []string{"StudentSubscribed"}, Tags: dcb.NewTags("course_id", "c1")},
+        },
+    })
     
     // Business logic: create course if it doesn't exist
     if !states["courseExists"].(bool) {
         data, _ := json.Marshal(map[string]any{"CourseID": "c1", "Capacity": 2})
         courseEvent := dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", "c1"), data)
         courseEvent.CorrelationID = "enrollment-123"
-        store.Append(context.Background(), []dcb.InputEvent{courseEvent}, &appendCond)
+        store.Append(ctx, []dcb.InputEvent{courseEvent}, &appendCondition)
     }
     
     // Business logic: create student if doesn't exist
@@ -87,7 +94,7 @@ func main() {
         data, _ := json.Marshal(map[string]any{"StudentID": "s1", "Name": "Alice", "Email": "alice@example.com"})
         studentEvent := dcb.NewInputEvent("StudentRegistered", dcb.NewTags("student_id", "s1"), data)
         studentEvent.CorrelationID = "enrollment-123"
-        store.Append(context.Background(), []dcb.InputEvent{studentEvent}, &appendCond)
+        store.Append(ctx, []dcb.InputEvent{studentEvent}, &appendCondition)
     }
     
     // Business logic: subscribe student if course not full
@@ -95,7 +102,7 @@ func main() {
         data, _ := json.Marshal(map[string]any{"StudentID": "s1", "CourseID": "c1"})
         enrollEvent := dcb.NewInputEvent("StudentSubscribed", dcb.NewTags("student_id", "s1", "course_id", "c1"), data)
         enrollEvent.CorrelationID = "enrollment-123"
-        store.Append(context.Background(), []dcb.InputEvent{enrollEvent}, &appendCond)
+        store.Append(ctx, []dcb.InputEvent{enrollEvent}, &appendCondition)
     }
 }
 ```
@@ -181,4 +188,4 @@ $ go test -v -coverprofile=coverage.out ./pkg/...
 coverage: 68.6% of statements
 ```
 
-This coverage includes all the core DCB functionality in the `pkg/dcb` package. The coverage will be automatically updated once the Codecov integration is complete. 
+This coverage includes all the core DCB functionality in the `
