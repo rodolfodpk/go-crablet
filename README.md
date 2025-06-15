@@ -168,9 +168,4 @@ For more detailed examples and documentation, see the [Examples](docs/examples.m
 ## Similar Projects
 
 - [shamresh/DynamicConsistencyBoundary](https://github.com/shamresh/DynamicConsistencyBoundary) - C# implementation of the Dynamic Consistency Boundary pattern
-- [Axon Framework](https://axoniq.io/) - Java framework with DCB support planned for version 5
-- [@dcb-es/event-store](https://github.com/dcb-es/event-store) - JavaScript/TypeScript DCB event store (work in progress)
-- [wwwision/dcb-eventstore](https://github.com/wwwision/dcb-eventstore) - PHP DCB event store (work in progress)
-- [gember/event-sourcing](https://github.com/gember/event-sourcing) - PHP event sourcing library (work in progress)
-- [ortegacmanuel/kroniko](https://github.com/ortegacmanuel/kroniko) - Ruby DCB implementation (work in progress)
-- [disintegrate-es/disintegrate](https://github.com/disintegrate-es/disintegrate) - Rust event sourcing library inspired by DCB concepts 
+- [Axon Framework](https://axoniq.io/) - Java framework with DCB support planned for version 5 
