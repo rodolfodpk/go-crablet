@@ -8,16 +8,13 @@
 
 A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini's Dynamic Consistency Boundary (DCB) pattern. go-crablet enables you to build event-driven systems with:
 
-- **Batch projection**: Project multiple states using a single streamlined PostgreSQL query with native streaming
-- **DCB-inspired consistency**: Optimistic locking using the same query combination scope for projection and append
-- **Streaming**: Memory-efficient event processing for large event streams
-- **Flexible queries**: Tag-based, OR-combined queries for cross-entity invariants
-
 ## Key Features
 
 - **DCB-inspired decision models**: Project multiple states and build append conditions in one step
 - **Single streamlined query**: Efficiently project all relevant states using PostgreSQL's native streaming via pgx
 - **Optimistic concurrency**: Append events only if no conflicting events have appeared within the same query combination scope
+- **Memory-efficient streaming**: Process events row-by-row for large event streams
+- **Flexible queries**: Tag-based, OR-combined queries for cross-entity invariants
 - **PostgreSQL-backed**: Uses PostgreSQL for robust, concurrent event storage
 
 ## Exploring the DCB Pattern in Go
