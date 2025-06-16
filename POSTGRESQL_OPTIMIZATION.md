@@ -1,21 +1,16 @@
 # PostgreSQL Performance Optimization for go-crablet Benchmarks
 
-This document explains the PostgreSQL optimizations applied to improve benchmark performance for the go-crablet library.
+This document explains the PostgreSQL optimizations applied to improve benchmark performance for the go-crablet library using environment variables.
 
 ## 🚀 **Quick Start**
 
-To apply all optimizations and restart PostgreSQL:
+The optimizations are automatically applied when you start PostgreSQL with Docker Compose:
 
 ```bash
-./restart_optimized_db.sh
+docker-compose up -d
 ```
 
-This script will:
-1. Stop the current PostgreSQL container
-2. Remove the existing database volume
-3. Start PostgreSQL with optimized settings
-4. Verify connectivity
-5. Display resource allocation
+All performance optimizations are configured via environment variables in `docker-compose.yaml`, providing reliable and consistent performance without configuration file issues.
 
 ## 📊 **Resource Allocation**
 
@@ -33,36 +28,40 @@ This script will:
 - **Work Memory**: 16MB per operation
 - **Maintenance Work Memory**: 256MB for maintenance
 
-## ⚙️ **PostgreSQL Configuration Optimizations**
+## ⚙️ **Environment Variable Optimizations**
 
 ### **Memory Configuration**
-```conf
-shared_buffers = 256MB                    # PostgreSQL's main memory
-effective_cache_size = 1GB                # Estimated OS cache
-work_mem = 16MB                           # Per operation memory
-maintenance_work_mem = 256MB              # Maintenance operations
+```yaml
+POSTGRES_SHARED_BUFFERS: 256MB                    # PostgreSQL's main memory
+POSTGRES_EFFECTIVE_CACHE_SIZE: 1GB                # Estimated OS cache
+POSTGRES_WORK_MEM: 16MB                           # Per operation memory
+POSTGRES_MAINTENANCE_WORK_MEM: 256MB              # Maintenance operations
 ```
 
 ### **Query Performance**
-```conf
-default_statistics_target = 100           # Better query planning
-random_page_cost = 1.1                    # Optimized for SSD
-effective_io_concurrency = 200            # Parallel I/O operations
+```yaml
+POSTGRES_DEFAULT_STATISTICS_TARGET: 100           # Better query planning
+POSTGRES_RANDOM_PAGE_COST: 1.1                    # Optimized for SSD
+POSTGRES_EFFECTIVE_IO_CONCURRENCY: 200            # Parallel I/O operations
 ```
 
 ### **Parallel Processing**
-```conf
-max_worker_processes = 8                  # Total background processes
-max_parallel_workers_per_gather = 4       # Parallel workers per query
-max_parallel_workers = 8                  # Total parallel workers
-max_parallel_maintenance_workers = 4      # Parallel maintenance workers
+```yaml
+POSTGRES_MAX_WORKER_PROCESSES: 8                  # Total background processes
+POSTGRES_MAX_PARALLEL_WORKERS_PER_GATHER: 4       # Parallel workers per query
+POSTGRES_MAX_PARALLEL_WORKERS: 8                  # Total parallel workers
+POSTGRES_MAX_PARALLEL_MAINTENANCE_WORKERS: 4      # Parallel maintenance workers
 ```
 
 ### **Checkpoint Optimization**
-```conf
-checkpoint_completion_target = 0.9        # Spread checkpoints over time
-wal_buffers = 16MB                        # WAL buffer size
-checkpoint_timeout = 5min                 # Checkpoint interval
+```yaml
+POSTGRES_CHECKPOINT_COMPLETION_TARGET: 0.9        # Spread checkpoints over time
+POSTGRES_WAL_BUFFERS: 16MB                        # WAL buffer size
+```
+
+### **Authentication**
+```yaml
+POSTGRES_HOST_AUTH_METHOD: trust                  # No password prompts for benchmarks
 ```
 
 ## 🔧 **Docker Compose Configuration**
@@ -84,11 +83,23 @@ deploy:
 ### **Environment Variables**
 ```yaml
 environment:
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+  POSTGRES_DB: dcb_app
   POSTGRES_SHARED_BUFFERS: 256MB
   POSTGRES_EFFECTIVE_CACHE_SIZE: 1GB
   POSTGRES_WORK_MEM: 16MB
   POSTGRES_MAINTENANCE_WORK_MEM: 256MB
-  # ... additional optimizations
+  POSTGRES_CHECKPOINT_COMPLETION_TARGET: 0.9
+  POSTGRES_WAL_BUFFERS: 16MB
+  POSTGRES_DEFAULT_STATISTICS_TARGET: 100
+  POSTGRES_RANDOM_PAGE_COST: 1.1
+  POSTGRES_EFFECTIVE_IO_CONCURRENCY: 200
+  POSTGRES_MAX_WORKER_PROCESSES: 8
+  POSTGRES_MAX_PARALLEL_WORKERS_PER_GATHER: 4
+  POSTGRES_MAX_PARALLEL_WORKERS: 8
+  POSTGRES_MAX_PARALLEL_MAINTENANCE_WORKERS: 4
+  POSTGRES_HOST_AUTH_METHOD: trust
 ```
 
 ## 📈 **Expected Performance Improvements**
@@ -165,13 +176,12 @@ WHERE heap_blks_read > 0;
 
 ## ⚠️ **Important Notes**
 
-1. **Database Reset**: The optimization script removes the existing database volume, so any existing data will be lost.
-
-2. **Resource Requirements**: Ensure your system has at least 6GB of available RAM and 4 CPU cores for optimal performance.
-
-3. **Docker Resources**: Make sure Docker has enough resources allocated (Docker Desktop → Settings → Resources).
-
-4. **Benchmark Isolation**: Each benchmark run starts with a fresh database to ensure consistent results.
+1. **Automatic Configuration**: All optimizations are applied automatically via environment variables
+2. **No Configuration Files**: No need for custom `postgresql.conf` or `pg_hba.conf` files
+3. **Reliable Operation**: Environment variables ensure consistent performance across different environments
+4. **Resource Requirements**: Ensure your system has at least 6GB of available RAM and 4 CPU cores for optimal performance
+5. **Docker Resources**: Make sure Docker has enough resources allocated (Docker Desktop → Settings → Resources)
+6. **Benchmark Isolation**: Each benchmark run starts with a fresh database to ensure consistent results
 
 ## 🔄 **Reverting to Default Settings**
 
@@ -193,18 +203,25 @@ docker-compose up -d
 
 ### **Container Won't Start**
 - Check Docker has enough resources allocated
-- Verify the postgresql.conf file exists
+- Verify the environment variables are correctly set in docker-compose.yaml
 - Check Docker logs: `docker-compose logs postgres`
 
 ### **Poor Performance**
 - Verify resource allocation: `docker stats postgres_db`
-- Check PostgreSQL configuration: `docker-compose exec postgres psql -U postgres -c "SHOW ALL;"`
-- Monitor system resources during benchmarks
+- Check if environment variables are applied: `docker-compose exec postgres psql -U postgres -c "SHOW shared_buffers;"`
+- Ensure Docker has enough CPU and memory allocated
 
-### **Connection Issues**
-- Wait for PostgreSQL to fully start (usually 10-15 seconds)
-- Check health status: `docker-compose ps`
-- Verify port availability: `netstat -an | grep 5432`
+### **Authentication Issues**
+- The `POSTGRES_HOST_AUTH_METHOD=trust` setting eliminates password prompts
+- If you need password authentication, remove this environment variable
+
+## 🎯 **Benefits of Environment Variable Approach**
+
+1. **Reliability**: No configuration file mounting issues
+2. **Consistency**: Same settings across all environments
+3. **Simplicity**: No need for custom configuration files
+4. **Portability**: Works on any system with Docker
+5. **Maintainability**: All settings in one place (docker-compose.yaml)
 
 ---
 
