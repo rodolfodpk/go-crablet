@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 
 	"go-crablet/pkg/dcb"
 
@@ -14,7 +13,7 @@ import (
 
 func main() {
 	// Connect to PostgreSQL
-	pool, err := pgxpool.New(context.Background(), os.Getenv("DATABASE_URL"))
+	pool, err := pgxpool.New(context.Background(), "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
