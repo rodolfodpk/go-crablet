@@ -87,4 +87,8 @@ The example will:
 
 - **BatchSize**: Controls how many events are fetched per batch (default: 1000)
 - **Cursor Name**: Automatically generated unique names to avoid conflicts
-- **Transaction Management**: Automatic cursor cleanup and transaction rollback 
+- **Transaction Management**: Automatic cursor cleanup and transaction rollback
+
+## 📄 **License**
+
+This example is licensed under the Apache License 2.0 - see the [LICENSE](../../../LICENSE) file for details. 
