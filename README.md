@@ -14,7 +14,7 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 - **Single streamlined query**: Efficiently project all relevant states using PostgreSQL's native streaming via pgx
 - **Optimistic concurrency**: Append events only if no conflicting events have appeared within the same query combination scope
 - **Memory-efficient streaming**: Process events row-by-row for large event streams
-- **Flexible queries**: Tag-based, OR-combined queries for cross-entity invariants
+- **Flexible queries**: Tag-based, OR-combined queries for cross-entity boundaries
 - **PostgreSQL-backed**: Uses PostgreSQL for robust, concurrent event storage
 
 ## Exploring the DCB Pattern in Go
