@@ -1,6 +1,6 @@
 # go-crablet Benchmarks
 
-This directory contains the Go benchmark test files for the go-crablet library, which implements Dynamic Consistency Boundaries (DCB).
+This directory contains the Go benchmark test files for the go-crablet library, which aims to implement Dynamic Consistency Boundaries (DCB).
 
 ## 📚 Documentation
 

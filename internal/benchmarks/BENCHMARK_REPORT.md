@@ -6,7 +6,7 @@
 
 ## **Executive Summary**
 
-The go-crablet library, implementing Dynamic Consistency Boundaries (DCB), demonstrates **excellent performance characteristics** with the optimized schema, showing significant improvements in streaming operations, memory efficiency, and projection performance. The latest benchmark results confirm the effectiveness of the schema optimizations and reveal some areas for further investigation.
+The go-crablet library, which aims to implement Dynamic Consistency Boundaries (DCB), demonstrates **excellent performance characteristics** with the optimized schema, showing significant improvements in streaming operations, memory efficiency, and projection performance. The latest benchmark results confirm the effectiveness of the schema optimizations and reveal some areas for further investigation.
 
 ## **🔧 Test Environment**
 - **Hardware**: Apple M1 Pro (ARM64)
@@ -160,7 +160,7 @@ BenchmarkProjection_Small/MemoryProjection-8                        141         
 
 ## **📝 Conclusion**
 
-The go-crablet library, implementing Dynamic Consistency Boundaries (DCB), with optimized schema demonstrates **excellent performance characteristics** across all critical operations. The enhanced indexing strategy delivers:
+The go-crablet library, which aims to implement Dynamic Consistency Boundaries (DCB), with optimized schema demonstrates **excellent performance characteristics** across all critical operations. The enhanced indexing strategy delivers:
 
 - **Consistent and predictable performance** across all operations
 - **Excellent memory efficiency** for projections (699 bytes per operation)
