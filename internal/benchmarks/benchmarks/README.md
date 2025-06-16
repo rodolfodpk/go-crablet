@@ -45,6 +45,10 @@ Benchmark parameters can be modified in `benchmark_runner.go`:
 - Projector counts for projection tests
 - Memory measurement settings
 
+## 📄 **License**
+
+This benchmark and documentation are licensed under the Apache License 2.0 - see the [LICENSE](../../../LICENSE) file for details.
+
 ---
 
 *For comprehensive documentation, setup instructions, and performance analysis, see the [main README](../README.md).* 
