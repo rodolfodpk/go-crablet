@@ -37,7 +37,6 @@ We're learning about the Dynamic Consistency Boundary (DCB) pattern by exploring
 - [Minimal Example](docs/minimal-example.md): Detailed walkthrough of the course subscription example
 - [Performance Benchmarks](internal/benchmarks/README.md): Comprehensive performance testing and analysis
 - [Code Coverage](docs/code-coverage.md): Test coverage analysis and improvement guidelines
-- [Coverage Badge](docs/coverage-badge.md): Custom coverage badge and CI integration
 
 ## Minimal Example: Course Subscription
 
