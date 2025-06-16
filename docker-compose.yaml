@@ -23,13 +23,14 @@ services:
       POSTGRES_MAX_PARALLEL_WORKERS_PER_GATHER: 4
       POSTGRES_MAX_PARALLEL_WORKERS: 8
       POSTGRES_MAX_PARALLEL_MAINTENANCE_WORKERS: 4
+      # Authentication settings for benchmarks
+      POSTGRES_HOST_AUTH_METHOD: trust
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
-      - ./postgresql.conf:/etc/postgresql/postgresql.conf
-    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+    # Use environment variables for performance tuning instead of custom postgresql.conf
     # Resource allocation for better performance
     deploy:
       resources:

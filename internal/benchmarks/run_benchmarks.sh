@@ -79,6 +79,28 @@ check_prerequisites() {
     print_success "Prerequisites check passed"
 }
 
+# Function to reset database
+reset_database() {
+    print_status "Resetting database for clean benchmark run..."
+    cd ../..
+    if docker-compose down -v; then
+        print_success "Database reset successfully"
+        if docker-compose up -d; then
+            print_success "Database started successfully"
+            # Wait for database to be ready
+            print_status "Waiting for database to be ready..."
+            sleep 15
+        else
+            print_error "Failed to start database"
+            exit 1
+        fi
+    else
+        print_error "Failed to reset database"
+        exit 1
+    fi
+    cd internal/benchmarks
+}
+
 # Function to run benchmarks
 run_benchmarks() {
     local pattern=$1
@@ -88,6 +110,9 @@ run_benchmarks() {
     
     print_status "Running benchmarks: $pattern with $dataset_size dataset"
     print_status "Benchmark time: $bench_time, Count: $count"
+    
+    # Reset database before each benchmark run
+    reset_database
     
     cd benchmarks
     
