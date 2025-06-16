@@ -237,7 +237,7 @@ Understanding how the EventStore methods compute the queries they need to fetch 
 query := dcb.NewQueryFromItems(
     dcb.QItemKV("CourseDefined", "course_id", "c1"),
     dcb.QItemKV("StudentRegistered", "student_id", "s1"),
-    dcb.QItemKV("StudentSubscribed", "course_id", "c1"),
+    dcb.QItemKV("StudentSubscribed", "course_id", "c1", "student_id", "s1"),
 )
 
 // Or using the traditional approach

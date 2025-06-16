@@ -156,7 +156,11 @@ func channelStreamingExample() {
     channelStore := store.(dcb.ChannelEventStore)
 
     // Create query for course events
-    query := dcb.NewQuerySimple(dcb.NewTags("course_id", "c1"), "CourseDefined", "StudentSubscribed")
+    query := dcb.NewQueryFromItems(
+        dcb.QItemKV("CourseDefined", "course_id", "c1"),
+        dcb.QItemKV("StudentRegistered", "student_id", "s1"),
+        dcb.QItemKV("StudentSubscribed", "course_id", "c1", "student_id", "s1"),
+    )
 
     // Channel-based streaming
     eventChan, err := channelStore.ReadStreamChannel(ctx, query, nil)
@@ -235,8 +239,7 @@ For more complex queries with multiple conditions:
 query := dcb.NewQueryFromItems(
     dcb.QItemKV("CourseDefined", "course_id", "c1"),
     dcb.QItemKV("StudentRegistered", "student_id", "s1"),
-    dcb.QItemKV("StudentSubscribed", "course_id", "c1"),
-    dcb.QItemKV("StudentSubscribed", "student_id", "s1"),
+    dcb.QItemKV("StudentSubscribed", "course_id", "c1", "student_id", "s1"),
 )
 
 // Read events with the combined query

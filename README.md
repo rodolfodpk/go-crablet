@@ -69,7 +69,7 @@ func main() {
             TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
         }},
         {ID: "studentCourseCount", StateProjector: dcb.StateProjector{
-            Query: dcb.NewQueryFromItems(dcb.QItemKV("StudentSubscribed", "student_id", "s1")),
+            Query: dcb.NewQueryFromItems(dcb.QItemKV("StudentSubscribed", "course_id", "c1", "student_id", "s1")),
             InitialState: 0,
             TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
         }},
