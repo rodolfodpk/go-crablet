@@ -1,10 +1,10 @@
-# DCB Performance Benchmarks
+# go-crablet Performance Benchmarks
 
-This directory contains comprehensive performance benchmarks for the DCB (Decision-Centric Backend) library. The benchmarks test all public API operations with realistic datasets and various configurations.
+This directory contains comprehensive performance benchmarks for the go-crablet library, which implements Dynamic Consistency Boundaries (DCB). The benchmarks test all public API operations with realistic datasets and various configurations.
 
 ## 📋 **Latest Benchmark Report**
 
-📊 **[View Latest Performance Analysis](BENCHMARK_REPORT.md)** - Comprehensive analysis of DCB performance across all operations with detailed metrics, recommendations, and raw benchmark results.
+📊 **[View Latest Performance Analysis](BENCHMARK_REPORT.md)** - Comprehensive analysis of go-crablet performance across all operations with detailed metrics, recommendations, and raw benchmark results.
 
 ---
 

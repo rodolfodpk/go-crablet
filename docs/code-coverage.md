@@ -1,6 +1,6 @@
 # Code Coverage Analysis
 
-Current test coverage status and improvement guidelines for the DCB library.
+Current test coverage status and improvement guidelines for the go-crablet library.
 
 ## 📊 **Current Status**
 

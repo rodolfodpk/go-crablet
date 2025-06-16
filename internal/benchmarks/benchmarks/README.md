@@ -1,6 +1,6 @@
-# DCB Benchmarks
+# go-crablet Benchmarks
 
-This directory contains the Go benchmark test files for the DCB (Decision-Centric Backend) library.
+This directory contains the Go benchmark test files for the go-crablet library, which implements Dynamic Consistency Boundaries (DCB).
 
 ## 📚 Documentation
 

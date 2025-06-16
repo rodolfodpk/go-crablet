@@ -4,7 +4,7 @@ This document explains how the custom code coverage badge works and how it's int
 
 ## 🏷️ **Custom Coverage Badge**
 
-The project uses a custom code coverage badge that shows the current test coverage percentage for the core DCB library (`pkg/dcb`).
+The project uses a custom code coverage badge that shows the current test coverage percentage for the core go-crablet library (`pkg/dcb`).
 
 ### **Badge Features**
 
