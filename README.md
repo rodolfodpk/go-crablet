@@ -18,7 +18,6 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 - **DCB-inspired decision models**: Project multiple states and build append conditions in one step
 - **Single streamlined query**: Efficiently project all relevant states using PostgreSQL's native streaming via pgx
 - **Optimistic concurrency**: Append events only if no conflicting events have appeared within the same query combination scope
-- **Streaming**: Memory-efficient event processing for large event streams
 - **PostgreSQL-backed**: Uses PostgreSQL for robust, concurrent event storage
 
 ## Exploring the DCB Pattern in Go
