@@ -1,5 +1,5 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/rodolfodpk/go-crablet)](https://goreportcard.com/report/github.com/rodolfodpk/go-crablet)
-[![codecov](https://codecov.io/gh/rodolfodpk/go-crablet/branch/main/graph/badge.svg)](https://codecov.io/gh/rodolfodpk/go-crablet)
+[![Code Coverage](https://img.shields.io/badge/code%20coverage-86.7%25-green?logo=go)](https://github.com/rodolfodpk/go-crablet/actions/workflows/coverage.yml)
 [![GoDoc](https://godoc.org/github.com/rodolfodpk/go-crablet?status.svg)](https://godoc.org/github.com/rodolfodpk/go-crablet)
 [![License](https://img.shields.io/github/license/rodolfodpk/go-crablet)](https://github.com/rodolfodpk/go-crablet/blob/main/LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/rodolfodpk/go-crablet)](https://github.com/rodolfodpk/go-crablet/blob/main/go.mod)
@@ -163,39 +163,8 @@ If you're new to Go and want to run the examples, follow these essential steps:
 ### Available Examples
 - `internal/examples/decision_model/main.go` - Complete DCB pattern
 
-## 📊 **Code Coverage**
-
-The core DCB library (`pkg/dcb`) maintains **86.7% test coverage** with comprehensive testing of all critical operations.
-
-📊 **[View Detailed Coverage Analysis](docs/code-coverage.md)** - Complete coverage breakdown, improvement guidelines, and testing strategies.
-
-### **Quick Status**
-
-| Package | Coverage | Status |
-|---------|----------|---------|
-| **pkg/dcb** (Core Library) | **86.7%** | ✅ Good |
-
-### **Running Coverage Tests**
-
-```bash
-# Run tests with coverage for core library
-go test -coverprofile=coverage.out ./pkg/dcb
-
-# View detailed coverage report
-go tool cover -func=coverage.out
-```
-
-### **Coverage Exclusions**
-
-The following are excluded from coverage calculations:
-- **`internal/benchmarks/`**: Performance benchmarks (not unit tests)
-- **`internal/examples/`**: Example applications and demonstrations
-- **`docs/`**: Documentation files
-
-These directories contain examples, benchmarks, and documentation rather than core library code.
-
 ---
 
 ## 📄 **License**
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.

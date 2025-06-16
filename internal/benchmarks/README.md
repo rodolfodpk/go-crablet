@@ -308,4 +308,8 @@ When adding new benchmarks:
 - [Go Benchmarking](https://golang.org/pkg/testing/#hdr-Benchmarks)
 - [Performance Profiling](https://golang.org/pkg/runtime/pprof/)
 - [TestContainers](https://golang.testcontainers.org/)
-- [PostgreSQL Performance](https://www.postgresql.org/docs/current/performance.html) 
+- [PostgreSQL Performance](https://www.postgresql.org/docs/current/performance.html)
+
+## 📄 **License**
+
+This benchmark and documentation are licensed under the Apache License 2.0 - see the [LICENSE](../../LICENSE) file for details. 
