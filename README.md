@@ -143,7 +143,6 @@ func handleCreateAccount(ctx context.Context, store dcb.EventStore, cmd CreateAc
 
     return nil
 
-```
 }
 
 func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd TransferMoneyCommand) error {
