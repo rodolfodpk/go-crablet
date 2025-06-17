@@ -1,4 +1,4 @@
-# This is a Docker Compose file for setting up a PostgreSQL database service.
+# This is a Docker Compose file for setting up a PostgreSQL database service and DCB Bench web application.
 # This is just a utility file to help you get started quickly with PostgreSQL in a Docker environment
 # when trying any code using this library.
 services:
@@ -35,19 +35,51 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '4.0'
-          memory: 4G
-        reservations:
           cpus: '2.0'
-          memory: 2G
+          memory: 512M
+        reservations:
+          cpus: '1.0'
+          memory: 256M
     # Alternative resource limits for older Docker Compose versions
-    mem_limit: 4g
-    cpus: 4.0
+    mem_limit: 512m
+    cpus: 2.0
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  web-app:
+    build:
+      context: .
+      dockerfile: internal/web-app/Dockerfile
+    container_name: ${WEBAPP_CONTAINER_NAME:-dcb_webapp}
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/dcb_app?sslmode=disable
+      PORT: 8080
+    ports:
+      - "8080:8080"
+    # Resource allocation for better performance
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 256M
+        reservations:
+          cpus: '1.0'
+          memory: 128M
+    # Alternative resource limits for older Docker Compose versions
+    mem_limit: 256m
+    cpus: 2.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 volumes:
   postgres_data:

@@ -1,15 +1,51 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: dcb_app
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
   web-app:
     build:
       context: ../..
       dockerfile: internal/web-app/Dockerfile
     environment:
-      DATABASE_URL: postgres://postgres:postgres@host.docker.internal:5432/dcb_app?sslmode=disable
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/dcb_app?sslmode=disable
       PORT: 8080
     ports:
       - "8080:8080"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 3G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/read"]
       interval: 30s
@@ -17,4 +53,7 @@ services:
       retries: 3
       start_period: 40s
     extra_hosts:
-      - "host.docker.internal:host-gateway" 
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  pgdata: 

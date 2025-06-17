@@ -25,10 +25,42 @@ func main() {
 		dbURL = "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable"
 	}
 
-	// Connect to database
-	pool, err := pgxpool.New(context.Background(), dbURL)
+	// Configure connection pool for performance
+	config, err := pgxpool.ParseConfig(dbURL)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Fatalf("Failed to parse database URL: %v", err)
+	}
+
+	// Optimize connection pool for high throughput
+	config.MaxConns = 50
+	config.MinConns = 10
+	config.MaxConnLifetime = 5 * time.Minute
+	config.MaxConnIdleTime = 1 * time.Minute
+	config.HealthCheckPeriod = 30 * time.Second
+
+	// Connect to database with retry logic
+	var pool *pgxpool.Pool
+	maxRetries := 30
+	retryDelay := 2 * time.Second
+
+	for i := 0; i < maxRetries; i++ {
+		log.Printf("Attempting to connect to database (attempt %d/%d)...", i+1, maxRetries)
+
+		pool, err = pgxpool.NewWithConfig(context.Background(), config)
+		if err == nil {
+			log.Printf("Successfully connected to database")
+			break
+		}
+
+		log.Printf("Failed to connect to database: %v", err)
+		if i < maxRetries-1 {
+			log.Printf("Retrying in %v...", retryDelay)
+			time.Sleep(retryDelay)
+		}
+	}
+
+	if err != nil {
+		log.Fatalf("Failed to connect to database after %d attempts: %v", maxRetries, err)
 	}
 	defer pool.Close()
 
@@ -54,7 +86,7 @@ func main() {
 		port = "8080"
 	}
 
-	log.Printf("Starting DCB Bench server on port %s", port)
+	log.Printf("Starting DCB Bench server on port %s with optimized connection pool", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
