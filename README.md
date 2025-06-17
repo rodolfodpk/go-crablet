@@ -4,6 +4,36 @@
 [![License](https://img.shields.io/github/license/rodolfodpk/go-crablet)](https://github.com/rodolfodpk/go-crablet/blob/main/LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/rodolfodpk/go-crablet)](https://github.com/rodolfodpk/go-crablet/blob/main/go.mod)
 
+# go-crablet
+
+A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini's Dynamic Consistency Boundary (DCB) pattern. go-crablet enables you to build event-driven systems with:
+
+## Key Features
+
+- **DCB-inspired decision models**: Project multiple states and build append conditions in one step
+- **Single streamlined query**: Efficiently project all relevant states using PostgreSQL's native streaming via pgx
+- **Optimistic concurrency**: Append events only if no conflicting events have appeared within the same query combination scope
+- **Memory-efficient streaming**: Process events row-by-row for large event streams
+- **Flexible queries**: Tag-based, OR-combined queries for cross-entity boundaries
+- **PostgreSQL-backed**: Uses PostgreSQL for robust, concurrent event storage
+
+## Exploring the DCB Pattern in Go
+
+We're learning about the Dynamic Consistency Boundary (DCB) pattern by exploring how to:
+- Define projections ("decision models") that provide the data business rules need
+- Project all relevant state in a single query
+- Build a combined append condition for optimistic locking
+- Append new events only if all invariants still hold
+
+## Documentation
+- [Overview](docs/overview.md): DCB pattern exploration, batch projection, and streaming
+- [Examples](docs/examples.md): DCB-inspired use cases
+- [Implementation](docs/implementation.md): Technical details
+- [Causation and Correlation](docs/causation-correlation.md): Understanding event relationships and tracing
+- [Minimal Example](docs/minimal-example.md): Detailed walkthrough of the course subscription example
+- [Performance Benchmarks](internal/benchmarks/README.md): Comprehensive performance testing and analysis
+- [Code Coverage](docs/code-coverage.md): Test coverage analysis and improvement guidelines
+
 # Go-Crablet: Event Sourcing with Decision Models
 
 Go-Crablet is a Go library for event sourcing that implements the **Decision Model** pattern. It provides a clean, type-safe way to build event-sourced applications with proper command handling, business rule validation, and optimistic locking.
@@ -366,6 +396,35 @@ CREATE DATABASE dcb_app;
 
 The library will automatically create the necessary tables on first use.
 
+## Getting Started
+
+If you're new to Go and want to run the examples, follow these essential steps:
+
+### Prerequisites
+1. **Install Go** (1.24+): Download from [golang.org](https://golang.org/dl/)
+2. **Install Docker**: Download from [docker.com](https://docker.com/get-started/)
+3. **Install Git**: Download from [git-scm.com](https://git-scm.com/)
+
+### Quick Start
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/rodolfodpk/go-crablet.git
+   cd go-crablet
+   ```
+
+2. **Start PostgreSQL database:**
+   ```bash
+   docker-compose up -d
+   ```
+
+3. **Run an example:**
+   ```bash
+   go run internal/examples/decision_model/main.go
+   ```
+
+### Available Examples
+- `internal/examples/decision_model/main.go` - Complete DCB pattern
+
 ## Contributing
 
 1. Fork the repository
@@ -374,6 +433,18 @@ The library will automatically create the necessary tables on first use.
 4. Add tests for new functionality
 5. Ensure all tests pass
 6. Submit a pull request
+
+## References
+
+- [Dynamic Consistency Boundary (DCB)](https://dcb.events/) - A very good resource to understand the DCB pattern and its applications in event-driven systems
+- [I am here to kill the aggregate](https://sara.event-thinking.io/2023/04/kill-aggregate-chapter-1-I-am-here-to-kill-the-aggregate.html) - Sara Pellegrini's blog post about moving beyond aggregates in event-driven systems
+- [Kill Aggregate - Volume 2 - Sara Pellegrini at JOTB25](https://www.youtube.com/watch?v=AQ5fk4D3u9I)
+- **DCB Bench Specification**: [OpenAPI 3.0.3 Documentation](https://app.swaggerhub.com/apis/wwwision/dcb-bench/1.0.0)
+- **REST API Implementation**: [`internal/web-app/README.md`](internal/web-app/README.md)
+- **k6 Performance Benchmarks**: [`internal/web-app/k6-benchmark-report.md`](internal/web-app/k6-benchmark-report.md) - Detailed performance test results
+- **Performance Benchmarks**: [`internal/benchmarks/README.md`](internal/benchmarks/README.md)
+- **Examples**: See `internal/examples/` for comprehensive usage examples
+- **Core Package**: [`pkg/dcb/`](pkg/dcb/) - Main DCB implementation
 
 ## License
 
