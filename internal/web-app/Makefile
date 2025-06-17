@@ -5,7 +5,8 @@ help:
 	@echo "Available commands:"
 	@echo "  build        - Build the Go binary"
 	@echo "  run          - Run the application locally"
-	@echo "  test         - Run k6 performance tests"
+	@echo "  test         - Run k6 performance tests (with clean start)"
+	@echo "  clean-test   - Clean environment and run k6 tests"
 	@echo "  clean        - Clean build artifacts"
 	@echo "  docker-build - Build Docker image"
 	@echo "  docker-run   - Start web app with Docker Compose"
@@ -27,6 +28,13 @@ run:
 # Run k6 performance tests
 test:
 	@echo "Running k6 performance tests..."
+	@echo "Cleaning up previous data..."
+	docker-compose down -v
+	@echo "Starting fresh stack..."
+	docker-compose up -d
+	@echo "Waiting for services to be ready..."
+	@sleep 10
+	@echo "Running k6 load test..."
 	k6 run k6-test.js
 
 # Clean build artifacts
@@ -95,4 +103,16 @@ setup-and-run:
 	@sleep 10
 	@echo "3. Starting web application..."
 	@docker-compose up -d
-	@echo "4. Application is ready at http://localhost:8080" 
+	@echo "4. Application is ready at http://localhost:8080"
+
+# Clean test environment and run k6 tests
+clean-test:
+	@echo "Cleaning test environment and running k6 tests..."
+	@echo "Stopping and removing all containers and volumes..."
+	docker-compose down -v
+	@echo "Starting fresh stack..."
+	docker-compose up -d
+	@echo "Waiting for services to be ready..."
+	@sleep 10
+	@echo "Running k6 load test..."
+	k6 run k6-test.js 
