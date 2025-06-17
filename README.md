@@ -285,6 +285,32 @@ Shows how to handle multiple commands atomically:
 - Batch order processing
 - Cross-command business rules
 
+## REST API Implementation
+
+A complete REST API implementation is available in `internal/web-app/` that provides HTTP endpoints for the DCB Bench specification:
+
+### Features
+- **OpenAPI 3.0.3 Compliance**: Implements the [DCB Bench specification](https://app.swaggerhub.com/apis/wwwision/dcb-bench/1.0.0#/)
+- **HTTP Endpoints**: `/read` and `/append` endpoints with full feature support
+- **Performance Testing**: Comprehensive k6 load testing with benchmarks
+- **Docker Support**: Containerized deployment with PostgreSQL
+- **Production Ready**: Includes health checks, monitoring, and error handling
+
+### Quick Start
+```bash
+# Start the complete stack
+cd internal/web-app
+make setup-and-run
+
+# Run performance tests
+make test
+
+# View API documentation
+open http://localhost:8080
+```
+
+See [`internal/web-app/README.md`](internal/web-app/README.md) for complete documentation.
+
 ## Command Pattern
 
 Each command in Go-Crablet follows a consistent pattern:
