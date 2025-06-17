@@ -31,31 +31,11 @@ We're learning about the Dynamic Consistency Boundary (DCB) pattern by exploring
 - [Implementation](docs/implementation.md): Technical details
 - [Causation and Correlation](docs/causation-correlation.md): Understanding event relationships and tracing
 - [Minimal Example](docs/minimal-example.md): Detailed walkthrough of the course subscription example
-- [Performance Benchmarks](internal/benchmarks/README.md): Comprehensive performance testing and analysis
 - [Code Coverage](docs/code-coverage.md): Test coverage analysis and improvement guidelines
+- [Performance Benchmarks](internal/benchmarks/README.md): Comprehensive performance testing and analysis
+- [k6 Performance Benchmarks](internal/web-app/k6-benchmark-report.md): Detailed performance test results for REST API
 
-# Go-Crablet: Event Sourcing with Decision Models
-
-Go-Crablet is a Go library for event sourcing that implements the **Decision Model** pattern. It provides a clean, type-safe way to build event-sourced applications with proper command handling, business rule validation, and optimistic locking.
-
-## Key Features
-
-- **Command Pattern**: Each command has its own business rules and invariants
-- **Decision Models**: Project current state to make decisions before appending events
-- **Optimistic Locking**: Built-in concurrency control with append conditions
-- **Batch Operations**: Efficient handling of multiple commands atomically
-- **Type Safety**: Strongly typed events and commands
-- **PostgreSQL Backend**: Robust, production-ready storage
-
-## Quick Start
-
-### Installation
-
-```bash
-go get github.com/your-username/go-crablet
-```
-
-### Basic Usage
+## Minimal Example: Batch Append with DCB Invariants
 
 ```go
 package main
@@ -64,337 +44,240 @@ import (
     "context"
     "encoding/json"
     "fmt"
-    "time"
-
-    "go-crablet/pkg/dcb"
+    "log"
+    "github.com/rodolfodpk/go-crablet/pkg/dcb"
     "github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Command types
-type CreateAccountCommand struct {
-    AccountID      string
-    Owner          string
-    InitialBalance int
-}
-
-type TransferMoneyCommand struct {
-    TransferID    string
-    FromAccountID string
-    ToAccountID   string
-    Amount        int
-    Description   string
-}
-
 func main() {
     ctx := context.Background()
-    
-    // Connect to PostgreSQL
-    pool, err := pgxpool.New(ctx, "postgres://user:pass@localhost:5432/db")
-    if err != nil {
-        log.Fatal(err)
+    pool, _ := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")
+    store, _ := dcb.NewEventStore(ctx, pool)
+
+    // Command 1: Create Course
+    createCourseCmd := CreateCourseCommand{
+        CourseID: "c1",
+        Title:    "Introduction to Event Sourcing",
+        Capacity: 2,
     }
-    
-    // Create event store
-    store, err := dcb.NewEventStore(ctx, pool)
+    err := handleCreateCourse(ctx, store, createCourseCmd)
     if err != nil {
-        log.Fatal(err)
+        log.Fatalf("Create course failed: %v", err)
     }
 
-    // Command 1: Create Account
-    createCmd := CreateAccountCommand{
-        AccountID:      "acc1",
-        Owner:          "Alice",
-        InitialBalance: 1000,
+    // Command 2: Register Student
+    registerStudentCmd := RegisterStudentCommand{
+        StudentID: "s1",
+        Name:      "Alice",
+        Email:     "alice@example.com",
     }
-    err = handleCreateAccount(ctx, store, createCmd)
+    err = handleRegisterStudent(ctx, store, registerStudentCmd)
     if err != nil {
-        log.Fatal(err)
+        log.Fatalf("Register student failed: %v", err)
     }
 
-    // Command 2: Transfer Money
-    transferCmd := TransferMoneyCommand{
-        TransferID:    "transfer-123",
-        FromAccountID: "acc1",
-        ToAccountID:   "acc2",
-        Amount:        150,
-        Description:   "Payment for services",
+    // Command 3: Enroll Student in Course
+    enrollCmd := EnrollStudentCommand{
+        StudentID: "s1",
+        CourseID:  "c1",
     }
-    err = handleTransferMoney(ctx, store, transferCmd)
+    err = handleEnrollStudent(ctx, store, enrollCmd)
     if err != nil {
-        log.Fatal(err)
+        log.Fatalf("Enroll student failed: %v", err)
     }
+
+    fmt.Println("All commands executed successfully!")
 }
 
-// Command handlers with business rules
-func handleCreateAccount(ctx context.Context, store dcb.EventStore, cmd CreateAccountCommand) error {
+// Command handlers with their own business rules
+
+func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCourseCommand) error {
     // Command-specific projectors
     projectors := []dcb.BatchProjector{
-        {ID: "accountExists", StateProjector: dcb.StateProjector{
-            Query: dcb.NewQuery(
-                dcb.NewTags("account_id", cmd.AccountID),
-                "AccountOpened",
-            ),
+        {ID: "courseExists", StateProjector: dcb.StateProjector{
+            Query: dcb.NewQuery(dcb.NewTags("course_id", cmd.CourseID), "CourseCreated"),
             InitialState: false,
-            TransitionFn: func(state any, event dcb.Event) any {
-                return true // If we see an AccountOpened event, account exists
-            },
+            TransitionFn: func(state any, e dcb.Event) any { return true },
         }},
     }
 
-    states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
-    if err != nil {
-        return fmt.Errorf("failed to check account existence: %w", err)
-    }
-
-    // Command-specific business rule: account must not already exist
-    if states["accountExists"].(bool) {
-        return fmt.Errorf("account %s already exists", cmd.AccountID)
+    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors, nil)
+    
+    // Command-specific business rule: course must not already exist
+    if states["courseExists"].(bool) {
+        return fmt.Errorf("course %s already exists", cmd.CourseID)
     }
 
     // Create events for this command
     events := []dcb.InputEvent{
-        dcb.NewInputEvent(
-            "AccountOpened",
-            dcb.NewTags("account_id", cmd.AccountID),
-            mustJSON(AccountOpened{
-                AccountID:      cmd.AccountID,
-                Owner:          cmd.Owner,
-                InitialBalance: cmd.InitialBalance,
-                OpenedAt:       time.Now(),
-            }),
-        ),
+        dcb.NewInputEvent("CourseCreated", 
+            dcb.NewTags("course_id", cmd.CourseID), 
+            mustJSON(map[string]any{"Title": cmd.Title, "Capacity": cmd.Capacity})),
     }
 
     // Append events atomically for this command
-    _, err = store.Append(ctx, events, &appendCondition)
+    _, err := store.Append(ctx, events, &appendCondition)
     if err != nil {
-        return fmt.Errorf("failed to create account: %w", err)
+        return fmt.Errorf("failed to create course: %w", err)
     }
 
+    fmt.Printf("Created course %s with capacity %d\n", cmd.CourseID, cmd.Capacity)
     return nil
-
 }
 
-func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd TransferMoneyCommand) error {
-    // Command-specific projectors for both accounts
-    fromProjector := dcb.StateProjector{
-        Query: dcb.NewQuery(
-            dcb.NewTags("account_id", cmd.FromAccountID),
-            "AccountOpened", "MoneyTransferred",
-        ),
-        InitialState: &AccountState{AccountID: cmd.FromAccountID},
-        TransitionFn: func(state any, event dcb.Event) any {
-            acc := state.(*AccountState)
-            switch event.Type {
-            case "AccountOpened":
-                var data AccountOpened
-                if err := json.Unmarshal(event.Data, &data); err == nil {
-                    acc.Owner = data.Owner
-                    acc.Balance = data.InitialBalance
-                }
-            case "MoneyTransferred":
-                var data MoneyTransferred
-                if err := json.Unmarshal(event.Data, &data); err == nil {
-                    if data.FromAccountID == cmd.FromAccountID {
-                        acc.Balance = data.FromBalance
-                    } else if data.ToAccountID == cmd.FromAccountID {
-                        acc.Balance = data.ToBalance
-                    }
-                }
-            }
-            return acc
-        },
+func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd RegisterStudentCommand) error {
+    // Command-specific projectors
+    projectors := []dcb.BatchProjector{
+        {ID: "studentExists", StateProjector: dcb.StateProjector{
+            Query: dcb.NewQuery(dcb.NewTags("student_id", cmd.StudentID), "StudentRegistered"),
+            InitialState: false,
+            TransitionFn: func(state any, e dcb.Event) any { return true },
+        }},
     }
 
-    toProjector := dcb.StateProjector{
-        Query: dcb.NewQuery(
-            dcb.NewTags("account_id", cmd.ToAccountID),
-            "AccountOpened", "MoneyTransferred",
-        ),
-        InitialState: &AccountState{AccountID: cmd.ToAccountID},
-        TransitionFn: func(state any, event dcb.Event) any {
-            acc := state.(*AccountState)
-            switch event.Type {
-            case "AccountOpened":
-                var data AccountOpened
-                if err := json.Unmarshal(event.Data, &data); err == nil {
-                    acc.Owner = data.Owner
-                    acc.Balance = data.InitialBalance
-                }
-            case "MoneyTransferred":
-                var data MoneyTransferred
-                if err := json.Unmarshal(event.Data, &data); err == nil {
-                    if data.FromAccountID == cmd.ToAccountID {
-                        acc.Balance = data.FromBalance
-                    } else if data.ToAccountID == cmd.ToAccountID {
-                        acc.Balance = data.ToBalance
-                    }
-                }
-            }
-            return acc
-        },
+    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors, nil)
+    
+    // Command-specific business rule: student must not already exist
+    if states["studentExists"].(bool) {
+        return fmt.Errorf("student %s already exists", cmd.StudentID)
     }
-
-    // Project both accounts using the DCB decision model pattern
-    states, appendCondition, err := store.ProjectDecisionModel(ctx, []dcb.BatchProjector{
-        {ID: "from", StateProjector: fromProjector},
-        {ID: "to", StateProjector: toProjector},
-    }, nil)
-    if err != nil {
-        return fmt.Errorf("projection failed: %w", err)
-    }
-
-    from := states["from"].(*AccountState)
-    to := states["to"].(*AccountState)
-
-    // Command-specific business rules
-    if from.Balance < cmd.Amount {
-        return fmt.Errorf("insufficient funds: account %s has %d, needs %d", cmd.FromAccountID, from.Balance, cmd.Amount)
-    }
-    if cmd.Amount <= 0 {
-        return fmt.Errorf("invalid transfer amount: %d", cmd.Amount)
-    }
-    if cmd.FromAccountID == cmd.ToAccountID {
-        return fmt.Errorf("cannot transfer to the same account")
-    }
-
-    // Calculate new balances
-    newFromBalance := from.Balance - cmd.Amount
-    newToBalance := to.Balance + cmd.Amount
 
     // Create events for this command
     events := []dcb.InputEvent{
-        dcb.NewInputEvent(
-            "MoneyTransferred",
-            dcb.NewTags(
-                "transfer_id", cmd.TransferID,
-                "from_account_id", cmd.FromAccountID,
-                "to_account_id", cmd.ToAccountID,
-            ),
-            mustJSON(MoneyTransferred{
-                TransferID:    cmd.TransferID,
-                FromAccountID: cmd.FromAccountID,
-                ToAccountID:   cmd.ToAccountID,
-                Amount:        cmd.Amount,
-                FromBalance:   newFromBalance,
-                ToBalance:     newToBalance,
-                TransferredAt: time.Now(),
-                Description:   cmd.Description,
-            }),
-        ),
+        dcb.NewInputEvent("StudentRegistered", 
+            dcb.NewTags("student_id", cmd.StudentID), 
+            mustJSON(map[string]any{"Name": cmd.Name, "Email": cmd.Email})),
     }
 
-    // Use the append condition from the decision model for optimistic locking
-    // All events are appended atomically for this command
-    _, err = store.Append(ctx, events, &appendCondition)
+    // Append events atomically for this command
+    _, err := store.Append(ctx, events, &appendCondition)
     if err != nil {
-        return fmt.Errorf("append failed: %w", err)
+        return fmt.Errorf("failed to register student: %w", err)
     }
 
+    fmt.Printf("Registered student %s (%s)\n", cmd.Name, cmd.Email)
     return nil
-
-```
 }
+
+func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollStudentCommand) error {
+    // Command-specific projectors
+    projectors := []dcb.BatchProjector{
+        {ID: "courseState", StateProjector: dcb.StateProjector{
+            Query: dcb.NewQuery(dcb.NewTags("course_id", cmd.CourseID), "CourseCreated", "StudentEnrolled"),
+            InitialState: &CourseState{Capacity: 0, Enrolled: 0},
+            TransitionFn: func(state any, e dcb.Event) any {
+                course := state.(*CourseState)
+                switch e.Type {
+                case "CourseCreated":
+                    var data struct{ Capacity int }
+                    json.Unmarshal(e.Data, &data)
+                    course.Capacity = data.Capacity
+                case "StudentEnrolled":
+                    course.Enrolled++
+                }
+                return course
+            },
+        }},
+        {ID: "studentEnrollmentCount", StateProjector: dcb.StateProjector{
+            Query: dcb.NewQuery(dcb.NewTags("student_id", cmd.StudentID, "course_id", cmd.CourseID), "StudentEnrolled"),
+            InitialState: 0,
+            TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
+        }},
+    }
+
+    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors, nil)
+    
+    course := states["courseState"].(*CourseState)
+    enrollmentCount := states["studentEnrollmentCount"].(int)
+
+    // Command-specific business rules
+    if course.Enrolled >= course.Capacity {
+        return fmt.Errorf("course %s is full (capacity: %d, enrolled: %d)", cmd.CourseID, course.Capacity, course.Enrolled)
+    }
+    if enrollmentCount > 0 {
+        return fmt.Errorf("student %s is already enrolled in course %s", cmd.StudentID, cmd.CourseID)
+    }
+
+    // Create events for this command
+    events := []dcb.InputEvent{
+        dcb.NewInputEvent("StudentEnrolled", 
+            dcb.NewTags("student_id", cmd.StudentID, "course_id", cmd.CourseID), 
+            mustJSON(map[string]any{"StudentID": cmd.StudentID, "CourseID": cmd.CourseID})),
+    }
+
+    // Append events atomically for this command
+    _, err := store.Append(ctx, events, &appendCondition)
+    if err != nil {
+        return fmt.Errorf("failed to enroll student: %w", err)
+    }
+
+    fmt.Printf("Enrolled student %s in course %s\n", cmd.StudentID, cmd.CourseID)
+    return nil
+}
+
+// Command types
+type CreateCourseCommand struct {
+    CourseID string
+    Title    string
+    Capacity int
+}
+
+type RegisterStudentCommand struct {
+    StudentID string
+    Name      string
+    Email     string
+}
+
+type EnrollStudentCommand struct {
+    StudentID string
+    CourseID  string
+}
+
+type CourseState struct {
+    Capacity int
+    Enrolled int
+}
+
+func mustJSON(v any) []byte {
+    data, _ := json.Marshal(v)
+    return data
+}
+```
+
+**Key DCB Concepts Demonstrated:**
+
+1. **Command Handlers**: Each command has its own business rules and invariants
+2. **Batch Append**: Multiple related events appended atomically per command
+3. **State Projection**: Current state calculated from event history for each command
+4. **Business Invariants**: Command-specific validation rules
+5. **Optimistic Locking**: `appendCondition` ensures no conflicts
+6. **Event IDs**: Automatically generated from tag keys (e.g., `course_id_01h2xcejqtf2nbrexx3vqjhp41`)
+
+**What happens internally:**
+- Each command handler projects its own state
+- Each command validates its own business rules
+- Each command creates and appends its own events atomically
+- All events in a command batch share the same correlation ID
 
 ## Examples
 
-The library includes comprehensive examples demonstrating different patterns:
+Ready-to-run examples demonstrating different aspects of the DCB pattern:
 
-### 1. Transfer Example (`internal/examples/transfer/`)
+- **[Transfer Example](internal/examples/transfer/main.go)**: **Batch append demonstration** - Money transfer between accounts with account creation and transfer in a single atomic batch operation
+- **[Course Enrollment](internal/examples/enrollment/main.go)**: Student course enrollment with capacity limits and business rules
+- **[Streaming Projections](internal/examples/streaming_projection/main.go)**: Memory-efficient event processing with multiple projections
+- **[Decision Model](internal/examples/decision_model/main.go)**: Complete DCB pattern implementation with multiple projectors
+- **[Cursor Streaming](internal/examples/cursor_streaming/main.go)**: Large dataset processing with batching and streaming
+- **[ReadStream](internal/examples/readstream/main.go)**: Event streaming with projections and optimistic locking
 
-Shows how to implement money transfers between accounts with proper business rules:
+**Batch Append Examples:**
+- **Transfer Example**: Creates accounts and transfers money atomically in a single batch
+- **Decision Model**: Demonstrates batch append with optimistic locking
+- **Streaming Projection**: Shows batch processing for large datasets
 
-- Account creation with duplicate prevention
-- Money transfers with balance validation
-- Optimistic locking for concurrent access
+Run any example with: `go run internal/examples/[example-name]/main.go`
 
-### 2. Decision Model Example (`internal/examples/decision_model/`)
-
-Demonstrates the core decision model pattern:
-
-- State projection for decision making
-- Optimistic locking with append conditions
-- Efficient batch processing
-
-### 3. Batch Example (`internal/examples/batch/`)
-
-Shows how to handle multiple commands atomically:
-
-- Batch user creation with validation
-- Batch order processing
-- Cross-command business rules
-
-## REST API Implementation
-
-A complete REST API implementation is available in `internal/web-app/` that provides HTTP endpoints for the DCB Bench specification:
-
-### Features
-- **OpenAPI 3.0.3 Compliance**: Implements the [DCB Bench specification](https://app.swaggerhub.com/apis/wwwision/dcb-bench/1.0.0)
-- **HTTP Endpoints**: `/read` and `/append` endpoints with full feature support
-- **Performance Testing**: Comprehensive k6 load testing with benchmarks
-- **Docker Support**: Containerized deployment with PostgreSQL
-- **Production Ready**: Includes health checks, monitoring, and error handling
-
-### Quick Start
-```bash
-# Start the complete stack
-cd internal/web-app
-make setup-and-run
-
-# Run performance tests
-make test
-
-# View API documentation
-open http://localhost:8080
-```
-
-See [`internal/web-app/README.md`](internal/web-app/README.md) for complete documentation.
-
-## Command Pattern
-
-Each command in Go-Crablet follows a consistent pattern:
-
-1. **Command Definition**: Define the command structure with all necessary data
-2. **State Projection**: Use projectors to build the current state needed for decisions
-3. **Business Rule Validation**: Apply command-specific business rules and invariants
-4. **Event Creation**: Generate events that represent the command's effects
-5. **Atomic Append**: Append all events atomically with optimistic locking
-
-This pattern ensures:
-- **Consistency**: Each command enforces its own business rules
-- **Isolation**: Commands don't interfere with each other
-- **Concurrency**: Optimistic locking prevents race conditions
-- **Auditability**: All decisions are recorded as events
-
-## Testing
-
-All examples include comprehensive tests that demonstrate:
-- Command success scenarios
-- Business rule validation
-- Error handling
-- Optimistic locking behavior
-
-Run the tests:
-
-```bash
-# Run all tests
-go test ./...
-
-# Run specific example tests
-go test ./internal/examples/transfer/
-go test ./internal/examples/decision_model/
-go test ./internal/examples/batch/
-```
-
-## Database Setup
-
-Go-Crablet requires PostgreSQL. Set up the database:
-
-```sql
-CREATE DATABASE dcb_app;
-```
-
-The library will automatically create the necessary tables on first use.
+**Note**: Examples require a PostgreSQL 17.5+ database. You can use the provided `docker-compose.yaml` to start a local PostgreSQL instance.
 
 ## Getting Started
 
@@ -425,27 +308,15 @@ If you're new to Go and want to run the examples, follow these essential steps:
 ### Available Examples
 - `internal/examples/decision_model/main.go` - Complete DCB pattern
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Ensure all tests pass
-6. Submit a pull request
-
 ## References
 
 - [Dynamic Consistency Boundary (DCB)](https://dcb.events/) - A very good resource to understand the DCB pattern and its applications in event-driven systems
 - [I am here to kill the aggregate](https://sara.event-thinking.io/2023/04/kill-aggregate-chapter-1-I-am-here-to-kill-the-aggregate.html) - Sara Pellegrini's blog post about moving beyond aggregates in event-driven systems
 - [Kill Aggregate - Volume 2 - Sara Pellegrini at JOTB25](https://www.youtube.com/watch?v=AQ5fk4D3u9I)
-- **DCB Bench Specification**: [OpenAPI 3.0.3 Documentation](https://app.swaggerhub.com/apis/wwwision/dcb-bench/1.0.0)
-- **REST API Implementation**: [`internal/web-app/README.md`](internal/web-app/README.md)
-- **k6 Performance Benchmarks**: [`internal/web-app/k6-benchmark-report.md`](internal/web-app/k6-benchmark-report.md) - Detailed performance test results
-- **Performance Benchmarks**: [`internal/benchmarks/README.md`](internal/benchmarks/README.md)
-- **Examples**: See `internal/examples/` for comprehensive usage examples
-- **Core Package**: [`pkg/dcb/`](pkg/dcb/) - Main DCB implementation
+- **DCB Bench API Specification**: [OpenAPI 3.0.3](https://app.swaggerhub.com/apis/wwwision/dcb-bench/1.0.0) - Official API specification for DCB Bench
 
-## License
+---
 
-MIT License - see LICENSE file for details.
+## 📄 **License**
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
