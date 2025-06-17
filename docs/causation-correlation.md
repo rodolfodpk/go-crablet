@@ -13,7 +13,7 @@ When you append multiple events in a single batch, go-crablet automatically:
 
 1. **Generates event IDs** based on the event tag keys (using TypeID format)
 2. **Sets correlation ID** to the first event's ID in the batch
-3. **Chains causation IDs** so each event points to the previous event in the batch
+3. **Creates a linear causation chain** where each event points to the previous event
 
 ## Implementation Details: TypeID-Based Generation
 
@@ -38,7 +38,7 @@ Each event gets a unique ID generated from its tag keys:
 
 ### Causation and Correlation Logic
 
-For a batch of events, the implementation:
+For a batch of events, the implementation creates a **linear causation chain**:
 
 ```go
 // Batch: [event1, event2, event3]
@@ -61,8 +61,9 @@ event3.CorrelationID = event1.ID    // Same correlation as first event
 
 **Key Rules:**
 - **Correlation ID**: Always the first event's ID in the batch (groups all related events)
-- **Causation ID**: Points to the previous event's ID (creates a chain of causation)
+- **Causation ID**: Points to the previous event's ID (creates a linear chain of causation)
 - **First Event**: Both causation and correlation IDs are the same as its own ID
+- **Linear Chain**: Each event is caused by the immediately preceding event in the batch
 
 ### Tag-Based Consistency
 
@@ -130,7 +131,7 @@ for _, event := range events.Events {
 
 ## Benefits
 
-- **Debugging**: Trace exactly which event caused another
+- **Debugging**: Trace exactly which event caused another in a linear chain
 - **Auditing**: Group related events for compliance and reporting
 - **Replay**: Understand the complete flow of operations
 - **Monitoring**: Track performance and identify bottlenecks in event chains
@@ -141,6 +142,7 @@ for _, event := range events.Events {
 2. **Order events logically** within the batch to create meaningful causation chains
 3. **Use descriptive tag keys** that will generate meaningful event IDs
 4. **Keep batches focused** on a single logical operation
+5. **Understand the linear chain** - each event is caused by the previous one in the batch
 
 ## Student Course Domain Event Types
 

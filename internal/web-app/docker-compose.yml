@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  web-app:
+    build:
+      context: ../..
+      dockerfile: internal/web-app/Dockerfile
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@host.docker.internal:5432/dcb_app?sslmode=disable
+      PORT: 8080
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/read"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    extra_hosts:
+      - "host.docker.internal:host-gateway" 

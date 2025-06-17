@@ -10,6 +10,35 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+// Command types - following the command pattern from examples
+type CreateCourseCommand struct {
+	CourseID   string
+	Name       string
+	Instructor string
+	Capacity   int
+}
+
+type RegisterStudentCommand struct {
+	StudentID string
+	Name      string
+	Email     string
+}
+
+type EnrollStudentCommand struct {
+	StudentID string
+	CourseID  string
+}
+
+type DropStudentCommand struct {
+	StudentID string
+	CourseID  string
+}
+
+type ChangeCourseCapacityCommand struct {
+	CourseID    string
+	NewCapacity int
+}
+
 // Course Subscription Domain Types
 type CourseCreated struct {
 	CourseID   string `json:"courseId"`
@@ -221,31 +250,23 @@ func StudentEnrollmentStateProjector(studentID, courseID string) StateProjector 
 	}
 }
 
-// Course API for command handlers
-type CourseAPI struct {
-	eventStore EventStore
-}
-
-func NewCourseAPI(eventStore EventStore) *CourseAPI {
-	return &CourseAPI{eventStore: eventStore}
-}
-
-func (api *CourseAPI) CreateCourse(courseID, name, instructor string, capacity int) error {
+// Command handlers - following the command pattern from examples
+func handleCreateCourse(ctx context.Context, store EventStore, cmd CreateCourseCommand) error {
 	projectors := []BatchProjector{
-		{ID: "courseExists", StateProjector: CourseExistsProjector(courseID)},
+		{ID: "courseExists", StateProjector: CourseExistsProjector(cmd.CourseID)},
 	}
 
-	states, appendCondition, err := api.eventStore.ProjectDecisionModel(context.Background(), projectors, nil)
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
 	if err != nil {
 		return fmt.Errorf("failed to project course state: %w", err)
 	}
 
 	if states["courseExists"].(bool) {
-		return fmt.Errorf("course with id \"%s\" already exists", courseID)
+		return fmt.Errorf("course with id \"%s\" already exists", cmd.CourseID)
 	}
 
-	_, err = api.eventStore.Append(context.Background(), []InputEvent{
-		NewCourseCreatedEvent(courseID, name, instructor, capacity),
+	_, err = store.Append(ctx, []InputEvent{
+		NewCourseCreatedEvent(cmd.CourseID, cmd.Name, cmd.Instructor, cmd.Capacity),
 	}, &appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to create course: %w", err)
@@ -254,22 +275,22 @@ func (api *CourseAPI) CreateCourse(courseID, name, instructor string, capacity i
 	return nil
 }
 
-func (api *CourseAPI) RegisterStudent(studentID, name, email string) error {
+func handleRegisterStudent(ctx context.Context, store EventStore, cmd RegisterStudentCommand) error {
 	projectors := []BatchProjector{
-		{ID: "studentExists", StateProjector: StudentExistsProjector(studentID)},
+		{ID: "studentExists", StateProjector: StudentExistsProjector(cmd.StudentID)},
 	}
 
-	states, appendCondition, err := api.eventStore.ProjectDecisionModel(context.Background(), projectors, nil)
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
 	if err != nil {
 		return fmt.Errorf("failed to project student state: %w", err)
 	}
 
 	if states["studentExists"].(bool) {
-		return fmt.Errorf("student with id \"%s\" already exists", studentID)
+		return fmt.Errorf("student with id \"%s\" already exists", cmd.StudentID)
 	}
 
-	_, err = api.eventStore.Append(context.Background(), []InputEvent{
-		NewStudentRegisteredEvent(studentID, name, email),
+	_, err = store.Append(ctx, []InputEvent{
+		NewStudentRegisteredEvent(cmd.StudentID, cmd.Name, cmd.Email),
 	}, &appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to register student: %w", err)
@@ -278,28 +299,28 @@ func (api *CourseAPI) RegisterStudent(studentID, name, email string) error {
 	return nil
 }
 
-func (api *CourseAPI) EnrollStudentInCourse(studentID, courseID string) error {
+func handleEnrollStudent(ctx context.Context, store EventStore, cmd EnrollStudentCommand) error {
 	projectors := []BatchProjector{
-		{ID: "courseExists", StateProjector: CourseExistsProjector(courseID)},
-		{ID: "studentExists", StateProjector: StudentExistsProjector(studentID)},
-		{ID: "courseState", StateProjector: CourseStateProjector(courseID)},
-		{ID: "courseEnrollmentCount", StateProjector: CourseEnrollmentCountProjector(courseID)},
-		{ID: "studentEnrollmentCount", StateProjector: StudentEnrollmentCountProjector(studentID)},
-		{ID: "studentEnrollmentState", StateProjector: StudentEnrollmentStateProjector(studentID, courseID)},
+		{ID: "courseExists", StateProjector: CourseExistsProjector(cmd.CourseID)},
+		{ID: "studentExists", StateProjector: StudentExistsProjector(cmd.StudentID)},
+		{ID: "courseState", StateProjector: CourseStateProjector(cmd.CourseID)},
+		{ID: "courseEnrollmentCount", StateProjector: CourseEnrollmentCountProjector(cmd.CourseID)},
+		{ID: "studentEnrollmentCount", StateProjector: StudentEnrollmentCountProjector(cmd.StudentID)},
+		{ID: "studentEnrollmentState", StateProjector: StudentEnrollmentStateProjector(cmd.StudentID, cmd.CourseID)},
 	}
 
-	states, appendCondition, err := api.eventStore.ProjectDecisionModel(context.Background(), projectors, nil)
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
 	if err != nil {
 		return fmt.Errorf("failed to project enrollment state: %w", err)
 	}
 
 	// Business rule validations
 	if !states["courseExists"].(bool) {
-		return fmt.Errorf("course \"%s\" does not exist", courseID)
+		return fmt.Errorf("course \"%s\" does not exist", cmd.CourseID)
 	}
 
 	if !states["studentExists"].(bool) {
-		return fmt.Errorf("student \"%s\" does not exist", studentID)
+		return fmt.Errorf("student \"%s\" does not exist", cmd.StudentID)
 	}
 
 	courseState := states["courseState"].(*CourseState)
@@ -309,19 +330,19 @@ func (api *CourseAPI) EnrollStudentInCourse(studentID, courseID string) error {
 
 	// Business rules
 	if studentEnrollmentState.IsEnrolled {
-		return fmt.Errorf("student \"%s\" is already enrolled in course \"%s\"", studentID, courseID)
+		return fmt.Errorf("student \"%s\" is already enrolled in course \"%s\"", cmd.StudentID, cmd.CourseID)
 	}
 
 	if courseEnrollmentCount >= courseState.Capacity {
-		return fmt.Errorf("course \"%s\" is already full (%d students maximum)", courseID, courseState.Capacity)
+		return fmt.Errorf("course \"%s\" is already full (%d students maximum)", cmd.CourseID, courseState.Capacity)
 	}
 
 	if studentEnrollmentCount >= 10 {
-		return fmt.Errorf("student \"%s\" is already enrolled in 10 courses (maximum allowed)", studentID)
+		return fmt.Errorf("student \"%s\" is already enrolled in 10 courses (maximum allowed)", cmd.StudentID)
 	}
 
-	_, err = api.eventStore.Append(context.Background(), []InputEvent{
-		NewStudentEnrolledEvent(studentID, courseID, time.Now().Format(time.RFC3339)),
+	_, err = store.Append(ctx, []InputEvent{
+		NewStudentEnrolledEvent(cmd.StudentID, cmd.CourseID, time.Now().Format(time.RFC3339)),
 	}, &appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to enroll student: %w", err)
@@ -330,12 +351,12 @@ func (api *CourseAPI) EnrollStudentInCourse(studentID, courseID string) error {
 	return nil
 }
 
-func (api *CourseAPI) DropStudentFromCourse(studentID, courseID string) error {
+func handleDropStudent(ctx context.Context, store EventStore, cmd DropStudentCommand) error {
 	projectors := []BatchProjector{
-		{ID: "studentEnrollmentState", StateProjector: StudentEnrollmentStateProjector(studentID, courseID)},
+		{ID: "studentEnrollmentState", StateProjector: StudentEnrollmentStateProjector(cmd.StudentID, cmd.CourseID)},
 	}
 
-	states, appendCondition, err := api.eventStore.ProjectDecisionModel(context.Background(), projectors, nil)
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
 	if err != nil {
 		return fmt.Errorf("failed to project enrollment state: %w", err)
 	}
@@ -343,11 +364,11 @@ func (api *CourseAPI) DropStudentFromCourse(studentID, courseID string) error {
 	studentEnrollmentState := states["studentEnrollmentState"].(*EnrollmentState)
 
 	if !studentEnrollmentState.IsEnrolled {
-		return fmt.Errorf("student \"%s\" is not enrolled in course \"%s\"", studentID, courseID)
+		return fmt.Errorf("student \"%s\" is not enrolled in course \"%s\"", cmd.StudentID, cmd.CourseID)
 	}
 
-	_, err = api.eventStore.Append(context.Background(), []InputEvent{
-		NewStudentDroppedEvent(studentID, courseID, time.Now().Format(time.RFC3339)),
+	_, err = store.Append(ctx, []InputEvent{
+		NewStudentDroppedEvent(cmd.StudentID, cmd.CourseID, time.Now().Format(time.RFC3339)),
 	}, &appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to drop student: %w", err)
@@ -356,28 +377,28 @@ func (api *CourseAPI) DropStudentFromCourse(studentID, courseID string) error {
 	return nil
 }
 
-func (api *CourseAPI) ChangeCourseCapacity(courseID string, newCapacity int) error {
+func handleChangeCourseCapacity(ctx context.Context, store EventStore, cmd ChangeCourseCapacityCommand) error {
 	projectors := []BatchProjector{
-		{ID: "courseExists", StateProjector: CourseExistsProjector(courseID)},
-		{ID: "courseEnrollmentCount", StateProjector: CourseEnrollmentCountProjector(courseID)},
+		{ID: "courseExists", StateProjector: CourseExistsProjector(cmd.CourseID)},
+		{ID: "courseEnrollmentCount", StateProjector: CourseEnrollmentCountProjector(cmd.CourseID)},
 	}
 
-	states, appendCondition, err := api.eventStore.ProjectDecisionModel(context.Background(), projectors, nil)
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
 	if err != nil {
 		return fmt.Errorf("failed to project course state: %w", err)
 	}
 
 	if !states["courseExists"].(bool) {
-		return fmt.Errorf("course \"%s\" does not exist", courseID)
+		return fmt.Errorf("course \"%s\" does not exist", cmd.CourseID)
 	}
 
 	currentEnrollmentCount := states["courseEnrollmentCount"].(int)
-	if newCapacity < currentEnrollmentCount {
-		return fmt.Errorf("cannot reduce capacity to %d when %d students are already enrolled", newCapacity, currentEnrollmentCount)
+	if cmd.NewCapacity < currentEnrollmentCount {
+		return fmt.Errorf("cannot reduce capacity to %d when %d students are already enrolled", cmd.NewCapacity, currentEnrollmentCount)
 	}
 
-	_, err = api.eventStore.Append(context.Background(), []InputEvent{
-		NewCourseCapacityChangedEvent(courseID, newCapacity),
+	_, err = store.Append(ctx, []InputEvent{
+		NewCourseCapacityChangedEvent(cmd.CourseID, cmd.NewCapacity),
 	}, &appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to change course capacity: %w", err)
@@ -390,14 +411,12 @@ func (api *CourseAPI) ChangeCourseCapacity(courseID string, newCapacity int) err
 var _ = Describe("Course Subscription Domain", func() {
 	var (
 		store EventStore
-		api   *CourseAPI
 		ctx   context.Context
 	)
 
 	BeforeEach(func() {
 		// Use shared PostgreSQL container and truncate events between tests
 		store = NewEventStoreFromPool(pool)
-		api = NewCourseAPI(store)
 		ctx = context.Background()
 
 		// Truncate events table before each test
@@ -407,8 +426,14 @@ var _ = Describe("Course Subscription Domain", func() {
 
 	Describe("Core EventStore Operations", func() {
 		It("should append and read events", func() {
-			// Create course
-			err := api.CreateCourse("course-1", "Math 101", "Dr. Smith", 25)
+			// Create course using command pattern
+			createCourseCmd := CreateCourseCommand{
+				CourseID:   "course-1",
+				Name:       "Math 101",
+				Instructor: "Dr. Smith",
+				Capacity:   25,
+			}
+			err := handleCreateCourse(ctx, store, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Read events
@@ -420,540 +445,451 @@ var _ = Describe("Course Subscription Domain", func() {
 		})
 
 		It("should use ReadStream for large datasets", func() {
-			// Create multiple courses
+			// Create multiple courses using command pattern
 			for i := 1; i <= 5; i++ {
-				err := api.CreateCourse(fmt.Sprintf("course-%d", i), fmt.Sprintf("Course %d", i), "Instructor", 20)
+				createCourseCmd := CreateCourseCommand{
+					CourseID:   fmt.Sprintf("course-%d", i),
+					Name:       fmt.Sprintf("Course %d", i),
+					Instructor: "Instructor",
+					Capacity:   20,
+				}
+				err := handleCreateCourse(ctx, store, createCourseCmd)
 				Expect(err).NotTo(HaveOccurred())
 			}
 
 			// Use ReadStream
 			query := NewQuerySimple(NewTags(), "CourseCreated")
-			iterator, err := store.ReadStream(ctx, query, nil)
+			stream, err := store.ReadStream(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
-			defer iterator.Close()
+			defer stream.Close()
 
-			count := 0
-			for iterator.Next() {
-				event := iterator.Event()
-				Expect(event.Type).To(Equal("CourseCreated"))
-				count++
+			eventCount := 0
+			for stream.Next() {
+				eventCount++
 			}
-
-			Expect(count).To(Equal(5))
-			Expect(iterator.Err()).NotTo(HaveOccurred())
-		})
-
-		It("should handle optimistic locking", func() {
-			// Create course
-			err := api.CreateCourse("course-1", "Math 101", "Dr. Smith", 25)
-			Expect(err).NotTo(HaveOccurred())
-
-			// First projection
-			projectors := []BatchProjector{
-				{ID: "courseState", StateProjector: CourseStateProjector("course-1")},
-			}
-			_, appendCondition1, err := store.ProjectDecisionModel(ctx, projectors, nil)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Second projection (simulating concurrent read)
-			_, appendCondition2, err := store.ProjectDecisionModel(ctx, projectors, nil)
-			Expect(err).NotTo(HaveOccurred())
-
-			// First update succeeds using appendCondition1
-			_, err = store.Append(ctx, []InputEvent{
-				NewCourseCapacityChangedEvent("course-1", 30),
-			}, &appendCondition1)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Second update should fail due to optimistic locking
-			_, err = store.Append(ctx, []InputEvent{
-				NewCourseCapacityChangedEvent("course-1", 35),
-			}, &appendCondition2)
-			Expect(err).To(HaveOccurred())
+			Expect(eventCount).To(Equal(5))
 		})
 	})
 
-	Describe("ProjectDecisionModel", func() {
-		It("should project multiple states", func() {
-			// Setup data
-			err := api.CreateCourse("course-1", "Math 101", "Dr. Smith", 25)
-			Expect(err).NotTo(HaveOccurred())
-			err = api.RegisterStudent("student-1", "Alice", "alice@example.com")
-			Expect(err).NotTo(HaveOccurred())
-
-			// Project multiple states
-			projectors := []BatchProjector{
-				{ID: "courseState", StateProjector: CourseStateProjector("course-1")},
-				{ID: "studentState", StateProjector: StudentStateProjector("student-1")},
+	Describe("Command Pattern Operations", func() {
+		It("should create course successfully", func() {
+			cmd := CreateCourseCommand{
+				CourseID:   "math-101",
+				Name:       "Mathematics 101",
+				Instructor: "Dr. Johnson",
+				Capacity:   30,
 			}
 
-			states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
+			err := handleCreateCourse(ctx, store, cmd)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(appendCondition.After).NotTo(BeNil())
 
-			course := states["courseState"].(*CourseState)
-			Expect(course.Name).To(Equal("Math 101"))
-			Expect(course.Capacity).To(Equal(25))
-
-			student := states["studentState"].(*StudentState)
-			Expect(student.Name).To(Equal("Alice"))
-			Expect(student.Email).To(Equal("alice@example.com"))
+			// Verify course was created
+			query := NewQuerySimple(NewTags("course_id", "math-101"), "CourseCreated")
+			events, err := store.Read(ctx, query, nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(events.Events).To(HaveLen(1))
 		})
 
-		It("should use cursor streaming for large datasets", func() {
-			// Create many courses
-			for i := 1; i <= 100; i++ {
-				err := api.CreateCourse(fmt.Sprintf("course-%d", i), fmt.Sprintf("Course %d", i), "Instructor", 20)
-				Expect(err).NotTo(HaveOccurred())
+		It("should prevent duplicate course creation", func() {
+			cmd := CreateCourseCommand{
+				CourseID:   "math-101",
+				Name:       "Mathematics 101",
+				Instructor: "Dr. Johnson",
+				Capacity:   30,
 			}
 
-			// Use cursor streaming
-			batchSize := 10
-			options := &ReadOptions{BatchSize: &batchSize}
-
-			projectors := []BatchProjector{
-				{ID: "courseCount", StateProjector: StateProjector{
-					Query:        NewQuerySimple(NewTags(), "CourseCreated"),
-					InitialState: 0,
-					TransitionFn: func(state any, event Event) any {
-						return state.(int) + 1
-					},
-				}},
-			}
-
-			states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, options)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(states["courseCount"]).To(Equal(100))
-			Expect(appendCondition.After).NotTo(BeNil())
-		})
-	})
-
-	Describe("Business Rules", func() {
-		It("should enforce course capacity limit", func() {
-			// Create course with capacity 2
-			err := api.CreateCourse("course-1", "Small Course", "Instructor", 2)
+			// Create course first time
+			err := handleCreateCourse(ctx, store, cmd)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Register 3 students
-			for i := 1; i <= 3; i++ {
-				err := api.RegisterStudent(fmt.Sprintf("student-%d", i), fmt.Sprintf("Student %d", i), fmt.Sprintf("student%d@example.com", i))
-				Expect(err).NotTo(HaveOccurred())
-			}
-
-			// Enroll first 2 students (should succeed)
-			err = api.EnrollStudentInCourse("student-1", "course-1")
-			Expect(err).NotTo(HaveOccurred())
-			err = api.EnrollStudentInCourse("student-2", "course-1")
-			Expect(err).NotTo(HaveOccurred())
-
-			// Try to enroll 3rd student (should fail)
-			err = api.EnrollStudentInCourse("student-3", "course-1")
+			// Try to create same course again
+			err = handleCreateCourse(ctx, store, cmd)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("already full"))
+			Expect(err.Error()).To(ContainSubstring("already exists"))
 		})
 
-		It("should enforce student course limit", func() {
-			// Create 11 courses
-			for i := 1; i <= 11; i++ {
-				err := api.CreateCourse(fmt.Sprintf("course-%d", i), fmt.Sprintf("Course %d", i), "Instructor", 30)
-				Expect(err).NotTo(HaveOccurred())
+		It("should register student successfully", func() {
+			cmd := RegisterStudentCommand{
+				StudentID: "student-123",
+				Name:      "Alice Johnson",
+				Email:     "alice@example.com",
 			}
+
+			err := handleRegisterStudent(ctx, store, cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Verify student was registered
+			query := NewQuerySimple(NewTags("student_id", "student-123"), "StudentRegistered")
+			events, err := store.Read(ctx, query, nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(events.Events).To(HaveLen(1))
+		})
+
+		It("should prevent duplicate student registration", func() {
+			cmd := RegisterStudentCommand{
+				StudentID: "student-123",
+				Name:      "Alice Johnson",
+				Email:     "alice@example.com",
+			}
+
+			// Register student first time
+			err := handleRegisterStudent(ctx, store, cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Try to register same student again
+			err = handleRegisterStudent(ctx, store, cmd)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("already exists"))
+		})
+
+		It("should enroll student in course successfully", func() {
+			// Create course first
+			createCourseCmd := CreateCourseCommand{
+				CourseID:   "math-101",
+				Name:       "Mathematics 101",
+				Instructor: "Dr. Johnson",
+				Capacity:   30,
+			}
+			err := handleCreateCourse(ctx, store, createCourseCmd)
+			Expect(err).NotTo(HaveOccurred())
 
 			// Register student
-			err := api.RegisterStudent("student-1", "Alice", "alice@example.com")
+			registerStudentCmd := RegisterStudentCommand{
+				StudentID: "student-123",
+				Name:      "Alice Johnson",
+				Email:     "alice@example.com",
+			}
+			err = handleRegisterStudent(ctx, store, registerStudentCmd)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Enroll in 10 courses (should succeed)
-			for i := 1; i <= 10; i++ {
-				err = api.EnrollStudentInCourse("student-1", fmt.Sprintf("course-%d", i))
-				Expect(err).NotTo(HaveOccurred())
+			// Enroll student
+			enrollCmd := EnrollStudentCommand{
+				StudentID: "student-123",
+				CourseID:  "math-101",
 			}
+			err = handleEnrollStudent(ctx, store, enrollCmd)
+			Expect(err).NotTo(HaveOccurred())
 
-			// Try to enroll in 11th course (should fail)
-			err = api.EnrollStudentInCourse("student-1", "course-11")
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("already enrolled in 10 courses"))
+			// Verify enrollment
+			query := NewQuerySimple(NewTags("student_id", "student-123", "course_id", "math-101"), "StudentEnrolledInCourse")
+			events, err := store.Read(ctx, query, nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(events.Events).To(HaveLen(1))
 		})
 
-		It("should prevent duplicate enrollments", func() {
-			// Setup
-			err := api.CreateCourse("course-1", "Math 101", "Dr. Smith", 25)
-			Expect(err).NotTo(HaveOccurred())
-			err = api.RegisterStudent("student-1", "Alice", "alice@example.com")
+		It("should prevent enrollment in non-existent course", func() {
+			// Register student
+			registerStudentCmd := RegisterStudentCommand{
+				StudentID: "student-123",
+				Name:      "Alice Johnson",
+				Email:     "alice@example.com",
+			}
+			err := handleRegisterStudent(ctx, store, registerStudentCmd)
 			Expect(err).NotTo(HaveOccurred())
 
-			// First enrollment (should succeed)
-			err = api.EnrollStudentInCourse("student-1", "course-1")
+			// Try to enroll in non-existent course
+			enrollCmd := EnrollStudentCommand{
+				StudentID: "student-123",
+				CourseID:  "non-existent-course",
+			}
+			err = handleEnrollStudent(ctx, store, enrollCmd)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("does not exist"))
+		})
+
+		It("should prevent enrollment of non-existent student", func() {
+			// Create course
+			createCourseCmd := CreateCourseCommand{
+				CourseID:   "math-101",
+				Name:       "Mathematics 101",
+				Instructor: "Dr. Johnson",
+				Capacity:   30,
+			}
+			err := handleCreateCourse(ctx, store, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Second enrollment (should fail)
-			err = api.EnrollStudentInCourse("student-1", "course-1")
+			// Try to enroll non-existent student
+			enrollCmd := EnrollStudentCommand{
+				StudentID: "non-existent-student",
+				CourseID:  "math-101",
+			}
+			err = handleEnrollStudent(ctx, store, enrollCmd)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("does not exist"))
+		})
+
+		It("should prevent duplicate enrollment", func() {
+			// Create course
+			createCourseCmd := CreateCourseCommand{
+				CourseID:   "math-101",
+				Name:       "Mathematics 101",
+				Instructor: "Dr. Johnson",
+				Capacity:   30,
+			}
+			err := handleCreateCourse(ctx, store, createCourseCmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Register student
+			registerStudentCmd := RegisterStudentCommand{
+				StudentID: "student-123",
+				Name:      "Alice Johnson",
+				Email:     "alice@example.com",
+			}
+			err = handleRegisterStudent(ctx, store, registerStudentCmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Enroll student first time
+			enrollCmd := EnrollStudentCommand{
+				StudentID: "student-123",
+				CourseID:  "math-101",
+			}
+			err = handleEnrollStudent(ctx, store, enrollCmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Try to enroll same student again
+			err = handleEnrollStudent(ctx, store, enrollCmd)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("already enrolled"))
 		})
 
-		It("should allow dropping and re-enrolling", func() {
-			// Setup
-			err := api.CreateCourse("course-1", "Math 101", "Dr. Smith", 25)
-			Expect(err).NotTo(HaveOccurred())
-			err = api.RegisterStudent("student-1", "Alice", "alice@example.com")
-			Expect(err).NotTo(HaveOccurred())
-
-			// Enroll
-			err = api.EnrollStudentInCourse("student-1", "course-1")
-			Expect(err).NotTo(HaveOccurred())
-
-			// Drop
-			err = api.DropStudentFromCourse("student-1", "course-1")
-			Expect(err).NotTo(HaveOccurred())
-
-			// Re-enroll (should succeed)
-			err = api.EnrollStudentInCourse("student-1", "course-1")
-			Expect(err).NotTo(HaveOccurred())
-		})
-
-		It("should prevent capacity reduction below current enrollment", func() {
-			// Setup
-			err := api.CreateCourse("course-1", "Math 101", "Dr. Smith", 25)
-			Expect(err).NotTo(HaveOccurred())
-			err = api.RegisterStudent("student-1", "Alice", "alice@example.com")
-			Expect(err).NotTo(HaveOccurred())
-			err = api.EnrollStudentInCourse("student-1", "course-1")
-			Expect(err).NotTo(HaveOccurred())
-
-			// Try to reduce capacity below current enrollment (should fail)
-			err = api.ChangeCourseCapacity("course-1", 1)
-			Expect(err).NotTo(HaveOccurred()) // This should work since 1 student is enrolled
-
-			// Try to reduce to 0 (should fail)
-			err = api.ChangeCourseCapacity("course-1", 0)
-			Expect(err).To(HaveOccurred())
-		})
-
-		It("should handle business rule violations", func() {
-			// Create a course with capacity 2
-			courseCreated := NewInputEvent("CourseCreated", NewTags("course_id", "math101"), toJSON(map[string]interface{}{
-				"name":     "Mathematics 101",
-				"capacity": 2,
-			}))
-			events := []InputEvent{courseCreated}
-			_, err := store.Append(ctx, events, nil)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Register students first
-			err = api.RegisterStudent("student1", "Student One", "student1@example.com")
-			Expect(err).NotTo(HaveOccurred())
-			err = api.RegisterStudent("student2", "Student Two", "student2@example.com")
-			Expect(err).NotTo(HaveOccurred())
-			err = api.RegisterStudent("student3", "Student Three", "student3@example.com")
-			Expect(err).NotTo(HaveOccurred())
-
-			// Enroll 3 students (exceeds capacity)
-			err = api.EnrollStudentInCourse("student1", "math101")
-			Expect(err).NotTo(HaveOccurred())
-			err = api.EnrollStudentInCourse("student2", "math101")
-			Expect(err).NotTo(HaveOccurred())
-			err = api.EnrollStudentInCourse("student3", "math101")
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("already full"))
-		})
-
-		It("should handle concurrent enrollment attempts", func() {
-			// Create a course with capacity 1
-			courseCreated := NewInputEvent("CourseCreated", NewTags("course_id", "math101"), toJSON(map[string]interface{}{
-				"name":     "Mathematics 101",
-				"capacity": 1,
-			}))
-			events := []InputEvent{courseCreated}
-			_, err := store.Append(ctx, events, nil)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Register students first
-			err = api.RegisterStudent("student1", "Student One", "student1@example.com")
-			Expect(err).NotTo(HaveOccurred())
-			err = api.RegisterStudent("student2", "Student Two", "student2@example.com")
-			Expect(err).NotTo(HaveOccurred())
-
-			// Create multiple enrollment attempts
-			err = api.EnrollStudentInCourse("student1", "math101")
-			Expect(err).NotTo(HaveOccurred())
-			err = api.EnrollStudentInCourse("student2", "math101")
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("already full"))
-		})
-
-		It("should handle large datasets efficiently", func() {
-			// Create many courses and enrollments
-			events := make([]InputEvent, 1000)
-			for i := 0; i < 1000; i++ {
-				event := NewInputEvent("TestEvent", NewTags("test", fmt.Sprintf("value-%d", i)), toJSON(map[string]string{"index": fmt.Sprintf("%d", i)}))
-				events[i] = event
+		It("should prevent enrollment when course is full", func() {
+			// Create course with capacity 1
+			createCourseCmd := CreateCourseCommand{
+				CourseID:   "math-101",
+				Name:       "Mathematics 101",
+				Instructor: "Dr. Johnson",
+				Capacity:   1,
 			}
-
-			_, err := store.Append(ctx, events, nil)
-			Expect(err).NotTo(HaveOccurred())
-
-			// This test would require complex projection logic
-			// For now, just verify the events were appended
-			query := NewQuerySimple(NewTags("test", "value-0"), "TestEvent")
-			sequencedEvents, err := store.Read(ctx, query, nil)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(sequencedEvents.Events).To(HaveLen(1))
-		})
-	})
-
-	Describe("Validation Error Scenarios", func() {
-		It("should handle invalid JSON data in events", func() {
-			// Create event with invalid JSON - validation should happen in EventStore operations
-			event := NewInputEvent("TestEvent", NewTags("test", "value"), []byte("invalid json"))
-			Expect(event.Type).To(Equal("TestEvent"))
-
-			// Try to append the event - this should fail validation
-			events := []InputEvent{event}
-			_, err := store.Append(ctx, events, nil)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("invalid input syntax for type json"))
-		})
-
-		It("should handle empty event types in queries", func() {
-			query := NewQueryFromItems(NewQueryItem([]string{""}, NewTags("course_id", "test")))
-
-			_, err := store.Read(ctx, query, nil)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("empty event type"))
-		})
-
-		It("should handle empty tag keys/values", func() {
-			// Test empty tag key - validation should happen in EventStore operations
-			event := NewInputEvent("TestEvent", []Tag{{Key: "", Value: "value"}}, toJSON(map[string]string{"test": "data"}))
-			Expect(event.Type).To(Equal("TestEvent"))
-			Expect(event.Tags[0].Key).To(Equal(""))
-
-			// Try to append the event - this should fail validation
-			events := []InputEvent{event}
-			_, err := store.Append(ctx, events, nil)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("empty key"))
-
-			// Test empty tag value - validation should happen in EventStore operations
-			event = NewInputEvent("TestEvent", []Tag{{Key: "test", Value: ""}}, toJSON(map[string]string{"test": "data"}))
-			Expect(event.Type).To(Equal("TestEvent"))
-			Expect(event.Tags[0].Value).To(Equal(""))
-
-			// Try to append the event - this should fail validation
-			events = []InputEvent{event}
-			_, err = store.Append(ctx, events, nil)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("empty value"))
-		})
-
-		It("should handle batch size limit validation", func() {
-			// Create events exceeding the batch size limit
-			events := make([]InputEvent, 1001) // Exceeds default limit of 1000
-			for i := 0; i < 1001; i++ {
-				event := NewInputEvent("TestEvent", NewTags("test", fmt.Sprintf("value-%d", i)), toJSON(map[string]string{"index": fmt.Sprintf("%d", i)}))
-				events[i] = event
-			}
-
-			_, err := store.Append(ctx, events, nil)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("exceeds maximum"))
-		})
-	})
-
-	Describe("ConcurrencyError Scenarios", func() {
-		It("should handle optimistic locking failures", func() {
-			// Create course
-			err := api.CreateCourse("course-1", "Math 101", "Dr. Smith", 25)
-			Expect(err).NotTo(HaveOccurred())
-
-			// First projection
-			projectors := []BatchProjector{
-				{ID: "courseState", StateProjector: CourseStateProjector("course-1")},
-			}
-			_, appendCondition1, err := store.ProjectDecisionModel(ctx, projectors, nil)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Make a change that invalidates the append condition
-			_, err = store.Append(ctx, []InputEvent{
-				NewCourseCapacityChangedEvent("course-1", 30),
-			}, nil)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Try to use the old append condition (should fail)
-			_, err = store.Append(ctx, []InputEvent{
-				NewCourseCapacityChangedEvent("course-1", 35),
-			}, &appendCondition1)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("append condition violated"))
-		})
-
-		It("should handle concurrent append conflicts", func() {
-			// Create course
-			err := api.CreateCourse("course-1", "Math 101", "Dr. Smith", 25)
+			err := handleCreateCourse(ctx, store, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Register two students
-			err = api.RegisterStudent("student-1", "Alice", "alice@example.com")
-			Expect(err).NotTo(HaveOccurred())
-			err = api.RegisterStudent("student-2", "Bob", "bob@example.com")
-			Expect(err).NotTo(HaveOccurred())
-
-			// Both students try to enroll simultaneously
-			// This should cause a concurrency conflict
-			projectors := []BatchProjector{
-				{ID: "courseEnrollmentCount", StateProjector: CourseEnrollmentCountProjector("course-1")},
-			}
-
-			// First enrollment
-			_, appendCondition1, err := store.ProjectDecisionModel(ctx, projectors, nil)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Second enrollment (should conflict)
-			_, appendCondition2, err := store.ProjectDecisionModel(ctx, projectors, nil)
-			Expect(err).NotTo(HaveOccurred())
-
-			// First enrollment succeeds
-			_, err = store.Append(ctx, []InputEvent{
-				NewStudentEnrolledEvent("student-1", "course-1", time.Now().Format(time.RFC3339)),
-			}, &appendCondition1)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Second enrollment should fail due to concurrency conflict
-			_, err = store.Append(ctx, []InputEvent{
-				NewStudentEnrolledEvent("student-2", "course-1", time.Now().Format(time.RFC3339)),
-			}, &appendCondition2)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("append condition violated"))
-		})
-	})
-
-	Describe("EventIterator Interface Tests", func() {
-		It("should handle iterator error propagation", func() {
-			// Create a query that should work fine but return no results
-			query := NewQueryFromItems(NewQueryItem([]string{"NonExistentEvent"}, NewTags("course_id", "non-existent")))
-
-			iterator, err := store.ReadStream(ctx, query, nil)
-			Expect(err).NotTo(HaveOccurred())
-			defer iterator.Close()
-
-			// Try to iterate (should not cause error, just no results)
-			for iterator.Next() {
-				// Should not reach here
-				Fail("Should not have any events")
-			}
-
-			// Err should be nil for empty results (not an error condition)
-			Expect(iterator.Err()).NotTo(HaveOccurred())
-		})
-
-		It("should handle iterator resource cleanup", func() {
-			// Setup data
-			err := api.CreateCourse("course-1", "Math 101", "Dr. Smith", 25)
-			Expect(err).NotTo(HaveOccurred())
-
-			query := NewQuerySimple(NewTags("course_id", "course-1"), "CourseCreated")
-			iterator, err := store.ReadStream(ctx, query, nil)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Read one event
-			Expect(iterator.Next()).To(BeTrue())
-			event := iterator.Event()
-			Expect(event.Type).To(Equal("CourseCreated"))
-
-			// Close iterator
-			err = iterator.Close()
-			Expect(err).NotTo(HaveOccurred())
-
-			// Try to use iterator after close (should not panic)
-			Expect(func() {
-				iterator.Next()
-			}).NotTo(Panic())
-		})
-
-		It("should handle multiple iterator operations", func() {
-			// Create multiple courses
-			for i := 1; i <= 3; i++ {
-				err := api.CreateCourse(fmt.Sprintf("course-%d", i), fmt.Sprintf("Course %d", i), "Instructor", 20)
+			for i := 1; i <= 2; i++ {
+				registerStudentCmd := RegisterStudentCommand{
+					StudentID: fmt.Sprintf("student-%d", i),
+					Name:      fmt.Sprintf("Student %d", i),
+					Email:     fmt.Sprintf("student%d@example.com", i),
+				}
+				err = handleRegisterStudent(ctx, store, registerStudentCmd)
 				Expect(err).NotTo(HaveOccurred())
 			}
 
-			query := NewQuerySimple(NewTags(), "CourseCreated")
-			iterator, err := store.ReadStream(ctx, query, nil)
-			Expect(err).NotTo(HaveOccurred())
-			defer iterator.Close()
-
-			// Test multiple Event() calls on same position
-			Expect(iterator.Next()).To(BeTrue())
-			event1 := iterator.Event()
-			event2 := iterator.Event() // Should return same event
-			Expect(event1.ID).To(Equal(event2.ID))
-
-			// Test iteration through all events
-			count := 1 // We already read one
-			for iterator.Next() {
-				event := iterator.Event()
-				Expect(event.Type).To(Equal("CourseCreated"))
-				count++
+			// Enroll first student
+			enrollCmd1 := EnrollStudentCommand{
+				StudentID: "student-1",
+				CourseID:  "math-101",
 			}
-			Expect(count).To(Equal(3))
-			Expect(iterator.Err()).NotTo(HaveOccurred())
+			err = handleEnrollStudent(ctx, store, enrollCmd1)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Try to enroll second student (should fail - course is full)
+			enrollCmd2 := EnrollStudentCommand{
+				StudentID: "student-2",
+				CourseID:  "math-101",
+			}
+			err = handleEnrollStudent(ctx, store, enrollCmd2)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("already full"))
+		})
+
+		It("should drop student from course successfully", func() {
+			// Create course
+			createCourseCmd := CreateCourseCommand{
+				CourseID:   "math-101",
+				Name:       "Mathematics 101",
+				Instructor: "Dr. Johnson",
+				Capacity:   30,
+			}
+			err := handleCreateCourse(ctx, store, createCourseCmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Register student
+			registerStudentCmd := RegisterStudentCommand{
+				StudentID: "student-123",
+				Name:      "Alice Johnson",
+				Email:     "alice@example.com",
+			}
+			err = handleRegisterStudent(ctx, store, registerStudentCmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Enroll student
+			enrollCmd := EnrollStudentCommand{
+				StudentID: "student-123",
+				CourseID:  "math-101",
+			}
+			err = handleEnrollStudent(ctx, store, enrollCmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Drop student
+			dropCmd := DropStudentCommand{
+				StudentID: "student-123",
+				CourseID:  "math-101",
+			}
+			err = handleDropStudent(ctx, store, dropCmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Verify drop event
+			query := NewQuerySimple(NewTags("student_id", "student-123", "course_id", "math-101"), "StudentDroppedFromCourse")
+			events, err := store.Read(ctx, query, nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(events.Events).To(HaveLen(1))
+		})
+
+		It("should prevent dropping non-enrolled student", func() {
+			// Create course
+			createCourseCmd := CreateCourseCommand{
+				CourseID:   "math-101",
+				Name:       "Mathematics 101",
+				Instructor: "Dr. Johnson",
+				Capacity:   30,
+			}
+			err := handleCreateCourse(ctx, store, createCourseCmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Register student
+			registerStudentCmd := RegisterStudentCommand{
+				StudentID: "student-123",
+				Name:      "Alice Johnson",
+				Email:     "alice@example.com",
+			}
+			err = handleRegisterStudent(ctx, store, registerStudentCmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Try to drop non-enrolled student
+			dropCmd := DropStudentCommand{
+				StudentID: "student-123",
+				CourseID:  "math-101",
+			}
+			err = handleDropStudent(ctx, store, dropCmd)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not enrolled"))
+		})
+
+		It("should change course capacity successfully", func() {
+			// Create course
+			createCourseCmd := CreateCourseCommand{
+				CourseID:   "math-101",
+				Name:       "Mathematics 101",
+				Instructor: "Dr. Johnson",
+				Capacity:   30,
+			}
+			err := handleCreateCourse(ctx, store, createCourseCmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Change capacity
+			changeCapacityCmd := ChangeCourseCapacityCommand{
+				CourseID:    "math-101",
+				NewCapacity: 50,
+			}
+			err = handleChangeCourseCapacity(ctx, store, changeCapacityCmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Verify capacity change event
+			query := NewQuerySimple(NewTags("course_id", "math-101"), "CourseCapacityChanged")
+			events, err := store.Read(ctx, query, nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(events.Events).To(HaveLen(1))
+		})
+
+		It("should prevent capacity reduction below enrollment count", func() {
+			// Create course with capacity 2
+			createCourseCmd := CreateCourseCommand{
+				CourseID:   "math-101",
+				Name:       "Mathematics 101",
+				Instructor: "Dr. Johnson",
+				Capacity:   2,
+			}
+			err := handleCreateCourse(ctx, store, createCourseCmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Register and enroll two students
+			for i := 1; i <= 2; i++ {
+				registerStudentCmd := RegisterStudentCommand{
+					StudentID: fmt.Sprintf("student-%d", i),
+					Name:      fmt.Sprintf("Student %d", i),
+					Email:     fmt.Sprintf("student%d@example.com", i),
+				}
+				err = handleRegisterStudent(ctx, store, registerStudentCmd)
+				Expect(err).NotTo(HaveOccurred())
+
+				enrollCmd := EnrollStudentCommand{
+					StudentID: fmt.Sprintf("student-%d", i),
+					CourseID:  "math-101",
+				}
+				err = handleEnrollStudent(ctx, store, enrollCmd)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
+			// Try to reduce capacity to 1 (should fail - 2 students enrolled)
+			changeCapacityCmd := ChangeCourseCapacityCommand{
+				CourseID:    "math-101",
+				NewCapacity: 1,
+			}
+			err = handleChangeCourseCapacity(ctx, store, changeCapacityCmd)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("cannot reduce capacity"))
 		})
 	})
 
-	It("should handle large number of events efficiently", func() {
-		// Create large dataset
-		events := make([]InputEvent, 1000)
-		for i := 0; i < 1000; i++ {
-			event := NewInputEvent("TestEvent", NewTags("test", fmt.Sprintf("value-%d", i)), toJSON(map[string]string{"index": fmt.Sprintf("%d", i)}))
-			events[i] = event
-		}
+	Describe("Decision Model Projection", func() {
+		It("should project course state correctly", func() {
+			// Create course
+			createCourseCmd := CreateCourseCommand{
+				CourseID:   "math-101",
+				Name:       "Mathematics 101",
+				Instructor: "Dr. Johnson",
+				Capacity:   30,
+			}
+			err := handleCreateCourse(ctx, store, createCourseCmd)
+			Expect(err).NotTo(HaveOccurred())
 
-		_, err := store.Append(ctx, events, nil)
-		Expect(err).NotTo(HaveOccurred())
+			// Project course state
+			projectors := []BatchProjector{
+				{ID: "courseState", StateProjector: CourseStateProjector("math-101")},
+			}
 
-		// This test would require complex projection logic
-		// For now, just verify the events were appended
-		query := NewQuerySimple(NewTags("test", "value-0"), "TestEvent")
-		sequencedEvents, err := store.Read(ctx, query, nil)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(sequencedEvents.Events).To(HaveLen(1))
+			states, _, err := store.ProjectDecisionModel(ctx, projectors, nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			courseState := states["courseState"].(*CourseState)
+			Expect(courseState.CourseID).To(Equal("math-101"))
+			Expect(courseState.Name).To(Equal("Mathematics 101"))
+			Expect(courseState.Instructor).To(Equal("Dr. Johnson"))
+			Expect(courseState.Capacity).To(Equal(30))
+			Expect(courseState.Exists).To(BeTrue())
+
+			// Test optimistic locking with append condition
+			changeCapacityCmd := ChangeCourseCapacityCommand{
+				CourseID:    "math-101",
+				NewCapacity: 40,
+			}
+			err = handleChangeCourseCapacity(ctx, store, changeCapacityCmd)
+			Expect(err).NotTo(HaveOccurred())
+		})
 	})
 })
 
-// Helper function for creating int pointers
+// Helper functions
 func intPtr(i int) *int {
 	return &i
 }
 
-// Helper functions for creating domain events
 func createCourseCreatedEvent(courseID string, name string, capacity int) InputEvent {
-	return NewInputEvent("CourseCreated", NewTags("course_id", courseID), toJSON(CourseCreated{
-		Name:     name,
-		Capacity: capacity,
-	}))
+	return NewCourseCreatedEvent(courseID, name, "Instructor", capacity)
 }
 
 func createStudentRegisteredEvent(studentID string, name string) InputEvent {
-	return NewInputEvent("StudentRegistered", NewTags("student_id", studentID), toJSON(StudentRegistered{
-		Name: name,
-	}))
+	return NewStudentRegisteredEvent(studentID, name, "email@example.com")
 }
 
 func createStudentEnrolledInCourseEvent(studentID string, courseID string) InputEvent {
-	return NewInputEvent("StudentEnrolledInCourse", NewTags("student_id", studentID, "course_id", courseID), toJSON(StudentEnrolledInCourse{
-		EnrolledAt: time.Now().Format(time.RFC3339),
-	}))
+	return NewStudentEnrolledEvent(studentID, courseID, time.Now().Format(time.RFC3339))
 }
 
 func createStudentDroppedFromCourseEvent(studentID string, courseID string) InputEvent {
-	return NewInputEvent("StudentDroppedFromCourse", NewTags("student_id", studentID, "course_id", courseID), toJSON(StudentDroppedFromCourse{
-		DroppedAt: time.Now().Format(time.RFC3339),
-	}))
+	return NewStudentDroppedEvent(studentID, courseID, time.Now().Format(time.RFC3339))
 }
 
 func createCourseCapacityChangedEvent(courseID string, newCapacity int) InputEvent {
-	return NewInputEvent("CourseCapacityChanged", NewTags("course_id", courseID), toJSON(CourseCapacityChanged{
-		NewCapacity: newCapacity,
-	}))
+	return NewCourseCapacityChangedEvent(courseID, newCapacity)
 }

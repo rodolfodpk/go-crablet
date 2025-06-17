@@ -1,0 +1,233 @@
+openapi: 3.0.3
+info:
+  title: DCB Bench
+  version: 1.0.0
+  description: |
+    A web application that implements the DCB Bench OpenAPI specification,
+    providing HTTP endpoints for reading and appending events using the core DCB API.
+    
+    This API is designed for performance benchmarking and testing of event store operations.
+paths:
+  /read:
+    post:
+      operationId: read
+      summary: Read events matching the specified query
+      description: |
+        Reads events from the event store that match the specified query criteria.
+        Returns performance metrics including duration and number of matching events.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReadRequest'
+        required: true
+      responses:
+        '200':
+          description: Successfully read events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadResponse'
+        '400':
+          description: Bad Request - Invalid query or options
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
+  /append:
+    post:
+      operationId: append
+      summary: Append one or more events to the event store
+      description: |
+        Appends events to the event store with optional conditions.
+        Returns performance metrics and condition failure status.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppendRequest'
+        required: true
+      responses:
+        '200':
+          description: Successfully appended events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppendResponse'
+        '400':
+          description: Bad Request - Invalid events or condition
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
+
+components:
+  schemas:
+    EventType:
+      type: string
+      description: The type of event, e.g. "CustomerRenamed"
+      maxLength: 255
+      example: CoursePlanned
+    EventTypes:
+      type: array
+      items:
+        $ref: '#/components/schemas/EventType'
+    Tag:
+      type: string
+      description: >-
+        Tag that can be attached to an Event, usually containing some identifier
+        for an entity or concept of the core domain, for example
+        "product:sku123"
+      pattern: ^[A-Za-z0-9\-_:]{1,150}$
+      example: course:c1
+    Tags:
+      type: array
+      items:
+        $ref: '#/components/schemas/Tag'
+    QueryItem:
+      type: object
+      properties:
+        types:
+          $ref: '#/components/schemas/EventTypes'
+        tags:
+          $ref: '#/components/schemas/Tags'
+      additionalProperties: false
+    QueryItems:
+      type: array
+      items:
+        $ref: '#/components/schemas/QueryItem'
+    Query:
+      type: object
+      properties:
+        items:
+          $ref: '#/components/schemas/QueryItems'
+      additionalProperties: false
+      required:
+        - items
+    EventId:
+      type: string
+      description: Globally unique identifier of an event
+      maxLength: 255
+      example: 3ff67a09-c85f-4589-aa13-4e977eaa9763
+    ReadOptions:
+      type: object
+      properties:
+        from:
+          $ref: '#/components/schemas/EventId'
+        backwards:
+          type: boolean
+      additionalProperties: false
+    ReadRequest:
+      type: object
+      properties:
+        query:
+          $ref: '#/components/schemas/Query'
+        options:
+          $ref: '#/components/schemas/ReadOptions'
+      additionalProperties: false
+      required:
+        - query
+    ReadResponse:
+      type: object
+      properties:
+        durationInMicroseconds:
+          type: integer
+          description: Duration of the read operation in microseconds
+        numberOfMatchingEvents:
+          type: integer
+          description: Number of events that matched the query
+        checkpointEventId:
+          $ref: '#/components/schemas/EventId'
+          description: ID of the last event returned (if any)
+      additionalProperties: false
+      required:
+        - durationInMicroseconds
+        - numberOfMatchingEvents
+    Event:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/EventId'
+        type:
+          $ref: '#/components/schemas/EventType'
+        data:
+          type: string
+          description: Event data as JSON string
+        tags:
+          $ref: '#/components/schemas/Tags'
+      additionalProperties: false
+      required:
+        - id
+        - type
+        - data
+        - tags
+    Events:
+      type: array
+      items:
+        $ref: '#/components/schemas/Event'
+    AppendCondition:
+      type: object
+      description: Condition for the EventStore::append() invocation
+      properties:
+        failIfEventsMatch:
+          $ref: '#/components/schemas/Query'
+        after:
+          $ref: '#/components/schemas/EventId'
+      additionalProperties: false
+      required:
+        - failIfEventsMatch
+    AppendRequest:
+      type: object
+      properties:
+        events:
+          oneOf:
+            - $ref: '#/components/schemas/Events'
+            - $ref: '#/components/schemas/Event'
+          description: Single event or array of events to append
+        condition:
+          $ref: '#/components/schemas/AppendCondition'
+          description: Optional condition for the append operation
+      additionalProperties: false
+      required:
+        - events
+    AppendResponse:
+      type: object
+      properties:
+        durationInMicroseconds:
+          type: integer
+          description: Duration of the append operation in microseconds
+        appendConditionFailed:
+          type: boolean
+          description: Whether the append condition failed
+      additionalProperties: false
+      required:
+        - durationInMicroseconds
+        - appendConditionFailed 
