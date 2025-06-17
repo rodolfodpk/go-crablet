@@ -184,23 +184,23 @@ k6 run k6-test.js
 
 **Load Test (3m 30s, 20 VUs):**
 - **Success Rate**: 100% (all HTTP requests successful)
-- **Throughput**: 63.9 requests/second
-- **Average Response Time**: 100.5ms
-- **Total Requests**: 13,476
+- **Throughput**: 48.7 requests/second
+- **Average Response Time**: 164.2ms
+- **Total Requests**: 10,235
 
 **Performance by Operation:**
-- **Append Single**: 81% under 100ms target
-- **Append Multiple**: 98% under 200ms target ✅
-- **Read by Type**: 47% under 100ms target
-- **Read by Tags**: 19% under 100ms target
-- **Read by Type+Tags**: 66% under 100ms target
-- **Append with Condition**: 91% under 100ms target ✅
-- **Complex Query**: 61% under 150ms target
+- **Append Single**: 67% under 100ms target
+- **Append Multiple**: 87% under 200ms target
+- **Read by Type**: 25% under 100ms target
+- **Read by Tags**: 6% under 100ms target
+- **Read by Type+Tags**: 44% under 100ms target
+- **Append with Condition**: 74% under 100ms target
+- **Complex Query**: 37% under 150ms target
 
 **Key Findings:**
 - ✅ **100% reliability** - no failed requests
-- ✅ **Good append performance** - most operations meet targets
-- ⚠️ **Read operations need optimization** - especially tag-based queries
+- ⚠️ **Performance needs optimization** - most operations below targets
+- ⚠️ **Read operations need significant improvement** - especially tag-based queries
 
 For detailed analysis, see [k6 Benchmark Report](k6-benchmark-report.md).
 
