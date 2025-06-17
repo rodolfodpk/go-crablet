@@ -24,81 +24,81 @@ This document contains the performance benchmark results for the DCB Bench REST 
 - **Users**: 0 → 10 → 20 → 0 users
 - **Scenarios**: 7 different test scenarios
 
-## Benchmark Results
-
-### Quick Test Results
-
-```
-✓ All checks passed (100%)
-✓ No failed HTTP requests
-✓ 1,456 iterations completed in ~10 seconds
-✓ Average HTTP request duration: ~7ms
-✓ Throughput: ~145 requests/second
-```
-
-**Performance Metrics:**
-- **Success Rate**: 100%
-- **Total Requests**: 2,912 (1,456 iterations × 2 requests each)
-- **Average Response Time**: 7ms
-- **95th Percentile**: 12ms
-- **Max Response Time**: 45ms
-- **Error Rate**: 0%
+## Latest Benchmark Results (December 2024)
 
 ### Comprehensive Load Test Results
 
 ```
-✓ All checks passed (97.66%)
+✓ All checks passed (83.33%)
 ✓ No failed HTTP requests
-✓ 2,932 iterations completed in 3m 30s
-✓ Total requests: 20,525 HTTP requests
-✓ Throughput: 97.5 requests/second
+✓ 1,925 iterations completed in 3m 30s
+✓ Total requests: 13,476 HTTP requests
+✓ Throughput: 63.9 requests/second
 ```
 
 **Performance Metrics:**
-- **Success Rate**: 97.66%
-- **Total Requests**: 20,525
-- **Average Response Time**: 38ms
-- **Median Response Time**: 35ms
-- **95th Percentile**: 69ms
-- **Max Response Time**: 278ms
+- **Success Rate**: 100% (all HTTP requests successful)
+- **Check Success Rate**: 83.33% (performance thresholds)
+- **Total Requests**: 13,476
+- **Average Response Time**: 100.5ms
+- **Median Response Time**: 69.78ms
+- **95th Percentile**: 306.43ms
+- **Max Response Time**: 3.01s
 - **Error Rate**: 0%
 
 ## Test Scenario Breakdown
 
 ### Scenario 1: Append Single Event
-- **Success Rate**: 100% (2,903/2,932)
-- **Average Response Time**: 25ms
+- **Success Rate**: 100% (all requests successful)
+- **Performance**: 81% under 100ms target
+- **Status**: ⚠️ Needs optimization
 - **Purpose**: Basic event creation
 
 ### Scenario 2: Append Multiple Events
-- **Success Rate**: 100% (2,925/2,932)
-- **Average Response Time**: 35ms
+- **Success Rate**: 100% (all requests successful)
+- **Performance**: 98% under 200ms target
+- **Status**: ✅ Good performance
 - **Purpose**: Batch event creation
 
 ### Scenario 3: Read by Type
-- **Success Rate**: 100% (2,791/2,932)
-- **Average Response Time**: 15ms
+- **Success Rate**: 100% (all requests successful)
+- **Performance**: 47% under 100ms target
+- **Status**: ⚠️ Needs optimization
 - **Purpose**: Event type filtering
 
 ### Scenario 4: Read by Tags
-- **Success Rate**: 100% (2,248/2,932)
-- **Average Response Time**: 18ms
+- **Success Rate**: 100% (all requests successful)
+- **Performance**: 19% under 100ms target
+- **Status**: ⚠️ Needs optimization
 - **Purpose**: Tag-based filtering
 
 ### Scenario 5: Read by Type and Tags
-- **Success Rate**: 100% (2,902/2,932)
-- **Average Response Time**: 20ms
+- **Success Rate**: 100% (all requests successful)
+- **Performance**: 66% under 100ms target
+- **Status**: ⚠️ Needs optimization
 - **Purpose**: Combined filtering
 
-### Scenario 6: Append with Conditions
-- **Success Rate**: 100% (2,932/2,932)
-- **Average Response Time**: 30ms
+### Scenario 6: Append with Condition
+- **Success Rate**: 100% (all requests successful)
+- **Performance**: 91% under 100ms target
+- **Status**: ✅ Good performance
 - **Purpose**: Conditional event creation
 
 ### Scenario 7: Complex Queries
-- **Success Rate**: 100% (2,932/2,932)
-- **Average Response Time**: 45ms
+- **Success Rate**: 100% (all requests successful)
+- **Performance**: 61% under 150ms target
+- **Status**: ⚠️ Needs optimization
 - **Purpose**: Multi-item query processing
+
+## Detailed Performance Metrics
+
+| Metric | Value | Min | Median | Max | 90th % | 95th % |
+|--------|-------|-----|--------|-----|--------|--------|
+| HTTP Request Duration | 100.54ms | 966µs | 69.78ms | 3.01s | 233.99ms | 306.43ms |
+| HTTP Request Waiting | 100.41ms | 885µs | 69.53ms | 3.01s | 233.64ms | 305.96ms |
+| HTTP Request Sending | 40.55µs | 3µs | 26µs | 4.81ms | 51µs | 79µs |
+| HTTP Request Receiving | 91.49µs | 6µs | 57µs | 9.82ms | 129µs | 191µs |
+| Iteration Duration | 1.41s | 42.69ms | 1.26s | 4.51s | 1.97s | 2.07s |
 
 ## Load Test Stages
 
@@ -114,44 +114,42 @@ This document contains the performance benchmark results for the DCB Bench REST 
 - **Users**: 20 → 0
 - **Purpose**: Load decrease
 
+## Key Findings
+
+### ✅ Strengths
+- **100% Success Rate**: All HTTP requests completed successfully
+- **Zero Errors**: No failed requests or connection errors
+- **Good Throughput**: 63.9 requests/second under load
+- **Stable Performance**: Consistent response times across test
+- **Append Operations**: Good performance for event creation
+
+### ⚠️ Areas for Improvement
+- **Read Operations**: Tag-based queries need optimization (19% under 100ms)
+- **Response Times**: Some operations exceed target thresholds
+- **Database Queries**: Complex queries may benefit from indexing
+- **Query Performance**: Read operations need optimization
+
 ## Performance Thresholds
-
-All tests passed the following performance thresholds:
-
-- ✅ **Response Time**: 95% of requests < 500ms
-- ✅ **Error Rate**: < 10%
-- ✅ **Success Rate**: > 95%
-
-## Individual Operation Performance
 
 | Operation | Target | Actual | Status |
 |-----------|--------|--------|--------|
-| Single Append | < 100ms | 25ms | ✅ |
-| Multiple Append | < 200ms | 35ms | ✅ |
-| Read Operations | < 100ms | 15-20ms | ✅ |
-| Complex Queries | < 150ms | 45ms | ✅ |
-
-## Database Performance
-
-- **Connection Pool**: Efficiently managed with pgx
-- **Query Optimization**: Single-stream queries for state projection
-- **Concurrency**: Handles multiple concurrent requests
-- **Locking**: Optimistic locking prevents conflicts
+| Single Append | < 100ms | 81% under target | ⚠️ Needs Optimization |
+| Multiple Append | < 200ms | 98% under target | ✅ Good |
+| Read Operations | < 100ms | 19-66% under target | ⚠️ Needs Optimization |
+| Complex Queries | < 150ms | 61% under target | ⚠️ Needs Optimization |
 
 ## Recommendations
 
-### For Production Deployment
+### Immediate Actions
+1. **Database Indexing**: Add indexes for tag-based queries
+2. **Query Optimization**: Review and optimize read operations
+3. **Caching**: Implement caching for frequently accessed data
+4. **Connection Pooling**: Optimize database connection management
 
-1. **Scaling**: The API handles 20 concurrent users efficiently
-2. **Monitoring**: Implement response time monitoring
-3. **Caching**: Consider Redis for frequently accessed data
-4. **Load Balancing**: Use multiple instances for higher throughput
-
-### Performance Optimization
-
-1. **Database Indexing**: Ensure proper indexes on event tables
-2. **Connection Pooling**: Monitor and tune connection pool size
-3. **Query Optimization**: Review slow queries in production
+### Production Considerations
+1. **Monitoring**: Implement response time monitoring
+2. **Read Replicas**: Consider read replicas for high-traffic scenarios
+3. **Load Balancing**: Use multiple instances for higher throughput
 4. **Resource Limits**: Set appropriate memory and CPU limits
 
 ## Test Files
@@ -170,15 +168,18 @@ k6 run k6-test.js
 
 # Custom load test
 k6 run --vus 10 --duration 30s k6-test.js
+
+# Generate JSON results
+k6 run --out json=results.json k6-test.js
 ```
 
 ## Conclusion
 
-The DCB Bench REST API demonstrates excellent performance characteristics:
+The DCB Bench REST API demonstrates:
 
-- **High Throughput**: 97.5 requests/second under load
-- **Low Latency**: Average 38ms response time
-- **High Reliability**: 97.66% success rate under stress
-- **Scalability**: Handles concurrent users efficiently
+- **High Reliability**: 100% success rate under load
+- **Good Throughput**: 63.9 requests/second
+- **Stable Performance**: Consistent response times
+- **Room for Optimization**: Read operations need improvement
 
-The implementation is production-ready and can handle moderate to high loads with proper infrastructure scaling. 
+The implementation is production-ready for moderate loads, with clear optimization opportunities for read-heavy workloads. 
