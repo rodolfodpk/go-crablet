@@ -142,6 +142,8 @@ func handleCreateAccount(ctx context.Context, store dcb.EventStore, cmd CreateAc
     }
 
     return nil
+
+```
 }
 
 func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd TransferMoneyCommand) error {
@@ -261,6 +263,8 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
     }
 
     return nil
+
+```
 }
 
 ## Examples
@@ -268,19 +272,25 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 The library includes comprehensive examples demonstrating different patterns:
 
 ### 1. Transfer Example (`internal/examples/transfer/`)
+
 Shows how to implement money transfers between accounts with proper business rules:
+
 - Account creation with duplicate prevention
 - Money transfers with balance validation
 - Optimistic locking for concurrent access
 
 ### 2. Decision Model Example (`internal/examples/decision_model/`)
+
 Demonstrates the core decision model pattern:
+
 - State projection for decision making
 - Optimistic locking with append conditions
 - Efficient batch processing
 
 ### 3. Batch Example (`internal/examples/batch/`)
+
 Shows how to handle multiple commands atomically:
+
 - Batch user creation with validation
 - Batch order processing
 - Cross-command business rules
