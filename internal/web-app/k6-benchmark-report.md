@@ -36,6 +36,72 @@ This document contains the performance benchmark results for the DCB Bench REST 
 ✓ Throughput: 48.7 requests/second
 ```
 
+### Raw k6 Output
+
+```
+          /\      |‾‾| /‾‾/   /‾‾/   
+     /\  /  \     |  |/  /   /  /    
+    /  \/    \    |     (   /   ‾‾\  
+   /          \   |  |\  \ |  (‾)  | 
+  / __________ \  |__| \__\ \_____/ .io
+
+  execution: local
+     script: k6-test.js
+     output: -
+
+  scenarios: (100.00%) 1 scenario, 20 max VUs, 4m0s max duration (incl. graceful stop):
+           * default: Up to 20 looping VUs for 3m30s over 5 stages (gracefulRampDown: 30s, gracefulStop: 30s)
+
+INFO[0000] Setting up test data...                       source=console
+INFO[0000] Setup completed successfully                  source=console
+
+running (3m30.2s), 00/20 VUs, 1462 complete and 0 interrupted iterations
+default ✓ [======================================] 00/20 VUs  3m30s
+
+     ✓ append single event status is 200
+     ✗ append single event duration < 100ms
+      ↳  67% — ✓ 982 / ✗ 480
+     ✓ append multiple events status is 200
+     ✗ append multiple events duration < 200ms
+      ↳  87% — ✓ 1283 / ✗ 179
+     ✓ read by type status is 200
+     ✗ read by type duration < 100ms
+      ↳  25% — ✓ 369 / ✗ 1093
+     ✓ read by tags status is 200
+     ✗ read by tags duration < 100ms
+      ↳  6% — ✓ 97 / ✗ 1365
+     ✓ read by type and tags status is 200
+     ✗ read by type and tags duration < 100ms
+      ↳  44% — ✓ 649 / ✗ 813
+     ✓ append with condition status is 200
+     ✗ append with condition duration < 100ms
+      ↳  74% — ✓ 1090 / ✗ 372
+     ✓ complex query status is 200
+     ✗ complex query duration < 150ms
+      ↳  37% — ✓ 555 / ✗ 907
+
+     █ setup
+
+     checks.........................: 74.55% ✓ 15259     ✗ 5209 
+     data_received..................: 2.1 MB 10 kB/s
+     data_sent......................: 3.3 MB 16 kB/s
+   ✓ errors.........................: 0.00%  ✓ 0         ✗ 0    
+     http_req_blocked...............: avg=47.61µs  min=0s      med=4µs      max=34.58ms  p(90)=8µs      p(95)=9µs     
+     http_req_connecting............: avg=39.53µs  min=0s      med=0s       max=34.48ms  p(90)=0s       p(95)=0s      
+   ✓ http_req_duration..............: avg=164.24ms min=1.01ms  med=124.56ms max=975.04ms p(90)=373.02ms p(95)=475.76ms
+       { expected_response:true }...: avg=164.24ms min=1.01ms  med=124.56ms max=975.04ms p(90)=373.02ms p(95)=475.76ms
+     http_req_failed................: 0.00%  ✓ 0         ✗ 10235
+     http_req_receiving.............: avg=85.84µs  min=7µs     med=46µs     max=8.26ms   p(90)=120.6µs  p(95)=170µs   
+     http_req_sending...............: avg=35.57µs  min=3µs     med=21µs     max=4.13ms   p(90)=44µs     p(95)=67µs    
+     http_req_tls_handshaking.......: avg=0s       min=0s      med=0s       max=0s       p(90)=0s       p(95)=0s      
+     http_req_waiting...............: avg=164.12ms min=961µs   med=124.37ms max=974.94ms p(90)=372.92ms p(95)=475.72ms
+     http_reqs......................: 10235  48.689045/s
+     iteration_duration.............: avg=1.85s    min=37.58ms med=1.62s    max=3.52s    p(90)=2.66s    p(95)=2.76s   
+     iterations.....................: 1462   6.954898/s
+     vus............................: 1      min=1       max=20 
+     vus_max........................: 20     min=20      max=20 
+```
+
 **Performance Metrics:**
 - **Success Rate**: 100% (all HTTP requests successful)
 - **Check Success Rate**: 74.55% (performance thresholds)
