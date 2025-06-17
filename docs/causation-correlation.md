@@ -11,28 +11,28 @@ go-crablet automatically tracks **causation** and **correlation** to help you un
 
 When you append multiple events in a single batch, go-crablet automatically:
 
-1. **Generates event IDs** based on the event tags (using TypeID format)
+1. **Generates event IDs** based on the event tag keys (using TypeID format)
 2. **Sets correlation ID** to the first event's ID in the batch
 3. **Chains causation IDs** so each event points to the previous event in the batch
 
 ## Implementation Details: TypeID-Based Generation
 
-Our implementation uses **TypeID** to generate unique, sortable event identifiers based on event tags. Here's how it works:
+Our implementation uses **TypeID** to generate unique, sortable event identifiers based on event tag keys. Here's how it works:
 
 ### Event ID Generation
 
-Each event gets a unique ID generated from its tags:
+Each event gets a unique ID generated from its tag keys:
 
 ```go
 // Event with tags: {"account_id": "alice"}
-// Generated ID: alice_01h2xcejqtf2nbrexx3vqjhp41
+// Generated ID: account_id_01h2xcejqtf2nbrexx3vqjhp41
 
 // Event with tags: {"from_account": "alice", "to_account": "bob"}
-// Generated ID: alice_bob_01h2xcejqtf2nbrexx3vqjhp42
+// Generated ID: from_account_to_account_01h2xcejqtf2nbrexx3vqjhp42
 ```
 
 **TypeID Format:**
-- **Prefix**: Sorted tag keys joined with underscores (e.g., `alice`, `alice_bob`)
+- **Prefix**: Sorted tag keys joined with underscores (e.g., `account_id`, `from_account_to_account`)
 - **UUID**: 26-character TypeID suffix (e.g., `01h2xcejqtf2nbrexx3vqjhp41`)
 - **Total**: Maximum 64 characters to fit in database VARCHAR(64)
 
@@ -44,17 +44,17 @@ For a batch of events, the implementation:
 // Batch: [event1, event2, event3]
 
 // Event 1: First in batch
-event1.ID = "alice_01h2xcejqtf2nbrexx3vqjhp41"
+event1.ID = "account_id_01h2xcejqtf2nbrexx3vqjhp41"
 event1.CausationID = event1.ID      // Self-caused (first event)
 event1.CorrelationID = event1.ID    // Root of correlation chain
 
 // Event 2: Second in batch  
-event2.ID = "bob_01h2xcejqtf2nbrexx3vqjhp42"
+event2.ID = "course_id_01h2xcejqtf2nbrexx3vqjhp42"
 event2.CausationID = event1.ID      // Caused by previous event
 event2.CorrelationID = event1.ID    // Same correlation as first event
 
 // Event 3: Third in batch
-event3.ID = "alice_bob_01h2xcejqtf2nbrexx3vqjhp43"
+event3.ID = "from_account_to_account_01h2xcejqtf2nbrexx3vqjhp43"
 event3.CausationID = event2.ID      // Caused by previous event
 event3.CorrelationID = event1.ID    // Same correlation as first event
 ```
@@ -69,17 +69,17 @@ event3.CorrelationID = event1.ID    // Same correlation as first event
 The TypeID generation ensures consistency:
 
 ```go
-// Same tags always generate same prefix (UUID part varies)
+// Same tag keys always generate same prefix (UUID part varies)
 tags1 := []Tag{{Key: "account_id", Value: "alice"}}
-tags2 := []Tag{{Key: "account_id", Value: "alice"}}
+tags2 := []Tag{{Key: "account_id", Value: "bob"}}
 
-// Both generate: alice_<different_uuid>
-// But prefix "alice" is always the same
+// Both generate: account_id_<different_uuid>
+// But prefix "account_id" is always the same
 ```
 
 This allows you to:
-- **Query by tag patterns** using the TypeID prefix
-- **Group related events** by their tag-based IDs
+- **Query by tag key patterns** using the TypeID prefix
+- **Group related events** by their tag key-based IDs
 - **Maintain consistency** across different event instances
 
 ## Code Example
@@ -101,9 +101,9 @@ store.Append(ctx, []dcb.InputEvent{event1, event2, event3}, nil)
 ```
 
 **What happens internally:**
-- Event 1 gets ID: `alice_01h2xcejqtf2nbrexx3vqjhp41` (correlation ID = same, causation ID = same)
-- Event 2 gets ID: `bob_01h2xcejqtf2nbrexx3vqjhp42` (correlation ID = Event 1's ID, causation ID = Event 1's ID)
-- Event 3 gets ID: `alice_bob_01h2xcejqtf2nbrexx3vqjhp43` (correlation ID = Event 1's ID, causation ID = Event 2's ID)
+- Event 1 gets ID: `account_id_01h2xcejqtf2nbrexx3vqjhp41` (correlation ID = same, causation ID = same)
+- Event 2 gets ID: `account_id_01h2xcejqtf2nbrexx3vqjhp42` (correlation ID = Event 1's ID, causation ID = Event 1's ID)
+- Event 3 gets ID: `from_account_to_account_01h2xcejqtf2nbrexx3vqjhp43` (correlation ID = Event 1's ID, causation ID = Event 2's ID)
 
 **Event Types Used:**
 - `AccountOpened`: When an account is created with initial balance and owner
@@ -138,14 +138,14 @@ for _, event := range events.Events {
 
 1. **Append related events in the same batch** to ensure they share the same correlation ID
 2. **Order events logically** within the batch to create meaningful causation chains
-3. **Use descriptive tags** that will generate meaningful event IDs
+3. **Use descriptive tag keys** that will generate meaningful event IDs
 4. **Keep batches focused** on a single logical operation
 
 ## Account Domain Event Types
 
 **Core Account Events:**
 - `AccountOpened`: When an account is created with initial balance and owner
-- `MoneyTransferred`: When money is transferred between accounts (includes final balances)
+- `MoneyTransferred`: When money is transferred between accounts (includes updated balances)
 
 **Event Flow:**
 1. **AccountOpened**: Creates accounts for Alice and Bob

@@ -136,6 +136,7 @@ func benchmarkSingleAppend(ctx context.Context, store dcb.EventStore) {
 	event := dcb.NewInputEvent("TestEvent", dcb.NewTags("test", "single"), []byte(`{"value": "test"}`))
 
 	start := time.Now()
+	// Use batch append with a single event to demonstrate the pattern
 	_, err := store.Append(ctx, []dcb.InputEvent{event}, nil)
 	duration := time.Since(start)
 

@@ -109,6 +109,7 @@ func BenchmarkAppendSingle(b *testing.B, benchCtx *BenchmarkContext) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
+		// Create a batch with a single event to demonstrate batch append
 		event := dcb.NewInputEvent("TestEvent",
 			dcb.NewTags("test", "single", "iteration", fmt.Sprintf("%d", i)),
 			[]byte(`{"value": "test"}`))

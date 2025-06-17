@@ -34,7 +34,7 @@ We're learning about the Dynamic Consistency Boundary (DCB) pattern by exploring
 - [Performance Benchmarks](internal/benchmarks/README.md): Comprehensive performance testing and analysis
 - [Code Coverage](docs/code-coverage.md): Test coverage analysis and improvement guidelines
 
-## Minimal Example: Course Subscription
+## Minimal Example: Batch Append with DCB Invariants
 
 ```go
 package main
@@ -42,41 +42,42 @@ package main
 import (
     "context"
     "encoding/json"
+    "fmt"
+    "log"
     "github.com/rodolfodpk/go-crablet/pkg/dcb"
     "github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
     ctx := context.Background()
-    pool, _ := pgxpool.New(ctx, "postgres://user:pass@localhost/db")
+    pool, _ := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")
     store, _ := dcb.NewEventStore(ctx, pool)
 
-    // Define projectors for business rules
+    // Define projectors to check business invariants
     projectors := []dcb.BatchProjector{
         {ID: "courseExists", StateProjector: dcb.StateProjector{
-            Query: dcb.NewQueryFromItems(dcb.QItemKV("CourseDefined", "course_id", "c1")),
+            Query: dcb.NewQuery(dcb.NewTags("course_id", "c1"), "CourseDefined"),
             InitialState: false,
             TransitionFn: func(state any, e dcb.Event) any { return true },
         }},
         {ID: "studentExists", StateProjector: dcb.StateProjector{
-            Query: dcb.NewQueryFromItems(dcb.QItemKV("StudentRegistered", "student_id", "s1")),
+            Query: dcb.NewQuery(dcb.NewTags("student_id", "s1"), "StudentRegistered"),
             InitialState: false,
             TransitionFn: func(state any, e dcb.Event) any { return true },
         }},
         {ID: "numSubscriptions", StateProjector: dcb.StateProjector{
-            Query: dcb.NewQueryFromItems(dcb.QItemKV("StudentSubscribed", "course_id", "c1")),
+            Query: dcb.NewQuery(dcb.NewTags("course_id", "c1"), "StudentSubscribed"),
             InitialState: 0,
             TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
         }},
         {ID: "studentCourseCount", StateProjector: dcb.StateProjector{
-            Query: dcb.NewQueryFromItems(dcb.QItemKV("StudentSubscribed", "course_id", "c1", "student_id", "s1")),
+            Query: dcb.NewQuery(dcb.NewTags("course_id", "c1", "student_id", "s1"), "StudentSubscribed"),
             InitialState: 0,
             TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
         }},
     }
 
     // Project states and get append condition (DCB pattern)
-    // The query is automatically combined from all projectors using OR logic
     states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors, nil)
     
     // Business logic: create course if it doesn't exist
@@ -110,21 +111,34 @@ func main() {
 }
 ```
 
-**What we're exploring:**
-- **ProjectDecisionModel**: Projects multiple states in one query
-- **AppendCondition**: Optimistic locking for consistency
-- **BatchProjector**: Defines business rules and state transitions
+**Key DCB Concepts Demonstrated:**
+
+1. **Batch Append**: Multiple related events appended atomically
+2. **State Projection**: Current state calculated from event history
+3. **Business Invariants**: Course capacity and student enrollment limits
+4. **Optimistic Locking**: `appendCondition` ensures no conflicts
+5. **Event IDs**: Automatically generated from tag keys (e.g., `course_id_01h2xcejqtf2nbrexx3vqjhp41`)
+
+**What happens internally:**
+- Event 1 gets ID: `course_id_01h2xcejqtf2nbrexx3vqjhp41` (correlation ID = same, causation ID = same)
+- Event 2 gets ID: `student_id_01h2xcejqtf2nbrexx3vqjhp42` (correlation ID = Event 1's ID, causation ID = Event 1's ID)
+- Both events share the same correlation ID, linking them as part of the same operation
 
 ## Examples
 
 Ready-to-run examples demonstrating different aspects of the DCB pattern:
 
-- **[Transfer Example](internal/examples/transfer/main.go)**: Money transfer between accounts with balance validation and optimistic locking
+- **[Transfer Example](internal/examples/transfer/main.go)**: **Batch append demonstration** - Money transfer between accounts with account creation and transfer in a single atomic batch operation
 - **[Course Enrollment](internal/examples/enrollment/main.go)**: Student course enrollment with capacity limits and business rules
 - **[Streaming Projections](internal/examples/streaming_projection/main.go)**: Memory-efficient event processing with multiple projections
 - **[Decision Model](internal/examples/decision_model/main.go)**: Complete DCB pattern implementation with multiple projectors
 - **[Cursor Streaming](internal/examples/cursor_streaming/main.go)**: Large dataset processing with batching and streaming
 - **[ReadStream](internal/examples/readstream/main.go)**: Event streaming with projections and optimistic locking
+
+**Batch Append Examples:**
+- **Transfer Example**: Creates accounts and transfers money atomically in a single batch
+- **Decision Model**: Demonstrates batch append with optimistic locking
+- **Streaming Projection**: Shows batch processing for large datasets
 
 Run any example with: `go run internal/examples/[example-name]/main.go`
 
