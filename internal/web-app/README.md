@@ -152,50 +152,57 @@ Reads events matching the specified query.
 
 ## Performance Testing with k6
 
-The application includes a comprehensive k6 test script for performance testing.
+The application includes comprehensive k6 load testing.
 
-### Running k6 Tests
+### Quick Test
 
-1. **Install k6:**
-   ```bash
-   # macOS
-   brew install k6
-   
-   # Or download from https://k6.io/docs/getting-started/installation/
-   ```
+```bash
+# Clean start (removes all data)
+docker-compose down -v
 
-2. **Run the test:**
-   ```bash
-   # Basic test
-   k6 run k6-test.js
-   
-   # Test against specific URL
-   k6 run -e BASE_URL=http://localhost:8080 k6-test.js
-   
-   # Run with custom stages
-   k6 run --stage 30s:10 --stage 1m:20 k6-test.js
-   ```
+# Start fresh stack
+docker-compose up -d
 
-### Test Scenarios
+# Run quick test
+k6 run quick-test.js
+```
 
-The k6 test covers:
-- Single event append
-- Multiple events append
-- Read by event type
-- Read by tags
-- Read by type and tags combination
-- Append with conditions
-- Complex queries with multiple items
+### Load Test
 
-### Performance Thresholds
+```bash
+# Clean start (removes all data)
+docker-compose down -v
 
-- 95% of requests should complete within 500ms
-- Error rate should be below 10%
-- Individual operation targets:
-  - Single append: < 100ms
-  - Multiple append: < 200ms
-  - Read operations: < 100ms
-  - Complex queries: < 150ms
+# Start fresh stack
+docker-compose up -d
+
+# Run comprehensive load test
+k6 run k6-test.js
+```
+
+### Test Results (Latest Run)
+
+**Load Test (3m 30s, 20 VUs):**
+- **Success Rate**: 100% (all HTTP requests successful)
+- **Throughput**: 63.9 requests/second
+- **Average Response Time**: 100.5ms
+- **Total Requests**: 13,476
+
+**Performance by Operation:**
+- **Append Single**: 81% under 100ms target
+- **Append Multiple**: 98% under 200ms target ✅
+- **Read by Type**: 47% under 100ms target
+- **Read by Tags**: 19% under 100ms target
+- **Read by Type+Tags**: 66% under 100ms target
+- **Append with Condition**: 91% under 100ms target ✅
+- **Complex Query**: 61% under 150ms target
+
+**Key Findings:**
+- ✅ **100% reliability** - no failed requests
+- ✅ **Good append performance** - most operations meet targets
+- ⚠️ **Read operations need optimization** - especially tag-based queries
+
+For detailed analysis, see [k6 Benchmark Report](k6-benchmark-report.md).
 
 ## k6 Benchmarks
 
