@@ -16,8 +16,12 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o web-app ./internal/web-app
+# Build the application with optimizations
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -a -installsuffix cgo \
+    -ldflags="-w -s" \
+    -gcflags="-l=4" \
+    -o web-app ./internal/web-app
 
 # Final stage
 FROM alpine:latest
@@ -40,6 +44,11 @@ RUN chown -R appuser:appgroup /app
 
 # Switch to non-root user
 USER appuser
+
+# Set performance-related environment variables
+ENV GOMAXPROCS=4
+ENV GOGC=100
+ENV GODEBUG=netdns=go
 
 # Expose port
 EXPOSE 8080
