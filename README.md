@@ -290,7 +290,7 @@ Shows how to handle multiple commands atomically:
 A complete REST API implementation is available in `internal/web-app/` that provides HTTP endpoints for the DCB Bench specification:
 
 ### Features
-- **OpenAPI 3.0.3 Compliance**: Implements the [DCB Bench specification](https://app.swaggerhub.com/apis/wwwision/dcb-bench/1.0.0#/)
+- **OpenAPI 3.0.3 Compliance**: Implements the [DCB Bench specification](https://app.swaggerhub.com/apis/wwwision/dcb-bench/1.0.0)
 - **HTTP Endpoints**: `/read` and `/append` endpoints with full feature support
 - **Performance Testing**: Comprehensive k6 load testing with benchmarks
 - **Docker Support**: Containerized deployment with PostgreSQL
