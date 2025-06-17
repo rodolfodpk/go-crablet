@@ -53,76 +53,210 @@ func main() {
     pool, _ := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")
     store, _ := dcb.NewEventStore(ctx, pool)
 
-    // Define projectors to check business invariants
+    // Command 1: Create Course
+    createCourseCmd := CreateCourseCommand{
+        CourseID: "c1",
+        Title:    "Introduction to Event Sourcing",
+        Capacity: 2,
+    }
+    err := handleCreateCourse(ctx, store, createCourseCmd)
+    if err != nil {
+        log.Fatalf("Create course failed: %v", err)
+    }
+
+    // Command 2: Register Student
+    registerStudentCmd := RegisterStudentCommand{
+        StudentID: "s1",
+        Name:      "Alice",
+        Email:     "alice@example.com",
+    }
+    err = handleRegisterStudent(ctx, store, registerStudentCmd)
+    if err != nil {
+        log.Fatalf("Register student failed: %v", err)
+    }
+
+    // Command 3: Enroll Student in Course
+    enrollCmd := EnrollStudentCommand{
+        StudentID: "s1",
+        CourseID:  "c1",
+    }
+    err = handleEnrollStudent(ctx, store, enrollCmd)
+    if err != nil {
+        log.Fatalf("Enroll student failed: %v", err)
+    }
+
+    fmt.Println("All commands executed successfully!")
+}
+
+// Command handlers with their own business rules
+
+func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCourseCommand) error {
+    // Command-specific projectors
     projectors := []dcb.BatchProjector{
         {ID: "courseExists", StateProjector: dcb.StateProjector{
-            Query: dcb.NewQuery(dcb.NewTags("course_id", "c1"), "CourseDefined"),
+            Query: dcb.NewQuery(dcb.NewTags("course_id", cmd.CourseID), "CourseCreated"),
             InitialState: false,
             TransitionFn: func(state any, e dcb.Event) any { return true },
         }},
+    }
+
+    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors, nil)
+    
+    // Command-specific business rule: course must not already exist
+    if states["courseExists"].(bool) {
+        return fmt.Errorf("course %s already exists", cmd.CourseID)
+    }
+
+    // Create events for this command
+    events := []dcb.InputEvent{
+        dcb.NewInputEvent("CourseCreated", 
+            dcb.NewTags("course_id", cmd.CourseID), 
+            mustJSON(map[string]any{"Title": cmd.Title, "Capacity": cmd.Capacity})),
+    }
+
+    // Append events atomically for this command
+    _, err := store.Append(ctx, events, &appendCondition)
+    if err != nil {
+        return fmt.Errorf("failed to create course: %w", err)
+    }
+
+    fmt.Printf("Created course %s with capacity %d\n", cmd.CourseID, cmd.Capacity)
+    return nil
+}
+
+func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd RegisterStudentCommand) error {
+    // Command-specific projectors
+    projectors := []dcb.BatchProjector{
         {ID: "studentExists", StateProjector: dcb.StateProjector{
-            Query: dcb.NewQuery(dcb.NewTags("student_id", "s1"), "StudentRegistered"),
+            Query: dcb.NewQuery(dcb.NewTags("student_id", cmd.StudentID), "StudentRegistered"),
             InitialState: false,
             TransitionFn: func(state any, e dcb.Event) any { return true },
         }},
-        {ID: "numSubscriptions", StateProjector: dcb.StateProjector{
-            Query: dcb.NewQuery(dcb.NewTags("course_id", "c1"), "StudentSubscribed"),
-            InitialState: 0,
-            TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
+    }
+
+    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors, nil)
+    
+    // Command-specific business rule: student must not already exist
+    if states["studentExists"].(bool) {
+        return fmt.Errorf("student %s already exists", cmd.StudentID)
+    }
+
+    // Create events for this command
+    events := []dcb.InputEvent{
+        dcb.NewInputEvent("StudentRegistered", 
+            dcb.NewTags("student_id", cmd.StudentID), 
+            mustJSON(map[string]any{"Name": cmd.Name, "Email": cmd.Email})),
+    }
+
+    // Append events atomically for this command
+    _, err := store.Append(ctx, events, &appendCondition)
+    if err != nil {
+        return fmt.Errorf("failed to register student: %w", err)
+    }
+
+    fmt.Printf("Registered student %s (%s)\n", cmd.Name, cmd.Email)
+    return nil
+}
+
+func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollStudentCommand) error {
+    // Command-specific projectors
+    projectors := []dcb.BatchProjector{
+        {ID: "courseState", StateProjector: dcb.StateProjector{
+            Query: dcb.NewQuery(dcb.NewTags("course_id", cmd.CourseID), "CourseCreated", "StudentEnrolled"),
+            InitialState: &CourseState{Capacity: 0, Enrolled: 0},
+            TransitionFn: func(state any, e dcb.Event) any {
+                course := state.(*CourseState)
+                switch e.Type {
+                case "CourseCreated":
+                    var data struct{ Capacity int }
+                    json.Unmarshal(e.Data, &data)
+                    course.Capacity = data.Capacity
+                case "StudentEnrolled":
+                    course.Enrolled++
+                }
+                return course
+            },
         }},
-        {ID: "studentCourseCount", StateProjector: dcb.StateProjector{
-            Query: dcb.NewQuery(dcb.NewTags("course_id", "c1", "student_id", "s1"), "StudentSubscribed"),
+        {ID: "studentEnrollmentCount", StateProjector: dcb.StateProjector{
+            Query: dcb.NewQuery(dcb.NewTags("student_id", cmd.StudentID, "course_id", cmd.CourseID), "StudentEnrolled"),
             InitialState: 0,
             TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
         }},
     }
 
-    // Project states and get append condition (DCB pattern)
     states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors, nil)
     
-    // Business logic: create course if it doesn't exist
-    if !states["courseExists"].(bool) {
-        data, _ := json.Marshal(map[string]any{"CourseID": "c1", "Capacity": 2})
-        courseEvent := dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", "c1"), data)
-        store.Append(ctx, []dcb.InputEvent{courseEvent}, &appendCondition)
+    course := states["courseState"].(*CourseState)
+    enrollmentCount := states["studentEnrollmentCount"].(int)
+
+    // Command-specific business rules
+    if course.Enrolled >= course.Capacity {
+        return fmt.Errorf("course %s is full (capacity: %d, enrolled: %d)", cmd.CourseID, course.Capacity, course.Enrolled)
     }
-    
-    // Business logic: create student if doesn't exist
-    if !states["studentExists"].(bool) {
-        data, _ := json.Marshal(map[string]any{"StudentID": "s1", "Name": "Alice", "Email": "alice@example.com"})
-        studentEvent := dcb.NewInputEvent("StudentRegistered", dcb.NewTags("student_id", "s1"), data)
-        store.Append(ctx, []dcb.InputEvent{studentEvent}, &appendCondition)
+    if enrollmentCount > 0 {
+        return fmt.Errorf("student %s is already enrolled in course %s", cmd.StudentID, cmd.CourseID)
     }
-    
-    // Business logic: check course capacity (max 2 students)
-    if states["numSubscriptions"].(int) >= 2 {
-        panic("course is full")
+
+    // Create events for this command
+    events := []dcb.InputEvent{
+        dcb.NewInputEvent("StudentEnrolled", 
+            dcb.NewTags("student_id", cmd.StudentID, "course_id", cmd.CourseID), 
+            mustJSON(map[string]any{"StudentID": cmd.StudentID, "CourseID": cmd.CourseID})),
     }
-    
-    // Business logic: check student course limit (max 10 courses)
-    if states["studentCourseCount"].(int) >= 10 {
-        panic("student cannot subscribe to more than 10 courses")
+
+    // Append events atomically for this command
+    _, err := store.Append(ctx, events, &appendCondition)
+    if err != nil {
+        return fmt.Errorf("failed to enroll student: %w", err)
     }
-    
-    // Business logic: subscribe student (all invariants satisfied)
-    data, _ := json.Marshal(map[string]any{"StudentID": "s1", "CourseID": "c1"})
-    enrollEvent := dcb.NewInputEvent("StudentSubscribed", dcb.NewTags("student_id", "s1", "course_id", "c1"), data)
-    store.Append(ctx, []dcb.InputEvent{enrollEvent}, &appendCondition)
+
+    fmt.Printf("Enrolled student %s in course %s\n", cmd.StudentID, cmd.CourseID)
+    return nil
+}
+
+// Command types
+type CreateCourseCommand struct {
+    CourseID string
+    Title    string
+    Capacity int
+}
+
+type RegisterStudentCommand struct {
+    StudentID string
+    Name      string
+    Email     string
+}
+
+type EnrollStudentCommand struct {
+    StudentID string
+    CourseID  string
+}
+
+type CourseState struct {
+    Capacity int
+    Enrolled int
+}
+
+func mustJSON(v any) []byte {
+    data, _ := json.Marshal(v)
+    return data
 }
 ```
 
 **Key DCB Concepts Demonstrated:**
 
-1. **Batch Append**: Multiple related events appended atomically
-2. **State Projection**: Current state calculated from event history
-3. **Business Invariants**: Course capacity and student enrollment limits
-4. **Optimistic Locking**: `appendCondition` ensures no conflicts
-5. **Event IDs**: Automatically generated from tag keys (e.g., `course_id_01h2xcejqtf2nbrexx3vqjhp41`)
+1. **Command Handlers**: Each command has its own business rules and invariants
+2. **Batch Append**: Multiple related events appended atomically per command
+3. **State Projection**: Current state calculated from event history for each command
+4. **Business Invariants**: Command-specific validation rules
+5. **Optimistic Locking**: `appendCondition` ensures no conflicts
+6. **Event IDs**: Automatically generated from tag keys (e.g., `course_id_01h2xcejqtf2nbrexx3vqjhp41`)
 
 **What happens internally:**
-- Event 1 gets ID: `course_id_01h2xcejqtf2nbrexx3vqjhp41` (correlation ID = same, causation ID = same)
-- Event 2 gets ID: `student_id_01h2xcejqtf2nbrexx3vqjhp42` (correlation ID = Event 1's ID, causation ID = Event 1's ID)
-- Both events share the same correlation ID, linking them as part of the same operation
+- Each command handler projects its own state
+- Each command validates its own business rules
+- Each command creates and appends its own events atomically
+- All events in a command batch share the same correlation ID
 
 ## Examples
 

@@ -91,23 +91,24 @@ For a complete working example of causation and correlation in the Account domai
 ### Key Concepts in the Example:
 
 ```go
-// Create events for a money transfer operation
-event1 := dcb.NewInputEvent("AccountOpened", dcb.NewTags("account_id", "alice"), data1)
-event2 := dcb.NewInputEvent("AccountOpened", dcb.NewTags("account_id", "bob"), data2)
-event3 := dcb.NewInputEvent("MoneyTransferred", dcb.NewTags("from_account", "alice", "to_account", "bob"), data3)
+// Create events for a course enrollment operation
+event1 := dcb.NewInputEvent("CourseCreated", dcb.NewTags("course_id", "c1"), data1)
+event2 := dcb.NewInputEvent("StudentRegistered", dcb.NewTags("student_id", "s1"), data2)
+event3 := dcb.NewInputEvent("StudentEnrolled", dcb.NewTags("course_id", "c1", "student_id", "s1"), data3)
 
 // Append all events - causation and correlation IDs are generated automatically
 store.Append(ctx, []dcb.InputEvent{event1, event2, event3}, nil)
 ```
 
 **What happens internally:**
-- Event 1 gets ID: `account_id_01h2xcejqtf2nbrexx3vqjhp41` (correlation ID = same, causation ID = same)
-- Event 2 gets ID: `account_id_01h2xcejqtf2nbrexx3vqjhp42` (correlation ID = Event 1's ID, causation ID = Event 1's ID)
-- Event 3 gets ID: `from_account_to_account_01h2xcejqtf2nbrexx3vqjhp43` (correlation ID = Event 1's ID, causation ID = Event 2's ID)
+- Event 1 gets ID: `course_id_01h2xcejqtf2nbrexx3vqjhp41` (correlation ID = same, causation ID = same)
+- Event 2 gets ID: `student_id_01h2xcejqtf2nbrexx3vqjhp42` (correlation ID = Event 1's ID, causation ID = Event 1's ID)
+- Event 3 gets ID: `course_id_student_id_01h2xcejqtf2nbrexx3vqjhp43` (correlation ID = Event 1's ID, causation ID = Event 2's ID)
 
 **Event Types Used:**
-- `AccountOpened`: When an account is created with initial balance and owner
-- `MoneyTransferred`: When money is transferred between accounts (includes final balances)
+- `CourseCreated`: When a course is created with title and capacity
+- `StudentRegistered`: When a student is registered with name and email
+- `StudentEnrolled`: When a student is enrolled in a course
 
 ## Reading Events with Causation/Correlation
 
@@ -141,14 +142,16 @@ for _, event := range events.Events {
 3. **Use descriptive tag keys** that will generate meaningful event IDs
 4. **Keep batches focused** on a single logical operation
 
-## Account Domain Event Types
+## Student Course Domain Event Types
 
-**Core Account Events:**
-- `AccountOpened`: When an account is created with initial balance and owner
-- `MoneyTransferred`: When money is transferred between accounts (includes updated balances)
+**Core Course Events:**
+- `CourseCreated`: When a course is created with title and capacity
+- `StudentRegistered`: When a student is registered with name and email
+- `StudentEnrolled`: When a student is enrolled in a course
 
 **Event Flow:**
-1. **AccountOpened**: Creates accounts for Alice and Bob
-2. **MoneyTransferred**: Transfers money between accounts with updated balances
+1. **CourseCreated**: Creates a course with title and capacity
+2. **StudentRegistered**: Registers a student with name and email
+3. **StudentEnrolled**: Enrolls a student in a course
 
-All events in the same batch automatically share the same correlation ID and are chained by causation IDs to show the logical flow of the account operations. 
+All events in the same batch automatically share the same correlation ID and are chained by causation IDs to show the logical flow of the course enrollment operations.

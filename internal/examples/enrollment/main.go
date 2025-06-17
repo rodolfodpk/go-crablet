@@ -123,7 +123,38 @@ func main() {
 		log.Fatalf("student is already enrolled in 10 courses")
 	}
 
-	// Prepare events
+	// Create events for batch append based on business logic
+	events := []dcb.InputEvent{}
+
+	// Add course creation event if course doesn't exist
+	if course.Title == "" {
+		courseEvent := dcb.NewInputEvent(
+			"CourseCreated",
+			dcb.NewTags("course_id", cmd.CourseID),
+			mustJSON(map[string]any{
+				"Title":       "Introduction to Event Sourcing",
+				"MaxStudents": 25,
+			}),
+		)
+		events = append(events, courseEvent)
+		fmt.Println("Adding course creation event to batch")
+	}
+
+	// Add student registration event if student doesn't exist
+	if student.Name == "" {
+		studentEvent := dcb.NewInputEvent(
+			"StudentRegistered",
+			dcb.NewTags("student_id", cmd.StudentID),
+			mustJSON(map[string]any{
+				"Name":  "Alice Johnson",
+				"Email": "alice@example.com",
+			}),
+		)
+		events = append(events, studentEvent)
+		fmt.Println("Adding student registration event to batch")
+	}
+
+	// Add enrollment event
 	enrollEvent := dcb.NewInputEvent(
 		"StudentEnrolled",
 		dcb.NewTags(
@@ -132,13 +163,17 @@ func main() {
 		),
 		mustJSON(map[string]any{"CourseID": cmd.CourseID, "StudentID": cmd.StudentID}),
 	)
+	events = append(events, enrollEvent)
+	fmt.Println("Adding enrollment event to batch")
 
 	// Use the append condition from the decision model for optimistic locking
-	_, err = store.Append(ctx, dcb.NewEventBatch(enrollEvent), &appendCondition)
+	// All events (course creation + student registration + enrollment) are appended atomically
+	position, err := store.Append(ctx, events, &appendCondition)
 	if err != nil {
 		log.Fatalf("append failed: %v", err)
 	}
 
+	fmt.Printf("Successfully appended %d events up to position: %d\n", len(events), position)
 	fmt.Println("Student enrolled successfully!")
 
 	// Dump all events to show what was created
