@@ -43,8 +43,14 @@ type MoneyTransferred struct {
 	Description   string    `json:"description,omitempty"`
 }
 
-// TransferCommand represents a transfer command
-type TransferCommand struct {
+// Command types
+type CreateAccountCommand struct {
+	AccountID      string
+	Owner          string
+	InitialBalance int
+}
+
+type TransferMoneyCommand struct {
 	TransferID    string
 	FromAccountID string
 	ToAccountID   string
@@ -63,31 +69,101 @@ func main() {
 		log.Fatalf("failed to create event store: %v", err)
 	}
 
-	// Execute transfer command with batch append
-	cmd := TransferCommand{
+	// Command 1: Create first account
+	createAccount1Cmd := CreateAccountCommand{
+		AccountID:      "acc1",
+		Owner:          "Alice",
+		InitialBalance: 1000,
+	}
+	err = handleCreateAccount(ctx, store, createAccount1Cmd)
+	if err != nil {
+		log.Fatalf("Create account 1 failed: %v", err)
+	}
+
+	// Command 2: Create second account
+	createAccount2Cmd := CreateAccountCommand{
+		AccountID:      "acc2",
+		Owner:          "Bob",
+		InitialBalance: 500,
+	}
+	err = handleCreateAccount(ctx, store, createAccount2Cmd)
+	if err != nil {
+		log.Fatalf("Create account 2 failed: %v", err)
+	}
+
+	// Command 3: Transfer money between accounts
+	transferCmd := TransferMoneyCommand{
 		TransferID:    "transfer-123",
 		FromAccountID: "acc1",
 		ToAccountID:   "acc2",
 		Amount:        150,
 		Description:   "Payment for services",
 	}
-
-	err = executeTransferWithBatch(ctx, store, cmd)
+	err = handleTransferMoney(ctx, store, transferCmd)
 	if err != nil {
-		log.Fatalf("transfer failed: %v", err)
+		log.Fatalf("Transfer failed: %v", err)
 	}
 
-	fmt.Printf("Transfer successful! Transfer ID: %s\n", cmd.TransferID)
+	fmt.Printf("Transfer successful! Transfer ID: %s\n", transferCmd.TransferID)
 
 	// Dump all events to show what was created
 	fmt.Println("\n=== Events in Database ===")
 	utils.DumpEvents(ctx, pool)
 }
 
-// executeTransferWithBatch executes a money transfer using batch append
-// This demonstrates creating accounts and transferring money in a single atomic operation
-func executeTransferWithBatch(ctx context.Context, store dcb.EventStore, cmd TransferCommand) error {
-	// Define projectors for both accounts
+// Command handlers with their own business rules
+
+func handleCreateAccount(ctx context.Context, store dcb.EventStore, cmd CreateAccountCommand) error {
+	// Command-specific projectors
+	projectors := []dcb.BatchProjector{
+		{ID: "accountExists", StateProjector: dcb.StateProjector{
+			Query: dcb.NewQuery(
+				dcb.NewTags("account_id", cmd.AccountID),
+				"AccountOpened",
+			),
+			InitialState: false,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return true // If we see an AccountOpened event, account exists
+			},
+		}},
+	}
+
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
+	if err != nil {
+		return fmt.Errorf("failed to check account existence: %w", err)
+	}
+
+	// Command-specific business rule: account must not already exist
+	if states["accountExists"].(bool) {
+		return fmt.Errorf("account %s already exists", cmd.AccountID)
+	}
+
+	// Create events for this command
+	events := []dcb.InputEvent{
+		dcb.NewInputEvent(
+			"AccountOpened",
+			dcb.NewTags("account_id", cmd.AccountID),
+			mustJSON(AccountOpened{
+				AccountID:      cmd.AccountID,
+				Owner:          cmd.Owner,
+				InitialBalance: cmd.InitialBalance,
+				OpenedAt:       time.Now(),
+			}),
+		),
+	}
+
+	// Append events atomically for this command
+	_, err = store.Append(ctx, events, &appendCondition)
+	if err != nil {
+		return fmt.Errorf("failed to create account: %w", err)
+	}
+
+	fmt.Printf("Created account %s for %s with balance %d\n", cmd.AccountID, cmd.Owner, cmd.InitialBalance)
+	return nil
+}
+
+func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd TransferMoneyCommand) error {
+	// Command-specific projectors
 	fromProjector := dcb.StateProjector{
 		Query: dcb.NewQuery(
 			dcb.NewTags("account_id", cmd.FromAccountID),
@@ -166,7 +242,7 @@ func executeTransferWithBatch(ctx context.Context, store dcb.EventStore, cmd Tra
 	from := states["from"].(*AccountState)
 	to := states["to"].(*AccountState)
 
-	// Business rule validations
+	// Command-specific business rules
 	if from.Balance < cmd.Amount {
 		return fmt.Errorf("insufficient funds: account %s has %d, needs %d", cmd.FromAccountID, from.Balance, cmd.Amount)
 	}
@@ -181,68 +257,30 @@ func executeTransferWithBatch(ctx context.Context, store dcb.EventStore, cmd Tra
 	newFromBalance := from.Balance - cmd.Amount
 	newToBalance := to.Balance + cmd.Amount
 
-	// Create all events for the batch operation
-	// This demonstrates creating accounts and transferring money atomically
-	events := []dcb.InputEvent{}
-
-	// Add account creation events if accounts don't exist
-	if from.Balance == 0 {
-		// From account doesn't exist, create it
-		fromAccountEvent := dcb.NewInputEvent(
-			"AccountOpened",
-			dcb.NewTags("account_id", cmd.FromAccountID),
-			mustJSON(AccountOpened{
-				AccountID:      cmd.FromAccountID,
-				Owner:          "Alice",
-				InitialBalance: 1000, // Give initial balance
-				OpenedAt:       time.Now(),
+	// Create events for this command
+	events := []dcb.InputEvent{
+		dcb.NewInputEvent(
+			"MoneyTransferred",
+			dcb.NewTags(
+				"transfer_id", cmd.TransferID,
+				"from_account_id", cmd.FromAccountID,
+				"to_account_id", cmd.ToAccountID,
+			),
+			mustJSON(MoneyTransferred{
+				TransferID:    cmd.TransferID,
+				FromAccountID: cmd.FromAccountID,
+				ToAccountID:   cmd.ToAccountID,
+				Amount:        cmd.Amount,
+				FromBalance:   newFromBalance,
+				ToBalance:     newToBalance,
+				TransferredAt: time.Now(),
+				Description:   cmd.Description,
 			}),
-		)
-		events = append(events, fromAccountEvent)
-		from.Balance = 1000 // Update for transfer calculation
-		newFromBalance = from.Balance - cmd.Amount
-	}
-
-	if to.Balance == 0 {
-		// To account doesn't exist, create it
-		toAccountEvent := dcb.NewInputEvent(
-			"AccountOpened",
-			dcb.NewTags("account_id", cmd.ToAccountID),
-			mustJSON(AccountOpened{
-				AccountID:      cmd.ToAccountID,
-				Owner:          "Bob",
-				InitialBalance: 500, // Give initial balance
-				OpenedAt:       time.Now(),
-			}),
-		)
-		events = append(events, toAccountEvent)
-		to.Balance = 500 // Update for transfer calculation
-		newToBalance = to.Balance + cmd.Amount
-	}
-
-	// Add the transfer event
-	transferEvent := dcb.NewInputEvent(
-		"MoneyTransferred",
-		dcb.NewTags(
-			"transfer_id", cmd.TransferID,
-			"from_account_id", cmd.FromAccountID,
-			"to_account_id", cmd.ToAccountID,
 		),
-		mustJSON(MoneyTransferred{
-			TransferID:    cmd.TransferID,
-			FromAccountID: cmd.FromAccountID,
-			ToAccountID:   cmd.ToAccountID,
-			Amount:        cmd.Amount,
-			FromBalance:   newFromBalance,
-			ToBalance:     newToBalance,
-			TransferredAt: time.Now(),
-			Description:   cmd.Description,
-		}),
-	)
-	events = append(events, transferEvent)
+	}
 
 	// Use the append condition from the decision model for optimistic locking
-	// All events (account creation + transfer) are appended atomically
+	// All events are appended atomically for this command
 	_, err = store.Append(ctx, events, &appendCondition)
 	if err != nil {
 		return fmt.Errorf("append failed: %w", err)
@@ -250,7 +288,6 @@ func executeTransferWithBatch(ctx context.Context, store dcb.EventStore, cmd Tra
 
 	fmt.Printf("Account %s: %d -> %d\n", cmd.FromAccountID, from.Balance, newFromBalance)
 	fmt.Printf("Account %s: %d -> %d\n", cmd.ToAccountID, to.Balance, newToBalance)
-	fmt.Printf("Batch appended %d events atomically\n", len(events))
 
 	return nil
 }
