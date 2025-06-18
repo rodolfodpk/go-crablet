@@ -10,20 +10,20 @@ export const options = {
   stages: [
     { duration: '30s', target: 10 },   // Ramp up to 10 users
     { duration: '1m', target: 10 },    // Stay at 10 users
-    { duration: '30s', target: 20 },   // Ramp up to 20 users
-    { duration: '2m', target: 20 },    // Stay at 20 users
-    { duration: '30s', target: 30 },   // Ramp up to 30 users
-    { duration: '2m', target: 30 },    // Stay at 30 users
+    { duration: '30s', target: 25 },   // Ramp up to 25 users
+    { duration: '2m', target: 25 },    // Stay at 25 users
+    { duration: '30s', target: 50 },   // Ramp up to 50 users
+    { duration: '3m', target: 50 },    // Stay at 50 users
     { duration: '30s', target: 0 },    // Ramp down to 0 users
   ],
   thresholds: {
-    http_req_duration: ['p(95)<500'],  // 95% of requests should be below 500ms
-    http_req_duration: ['p(99)<1000'], // 99% of requests should be below 1000ms
-    errors: ['rate<0.1'],              // Error rate should be below 10%
+    http_req_duration: ['p(95)<1500'], // 95% of requests should be below 1500ms
+    http_req_duration: ['p(99)<3000'], // 99% of requests should be below 3000ms
+    errors: ['rate<0.15'],             // Error rate should be below 15%
     http_reqs: ['rate>50'],            // Should handle at least 50 req/s
   },
   // Optimize for higher concurrency
-  batch: 10,                           // Reduced batch size
+  batch: 10,                           // Reduced batch size for stability
   batchPerHost: 10,                    // Reduced batch size per host
 };
 

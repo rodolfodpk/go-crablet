@@ -225,11 +225,19 @@ k6 run k6-test.js
 
 ### Test Results (Latest Optimized Run)
 
+**High-Load Test (8m, up to 50 VUs) - NEW:**
+- **Success Rate**: 100% (all HTTP requests successful)
+- **Throughput**: 108.18 requests/second
+- **Average Response Time**: 201.79ms
+- **95th Percentile**: 657.86ms
+- **Total Requests**: 52,004
+- **Zero Errors**: 0.00% error rate
+
 **Full Load Test (7m, up to 30 VUs):**
 - **Success Rate**: 100% (all HTTP requests successful)
 - **Throughput**: 100.8 requests/second
 - **Average Response Time**: 97.58ms
-- **95th Percentile**: 412ms
+- **95th Percentile**: 2.51s
 - **Total Requests**: 42,372
 
 **Quick Test (1m, 10 VUs):**
@@ -239,25 +247,27 @@ k6 run k6-test.js
 - **95th Percentile**: 202ms
 - **Total Requests**: 3,725
 
-**Performance by Operation:**
-- **Append Single**: 93% under 200ms target
-- **Append Multiple**: 96% under 300ms target
-- **Read by Type**: 78% under 200ms target
-- **Read by Tags**: 61% under 200ms target
-- **Read by Type+Tags**: 88% under 200ms target
-- **Append with Condition**: 98% under 200ms target
-- **Complex Query**: 69% under 150ms target
+**Performance by Operation (50 VU Test):**
+- **Append Single**: 88% under 200ms target
+- **Append Multiple**: 90% under 300ms target
+- **Read by Type**: 74% under 200ms target
+- **Read by Tags**: 62% under 200ms target
+- **Read by Type+Tags**: 82% under 200ms target
+- **Append with Condition**: 94% under 200ms target
+- **Complex Query**: 68% under 150ms target
 
-**Resource Usage:**
-- **Web-app**: 19.88MB / 256MB (7.77% memory usage)
-- **Postgres**: 34.66MB / 512MB (6.77% memory usage)
-- **Total Memory**: ~55MB actual vs 768MB allocated
+**Resource Usage (Optimized Configuration):**
+- **Web-app**: ~200MB / 512MB (39% memory usage)
+- **Postgres**: ~400MB / 1GB (39% memory usage)
+- **Total Memory**: ~600MB actual vs 1.5GB allocated
+- **CPU Allocation**: 8 CPUs total (4 each for web-app and postgres)
 
 **Key Findings:**
-- ✅ **100% reliability** - no failed requests
-- ✅ **Excellent performance** - significant improvement over previous runs
-- ✅ **Efficient resource usage** - minimal memory footprint
-- ✅ **Stable under load** - handles concurrent requests well
+- ✅ **100% reliability** - no failed requests even at 50 VUs
+- ✅ **Excellent throughput** - 108 req/s with optimized configuration
+- ✅ **Reasonable latency** - 95th percentile under 660ms
+- ✅ **Stable under high load** - handles 50 concurrent users reliably
+- ✅ **Zero connection errors** - optimized connection pool (100 max connections)
 - ⚠️ **Read operations still slower** - especially tag-based queries
 
 For detailed analysis, see [k6 Benchmark Report](k6-benchmark-report.md).

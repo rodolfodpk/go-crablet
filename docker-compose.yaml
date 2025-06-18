@@ -10,19 +10,19 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-dcb_app}
       # PostgreSQL performance tuning for benchmarks
-      POSTGRES_SHARED_BUFFERS: 256MB
-      POSTGRES_EFFECTIVE_CACHE_SIZE: 1GB
-      POSTGRES_WORK_MEM: 16MB
-      POSTGRES_MAINTENANCE_WORK_MEM: 256MB
+      POSTGRES_SHARED_BUFFERS: 512MB
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 2GB
+      POSTGRES_WORK_MEM: 32MB
+      POSTGRES_MAINTENANCE_WORK_MEM: 512MB
       POSTGRES_CHECKPOINT_COMPLETION_TARGET: 0.9
-      POSTGRES_WAL_BUFFERS: 16MB
+      POSTGRES_WAL_BUFFERS: 32MB
       POSTGRES_DEFAULT_STATISTICS_TARGET: 100
       POSTGRES_RANDOM_PAGE_COST: 1.1
       POSTGRES_EFFECTIVE_IO_CONCURRENCY: 200
-      POSTGRES_MAX_WORKER_PROCESSES: 8
-      POSTGRES_MAX_PARALLEL_WORKERS_PER_GATHER: 4
-      POSTGRES_MAX_PARALLEL_WORKERS: 8
-      POSTGRES_MAX_PARALLEL_MAINTENANCE_WORKERS: 4
+      POSTGRES_MAX_WORKER_PROCESSES: 16
+      POSTGRES_MAX_PARALLEL_WORKERS_PER_GATHER: 8
+      POSTGRES_MAX_PARALLEL_WORKERS: 16
+      POSTGRES_MAX_PARALLEL_MAINTENANCE_WORKERS: 8
       # Authentication settings for benchmarks
       POSTGRES_HOST_AUTH_METHOD: trust
     ports:
@@ -35,14 +35,14 @@ services:
     deploy:
       resources:
         limits:
+          cpus: '4.0'
+          memory: 1G
+        reservations:
           cpus: '2.0'
           memory: 512M
-        reservations:
-          cpus: '1.0'
-          memory: 256M
     # Alternative resource limits for older Docker Compose versions
-    mem_limit: 512m
-    cpus: 2.0
+    mem_limit: 1g
+    cpus: 4.0
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -63,14 +63,14 @@ services:
     deploy:
       resources:
         limits:
+          cpus: '4.0'
+          memory: 512M
+        reservations:
           cpus: '2.0'
           memory: 256M
-        reservations:
-          cpus: '1.0'
-          memory: 128M
     # Alternative resource limits for older Docker Compose versions
-    mem_limit: 256m
-    cpus: 2.0
+    mem_limit: 512m
+    cpus: 4.0
     depends_on:
       postgres:
         condition: service_healthy
