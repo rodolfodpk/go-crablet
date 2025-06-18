@@ -6,7 +6,7 @@
 
 # go-crablet
 
-A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini's Dynamic Consistency Boundary (DCB) pattern. go-crablet enables you to build event-driven systems with:
+A Go library for event sourcing, exploring and learning about concepts inspired by Sara Pellegrini's Dynamic Consistency Boundary (DCB) pattern. go-crablet enables you to build event-driven systems with:
 
 ## Key Features
 
@@ -16,14 +16,6 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 - **Memory-efficient streaming**: Process events row-by-row for large event streams
 - **Flexible queries**: Tag-based, OR-combined queries for cross-entity boundaries
 - **PostgreSQL-backed**: Uses PostgreSQL for robust, concurrent event storage
-
-## Exploring the DCB Pattern in Go
-
-We're learning about the Dynamic Consistency Boundary (DCB) pattern by exploring how to:
-- Define projections ("decision models") that provide the data business rules need
-- Project all relevant state in a single query
-- Build a combined append condition for optimistic locking
-- Append new events only if all invariants still hold
 
 ## Documentation
 - [Overview](docs/overview.md): DCB pattern exploration, batch projection, and streaming
@@ -243,21 +235,6 @@ func mustJSON(v any) []byte {
     return data
 }
 ```
-
-**Key DCB Concepts Demonstrated:**
-
-1. **Command Handlers**: Each command has its own business rules and invariants
-2. **Batch Append**: Multiple related events appended atomically per command
-3. **State Projection**: Current state calculated from event history for each command
-4. **Business Invariants**: Command-specific validation rules
-5. **Optimistic Locking**: `appendCondition` ensures no conflicts
-6. **Event IDs**: Automatically generated from tag keys (e.g., `course_id_01h2xcejqtf2nbrexx3vqjhp41`)
-
-**What happens internally:**
-- Each command handler projects its own state
-- Each command validates its own business rules
-- Each command creates and appends its own events atomically
-- All events in a command batch share the same correlation ID
 
 ## Examples
 
