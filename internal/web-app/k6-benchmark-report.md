@@ -1,5 +1,9 @@
 # k6 Benchmark Report
 
+> **Related Docker Configurations:**
+> - [docker-compose.yaml](../../docker-compose.yaml): Service definitions, resource allocation, and environment variables for web-app and Postgres
+> - [Dockerfile](Dockerfile): Build configuration for the Go web-app container
+
 This document contains the performance benchmark results for the DCB Bench REST API implementation.
 
 ## Test Environment
