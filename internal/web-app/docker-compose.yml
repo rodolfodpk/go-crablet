@@ -2,52 +2,78 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:15
+    image: postgres:17.5
+    container_name: ${POSTGRES_CONTAINER_NAME:-postgres_db}
     environment:
-      POSTGRES_DB: dcb_app
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-dcb_app}
+      # PostgreSQL performance tuning for benchmarks
+      POSTGRES_SHARED_BUFFERS: 512MB
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 2GB
+      POSTGRES_WORK_MEM: 32MB
+      POSTGRES_MAINTENANCE_WORK_MEM: 512MB
+      POSTGRES_CHECKPOINT_COMPLETION_TARGET: 0.9
+      POSTGRES_WAL_BUFFERS: 32MB
+      POSTGRES_DEFAULT_STATISTICS_TARGET: 100
+      POSTGRES_RANDOM_PAGE_COST: 1.1
+      POSTGRES_EFFECTIVE_IO_CONCURRENCY: 200
+      POSTGRES_MAX_WORKER_PROCESSES: 16
+      POSTGRES_MAX_PARALLEL_WORKERS_PER_GATHER: 8
+      POSTGRES_MAX_PARALLEL_WORKERS: 16
+      POSTGRES_MAX_PARALLEL_MAINTENANCE_WORKERS: 8
+      # Authentication settings for benchmarks
+      POSTGRES_HOST_AUTH_METHOD: trust
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+      - ../../docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
+    # Resource allocation for better performance
     deploy:
       resources:
         limits:
-          cpus: '2.0'
-          memory: 4G
-        reservations:
-          cpus: '1.0'
+          cpus: '4.0'
           memory: 1G
+        reservations:
+          cpus: '2.0'
+          memory: 512M
+    # Alternative resource limits for older Docker Compose versions
+    mem_limit: 1g
+    cpus: 4.0
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   web-app:
     build:
       context: ../..
       dockerfile: internal/web-app/Dockerfile
+    container_name: ${WEBAPP_CONTAINER_NAME:-dcb_webapp}
     environment:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/dcb_app?sslmode=disable
       PORT: 8080
     ports:
       - "8080:8080"
+    # Resource allocation for better performance
     deploy:
       resources:
         limits:
-          cpus: '2.0'
-          memory: 3G
+          cpus: '4.0'
+          memory: 512M
         reservations:
-          cpus: '1.0'
-          memory: 1G
+          cpus: '2.0'
+          memory: 256M
+    # Alternative resource limits for older Docker Compose versions
+    mem_limit: 512m
+    cpus: 4.0
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/read"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -56,4 +82,4 @@ services:
       - "host.docker.internal:host-gateway"
 
 volumes:
-  pgdata: 
+  postgres_data: 
