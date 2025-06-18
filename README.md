@@ -305,9 +305,6 @@ If you're new to Go and want to run the examples, follow these essential steps:
    go run internal/examples/decision_model/main.go
    ```
 
-### Available Examples
-- `internal/examples/decision_model/main.go` - Complete DCB pattern
-
 ## References
 
 - [Dynamic Consistency Boundary (DCB)](https://dcb.events/) - A very good resource to understand the DCB pattern and its applications in event-driven systems
