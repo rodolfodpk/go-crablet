@@ -30,29 +30,54 @@ export const options = {
 // Test data
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
 
-// Helper function to generate random event data
-function generateEvent(type, tags = []) {
-  return {
-    type: type,
-    data: JSON.stringify({
-      id: Math.random().toString(36).substring(7),
-      timestamp: new Date().toISOString(),
-      value: Math.random() * 1000,
-    }),
-    tags: tags,
-  };
+// Generate unique IDs for each request to avoid concurrency bottlenecks
+function generateUniqueId(prefix) {
+    return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
-// Helper function to generate query
-function generateQuery(types = [], tags = []) {
-  return {
-    items: [
-      {
-        types: types,
-        tags: tags,
-      },
-    ],
-  };
+// Generate unique event with random IDs
+function generateUniqueEvent(eventType, tagPrefixes) {
+    const tags = tagPrefixes.map(prefix => `${prefix}:${generateUniqueId(prefix)}`);
+    return {
+        type: eventType,
+        data: JSON.stringify({ timestamp: new Date().toISOString() }),
+        tags: tags
+    };
+}
+
+// Generate unique query with random IDs
+function generateUniqueQuery(eventTypes, tagPrefixes) {
+    const tags = tagPrefixes.map(prefix => `${prefix}:${generateUniqueId(prefix)}`);
+    return {
+        items: [{
+            types: eventTypes,
+            tags: tags
+        }]
+    };
+}
+
+// Original functions for backward compatibility (but with unique IDs)
+function generateEvent(eventType, tags) {
+    return {
+        type: eventType,
+        data: JSON.stringify({ timestamp: new Date().toISOString() }),
+        tags: tags.map(tag => {
+            const [prefix, id] = tag.split(':');
+            return `${prefix}:${generateUniqueId(prefix)}`;
+        })
+    };
+}
+
+function generateQuery(eventTypes, tags) {
+    return {
+        items: [{
+            types: eventTypes,
+            tags: tags.map(tag => {
+                const [prefix, id] = tag.split(':');
+                return `${prefix}:${generateUniqueId(prefix)}`;
+            })
+        }]
+    };
 }
 
 export default function () {
@@ -64,7 +89,7 @@ export default function () {
   };
 
   // Test 1: Append single event
-  const singleEvent = generateEvent('CoursePlanned', ['course:c1', 'user:u1']);
+  const singleEvent = generateUniqueEvent('CoursePlanned', ['course', 'user']);
   const appendSinglePayload = {
     events: singleEvent,
   };
@@ -89,9 +114,9 @@ export default function () {
 
   // Test 2: Append multiple events
   const multipleEvents = [
-    generateEvent('StudentEnrolled', ['course:c1', 'student:s1']),
-    generateEvent('AssignmentCreated', ['course:c1', 'assignment:a1']),
-    generateEvent('GradeSubmitted', ['course:c1', 'student:s1', 'assignment:a1']),
+    generateUniqueEvent('StudentEnrolled', ['course', 'student']),
+    generateUniqueEvent('AssignmentCreated', ['course', 'assignment']),
+    generateUniqueEvent('GradeSubmitted', ['course', 'student', 'assignment']),
   ];
 
   const appendMultiplePayload = {
@@ -118,7 +143,7 @@ export default function () {
 
   // Test 3: Read events by type
   const readByTypePayload = {
-    query: generateQuery(['CoursePlanned', 'StudentEnrolled'], []),
+    query: generateUniqueQuery(['CoursePlanned', 'StudentEnrolled'], []),
   };
 
   const readByTypeRes = http.post(
@@ -141,7 +166,7 @@ export default function () {
 
   // Test 4: Read events by tags
   const readByTagsPayload = {
-    query: generateQuery([], ['course:c1']),
+    query: generateUniqueQuery([], ['course']),
   };
 
   const readByTagsRes = http.post(
@@ -164,7 +189,7 @@ export default function () {
 
   // Test 5: Read events by type and tags
   const readByTypeAndTagsPayload = {
-    query: generateQuery(['StudentEnrolled'], ['course:c1']),
+    query: generateUniqueQuery(['StudentEnrolled'], ['course']),
   };
 
   const readByTypeAndTagsRes = http.post(
@@ -187,9 +212,9 @@ export default function () {
 
   // Test 6: Append with condition (should fail if events exist)
   const appendWithConditionPayload = {
-    events: generateEvent('DuplicateEvent', ['course:c1']),
+    events: generateUniqueEvent('DuplicateEvent', ['course']),
     condition: {
-      failIfEventsMatch: generateQuery(['DuplicateEvent'], ['course:c1']),
+      failIfEventsMatch: generateUniqueQuery(['DuplicateEvent'], ['course']),
     },
   };
 
@@ -217,11 +242,11 @@ export default function () {
       items: [
         {
           types: ['CoursePlanned'],
-          tags: ['course:c1'],
+          tags: [`course:${generateUniqueId('course')}`],
         },
         {
           types: ['StudentEnrolled'],
-          tags: ['student:s1'],
+          tags: [`student:${generateUniqueId('student')}`],
         },
       ],
     },
@@ -256,11 +281,11 @@ export function setup() {
     },
   };
 
-  // Add some initial events for testing
+  // Add some initial events for testing with unique IDs
   const initialEvents = [
-    generateEvent('CoursePlanned', ['course:c1', 'user:u1']),
-    generateEvent('StudentEnrolled', ['course:c1', 'student:s1']),
-    generateEvent('AssignmentCreated', ['course:c1', 'assignment:a1']),
+    generateUniqueEvent('CoursePlanned', ['course', 'user']),
+    generateUniqueEvent('StudentEnrolled', ['course', 'student']),
+    generateUniqueEvent('AssignmentCreated', ['course', 'assignment']),
   ];
 
   const setupPayload = {

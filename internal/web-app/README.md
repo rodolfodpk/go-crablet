@@ -70,8 +70,16 @@ The web application has been optimized for high-performance benchmarking with Po
      -d '{
        "events": {
          "type": "CoursePlanned",
-         "data": "{\"courseId\": \"c1\", \"name\": \"Introduction to Go\"}",
-         "tags": ["course:c1", "user:u1"]
+         "data": "{\"courseId\": \"course-1234567890\"}",
+         "tags": ["course:course-1234567890", "user:user-1234567890"]
+       },
+       "condition": {
+         "failIfEventsMatch": {
+           "items": [{
+             "types": ["CoursePlanned"],
+             "tags": ["course:course-1234567890"]
+           }]
+         }
        }
      }'
 
@@ -81,9 +89,13 @@ The web application has been optimized for high-performance benchmarking with Po
      -d '{
        "query": {
          "items": [{
-           "types": ["CoursePlanned"],
-           "tags": ["course:c1"]
+           "types": ["CoursePlanned", "StudentEnrolled"],
+           "tags": ["course:course-1234567890"]
          }]
+       },
+       "options": {
+         "from": "3ff67a09-c85f-4589-aa13-4e977eaa9763",
+         "backwards": false
        }
      }'
    ```
@@ -146,14 +158,14 @@ Appends one or more events to the event store.
 {
   "events": {
     "type": "CoursePlanned",
-    "data": "{\"courseId\": \"c1\"}",
-    "tags": ["course:c1", "user:u1"]
+    "data": "{\"courseId\": \"course-1234567890\"}",
+    "tags": ["course:course-1234567890", "user:user-1234567890"]
   },
   "condition": {
     "failIfEventsMatch": {
       "items": [{
         "types": ["CoursePlanned"],
-        "tags": ["course:c1"]
+        "tags": ["course:course-1234567890"]
       }]
     }
   }
@@ -178,7 +190,7 @@ Reads events matching the specified query.
   "query": {
     "items": [{
       "types": ["CoursePlanned", "StudentEnrolled"],
-      "tags": ["course:c1"]
+      "tags": ["course:course-1234567890"]
     }]
   },
   "options": {

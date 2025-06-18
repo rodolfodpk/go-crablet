@@ -10,30 +10,36 @@ package main
 import (
     "context"
     "encoding/json"
+    "fmt"
+    "log"
     "time"
     "github.com/rodolfodpk/go-crablet/pkg/dcb"
     "github.com/jackc/pgx/v5/pgxpool"
 )
 
+// Generate unique IDs for better concurrency
+func generateUniqueID(prefix string) string {
+    return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
+}
+
 func main() {
     ctx := context.Background()
-    pool, _ := pgxpool.New(ctx, "postgres://user:pass@localhost/db")
+    pool, _ := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")
     store, _ := dcb.NewEventStore(ctx, pool)
 
-    // Define projectors for business rules
+    // Generate unique IDs for this example
+    courseID := generateUniqueID("course")
+    studentID := generateUniqueID("student")
+
+    // Define projectors for course capacity check
     projectors := []dcb.BatchProjector{
         {ID: "courseExists", StateProjector: dcb.StateProjector{
-            Query: dcb.NewQuery(dcb.NewTags("course_id", "c1"), "CourseDefined"),
-            InitialState: false,
-            TransitionFn: func(state any, e dcb.Event) any { return true },
-        }},
-        {ID: "studentExists", StateProjector: dcb.StateProjector{
-            Query: dcb.NewQuery(dcb.NewTags("student_id", "s1"), "StudentRegistered"),
+            Query: dcb.NewQuery(dcb.NewTags("course_id", courseID), "CourseDefined"),
             InitialState: false,
             TransitionFn: func(state any, e dcb.Event) any { return true },
         }},
         {ID: "numSubscriptions", StateProjector: dcb.StateProjector{
-            Query: dcb.NewQuery(dcb.NewTags("course_id", "c1"), "StudentSubscribed"),
+            Query: dcb.NewQuery(dcb.NewTags("course_id", courseID), "StudentSubscribed"),
             InitialState: 0,
             TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
         }},
@@ -42,29 +48,40 @@ func main() {
     // Project states and get append condition (exploring Dynamic Consistency Boundary concepts)
     states, appendCond, _ := store.ProjectDecisionModel(ctx, projectors, nil)
     
-    // Business logic: create course if it doesn't exist
-    if !states["courseExists"].(bool) {
-        data, _ := json.Marshal(map[string]any{"CourseID": "c1", "Capacity": 2})
-        courseEvent := dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", "c1"), data)
-        store.Append(ctx, []dcb.InputEvent{courseEvent}, &appendCond)
-    }
-    
-    // Business logic: create student if doesn't exist
-    if !states["studentExists"].(bool) {
-        data, _ := json.Marshal(map[string]any{"StudentID": "s1", "Name": "Alice", "Email": "alice@example.com"})
-        studentEvent := dcb.NewInputEvent("StudentRegistered", dcb.NewTags("student_id", "s1"), data)
-        store.Append(ctx, []dcb.InputEvent{studentEvent}, &appendCond)
-    }
-    
-    // Business logic: subscribe student if course not full
-    if states["numSubscriptions"].(int) < 2 {
-        data, _ := json.Marshal(map[string]any{"StudentID": "s1", "CourseID": "c1"})
-        enrollEvent := dcb.NewInputEvent("StudentSubscribed", dcb.NewTags("student_id", "s1", "course_id", "c1"), data)
-        store.Append(ctx, []dcb.InputEvent{enrollEvent}, &appendCond)
+    // Check business rules
+    courseExists := states["courseExists"].(bool)
+    numSubscriptions := states["numSubscriptions"].(int)
+
+    fmt.Printf("Course exists: %v, Current subscriptions: %d\n", courseExists, numSubscriptions)
+
+    // Create course if it doesn't exist
+    if !courseExists {
+        data, _ := json.Marshal(map[string]any{"CourseID": courseID, "Capacity": 2})
+        courseEvent := dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", courseID), data)
+        
+        _, err := store.Append(ctx, []dcb.InputEvent{courseEvent}, &appendCond)
+        if err != nil {
+            log.Fatalf("Failed to create course: %v", err)
+        }
+        fmt.Printf("Created course %s with capacity 2\n", courseID)
     }
 
-    // Change course capacity with proper causation/correlation
-    changeCourseCapacity(ctx, store, "c1", 5)
+    // Enroll student if capacity allows
+    if numSubscriptions < 2 {
+        data, _ := json.Marshal(map[string]any{"StudentID": studentID, "CourseID": courseID})
+        enrollEvent := dcb.NewInputEvent("StudentSubscribed", dcb.NewTags("student_id", studentID, "course_id", courseID), data)
+        
+        _, err := store.Append(ctx, []dcb.InputEvent{enrollEvent}, &appendCond)
+        if err != nil {
+            log.Fatalf("Failed to enroll student: %v", err)
+        }
+        fmt.Printf("Enrolled student %s in course %s\n", studentID, courseID)
+    } else {
+        fmt.Printf("Course %s is full, cannot enroll student %s\n", courseID, studentID)
+    }
+
+    // Demonstrate capacity change
+    changeCourseCapacity(ctx, store, courseID, 5)
 }
 
 // Change course capacity with proper causation/correlation
@@ -109,7 +126,6 @@ func changeCourseCapacity(ctx context.Context, store dcb.EventStore, courseID st
     _, err := store.Append(ctx, []dcb.InputEvent{capacityEvent}, &appendCond)
     return err
 }
-```
 
 ## Resulting Events
 
@@ -123,19 +139,18 @@ ORDER BY position;
 
 | id | type | tags | data | position | causation_id | correlation_id |
 |----|------|------|------|----------|--------------|----------------|
-| 1 | CourseDefined | `{"course_id": "c1"}` | `{"CourseID": "c1", "Capacity": 2}` | 1 | course_id_01h2xcejqtf2nbrexx3vqjhp41 | course_id_01h2xcejqtf2nbrexx3vqjhp41 |
-| 2 | StudentRegistered | `{"student_id": "s1"}` | `{"StudentID": "s1", "Name": "Alice", "Email": "alice@example.com"}` | 2 | student_id_01h2xcejqtf2nbrexx3vqjhp42 | student_id_01h2xcejqtf2nbrexx3vqjhp42 |
-| 3 | StudentSubscribed | `{"student_id": "s1", "course_id": "c1"}` | `{"StudentID": "s1", "CourseID": "c1"}` | 3 | course_id_student_id_01h2xcejqtf2nbrexx3vqjhp43 | course_id_student_id_01h2xcejqtf2nbrexx3vqjhp43 |
-| 4 | CourseCapacityChanged | `{"course_id": "c1"}` | `{"CourseID": "c1", "OldCapacity": 2, "NewCapacity": 5, "ChangedAt": "..."}` | 4 | course_id_01h2xcejqtf2nbrexx3vqjhp44 | capacity-change-c1 |
+| 1 | CourseDefined | `{"course_id": "course-1234567890"}` | `{"CourseID": "course-1234567890", "Capacity": 2}` | 1 | course_id_01h2xcejqtf2nbrexx3vqjhp41 | course_id_01h2xcejqtf2nbrexx3vqjhp41 |
+| 2 | StudentSubscribed | `{"student_id": "student-1234567891", "course_id": "course-1234567890"}` | `{"StudentID": "student-1234567891", "CourseID": "course-1234567890"}` | 2 | course_id_student_id_01h2xcejqtf2nbrexx3vqjhp43 | course_id_student_id_01h2xcejqtf2nbrexx3vqjhp43 |
+| 3 | CourseCapacityChanged | `{"course_id": "course-1234567890"}` | `{"CourseID": "course-1234567890", "OldCapacity": 2, "NewCapacity": 5, "ChangedAt": "..."}` | 3 | course_id_01h2xcejqtf2nbrexx3vqjhp44 | capacity-change-course-1234567890 |
 
 **Event Flow:**
-1. **CourseDefined**: Creates course "c1" with capacity 2
-2. **StudentRegistered**: Registers student "s1" (Alice)
-3. **StudentSubscribed**: Enrolls student "s1" in course "c1"
-4. **CourseCapacityChanged**: Increases course capacity from 2 to 5
+1. **CourseDefined**: Creates course with unique ID and capacity 2
+2. **StudentSubscribed**: Enrolls student with unique ID in the course
+3. **CourseCapacityChanged**: Increases course capacity from 2 to 5
 
 **Causation and Correlation Benefits:**
 - **Correlation ID**: Groups all capacity change operations for the same course
 - **Causation ID**: Can link to the event that triggered the capacity change
 - **Audit Trail**: Complete history of who changed what and when
-- **Debugging**: Trace exactly which operation caused the capacity change 
+- **Debugging**: Trace exactly which operation caused the capacity change
+- **Concurrency**: Unique IDs prevent conflicts between different examples 
