@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"go-crablet/pkg/dcb"
@@ -31,9 +32,26 @@ func main() {
 		log.Fatalf("Failed to parse database URL: %v", err)
 	}
 
-	// Optimize connection pool for high throughput
-	config.MaxConns = 100
-	config.MinConns = 20
+	// Optimize connection pool for high throughput with adaptive sizing
+	// Base configuration on available system resources
+	maxConns := 100
+	minConns := 20
+
+	// Adaptive sizing based on environment or system resources
+	if maxConnsEnv := os.Getenv("DB_MAX_CONNS"); maxConnsEnv != "" {
+		if parsed, err := strconv.Atoi(maxConnsEnv); err == nil && parsed > 0 {
+			maxConns = parsed
+		}
+	}
+
+	if minConnsEnv := os.Getenv("DB_MIN_CONNS"); minConnsEnv != "" {
+		if parsed, err := strconv.Atoi(minConnsEnv); err == nil && parsed > 0 && parsed <= maxConns {
+			minConns = parsed
+		}
+	}
+
+	config.MaxConns = int32(maxConns)
+	config.MinConns = int32(minConns)
 	config.MaxConnLifetime = 10 * time.Minute
 	config.MaxConnIdleTime = 5 * time.Minute
 	config.HealthCheckPeriod = 60 * time.Second
@@ -348,33 +366,37 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	start := time.Now()
-
-	// Convert to DCB types
 	query := convertQuery(req.Query)
 	options := convertReadOptions(req.Options)
 
 	// Execute read
 	ctx := context.Background()
-	sequencedEvents, err := s.store.Read(ctx, query, options)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Read failed: %v", err), http.StatusBadRequest)
-		return
-	}
+	result, err := s.store.Read(ctx, query, options)
 
 	duration := time.Since(start)
 	durationMicroseconds := duration.Microseconds()
 
-	// Build response
-	response := ReadResponse{
-		DurationInMicroseconds: durationMicroseconds,
-		NumberOfMatchingEvents: len(sequencedEvents.Events),
+	if err != nil {
+		// Provide more specific error responses
+		if _, ok := err.(*dcb.ValidationError); ok {
+			http.Error(w, fmt.Sprintf("Validation error: %v", err), http.StatusBadRequest)
+		} else if _, ok := err.(*dcb.ResourceError); ok {
+			http.Error(w, fmt.Sprintf("Resource error: %v", err), http.StatusInternalServerError)
+		} else {
+			http.Error(w, fmt.Sprintf("Read failed: %v", err), http.StatusInternalServerError)
+		}
+		return
 	}
 
-	// Set checkpoint event ID if there are events
-	if len(sequencedEvents.Events) > 0 {
-		lastEvent := sequencedEvents.Events[len(sequencedEvents.Events)-1]
-		checkpointId := EventId(lastEvent.ID)
-		response.CheckpointEventId = &checkpointId
+	response := ReadResponse{
+		DurationInMicroseconds: durationMicroseconds,
+		NumberOfMatchingEvents: len(result.Events),
+	}
+
+	// Only set checkpoint if we have events
+	if len(result.Events) > 0 {
+		lastEventID := EventId(result.Events[len(result.Events)-1].ID)
+		response.CheckpointEventId = &lastEventID
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -393,23 +415,21 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Robustly decode events with debug logging
+	// Robustly decode events with better error handling
 	var inputEvents []dcb.InputEvent
 	{
 		var single Event
-		singleErr := json.Unmarshal(req.Events, &single)
-		if singleErr == nil && single.Type != "" {
+		if singleErr := json.Unmarshal(req.Events, &single); singleErr == nil && single.Type != "" {
 			inputEvents = []dcb.InputEvent{convertInputEvent(single)}
 		} else {
 			var many Events
-			manyErr := json.Unmarshal(req.Events, &many)
-			if manyErr == nil && len(many) > 0 {
+			if manyErr := json.Unmarshal(req.Events, &many); manyErr == nil && len(many) > 0 {
 				inputEvents = make([]dcb.InputEvent, len(many))
 				for i, ev := range many {
 					inputEvents[i] = convertInputEvent(ev)
 				}
 			} else {
-				log.Printf("Append decode error: singleErr=%v, manyErr=%v, raw=%s", singleErr, manyErr, string(req.Events))
+				log.Printf("Append decode error: singleErr=%v, manyErr=%v", singleErr, manyErr)
 				http.Error(w, "Invalid events: must be a single event or array of events", http.StatusBadRequest)
 				return
 			}
@@ -432,7 +452,14 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 		if _, ok := err.(*dcb.ConcurrencyError); ok {
 			appendConditionFailed = true
 		} else {
-			http.Error(w, fmt.Sprintf("Append failed: %v", err), http.StatusBadRequest)
+			// Provide more specific error responses
+			if _, ok := err.(*dcb.ValidationError); ok {
+				http.Error(w, fmt.Sprintf("Validation error: %v", err), http.StatusBadRequest)
+			} else if _, ok := err.(*dcb.ResourceError); ok {
+				http.Error(w, fmt.Sprintf("Resource error: %v", err), http.StatusInternalServerError)
+			} else {
+				http.Error(w, fmt.Sprintf("Append failed: %v", err), http.StatusInternalServerError)
+			}
 			return
 		}
 	}

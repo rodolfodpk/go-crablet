@@ -258,16 +258,17 @@ func (es *eventStore) Append(ctx context.Context, events []InputEvent, condition
 
 // buildReadQuerySQL builds the SQL query for reading events
 func (es *eventStore) buildReadQuerySQL(query Query, options *ReadOptions) (string, []interface{}, error) {
-	baseQuery := "SELECT id, type, tags, data, position, causation_id, correlation_id FROM events"
-	var conditions []string
-	var args []interface{}
+	// Pre-allocate slices with reasonable capacity
+	conditions := make([]string, 0, 4) // Usually 1-4 conditions
+	args := make([]interface{}, 0, 8)  // Usually 2-8 args
 	argIndex := 1
 
 	// Add query conditions
 	if len(query.Items) > 0 {
-		var orConditions []string
+		orConditions := make([]string, 0, len(query.Items))
+
 		for _, item := range query.Items {
-			var andConditions []string
+			andConditions := make([]string, 0, 2) // Usually 1-2 conditions per item
 
 			// Add event type conditions
 			if len(item.EventTypes) > 0 {
@@ -278,7 +279,7 @@ func (es *eventStore) buildReadQuerySQL(query Query, options *ReadOptions) (stri
 
 			// Add tag conditions - use contains operator for DCB semantics
 			if len(item.Tags) > 0 {
-				tagMap := make(map[string]string)
+				tagMap := make(map[string]string, len(item.Tags))
 				for _, tag := range item.Tags {
 					tagMap[tag.Key] = tag.Value
 				}
@@ -313,19 +314,23 @@ func (es *eventStore) buildReadQuerySQL(query Query, options *ReadOptions) (stri
 		argIndex++
 	}
 
-	// Build final query
+	// Build final query efficiently
+	var sqlQuery strings.Builder
+	sqlQuery.WriteString("SELECT id, type, tags, data, position, causation_id, correlation_id FROM events")
+
 	if len(conditions) > 0 {
-		baseQuery += " WHERE " + strings.Join(conditions, " AND ")
+		sqlQuery.WriteString(" WHERE ")
+		sqlQuery.WriteString(strings.Join(conditions, " AND "))
 	}
 
-	baseQuery += " ORDER BY position ASC"
+	sqlQuery.WriteString(" ORDER BY position ASC")
 
 	if options != nil && options.Limit != nil {
-		baseQuery += fmt.Sprintf(" LIMIT $%d", argIndex)
+		sqlQuery.WriteString(fmt.Sprintf(" LIMIT $%d", argIndex))
 		args = append(args, *options.Limit)
 	}
 
-	return baseQuery, args, nil
+	return sqlQuery.String(), args, nil
 }
 
 // checkAppendCondition checks if the append condition is satisfied

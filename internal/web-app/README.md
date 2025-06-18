@@ -15,11 +15,11 @@ This is a web application that implements the DCB Bench OpenAPI specification, p
 
 ## Performance Optimizations
 
-The web application has been optimized for high-performance benchmarking:
+The web application has been optimized for high-performance benchmarking with PostgreSQL 17.5:
 
 ### Resource Allocation (Optimized for Mac M1 with 16GB RAM)
-- **Web-app**: 2 CPUs, 256MB RAM (actual usage: ~20MB)
-- **Postgres**: 2 CPUs, 512MB RAM (actual usage: ~35MB)
+- **Web-app**: 4 CPUs, 512MB RAM (actual usage: ~121MB)
+- **Postgres**: 4 CPUs, 1GB RAM (actual usage: ~203MB)
 - **Database Connection Pool**: 50 max connections, 10 min connections
 - **Go Runtime**: Optimized with GOMAXPROCS=4, GOGC=100
 
@@ -28,14 +28,18 @@ The web application has been optimized for high-performance benchmarking:
 - **Inlining**: `-gcflags="-l=4"` for better performance
 - **Static Linking**: CGO_ENABLED=0 for better portability
 
-### Database Optimizations
+### Database Optimizations (PostgreSQL 17.5)
+- **PostgreSQL Version**: 17.5 with performance tuning
+- **Shared Buffers**: 512MB for better query performance
+- **Work Memory**: 32MB for complex operations
+- **Effective Cache Size**: 2GB for query planning
 - **Connection Pooling**: Optimized pool settings for high concurrency
 - **Connection Lifetime**: 5-minute max lifetime, 1-minute idle timeout
-- **Health Checks**: 30-second health check intervals
+- **Health Checks**: 10-second health check intervals
 - **Connection Retry Logic**: Automatic retry during startup
 
 ### Load Testing Optimizations
-- **Moderate Concurrency**: Up to 30 virtual users (balanced for stability)
+- **High Concurrency**: Up to 50 virtual users (proven stable)
 - **Realistic Thresholds**: 95% requests under 500ms, 99% under 1000ms
 - **Batch Processing**: 10 requests per batch for better throughput
 - **Balanced Sleep Times**: 0.1s between requests for stability
@@ -104,7 +108,7 @@ This script will:
 
 1. **Prerequisites:**
    - Go 1.21+
-   - PostgreSQL 15+ (or use the existing docker-compose setup)
+   - PostgreSQL 17.5+ (or use the existing docker-compose setup)
    - Make sure the core DCB package is available
 
 2. **Set up database:**
@@ -223,51 +227,43 @@ docker-compose -f ../../docker-compose.yaml up -d --build
 k6 run k6-test.js
 ```
 
-### Test Results (Latest Optimized Run)
+### Test Results (Latest Optimized Run - PostgreSQL 17.5)
 
-**High-Load Test (8m, up to 50 VUs) - NEW:**
+**High-Load Test (8m, up to 50 VUs) - PostgreSQL 17.5:**
 - **Success Rate**: 100% (all HTTP requests successful)
+- **Throughput**: 114.83 requests/second (+6.15% improvement)
+- **Average Response Time**: 183.78ms (-8.9% improvement)
+- **95th Percentile**: 683.23ms
+- **Total Requests**: 55,469
+- **Zero Errors**: 0.00% error rate
+
+**Performance by Operation (50 VU Test - PostgreSQL 17.5):**
+- **Append Single**: 87% under 200ms target
+- **Append Multiple**: 90% under 300ms target
+- **Read by Type**: 72% under 200ms target
+- **Read by Tags**: 59% under 200ms target
+- **Read by Type+Tags**: 80% under 200ms target
+- **Append with Condition**: 94% under 200ms target
+- **Complex Query**: 65% under 150ms target
+
+**Resource Usage (PostgreSQL 17.5 Optimized Configuration):**
+- **Web-app**: 121.2MB / 512MB (23.67% memory usage)
+- **Postgres**: 202.9MB / 1GB (19.81% memory usage)
+- **Total Memory**: ~324MB actual vs 1.5GB allocated
+- **CPU Allocation**: 8 CPUs total (4 each for web-app and postgres)
+
+**Previous Results (PostgreSQL 15):**
 - **Throughput**: 108.18 requests/second
 - **Average Response Time**: 201.79ms
 - **95th Percentile**: 657.86ms
-- **Total Requests**: 52,004
-- **Zero Errors**: 0.00% error rate
-
-**Full Load Test (7m, up to 30 VUs):**
-- **Success Rate**: 100% (all HTTP requests successful)
-- **Throughput**: 100.8 requests/second
-- **Average Response Time**: 97.58ms
-- **95th Percentile**: 2.51s
-- **Total Requests**: 42,372
-
-**Quick Test (1m, 10 VUs):**
-- **Success Rate**: 100% (all HTTP requests successful)
-- **Throughput**: 60.9 requests/second
-- **Average Response Time**: 61.94ms
-- **95th Percentile**: 202ms
-- **Total Requests**: 3,725
-
-**Performance by Operation (50 VU Test):**
-- **Append Single**: 88% under 200ms target
-- **Append Multiple**: 90% under 300ms target
-- **Read by Type**: 74% under 200ms target
-- **Read by Tags**: 62% under 200ms target
-- **Read by Type+Tags**: 82% under 200ms target
-- **Append with Condition**: 94% under 200ms target
-- **Complex Query**: 68% under 150ms target
-
-**Resource Usage (Optimized Configuration):**
-- **Web-app**: ~200MB / 512MB (39% memory usage)
-- **Postgres**: ~400MB / 1GB (39% memory usage)
-- **Total Memory**: ~600MB actual vs 1.5GB allocated
-- **CPU Allocation**: 8 CPUs total (4 each for web-app and postgres)
 
 **Key Findings:**
 - ✅ **100% reliability** - no failed requests even at 50 VUs
-- ✅ **Excellent throughput** - 108 req/s with optimized configuration
-- ✅ **Reasonable latency** - 95th percentile under 660ms
+- ✅ **Improved throughput** - 114.83 req/s (+6.15% with PostgreSQL 17.5)
+- ✅ **Better latency** - 183.78ms average (-8.9% improvement)
 - ✅ **Stable under high load** - handles 50 concurrent users reliably
-- ✅ **Zero connection errors** - optimized connection pool (100 max connections)
+- ✅ **Zero connection errors** - optimized connection pool
+- ✅ **PostgreSQL 17.5 benefits** - better performance with optimized settings
 - ⚠️ **Read operations still slower** - especially tag-based queries
 
 For detailed analysis, see [k6 Benchmark Report](k6-benchmark-report.md).

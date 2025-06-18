@@ -58,7 +58,7 @@ func validateQueryTags(query Query) error {
 
 // validateEvent validates a single event and returns a ValidationError if invalid
 func validateEvent(e InputEvent, index int) error {
-	// Validate event type
+	// Early validation checks with early returns
 	if e.Type == "" {
 		return &ValidationError{
 			EventStoreError: EventStoreError{
@@ -70,7 +70,6 @@ func validateEvent(e InputEvent, index int) error {
 		}
 	}
 
-	// Validate event tags
 	if len(e.Tags) == 0 {
 		return &ValidationError{
 			EventStoreError: EventStoreError{
@@ -81,6 +80,8 @@ func validateEvent(e InputEvent, index int) error {
 			Value: fmt.Sprintf("event[%d]", index),
 		}
 	}
+
+	// Validate tags efficiently
 	for j, t := range e.Tags {
 		if t.Key == "" {
 			return &ValidationError{

@@ -66,10 +66,14 @@ func prepareEventBatch(events []InputEvent) ([]string, []string, [][]byte, [][]b
 
 // executeBatchInsert executes the batch insert and returns positions
 func executeBatchInsert(ctx context.Context, tx pgx.Tx, events []InputEvent, ids []string, types []string, tagsJSON [][]byte, data [][]byte, causationIDs []string, correlationIDs []string) ([]int64, error) {
+	// Pre-allocate batch and results for better performance
 	batch := &pgx.Batch{}
 	positions := make([]int64, len(events))
 
-	// Add insert statements to batch
+	// Pre-allocate batch with known size
+	batch.Queue("BEGIN")
+
+	// Add insert statements to batch efficiently
 	for i := range events {
 		batch.Queue(`
 			INSERT INTO events (id, type, tags, data, causation_id, correlation_id)
@@ -78,14 +82,17 @@ func executeBatchInsert(ctx context.Context, tx pgx.Tx, events []InputEvent, ids
 		`, ids[i], types[i], tagsJSON[i], data[i], causationIDs[i], correlationIDs[i])
 	}
 
+	batch.Queue("COMMIT")
+
 	// Execute batch
 	br := tx.SendBatch(ctx, batch)
 	defer br.Close()
 
-	// Get results
+	// Get results efficiently
 	for i := range events {
 		err := br.QueryRow().Scan(&positions[i])
 		if err != nil {
+			// Check for specific foreign key violations first
 			if err.Error() == "ERROR: insert or update on table \"events\" violates foreign key constraint \"events_causation_id_fkey\" (SQLSTATE 23503)" ||
 				err.Error() == "ERROR: insert or update on table \"events\" violates foreign key constraint \"events_correlation_id_fkey\" (SQLSTATE 23503)" {
 				return nil, &ValidationError{
