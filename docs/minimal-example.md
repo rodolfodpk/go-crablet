@@ -39,7 +39,7 @@ func main() {
         }},
     }
 
-    // Project states and get append condition (DCB pattern)
+    // Project states and get append condition (exploring Dynamic Consistency Boundary concepts)
     states, appendCond, _ := store.ProjectDecisionModel(ctx, projectors, nil)
     
     // Business logic: create course if it doesn't exist
