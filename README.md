@@ -321,23 +321,6 @@ If you're new to Go and want to run the examples, follow these essential steps:
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
-## Benchmark Results
+## 📊 **Benchmark Results**
 
-The Go implementation has been extensively benchmarked using k6 with realistic domain workflows. Latest results show excellent performance:
-
-### Performance Metrics (50 VUs, 30s test)
-- **Throughput**: 398.5 requests/second
-- **Average Response Time**: 12.5ms
-- **95th Percentile**: 28.3ms
-- **Error Rate**: 0%
-- **Total Requests**: 11,955 successful requests
-
-### Key Improvements (vs baseline)
-- **33% increase in throughput** (300 → 398 req/s)
-- **31% reduction in average response time** (18.2 → 12.5ms)
-- **20% improvement in 95th percentile latency** (35.2 → 28.3ms)
-- **Zero errors** under high load
-
-📊 **Detailed benchmark report**: [Benchmark Results](docs/benchmarks.md)
-
-The implementation successfully handles 50 concurrent users with optimized resource allocation and demonstrates production-ready performance characteristics.
+For comprehensive performance benchmarks and analysis, see the [Performance Benchmarks documentation](internal/benchmarks/README.md).
