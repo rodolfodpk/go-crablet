@@ -32,11 +32,11 @@ func main() {
 	}
 
 	// Optimize connection pool for high throughput
-	config.MaxConns = 50
-	config.MinConns = 10
-	config.MaxConnLifetime = 5 * time.Minute
-	config.MaxConnIdleTime = 1 * time.Minute
-	config.HealthCheckPeriod = 30 * time.Second
+	config.MaxConns = 100
+	config.MinConns = 20
+	config.MaxConnLifetime = 10 * time.Minute
+	config.MaxConnIdleTime = 5 * time.Minute
+	config.HealthCheckPeriod = 60 * time.Second
 
 	// Connect to database with retry logic
 	var pool *pgxpool.Pool
