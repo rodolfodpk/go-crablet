@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"go-crablet/pkg/dcb"
+	"github.com/rodolfodpk/go-crablet/pkg/dcb"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )

@@ -1,7 +1,6 @@
 package dcb
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -10,7 +9,7 @@ import (
 type rowEvent struct {
 	ID            string
 	Type          string
-	Tags          []byte
+	Tags          []string
 	Data          []byte
 	Position      int64
 	CausationID   string
@@ -22,13 +21,7 @@ func convertRowToEvent(row rowEvent) Event {
 	var e Event
 	e.ID = row.ID
 	e.Type = row.Type
-	var tagMap map[string]string
-	if err := json.Unmarshal(row.Tags, &tagMap); err != nil {
-		panic(fmt.Sprintf("failed to unmarshal tags at position %d: %v", row.Position, err))
-	}
-	for k, v := range tagMap {
-		e.Tags = append(e.Tags, Tag{Key: k, Value: v})
-	}
+	e.Tags = ParseTagsArray(row.Tags)
 	e.Data = row.Data
 	e.Position = row.Position
 	e.CausationID = row.CausationID
@@ -83,19 +76,9 @@ func (es *eventStore) buildCombinedQuerySQL(query Query, maxPosition int64) (str
 
 		// Add tag conditions - use contains operator for DCB semantics
 		if len(item.Tags) > 0 {
-			tagMap := make(map[string]string)
-			for _, tag := range item.Tags {
-				tagMap[tag.Key] = tag.Value
-			}
-			queryTags, err := json.Marshal(tagMap)
-			if err != nil {
-				return "", nil, &EventStoreError{
-					Op:  "buildCombinedQuerySQL",
-					Err: fmt.Errorf("failed to marshal query tags: %w", err),
-				}
-			}
-			andConditions = append(andConditions, fmt.Sprintf("tags @> $%d", argIndex))
-			args = append(args, queryTags)
+			tagsArray := TagsToArray(item.Tags)
+			andConditions = append(andConditions, fmt.Sprintf("tags @> $%d::text[]", argIndex))
+			args = append(args, tagsArray)
 			argIndex++
 		}
 

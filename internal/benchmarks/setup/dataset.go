@@ -6,7 +6,7 @@ import (
 	"math/rand"
 	"time"
 
-	"go-crablet/pkg/dcb"
+	"github.com/rodolfodpk/go-crablet/pkg/dcb"
 )
 
 // DatasetConfig defines the size and distribution of test data

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -116,16 +117,22 @@ func dumpEvents(pool *pgxpool.Pool) {
 			id            string
 			eventType     string
 			position      int64
-			tagsBytes     []byte
+			tagsArray     []string
 			dataBytes     []byte
 			causationID   string
 			correlationID string
 		)
-		err := rows.Scan(&id, &eventType, &position, &tagsBytes, &dataBytes, &causationID, &correlationID)
+		err := rows.Scan(&id, &eventType, &position, &tagsArray, &dataBytes, &causationID, &correlationID)
 		Expect(err).NotTo(HaveOccurred())
-		var tags interface{}
-		err = json.Unmarshal(tagsBytes, &tags)
-		Expect(err).NotTo(HaveOccurred())
+
+		// Convert tags array to map for JSON output
+		tagsMap := make(map[string]string)
+		for _, tagItem := range tagsArray {
+			if parts := strings.SplitN(tagItem, ":", 2); len(parts) == 2 {
+				tagsMap[parts[0]] = parts[1]
+			}
+		}
+
 		var data interface{}
 		err = json.Unmarshal(dataBytes, &data)
 		Expect(err).NotTo(HaveOccurred())
@@ -133,7 +140,7 @@ func dumpEvents(pool *pgxpool.Pool) {
 			ID:            id,
 			Type:          eventType,
 			Position:      position,
-			Tags:          tags,
+			Tags:          tagsMap,
 			Data:          data,
 			CausationID:   causationID,
 			CorrelationID: correlationID,

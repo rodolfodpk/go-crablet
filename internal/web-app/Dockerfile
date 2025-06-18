@@ -16,12 +16,15 @@ RUN go mod download
 # Copy source code
 COPY . .
 
+# Set working directory for build
+WORKDIR /app/internal/web-app
+
 # Build the application with optimizations
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -a -installsuffix cgo \
     -ldflags="-w -s" \
     -gcflags="-l=4" \
-    -o web-app ./internal/web-app
+    -o /app/web-app .
 
 # Final stage
 FROM alpine:latest

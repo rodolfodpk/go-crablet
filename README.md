@@ -288,6 +288,40 @@ If you're new to Go and want to run the examples, follow these essential steps:
    go run internal/examples/decision_model/main.go
    ```
 
+## Multi-Module Structure
+
+This project uses a multi-module Go workspace for better organization and reusability:
+
+### Module Organization
+- **`pkg/dcb`**: Core library module containing the DCB event sourcing implementation
+- **`internal/web-app`**: REST API server with k6 performance benchmarks
+- **`internal/benchmarks`**: Go-based performance benchmarks and analysis tools
+
+### Working with Modules
+Each module can be built and tested independently:
+
+```bash
+# Build and test core library
+cd pkg/dcb
+go build ./...
+go test ./...
+
+# Build and run web application
+cd internal/web-app
+go build ./...
+make test  # Run k6 performance benchmarks
+
+# Build and run benchmarks
+cd internal/benchmarks
+go build ./...
+go run main.go  # Run performance benchmarks
+```
+
+### Module Dependencies
+- All modules use Go 1.24
+- `replace` directives enable local development
+- Core library can be used as a reusable dependency
+
 ## References
 
 - [Dynamic Consistency Boundary (DCB)](https://dcb.events/) - A very good resource to understand the DCB pattern and its applications in event-driven systems

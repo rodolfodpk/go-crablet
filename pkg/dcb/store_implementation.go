@@ -2,7 +2,6 @@ package dcb
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -86,7 +85,7 @@ func (es *eventStore) Read(ctx context.Context, query Query, options *ReadOption
 		var row struct {
 			ID            string
 			Type          string
-			Tags          []byte
+			Tags          []string
 			Data          []byte
 			Position      int64
 			CausationID   string
@@ -107,23 +106,11 @@ func (es *eventStore) Read(ctx context.Context, query Query, options *ReadOption
 		event := Event{
 			ID:            row.ID,
 			Type:          row.Type,
+			Tags:          ParseTagsArray(row.Tags),
 			Data:          row.Data,
 			Position:      row.Position,
 			CausationID:   row.CausationID,
 			CorrelationID: row.CorrelationID,
-		}
-
-		// Parse tags
-		var tagMap map[string]string
-		if err := json.Unmarshal(row.Tags, &tagMap); err != nil {
-			return SequencedEvents{}, &EventStoreError{
-				Op:  "read",
-				Err: fmt.Errorf("failed to unmarshal tags for event %s: %w", row.ID, err),
-			}
-		}
-
-		for k, v := range tagMap {
-			event.Tags = append(event.Tags, Tag{Key: k, Value: v})
 		}
 
 		events = append(events, event)
@@ -279,19 +266,9 @@ func (es *eventStore) buildReadQuerySQL(query Query, options *ReadOptions) (stri
 
 			// Add tag conditions - use contains operator for DCB semantics
 			if len(item.Tags) > 0 {
-				tagMap := make(map[string]string, len(item.Tags))
-				for _, tag := range item.Tags {
-					tagMap[tag.Key] = tag.Value
-				}
-				tagJSON, err := json.Marshal(tagMap)
-				if err != nil {
-					return "", nil, &EventStoreError{
-						Op:  "buildReadQuerySQL",
-						Err: fmt.Errorf("failed to marshal tags: %w", err),
-					}
-				}
-				andConditions = append(andConditions, fmt.Sprintf("tags @> $%d::jsonb", argIndex))
-				args = append(args, tagJSON)
+				tagsArray := TagsToArray(item.Tags)
+				andConditions = append(andConditions, fmt.Sprintf("tags @> $%d::text[]", argIndex))
+				args = append(args, tagsArray)
 				argIndex++
 			}
 
@@ -472,18 +449,8 @@ func (es *eventStore) insertEvents(ctx context.Context, events []InputEvent) (in
 
 	// Insert each event
 	for i, event := range events {
-		// Convert tags to JSON
-		tagMap := make(map[string]string)
-		for _, tag := range event.Tags {
-			tagMap[tag.Key] = tag.Value
-		}
-		tagJSON, err := json.Marshal(tagMap)
-		if err != nil {
-			return 0, &EventStoreError{
-				Op:  "insertEvents",
-				Err: fmt.Errorf("failed to marshal tags: %w", err),
-			}
-		}
+		// Convert tags to TEXT[] array
+		tagsArray := TagsToArray(event.Tags)
 
 		// Generate event ID using TypeID with tag-based prefix
 		eventID := generateTagBasedTypeID(event.Tags)
@@ -504,7 +471,7 @@ func (es *eventStore) insertEvents(ctx context.Context, events []InputEvent) (in
 		_, err = tx.Exec(ctx, `
 			INSERT INTO events (id, type, tags, data, position, causation_id, correlation_id)
 			VALUES ($1, $2, $3, $4, nextval('events_position_seq'), $5, $6)
-		`, eventID, event.Type, tagJSON, event.Data, causationID, correlationID)
+		`, eventID, event.Type, tagsArray, event.Data, causationID, correlationID)
 		if err != nil {
 			return 0, &ResourceError{
 				EventStoreError: EventStoreError{
