@@ -1,6 +1,6 @@
 # Overview: Exploring Dynamic Consistency Boundary (DCB) Concepts in go-crablet
 
-go-crablet is a Go library for event sourcing, exploring concepts inspired by the [Dynamic Consistency Boundary (DCB)](https://dcb.events/) pattern. We're learning how DCB enables you to:
+go-crablet is a Go library for event sourcing, exploring and learning about concepts inspired by the [Dynamic Consistency Boundary (DCB)](https://dcb.events/) pattern. We're learning how DCB enables you to:
 
 - Project multiple states and check business invariants in a single query
 - Use tag-based, OR-combined queries for cross-entity consistency
@@ -8,7 +8,7 @@ go-crablet is a Go library for event sourcing, exploring concepts inspired by th
 - Stream events efficiently for large datasets
 - Use channel-based streaming for Go-idiomatic event processing
 
-## Key Concepts We're Exploring
+## Key Concepts We're Learning About
 
 - **Batch Projection**: Project multiple states (decision model) in one database query
 - **Combined Append Condition**: Use a single, OR-combined query for optimistic locking
@@ -40,9 +40,9 @@ type ChannelEventStore interface {
 }
 ```
 
-## DCB Decision Model Pattern (Our Understanding)
+## Our Understanding of DCB Decision Model Pattern
 
-A DCB decision model is built by:
+We're exploring how a Dynamic Consistency Boundary decision model might be built by:
 1. Defining projectors for each business rule or invariant
 2. Projecting all states in a single query
 3. Building a combined append condition
@@ -92,7 +92,7 @@ for result := range resultChan {
 - **ReadStreamChannel**: Channel-based streaming for Go-idiomatic processing
 - **ProjectDecisionModelChannel**: Immediate projection results via channels
 
-## Why Explore DCB?
+## Why Explore Dynamic Consistency Boundaries?
 - **Single-query consistency**: All invariants checked atomically
 - **No aggregates required**: Consistency boundaries are defined by your queries
 - **Efficient**: One database round trip for all business rules

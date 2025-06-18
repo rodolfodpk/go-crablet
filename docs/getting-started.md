@@ -28,7 +28,7 @@ If you're new to Go and want to run the examples, follow these essential steps:
 
 ## Available Examples
 
-- `internal/examples/decision_model/main.go` - Complete DCB pattern
+- `internal/examples/decision_model/main.go` - Exploring Dynamic Consistency Boundary concepts
 - `internal/examples/enrollment/main.go` - Course enrollment with business rules
 - `internal/examples/transfer/main.go` - Money transfer between accounts
 - `internal/examples/readstream/main.go` - Event streaming basics

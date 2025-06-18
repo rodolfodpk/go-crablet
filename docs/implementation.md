@@ -1,6 +1,12 @@
 # Implementation Details
 
+## Dynamic Consistency Boundary Pattern Exploration
+
+This document describes our current understanding and implementation approach for exploring Dynamic Consistency Boundary (DCB) concepts in go-crablet.
+
 ## DCB Pattern Exploration
+
+Our current understanding of Dynamic Consistency Boundary concepts for command handlers:
 
 go-crablet explores the Dynamic Consistency Boundary (DCB) pattern using:
 
@@ -221,7 +227,7 @@ type ReadOptions struct {
 
 ## Query Computation
 
-Understanding how the EventStore methods compute the queries they need to fetch events is crucial for the DCB pattern.
+Understanding how the EventStore methods compute the queries they need to fetch events is crucial for exploring Dynamic Consistency Boundary concepts.
 
 ### Read / ReadStream Methods
 
@@ -268,8 +274,8 @@ func (es *eventStore) combineProjectorQueries(projectors []BatchProjector) Query
 ```
 
 **Why this matters for DCB:**
+- This is part of our exploration of Dynamic Consistency Boundary concepts: using the same query scope for both projection and optimistic locking
 - The combined query ensures that **all relevant events** for all projectors are fetched in a single database operation
-- This is the foundation of the DCB pattern: using the same query scope for both projection and optimistic locking
 - The `AppendCondition` returned by `ProjectDecisionModel` uses this same combined query to ensure consistency
 
 ### Query Computation Summary
