@@ -39,6 +39,7 @@ import (
     "log"
     "github.com/rodolfodpk/go-crablet/pkg/dcb"
     "github.com/jackc/pgx/v5/pgxpool"
+    "time"
 )
 
 func main() {
@@ -48,7 +49,7 @@ func main() {
 
     // Command 1: Create Course
     createCourseCmd := CreateCourseCommand{
-        CourseID: "c1",
+        CourseID: generateUniqueID("course"),
         Title:    "Introduction to Event Sourcing",
         Capacity: 2,
     }
@@ -59,7 +60,7 @@ func main() {
 
     // Command 2: Register Student
     registerStudentCmd := RegisterStudentCommand{
-        StudentID: "s1",
+        StudentID: generateUniqueID("student"),
         Name:      "Alice",
         Email:     "alice@example.com",
     }
@@ -70,8 +71,8 @@ func main() {
 
     // Command 3: Enroll Student in Course
     enrollCmd := EnrollStudentCommand{
-        StudentID: "s1",
-        CourseID:  "c1",
+        StudentID: registerStudentCmd.StudentID,
+        CourseID:  createCourseCmd.CourseID,
     }
     err = handleEnrollStudent(ctx, store, enrollCmd)
     if err != nil {
@@ -79,6 +80,11 @@ func main() {
     }
 
     fmt.Println("All commands executed successfully!")
+}
+
+// Generate unique IDs for better concurrency
+func generateUniqueID(prefix string) string {
+    return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
 }
 
 // Command handlers with their own business rules

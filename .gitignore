@@ -17,6 +17,11 @@ coverage.*
 *.coverprofile
 profile.cov
 
+# k6 test results and artifacts
+k6-*.json
+k6-*.html
+k6-results/
+
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
