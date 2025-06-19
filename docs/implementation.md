@@ -35,31 +35,27 @@ type EventStore interface {
 
     // ProjectDecisionModel projects multiple states using multiple projectors and returns final states with append condition
     // This is the primary DCB API for building decision models in command handlers
-    ProjectDecisionModel(ctx context.Context, projectors []BatchProjector, options *ReadOptions) (map[string]any, AppendCondition, error)
+    ProjectDecisionModel(ctx context.Context, projectors []BatchProjector) (map[string]any, AppendCondition, error)
 }
 ```
 
-### ChannelEventStore Extension Interface
+### CrabletEventStore Extension Interface
 
 The extension interface provides Go-idiomatic channel-based streaming:
 
 ```go
-type ChannelEventStore interface {
+type CrabletEventStore interface {
     EventStore  // Inherits all core methods
 
     // ReadStreamChannel creates a channel-based stream of events matching a query
     // This is optimized for small to medium datasets (< 500 events) and provides
     // a more Go-idiomatic interface using channels
-    ReadStreamChannel(ctx context.Context, query Query, options *ReadOptions) (<-chan Event, error)
-
-    // NewEventStream creates a new EventStream for the given query
-    // This provides more control over the streaming process
-    NewEventStream(ctx context.Context, query Query, options *ReadOptions) (*EventStream, error)
+    ReadStreamChannel(ctx context.Context, query Query) (<-chan Event, error)
 
     // ProjectDecisionModelChannel projects multiple states using channel-based streaming
     // This is optimized for small to medium datasets (< 500 events) and provides
     // a more Go-idiomatic interface using channels for state projection
-    ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector, options *ReadOptions) (<-chan ProjectionResult, error)
+    ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector) (<-chan ProjectionResult, error)
 }
 ```
 

@@ -17,20 +17,18 @@ Channel-based streaming is optimized for **small to medium datasets** (< 500 eve
 ```go
 type EventStore interface {
     Read(ctx context.Context, query Query, options *ReadOptions) (SequencedEvents, error)
-    ReadStream(ctx context.Context, query Query, options *ReadOptions) (EventIterator, error)
     Append(ctx context.Context, events []InputEvent, condition *AppendCondition) (int64, error)
-    ProjectDecisionModel(ctx context.Context, projectors []BatchProjector, options *ReadOptions) (map[string]any, AppendCondition, error)
+    ProjectDecisionModel(ctx context.Context, projectors []BatchProjector) (map[string]any, AppendCondition, error)
 }
 ```
 
-### ChannelEventStore Extension Interface
+### CrabletEventStore Extension Interface
 ```go
-type ChannelEventStore interface {
+type CrabletEventStore interface {
     EventStore  // Inherits all core methods
     
-    ReadStreamChannel(ctx context.Context, query Query, options *ReadOptions) (<-chan Event, error)
-    NewEventStream(ctx context.Context, query Query, options *ReadOptions) (*EventStream, error)
-    ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector, options *ReadOptions) (<-chan ProjectionResult, error)
+    ReadStreamChannel(ctx context.Context, query Query) (<-chan Event, error)
+    ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector) (<-chan ProjectionResult, error)
 }
 ```
 
@@ -49,7 +47,7 @@ channelStore := store.(dcb.ChannelEventStore)
 query := dcb.NewQuerySimple(dcb.NewTags("user_id", "user-1"), "UserCreated", "UserUpdated")
 
 // Channel-based streaming
-eventChan, err := channelStore.ReadStreamChannel(ctx, query, nil)
+eventChan, err := channelStore.ReadStreamChannel(ctx, query)
 if err != nil {
     log.Fatal(err)
 }
@@ -97,7 +95,7 @@ projectors := []dcb.BatchProjector{
 }
 
 // Channel-based projection
-resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors, nil)
+resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
 if err != nil {
     log.Fatal(err)
 }
@@ -258,7 +256,7 @@ courseExists := states["courseExists"].(bool)
 ```go
 // Channel-based approach
 channelStore := store.(dcb.ChannelEventStore)
-resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors, nil)
+resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
 if err != nil {
     return err
 }
