@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -83,16 +82,13 @@ func (es *eventStore) Read(ctx context.Context, query Query, options *ReadOption
 
 	for rows.Next() {
 		var row struct {
-			ID            string
-			Type          string
-			Tags          []string
-			Data          []byte
-			Position      int64
-			CausationID   string
-			CorrelationID string
+			Type     string
+			Tags     []string
+			Data     []byte
+			Position int64
 		}
 
-		if err := rows.Scan(&row.ID, &row.Type, &row.Tags, &row.Data, &row.Position, &row.CausationID, &row.CorrelationID); err != nil {
+		if err := rows.Scan(&row.Type, &row.Tags, &row.Data, &row.Position); err != nil {
 			return SequencedEvents{}, &ResourceError{
 				EventStoreError: EventStoreError{
 					Op:  "read",
@@ -104,13 +100,10 @@ func (es *eventStore) Read(ctx context.Context, query Query, options *ReadOption
 
 		// Convert row to Event
 		event := Event{
-			ID:            row.ID,
-			Type:          row.Type,
-			Tags:          ParseTagsArray(row.Tags),
-			Data:          row.Data,
-			Position:      row.Position,
-			CausationID:   row.CausationID,
-			CorrelationID: row.CorrelationID,
+			Type:     row.Type,
+			Tags:     ParseTagsArray(row.Tags),
+			Data:     row.Data,
+			Position: row.Position,
 		}
 
 		events = append(events, event)
@@ -293,7 +286,7 @@ func (es *eventStore) buildReadQuerySQL(query Query, options *ReadOptions) (stri
 
 	// Build final query efficiently
 	var sqlQuery strings.Builder
-	sqlQuery.WriteString("SELECT id, type, tags, data, position, causation_id, correlation_id FROM events")
+	sqlQuery.WriteString("SELECT type, tags, data, position FROM events")
 
 	if len(conditions) > 0 {
 		sqlQuery.WriteString(" WHERE ")
@@ -302,9 +295,9 @@ func (es *eventStore) buildReadQuerySQL(query Query, options *ReadOptions) (stri
 
 	sqlQuery.WriteString(" ORDER BY position ASC")
 
+	// Add limit if specified
 	if options != nil && options.Limit != nil {
-		sqlQuery.WriteString(fmt.Sprintf(" LIMIT $%d", argIndex))
-		args = append(args, *options.Limit)
+		sqlQuery.WriteString(fmt.Sprintf(" LIMIT %d", *options.Limit))
 	}
 
 	return sqlQuery.String(), args, nil
@@ -433,45 +426,16 @@ func (es *eventStore) insertEvents(ctx context.Context, events []InputEvent) (in
 	}
 	defer tx.Rollback(ctx)
 
-	// Check if this is the first event in the store
-	var firstEventID string
-	var firstEventCorrelationID string
-	err = tx.QueryRow(ctx, "SELECT id, correlation_id FROM events ORDER BY position ASC LIMIT 1").Scan(&firstEventID, &firstEventCorrelationID)
-	if err != nil && err != pgx.ErrNoRows {
-		return 0, &ResourceError{
-			EventStoreError: EventStoreError{
-				Op:  "insertEvents",
-				Err: fmt.Errorf("failed to check for existing events: %w", err),
-			},
-			Resource: "database",
-		}
-	}
-
 	// Insert each event
-	for i, event := range events {
+	for _, event := range events {
 		// Convert tags to TEXT[] array
 		tagsArray := TagsToArray(event.Tags)
 
-		// Generate event ID using TypeID with tag-based prefix
-		eventID := generateTagBasedTypeID(event.Tags)
-
-		// Determine causation and correlation IDs
-		var causationID, correlationID string
-		if firstEventID == "" {
-			// This is the first event in the store
-			causationID = eventID
-			correlationID = eventID
-		} else {
-			// Use the first event's ID as causation ID and first event's correlation ID as correlation ID
-			causationID = firstEventID
-			correlationID = firstEventCorrelationID
-		}
-
 		// Insert event
 		_, err = tx.Exec(ctx, `
-			INSERT INTO events (id, type, tags, data, position, causation_id, correlation_id)
-			VALUES ($1, $2, $3, $4, nextval('events_position_seq'), $5, $6)
-		`, eventID, event.Type, tagsArray, event.Data, causationID, correlationID)
+			INSERT INTO events (type, tags, data, position)
+			VALUES ($1, $2, $3, nextval('events_position_seq'))
+		`, event.Type, tagsArray, event.Data)
 		if err != nil {
 			return 0, &ResourceError{
 				EventStoreError: EventStoreError{
@@ -480,12 +444,6 @@ func (es *eventStore) insertEvents(ctx context.Context, events []InputEvent) (in
 				},
 				Resource: "database",
 			}
-		}
-
-		// Update first event info for subsequent events in this batch
-		if i == 0 {
-			firstEventID = eventID
-			firstEventCorrelationID = correlationID
 		}
 	}
 

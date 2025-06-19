@@ -12,7 +12,7 @@ import (
 var _ = Describe("Channel-Based Streaming", func() {
 	var (
 		store        EventStore
-		channelStore ChannelEventStore
+		channelStore CrabletEventStore
 		ctx          context.Context
 	)
 
@@ -20,8 +20,8 @@ var _ = Describe("Channel-Based Streaming", func() {
 		// Use shared PostgreSQL container and truncate events between tests
 		store = NewEventStoreFromPool(pool)
 		var ok bool
-		channelStore, ok = store.(ChannelEventStore)
-		Expect(ok).To(BeTrue(), "Store should implement ChannelEventStore")
+		channelStore, ok = store.(CrabletEventStore)
+		Expect(ok).To(BeTrue(), "Store should implement CrabletEventStore")
 		ctx = context.Background()
 
 		// Truncate events table before each test
@@ -43,7 +43,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 			// Test channel-based streaming
 			query := NewQuerySimple(NewTags("test", "value"), "TestEvent")
-			eventChan, err := channelStore.ReadStreamChannel(ctx, query, nil)
+			eventChan, err := channelStore.ReadStreamChannel(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 
 			count := 0
@@ -57,7 +57,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 		It("should handle empty result sets", func() {
 			query := NewQuerySimple(NewTags("non-existent", "value"), "TestEvent")
-			eventChan, err := channelStore.ReadStreamChannel(ctx, query, nil)
+			eventChan, err := channelStore.ReadStreamChannel(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 
 			count := 0
@@ -83,7 +83,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 			defer cancel()
 
 			query := NewQuerySimple(NewTags("test", "value"), "TestEvent")
-			eventChan, err := channelStore.ReadStreamChannel(cancelCtx, query, nil)
+			eventChan, err := channelStore.ReadStreamChannel(cancelCtx, query)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Cancel context after first event
@@ -112,8 +112,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 			// Test with small batch size
 			query := NewQuerySimple(NewTags("test", "value"), "TestEvent")
-			options := &ReadOptions{BatchSize: intPtr(3)}
-			eventChan, err := channelStore.ReadStreamChannel(ctx, query, options)
+			eventChan, err := channelStore.ReadStreamChannel(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 
 			count := 0
@@ -123,61 +122,6 @@ var _ = Describe("Channel-Based Streaming", func() {
 			}
 
 			Expect(count).To(Equal(10))
-		})
-	})
-
-	Describe("NewEventStream", func() {
-		It("should create event stream with control", func() {
-			// Setup test data
-			event1 := NewInputEvent("TestEvent", NewTags("test", "value"), toJSON(map[string]string{"data": "value1"}))
-			event2 := NewInputEvent("TestEvent", NewTags("test", "value"), toJSON(map[string]string{"data": "value2"}))
-
-			events := []InputEvent{event1, event2}
-
-			_, err := store.Append(ctx, events, nil)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Create event stream
-			query := NewQuerySimple(NewTags("test", "value"), "TestEvent")
-			stream, err := channelStore.NewEventStream(ctx, query, nil)
-			Expect(err).NotTo(HaveOccurred())
-			defer stream.Close()
-
-			// Read events from channel
-			eventChan := stream.Events()
-			count := 0
-			for range eventChan {
-				count++
-			}
-
-			Expect(count).To(Equal(2))
-			Expect(stream.err).To(BeNil())
-		})
-
-		It("should handle multiple Event() calls on same position", func() {
-			// Setup test data
-			inputEvent := NewInputEvent("TestEvent", NewTags("test", "value"), toJSON(map[string]string{"data": "value1"}))
-
-			events := []InputEvent{inputEvent}
-
-			_, err := store.Append(ctx, events, nil)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Create event stream
-			query := NewQuerySimple(NewTags("test", "value"), "TestEvent")
-			stream, err := channelStore.NewEventStream(ctx, query, nil)
-			Expect(err).NotTo(HaveOccurred())
-			defer stream.Close()
-
-			// Read one event
-			eventChan := stream.Events()
-			streamedEvent, ok := <-eventChan
-			Expect(ok).To(BeTrue())
-			Expect(streamedEvent.Type).To(Equal("TestEvent"))
-
-			// Verify no more events
-			_, ok = <-eventChan
-			Expect(ok).To(BeFalse())
 		})
 	})
 
@@ -212,7 +156,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 			}
 
 			// Use channel-based projection
-			resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors, nil)
+			resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Process results
@@ -237,7 +181,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 		})
 
 		It("should handle empty projectors list", func() {
-			_, err := channelStore.ProjectDecisionModelChannel(ctx, []BatchProjector{}, nil)
+			_, err := channelStore.ProjectDecisionModelChannel(ctx, []BatchProjector{})
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("at least one projector is required"))
 		})
@@ -251,7 +195,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 				}},
 			}
 
-			_, err := channelStore.ProjectDecisionModelChannel(ctx, projectors, nil)
+			_, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("nil transition function"))
 		})
@@ -280,7 +224,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 				}},
 			}
 
-			resultChan, err := channelStore.ProjectDecisionModelChannel(cancelCtx, projectors, nil)
+			resultChan, err := channelStore.ProjectDecisionModelChannel(cancelCtx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Cancel context after first result
@@ -311,7 +255,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 				}},
 			}
 
-			resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors, nil)
+			resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			count := 0
@@ -362,7 +306,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 			}
 
 			// Use channel-based projection
-			resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors, nil)
+			resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Process results
@@ -410,7 +354,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 			}
 
 			// Use channel-based projection
-			resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors, nil)
+			resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Process results
@@ -427,10 +371,10 @@ var _ = Describe("Channel-Based Streaming", func() {
 	})
 
 	Describe("Extension Interface Pattern", func() {
-		It("should properly implement ChannelEventStore interface", func() {
+		It("should properly implement CrabletEventStore interface", func() {
 			// Verify that the store implements both interfaces
 			var eventStore EventStore = store
-			var channelEventStore ChannelEventStore = channelStore
+			var channelEventStore CrabletEventStore = channelStore
 
 			// Test that we can use both interfaces
 			Expect(eventStore).NotTo(BeNil())
@@ -442,12 +386,12 @@ var _ = Describe("Channel-Based Streaming", func() {
 		})
 
 		It("should handle type assertion failures gracefully", func() {
-			// Create a store that doesn't implement ChannelEventStore
+			// Create a store that doesn't implement CrabletEventStore
 			// This would be a different implementation
 			regularStore := store
 
-			// Try to cast to ChannelEventStore
-			_, ok := regularStore.(ChannelEventStore)
+			// Try to cast to CrabletEventStore
+			_, ok := regularStore.(CrabletEventStore)
 			// This should be true for our implementation, but we're testing the pattern
 			Expect(ok).To(BeTrue())
 		})
@@ -468,7 +412,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 			// Test channel-based streaming performance
 			start := time.Now()
 			query := NewQuerySimple(NewTags("test", "value"), "TestEvent")
-			eventChan, err := channelStore.ReadStreamChannel(ctx, query, nil)
+			eventChan, err := channelStore.ReadStreamChannel(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 
 			count := 0

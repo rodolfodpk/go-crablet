@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rodolfodpk/go-crablet/internal/benchmarks/setup"
-	"github.com/rodolfodpk/go-crablet/pkg/dcb"
+	"go-crablet/pkg/dcb"
+
+	"go-crablet/internal/benchmarks/setup"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -16,7 +17,7 @@ import (
 // BenchmarkContext holds the context for running benchmarks
 type BenchmarkContext struct {
 	Store        dcb.EventStore
-	ChannelStore dcb.ChannelEventStore
+	ChannelStore dcb.CrabletEventStore
 	HasChannel   bool
 	Dataset      *setup.Dataset
 	Queries      []dcb.Query
@@ -64,8 +65,8 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
 		b.Fatalf("Failed to create event store: %v", err)
 	}
 
-	// Check if ChannelEventStore is available
-	channelStore, hasChannel := store.(dcb.ChannelEventStore)
+	// Check if CrabletEventStore is available
+	channelStore, hasChannel := store.(dcb.CrabletEventStore)
 
 	// Generate dataset
 	config, exists := setup.DatasetSizes[datasetSize]
@@ -213,7 +214,7 @@ func BenchmarkReadStreamChannel(b *testing.B, benchCtx *BenchmarkContext, queryI
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		eventChan, err := benchCtx.ChannelStore.ReadStreamChannel(ctx, query, nil)
+		eventChan, err := benchCtx.ChannelStore.ReadStreamChannel(ctx, query)
 		if err != nil {
 			b.Fatalf("ReadStreamChannel failed: %v", err)
 		}
@@ -243,7 +244,7 @@ func BenchmarkProjectDecisionModel(b *testing.B, benchCtx *BenchmarkContext, pro
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		_, _, err := benchCtx.Store.ProjectDecisionModel(ctx, projectors, nil)
+		_, _, err := benchCtx.Store.ProjectDecisionModel(ctx, projectors)
 		if err != nil {
 			b.Fatalf("ProjectDecisionModel failed: %v", err)
 		}
@@ -268,7 +269,7 @@ func BenchmarkProjectDecisionModelChannel(b *testing.B, benchCtx *BenchmarkConte
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		resultChan, err := benchCtx.ChannelStore.ProjectDecisionModelChannel(ctx, projectors, nil)
+		resultChan, err := benchCtx.ChannelStore.ProjectDecisionModelChannel(ctx, projectors)
 		if err != nil {
 			b.Fatalf("ProjectDecisionModelChannel failed: %v", err)
 		}
@@ -314,7 +315,7 @@ func BenchmarkMemoryUsage(b *testing.B, benchCtx *BenchmarkContext, operation st
 			}
 			iterator.Close()
 		case "projection":
-			_, _, err := benchCtx.Store.ProjectDecisionModel(ctx, benchCtx.Projectors, nil)
+			_, _, err := benchCtx.Store.ProjectDecisionModel(ctx, benchCtx.Projectors)
 			if err != nil {
 				b.Fatalf("ProjectDecisionModel failed: %v", err)
 			}

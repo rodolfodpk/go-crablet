@@ -251,10 +251,10 @@ func demonstrateCursorProjection(ctx context.Context, store dcb.EventStore) {
 func demonstrateChannelProjection(ctx context.Context, store dcb.EventStore) {
 	fmt.Println("   Using channel-based ProjectDecisionModelChannel:")
 
-	// Check if store implements ChannelEventStore
-	channelStore, ok := store.(dcb.ChannelEventStore)
+	// Check if store implements CrabletEventStore
+	channelStore, ok := store.(dcb.CrabletEventStore)
 	if !ok {
-		fmt.Println("   - Store does not implement ChannelEventStore interface")
+		fmt.Println("   - Store does not implement CrabletEventStore interface")
 		return
 	}
 

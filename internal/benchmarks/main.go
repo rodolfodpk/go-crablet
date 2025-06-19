@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/rodolfodpk/go-crablet/pkg/dcb"
+	"go-crablet/pkg/dcb"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -52,8 +52,8 @@ func main() {
 		log.Fatalf("Failed to create event store: %v", err)
 	}
 
-	// Check if ChannelEventStore is available
-	channelStore, hasChannel := store.(dcb.ChannelEventStore)
+	// Check if CrabletEventStore is available
+	channelStore, hasChannel := store.(dcb.CrabletEventStore)
 
 	fmt.Println("=== DCB Performance Benchmarks ===")
 	fmt.Printf("Database: localhost:5432/dcb_app\n")
@@ -99,7 +99,7 @@ func runReadBenchmarks(ctx context.Context, store dcb.EventStore) {
 	fmt.Println()
 }
 
-func runStreamBenchmarks(ctx context.Context, store dcb.EventStore, channelStore dcb.ChannelEventStore, hasChannel bool) {
+func runStreamBenchmarks(ctx context.Context, store dcb.EventStore, channelStore dcb.CrabletEventStore, hasChannel bool) {
 	fmt.Println("--- Streaming Benchmarks ---")
 
 	// Iterator vs Channel comparison
@@ -113,7 +113,7 @@ func runStreamBenchmarks(ctx context.Context, store dcb.EventStore, channelStore
 	fmt.Println()
 }
 
-func runProjectionBenchmarks(ctx context.Context, store dcb.EventStore, channelStore dcb.ChannelEventStore, hasChannel bool) {
+func runProjectionBenchmarks(ctx context.Context, store dcb.EventStore, channelStore dcb.CrabletEventStore, hasChannel bool) {
 	fmt.Println("--- Projection Benchmarks ---")
 
 	// Single projector
@@ -324,7 +324,7 @@ func benchmarkComplexQueries(ctx context.Context, store dcb.EventStore) {
 	}
 }
 
-func benchmarkIteratorVsChannel(ctx context.Context, store dcb.EventStore, channelStore dcb.ChannelEventStore) {
+func benchmarkIteratorVsChannel(ctx context.Context, store dcb.EventStore, channelStore dcb.CrabletEventStore) {
 	fmt.Println("Iterator vs Channel:")
 
 	query := dcb.NewQuery(dcb.NewTags(), "StudentEnrolledInCourse")
@@ -346,7 +346,7 @@ func benchmarkIteratorVsChannel(ctx context.Context, store dcb.EventStore, chann
 
 	// Channel approach
 	start = time.Now()
-	eventChan, err := channelStore.ReadStreamChannel(ctx, query, nil)
+	eventChan, err := channelStore.ReadStreamChannel(ctx, query)
 	if err != nil {
 		fmt.Printf("  Channel: Error creating stream: %v\n", err)
 	} else {
@@ -359,7 +359,7 @@ func benchmarkIteratorVsChannel(ctx context.Context, store dcb.EventStore, chann
 	}
 }
 
-func benchmarkMemoryUsage(ctx context.Context, store dcb.EventStore, channelStore dcb.ChannelEventStore, hasChannel bool) {
+func benchmarkMemoryUsage(ctx context.Context, store dcb.EventStore, channelStore dcb.CrabletEventStore, hasChannel bool) {
 	fmt.Println("Memory Usage Comparison:")
 
 	// This would require runtime.ReadMemStats() for actual memory measurement
@@ -382,7 +382,7 @@ func benchmarkSingleProjector(ctx context.Context, store dcb.EventStore) {
 	}
 
 	start := time.Now()
-	states, _, err := store.ProjectDecisionModel(ctx, []dcb.BatchProjector{projector}, nil)
+	states, _, err := store.ProjectDecisionModel(ctx, []dcb.BatchProjector{projector})
 	duration := time.Since(start)
 
 	if err != nil {
@@ -429,7 +429,7 @@ func benchmarkMultipleProjectors(ctx context.Context, store dcb.EventStore) {
 	}
 
 	start := time.Now()
-	states, _, err := store.ProjectDecisionModel(ctx, projectors, nil)
+	states, _, err := store.ProjectDecisionModel(ctx, projectors)
 	duration := time.Since(start)
 
 	if err != nil {
@@ -442,7 +442,7 @@ func benchmarkMultipleProjectors(ctx context.Context, store dcb.EventStore) {
 	}
 }
 
-func benchmarkChannelProjection(ctx context.Context, channelStore dcb.ChannelEventStore) {
+func benchmarkChannelProjection(ctx context.Context, channelStore dcb.CrabletEventStore) {
 	fmt.Println("Channel Projection:")
 
 	projectors := []dcb.BatchProjector{
@@ -459,7 +459,7 @@ func benchmarkChannelProjection(ctx context.Context, channelStore dcb.ChannelEve
 	}
 
 	start := time.Now()
-	resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors, nil)
+	resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
 	if err != nil {
 		fmt.Printf("  Error: %v\n", err)
 		return

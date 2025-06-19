@@ -7,26 +7,20 @@ import (
 
 // rowEvent is a helper struct for scanning database rows.
 type rowEvent struct {
-	ID            string
-	Type          string
-	Tags          []string
-	Data          []byte
-	Position      int64
-	CausationID   string
-	CorrelationID string
+	Type     string
+	Tags     []string
+	Data     []byte
+	Position int64
 }
 
 // convertRowToEvent converts a database row to an Event
 func convertRowToEvent(row rowEvent) Event {
-	var e Event
-	e.ID = row.ID
-	e.Type = row.Type
-	e.Tags = ParseTagsArray(row.Tags)
-	e.Data = row.Data
-	e.Position = row.Position
-	e.CausationID = row.CausationID
-	e.CorrelationID = row.CorrelationID
-	return e
+	return Event{
+		Type:     row.Type,
+		Tags:     ParseTagsArray(row.Tags),
+		Data:     row.Data,
+		Position: row.Position,
+	}
 }
 
 // combineProjectorQueries combines multiple projector queries into a single OR query

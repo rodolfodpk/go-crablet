@@ -145,7 +145,7 @@ func (it *CursorEventIterator) fetchNextBatch() bool {
 // scanCurrentRow scans the current row from the batch
 func (it *CursorEventIterator) scanCurrentRow() {
 	var row rowEvent
-	if err := it.currentBatch.Scan(&row.ID, &row.Type, &row.Tags, &row.Data, &row.Position, &row.CausationID, &row.CorrelationID); err != nil {
+	if err := it.currentBatch.Scan(&row.Type, &row.Tags, &row.Data, &row.Position); err != nil {
 		it.err = &ResourceError{
 			EventStoreError: EventStoreError{
 				Op:  "CursorEventIterator.scanCurrentRow",

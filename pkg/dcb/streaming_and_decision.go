@@ -8,9 +8,19 @@ import (
 // ProjectDecisionModel projects multiple states using projectors and returns final states and append condition
 // This is the primary DCB API for building decision models in command handlers
 // The function internally computes the combined query from all projectors for the append condition
-func (es *eventStore) ProjectDecisionModel(ctx context.Context, projectors []BatchProjector, options *ReadOptions) (map[string]any, AppendCondition, error) {
+func (es *eventStore) ProjectDecisionModel(ctx context.Context, projectors []BatchProjector) (map[string]any, AppendCondition, error) {
 	// Validate projectors
 	for _, bp := range projectors {
+		if bp.ID == "" {
+			return nil, AppendCondition{}, &ValidationError{
+				EventStoreError: EventStoreError{
+					Op:  "ProjectDecisionModel",
+					Err: fmt.Errorf("projector ID cannot be empty"),
+				},
+				Field: "projector.id",
+				Value: "empty",
+			}
+		}
 		if bp.StateProjector.TransitionFn == nil {
 			return nil, AppendCondition{}, &ValidationError{
 				EventStoreError: EventStoreError{
@@ -21,34 +31,27 @@ func (es *eventStore) ProjectDecisionModel(ctx context.Context, projectors []Bat
 				Value: "nil",
 			}
 		}
-	}
-
-	// Compute the combined query from all projectors (DCB pattern)
-	query := es.combineProjectorQueries(projectors)
-
-	// Validate that the combined query is not empty (same validation as Read method)
-	if len(query.Items) == 0 {
-		return nil, AppendCondition{}, &ValidationError{
-			EventStoreError: EventStoreError{
-				Op:  "ProjectDecisionModel",
-				Err: fmt.Errorf("query must contain at least one item"),
-			},
-			Field: "query",
-			Value: "empty",
+		if len(bp.StateProjector.Query.Items) == 0 {
+			return nil, AppendCondition{}, &ValidationError{
+				EventStoreError: EventStoreError{
+					Op:  "ProjectDecisionModel",
+					Err: fmt.Errorf("projector %s has empty query", bp.ID),
+				},
+				Field: "query",
+				Value: "empty",
+			}
 		}
 	}
 
-	// Check if we should use cursor-based streaming
-	if options != nil && options.BatchSize != nil && *options.BatchSize > 0 {
-		return es.projectDecisionModelWithCursor(ctx, query, options, projectors)
-	}
+	// Build combined query from all projectors
+	query := es.combineProjectorQueries(projectors)
 
-	// Use regular query for smaller datasets
-	return es.projectDecisionModelWithQuery(ctx, query, options, projectors)
+	// Use regular query for all datasets (simplified approach)
+	return es.projectDecisionModelWithQuery(ctx, query, projectors)
 }
 
 // projectDecisionModelWithCursor uses cursor-based streaming for large datasets
-func (es *eventStore) projectDecisionModelWithCursor(ctx context.Context, query Query, options *ReadOptions, projectors []BatchProjector) (map[string]any, AppendCondition, error) {
+func (es *eventStore) projectDecisionModelWithCursor(ctx context.Context, query Query, projectors []BatchProjector) (map[string]any, AppendCondition, error) {
 	// Initialize states for all projectors
 	states := make(map[string]any)
 	for _, bp := range projectors {
@@ -59,7 +62,7 @@ func (es *eventStore) projectDecisionModelWithCursor(ctx context.Context, query 
 	appendCondition := es.buildAppendConditionFromProjectors(projectors)
 
 	// Use ReadStream for cursor-based processing
-	iterator, err := es.ReadStream(ctx, query, options)
+	iterator, err := es.ReadStream(ctx, query, nil)
 	if err != nil {
 		return nil, AppendCondition{}, err
 	}
@@ -103,10 +106,10 @@ func (es *eventStore) projectDecisionModelWithCursor(ctx context.Context, query 
 	return states, appendCondition, nil
 }
 
-// projectDecisionModelWithQuery uses the original query-based approach for small datasets
-func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Query, options *ReadOptions, projectors []BatchProjector) (map[string]any, AppendCondition, error) {
+// projectDecisionModelWithQuery uses query-based approach for small datasets
+func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Query, projectors []BatchProjector) (map[string]any, AppendCondition, error) {
 	// Build SQL query based on query items
-	sqlQuery, args, err := es.buildReadQuerySQL(query, options)
+	sqlQuery, args, err := es.buildReadQuerySQL(query, nil)
 	if err != nil {
 		return nil, AppendCondition{}, err
 	}
@@ -138,7 +141,7 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 	var hasEvents bool
 	for rows.Next() {
 		var row rowEvent
-		if err := rows.Scan(&row.ID, &row.Type, &row.Tags, &row.Data, &row.Position, &row.CausationID, &row.CorrelationID); err != nil {
+		if err := rows.Scan(&row.Type, &row.Tags, &row.Data, &row.Position); err != nil {
 			return nil, AppendCondition{}, &ResourceError{
 				EventStoreError: EventStoreError{
 					Op:  "ProjectDecisionModel",

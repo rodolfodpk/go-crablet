@@ -3,7 +3,7 @@ package setup
 import (
 	"encoding/json"
 
-	"github.com/rodolfodpk/go-crablet/pkg/dcb"
+	"go-crablet/pkg/dcb"
 )
 
 // CourseState represents the projected state of a course
