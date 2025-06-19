@@ -165,36 +165,8 @@ func BenchmarkRead(b *testing.B, benchCtx *BenchmarkContext, queryIndex int) {
 	}
 }
 
-// BenchmarkReadStream benchmarks event streaming with iterator
-func BenchmarkReadStream(b *testing.B, benchCtx *BenchmarkContext, queryIndex int) {
-	ctx := context.Background()
-
-	if queryIndex >= len(benchCtx.Queries) {
-		b.Fatalf("Query index out of range: %d", queryIndex)
-	}
-
-	query := benchCtx.Queries[queryIndex]
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		iterator, err := benchCtx.Store.ReadStream(ctx, query, nil)
-		if err != nil {
-			b.Fatalf("ReadStream failed: %v", err)
-		}
-
-		count := 0
-		for iterator.Next() {
-			count++
-		}
-		iterator.Close()
-
-		if count == 0 && i == 0 {
-			b.Logf("Warning: No events found for query")
-		}
-	}
-}
+// BenchmarkReadStream has been removed - use Read instead for batch reading
+// ReadStream was replaced with ReadStreamChannel for streaming operations
 
 // BenchmarkReadStreamChannel benchmarks event streaming with channels
 func BenchmarkReadStreamChannel(b *testing.B, benchCtx *BenchmarkContext, queryIndex int) {
@@ -232,6 +204,10 @@ func BenchmarkReadStreamChannel(b *testing.B, benchCtx *BenchmarkContext, queryI
 
 // BenchmarkProjectDecisionModel benchmarks decision model projection
 func BenchmarkProjectDecisionModel(b *testing.B, benchCtx *BenchmarkContext, projectorCount int) {
+	if !benchCtx.HasChannel {
+		b.Skip("Channel streaming not available")
+	}
+
 	ctx := context.Background()
 
 	if projectorCount > len(benchCtx.Projectors) {
@@ -244,7 +220,7 @@ func BenchmarkProjectDecisionModel(b *testing.B, benchCtx *BenchmarkContext, pro
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		_, _, err := benchCtx.Store.ProjectDecisionModel(ctx, projectors)
+		_, _, err := benchCtx.ChannelStore.ProjectDecisionModel(ctx, projectors)
 		if err != nil {
 			b.Fatalf("ProjectDecisionModel failed: %v", err)
 		}
@@ -306,16 +282,15 @@ func BenchmarkMemoryUsage(b *testing.B, benchCtx *BenchmarkContext, operation st
 			}
 		case "stream":
 			query := dcb.NewQuery(dcb.NewTags(), "StudentEnrolledInCourse")
-			iterator, err := benchCtx.Store.ReadStream(ctx, query, nil)
+			eventChan, err := benchCtx.ChannelStore.ReadStreamChannel(ctx, query)
 			if err != nil {
-				b.Fatalf("ReadStream failed: %v", err)
+				b.Fatalf("ReadStreamChannel failed: %v", err)
 			}
-			for iterator.Next() {
+			for range eventChan {
 				// Just iterate through events
 			}
-			iterator.Close()
 		case "projection":
-			_, _, err := benchCtx.Store.ProjectDecisionModel(ctx, benchCtx.Projectors)
+			_, _, err := benchCtx.ChannelStore.ProjectDecisionModel(ctx, benchCtx.Projectors)
 			if err != nil {
 				b.Fatalf("ProjectDecisionModel failed: %v", err)
 			}
@@ -354,10 +329,6 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 
 	b.Run("ReadComplex", func(b *testing.B) {
 		BenchmarkRead(b, benchCtx, 1)
-	})
-
-	b.Run("ReadStream", func(b *testing.B) {
-		BenchmarkReadStream(b, benchCtx, 0)
 	})
 
 	if benchCtx.HasChannel {

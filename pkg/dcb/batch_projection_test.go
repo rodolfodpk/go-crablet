@@ -362,7 +362,7 @@ var _ = Describe("Batch Projection", func() {
 			channelStore := store.(CrabletEventStore)
 			_, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("query must contain at least one item"))
+			Expect(err.Error()).To(ContainSubstring("empty query"))
 		})
 
 		It("should handle projectors with different query types", func() {

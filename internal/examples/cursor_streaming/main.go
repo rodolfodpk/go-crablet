@@ -25,6 +25,9 @@ func main() {
 		log.Fatalf("Failed to create event store: %v", err)
 	}
 
+	// Cast to CrabletEventStore to access extended methods
+	channelStore := store.(dcb.CrabletEventStore)
+
 	ctx := context.Background()
 
 	// Create a large number of events to demonstrate streaming
@@ -87,7 +90,7 @@ func main() {
 	options := &dcb.ReadOptions{BatchSize: &batchSize}
 
 	// Test ProjectDecisionModel with cursor streaming
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
+	states, appendCondition, err := channelStore.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
 		log.Fatalf("Failed to project decision model: %v", err)
 	}
@@ -96,27 +99,25 @@ func main() {
 	fmt.Printf("Total amount: $%.2f\n", states["total_amount"])
 	fmt.Printf("Last position: %d\n", *appendCondition.After)
 
-	fmt.Println("\n=== Using ReadStream with cursor-based streaming ===")
-	iterator, err := store.ReadStream(ctx, query, options)
+	fmt.Println("\n=== ReadStream has been removed - use Read for batch operations ===")
+	// ReadStream method has been removed from the interface
+	// Use Read for batch operations or ReadStreamChannel for streaming
+
+	// Example using Read for batch operations
+	result, err := store.Read(ctx, query, options)
 	if err != nil {
-		log.Fatalf("Failed to create stream: %v", err)
+		log.Fatalf("Failed to read events: %v", err)
 	}
-	defer iterator.Close()
 
 	count := 0
-	for iterator.Next() {
-		event := iterator.Event()
+	for _, event := range result.Events {
 		count++
 		if count <= 5 || count%100 == 0 {
 			fmt.Printf("Event %d: %s at position %d\n", count, event.Type, event.Position)
 		}
 	}
 
-	if err := iterator.Err(); err != nil {
-		log.Fatalf("Error during iteration: %v", err)
-	}
-
-	fmt.Printf("Processed %d events via streaming\n", count)
+	fmt.Printf("Processed %d events via batch read\n", count)
 }
 
 func createTestEvents(count int) []dcb.InputEvent {

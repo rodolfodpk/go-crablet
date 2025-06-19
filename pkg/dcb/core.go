@@ -50,21 +50,6 @@ type CrabletEventStore interface {
 	ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector) (<-chan ProjectionResult, error)
 }
 
-// EventIterator provides a streaming interface for reading events
-type EventIterator interface {
-	// Next advances to the next event, returning false if no more events
-	Next() bool
-
-	// Event returns the current event
-	Event() Event
-
-	// Err returns any error that occurred during iteration
-	Err() error
-
-	// Close closes the iterator and releases resources
-	Close() error
-}
-
 // Event represents a single event in the event store
 type Event struct {
 	Type     string `json:"type"`
