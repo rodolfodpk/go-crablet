@@ -144,7 +144,7 @@ full-benchmark:
 	@echo "Running full benchmark (8m)..."
 	k6 run k6-test.js
 
-# Quick test
-quick-test:
+# Quick test with k6
+quick-test: start-db run-server
 	@echo "Running quick test (10s)..."
 	k6 run quick-test.js 
