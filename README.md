@@ -26,11 +26,14 @@ A Go library for event sourcing, exploring and learning about concepts inspired 
 
 ## Performance Benchmarks
 
-Comprehensive performance testing and analysis for different API protocols:
+Comprehensive performance testing and analysis for different components:
 
-- **[Web-App Benchmarks](internal/web-app/BENCHMARK.md)**: HTTP/REST API performance testing with k6
-- **[gRPC App Benchmarks](internal/grpc-app/BENCHMARK.md)**: gRPC API performance testing with k6
-- **[Go Benchmarks](internal/benchmarks/README.md)**: Core library performance testing and analysis
+**[📊 Benchmarks Overview](docs/benchmarks.md)** - Performance testing guide and results summary
+
+### Specific Benchmark Types
+- **[🌐 Web-App Benchmarks](internal/web-app/BENCHMARK.md)**: HTTP/REST API performance testing with k6
+- **[🔌 gRPC App Benchmarks](internal/grpc-app/BENCHMARK.md)**: gRPC API performance testing with k6  
+- **[⚡ Go Benchmarks](internal/benchmarks/README.md)**: Core library performance testing and analysis
 
 ## Minimal Example
 
