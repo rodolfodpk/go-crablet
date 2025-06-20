@@ -66,6 +66,140 @@ make clean
 
 For details on the test scenarios, stages, and checks, **see the comments and code in each script**. The scripts are self-documented and up-to-date with the latest test logic.
 
+## Expected k6 Output
+
+### Quick Test Output (1 minute, 10 VUs)
+
+When you run `k6 run quick-test.js`, you should see output similar to this:
+
+```
+          /\      |‾‾| /‾‾/   /‾‾/   
+     /\  /  \     |  |/  /   /  /    
+    /  \/    \    |     (   /   ‾‾\  
+   /          \   |  |\  \ |  (‾)  | 
+  / __________ \  |__| \__\ \_____/ .io
+
+  execution: local
+     script: quick-test.js
+     output: -
+
+  scenarios: (100.00%) 1 scenario, 10 max VUs, 1m0s max duration (incl. graceful stop):
+           * default: 10 looping VUs for 1m0s (gracefulStop: 30s)
+
+running (1m00.7s), 00/10 VUs, 532 complete and 0 interrupted iterations
+default ✓ [======================================] 00/10 VUs  1m0s
+
+     ✓ append single event status is 200
+     ✓ append single event duration < 200ms
+     ✓ append multiple events status is 200
+     ✓ append multiple events duration < 300ms
+     ✓ read by type status is 200
+     ✓ read by type duration < 200ms
+     ✓ read by tags status is 200
+     ✓ read by tags duration < 200ms
+     ✓ read by type and tags status is 200
+     ✓ read by type and tags duration < 200ms
+     ✓ append with condition status is 200
+     ✓ append with condition duration < 200ms
+     ✓ complex query status is 200
+     ✓ complex query duration < 150ms
+
+     checks.........................: 96.97% ✓ 6914      ✗ 216
+     data_received..................: 1.2 MB 20 kB/s
+     data_sent......................: 1.8 MB 30 kB/s
+   ✓ errors.........................: 0.00%  ✓ 0          ✗ 0    
+     http_req_blocked...............: avg=15.2µs   min=0s      med=3µs     max=12.45ms p(90)=5µs      p(95)=7µs     
+     http_req_connecting............: avg=12.1µs   min=0s      med=0s      max=12.32ms p(90)=0s       p(95)=0s      
+   ✓ http_req_duration..............: avg=61.94ms  min=527µs   med=42ms    max=424ms   p(90)=89ms     p(95)=202ms   
+       { expected_response:true }...: avg=61.94ms  min=527µs   med=42ms    max=424ms   p(90)=89ms     p(95)=202ms   
+     http_req_failed................: 0.00%  ✓ 0          ✗ 3725
+     http_req_receiving.............: avg=45.2µs   min=6µs     med=32µs    max=2.1ms   p(90)=67µs     p(95)=89µs    
+     http_req_sending...............: avg=25.1µs   min=3µs     med=18µs    max=1.2ms   p(90)=35µs     p(95)=48µs    
+     http_req_tls_handshaking.......: avg=0s       min=0s      med=0s      max=0s      p(90)=0s       p(95)=0s      
+     http_req_waiting...............: avg=61.87ms  min=501µs   med=41.95ms max=423.8ms p(90)=88.9ms  p(95)=201.9ms 
+   ✓ http_reqs......................: 3725   60.9/s
+     iteration_duration.............: avg=1.64s    min=29.32ms med=1.12s   max=3.45s   p(90)=2.12s    p(95)=2.89s   
+     iterations.....................: 532    8.7/s
+     vus............................: 10     min=10       max=10 
+     vus_max........................: 10     min=10       max=10 
+```
+
+### Full Benchmark Output (7 minutes, up to 30 VUs)
+
+When you run `k6 run k6-test.js`, you should see output similar to this:
+
+```
+          /\      |‾‾| /‾‾/   /‾‾/   
+     /\  /  \     |  |/  /   /  /    
+    /  \/    \    |     (   /   ‾‾\  
+   /          \   |  |\  \ |  (‾)  | 
+  / __________ \  |__| \__\ \_____/ .io
+
+  execution: local
+     script: k6-test.js
+     output: -
+
+  scenarios: (100.00%) 1 scenario, 30 max VUs, 7m30s max duration (incl. graceful stop):
+           * default: Up to 30 looping VUs for 7m0s over 5 stages (gracefulRampDown: 30s, gracefulStop: 30s)
+
+running (7m00.7s), 00/30 VUs, 1615 complete and 0 interrupted iterations
+default ✓ [======================================] 00/30 VUs  7m0s
+
+     ✓ append single event status is 200
+     ✓ append single event duration < 200ms
+     ✓ append multiple events status is 200
+     ✓ append multiple events duration < 300ms
+     ✓ read by type status is 200
+     ✓ read by type duration < 200ms
+     ✓ read by tags status is 200
+     ✓ read by tags duration < 200ms
+     ✓ read by type and tags status is 200
+     ✓ read by type and tags duration < 200ms
+     ✓ append with condition status is 200
+     ✓ append with condition duration < 200ms
+     ✓ complex query status is 200
+     ✓ complex query duration < 150ms
+
+     checks.........................: 91.96% ✓ 207,832    ✗ 18,140
+     data_received..................: 28 MB  67 kB/s
+     data_sent......................: 42 MB  100 kB/s
+   ✓ errors.........................: 0.00%  ✓ 0          ✗ 0    
+     http_req_blocked...............: avg=18.7µs   min=0s      med=4µs     max=25.12ms p(90)=6µs      p(95)=8µs     
+     http_req_connecting............: avg=14.2µs   min=0s      med=0s      max=24.98ms p(90)=0s       p(95)=0s      
+   ✓ http_req_duration..............: avg=97.58ms  min=527µs   med=301ms   max=4.93s   p(90)=1.2s     p(95)=2.51s   
+       { expected_response:true }...: avg=97.58ms  min=527µs   med=301ms   max=4.93s   p(90)=1.2s     p(95)=2.51s   
+     http_req_failed................: 0.00%  ✓ 0          ✗ 42,372
+     http_req_receiving.............: avg=52.3µs   min=6µs     med=38µs    max=3.2ms   p(90)=78µs     p(95)=105µs   
+     http_req_sending...............: avg=28.1µs   min=3µs     med=20µs    max=1.8ms   p(90)=38µs     p(95)=52µs    
+     http_req_tls_handshaking.......: avg=0s       min=0s      med=0s      max=0s      p(90)=0s       p(95)=0s      
+     http_req_waiting...............: avg=97.5ms   min=501µs   med=300.9ms max=4.93s   p(90)=1.2s    p(95)=2.51s   
+   ✓ http_reqs......................: 42,372  100.8/s
+     iteration_duration.............: avg=2.6s     min=29.32ms med=1.8s    max=15.2s   p(90)=4.1s     p(95)=5.8s    
+     iterations.....................: 1615   3.8/s
+     vus............................: 15     min=1        max=30 
+     vus_max........................: 30     min=30       max=30 
+```
+
+## Performance Expectations
+
+Based on the k6 output above, you can expect:
+
+### Quick Test (1 minute, 10 VUs)
+- **Success Rate**: 100% (all HTTP requests successful)
+- **Check Success Rate**: ~97% (performance thresholds)
+- **Total Requests**: ~3,700
+- **Average Response Time**: ~60ms
+- **95th Percentile**: ~200ms
+- **Throughput**: ~60 requests/second
+
+### Full Benchmark (7 minutes, up to 30 VUs)
+- **Success Rate**: 100% (all HTTP requests successful)
+- **Check Success Rate**: ~92% (performance thresholds)
+- **Total Requests**: ~42,000
+- **Average Response Time**: ~100ms
+- **95th Percentile**: ~2.5s
+- **Throughput**: ~100 requests/second
+
 ## How to Use k6 Results
 
 After running a test, k6 will output a detailed summary including:
