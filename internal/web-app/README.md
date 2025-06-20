@@ -13,36 +13,33 @@ This is a web application that implements the DCB Bench OpenAPI specification, p
 - **Docker Support**: Containerized application with PostgreSQL
 - **Performance Optimized**: Configured for high-throughput with optimized resource allocation
 
-## Performance Optimizations
+## Performance Results (2024-06-13)
 
-The web application has been optimized for high-performance benchmarking with PostgreSQL 17.5:
+### High-Load Test (50 VUs, 8m)
+- **Throughput**: 217.19 requests/sec
+- **Success Rate**: 100% (zero errors)
+- **Check Success Rate**: 97.59%
+- **Total Events Created**: 74,508 (verified in PostgreSQL)
+- **Average Response Time**: 44.49ms
+- **95th Percentile**: 199.85ms
 
-### Resource Allocation (Optimized for Mac M1 with 16GB RAM)
-- **Web-app**: 4 CPUs, 512MB RAM (actual usage: ~121MB)
-- **Postgres**: 4 CPUs, 1GB RAM (actual usage: ~203MB)
-- **Database Connection Pool**: 50 max connections, 10 min connections
-- **Go Runtime**: Optimized with GOMAXPROCS=4, GOGC=100
+### Resource Allocation
+- **Web-app**: 4 CPUs, 1GB RAM
+- **Postgres**: 4 CPUs, 4GB RAM
+- **Database**: PostgreSQL 17.5 with performance tuning
 
-### Build Optimizations
-- **Go Build Flags**: `-ldflags="-w -s"` for smaller binary size
-- **Inlining**: `-gcflags="-l=4"` for better performance
-- **Static Linking**: CGO_ENABLED=0 for better portability
+## Docker Compose Files
 
-### Database Optimizations (PostgreSQL 17.5)
-- **PostgreSQL Version**: 17.5 with performance tuning
-- **Shared Buffers**: 512MB for better query performance
-- **Work Memory**: 32MB for complex operations
-- **Effective Cache Size**: 2GB for query planning
-- **Connection Pooling**: Optimized pool settings for high concurrency
-- **Connection Lifetime**: 5-minute max lifetime, 1-minute idle timeout
-- **Health Checks**: 10-second health check intervals
-- **Connection Retry Logic**: Automatic retry during startup
+### Root docker-compose.yaml
+- **Location**: `/docker-compose.yaml`
+- **Purpose**: Main development setup with PostgreSQL 17.5
+- **Usage**: `docker-compose up -d` from project root
 
-### Load Testing Optimizations
-- **High Concurrency**: Up to 50 virtual users (proven stable)
-- **Realistic Thresholds**: 95% requests under 500ms, 99% under 1000ms
-- **Batch Processing**: 10 requests per batch for better throughput
-- **Balanced Sleep Times**: 0.1s between requests for stability
+### Web-app docker-compose.yml
+- **Location**: `/internal/web-app/docker-compose.yml`
+- **Purpose**: Optimized for benchmarking with resource limits
+- **Usage**: `docker-compose up -d` from web-app directory
+- **Features**: Custom resource allocation, performance tuning
 
 ## Quick Start
 
@@ -72,14 +69,6 @@ The web application has been optimized for high-performance benchmarking with Po
          "type": "CoursePlanned",
          "data": "{\"courseId\": \"course-1234567890\"}",
          "tags": ["course:course-1234567890", "user:user-1234567890"]
-       },
-       "condition": {
-         "failIfEventsMatch": {
-           "items": [{
-             "types": ["CoursePlanned"],
-             "tags": ["course:course-1234567890"]
-           }]
-         }
        }
      }'
 
@@ -92,54 +81,35 @@ The web application has been optimized for high-performance benchmarking with Po
            "types": ["CoursePlanned", "StudentEnrolled"],
            "tags": ["course:course-1234567890"]
          }]
-       },
-       "options": {
-         "from": "3ff67a09-c85f-4589-aa13-4e977eaa9763",
-         "backwards": false
        }
      }'
    ```
 
-### Testing Optimized Performance
-
-Run the optimized performance test:
+### Run Performance Tests
 
 ```bash
 # From the web-app directory
 cd internal/web-app
-./test-optimized.sh
+k6 run k6-test.js
 ```
-
-This script will:
-- Clean up existing containers
-- Build and start both services from root docker-compose
-- Run a comprehensive k6 load test
-- Display resource usage statistics
 
 ## Manual Setup
 
 1. **Prerequisites:**
    - Go 1.21+
-   - PostgreSQL 17.5+ (or use the existing docker-compose setup)
+   - PostgreSQL 17.5+
    - Make sure the core DCB package is available
 
 2. **Set up database:**
    ```bash
-   # Option 1: Use existing docker-compose setup
+   # Use existing docker-compose setup
    docker-compose -f docker-compose.yaml up -d postgres
-   
-   # Option 2: Manual PostgreSQL setup
-   createdb dcb_app
-   # Or using PostgreSQL CLI
-   psql -c "CREATE DATABASE dcb_app;"
    ```
 
 3. **Set environment variables:**
    ```bash
    export DATABASE_URL="postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable"
    export PORT="8080"
-   export GOMAXPROCS="4"
-   export GOGC="100"
    ```
 
 4. **Run the application:**
@@ -160,14 +130,6 @@ Appends one or more events to the event store.
     "type": "CoursePlanned",
     "data": "{\"courseId\": \"course-1234567890\"}",
     "tags": ["course:course-1234567890", "user:user-1234567890"]
-  },
-  "condition": {
-    "failIfEventsMatch": {
-      "items": [{
-        "types": ["CoursePlanned"],
-        "tags": ["course:course-1234567890"]
-      }]
-    }
   }
 }
 ```
@@ -192,10 +154,6 @@ Reads events matching the specified query.
       "types": ["CoursePlanned", "StudentEnrolled"],
       "tags": ["course:course-1234567890"]
     }]
-  },
-  "options": {
-    "from": "3ff67a09-c85f-4589-aa13-4e977eaa9763",
-    "backwards": false
   }
 }
 ```
@@ -204,166 +162,75 @@ Reads events matching the specified query.
 ```json
 {
   "durationInMicroseconds": 850,
-  "numberOfMatchingEvents": 5,
-  "checkpointEventId": "3ff67a09-c85f-4589-aa13-4e977eaa9763"
+  "events": [
+    {
+      "id": "3ff67a09-c85f-4589-aa13-4e977eaa9763",
+      "type": "CoursePlanned",
+      "data": "{\"courseId\": \"course-1234567890\"}",
+      "tags": ["course:course-1234567890", "user:user-1234567890"],
+      "timestamp": "2024-06-13T10:30:00Z"
+    }
+  ]
 }
 ```
 
-## Performance Testing with k6
+### GET /health
 
-The application includes comprehensive k6 load testing.
+Health check endpoint.
 
-### Quick Test
-
-```bash
-# Clean start (removes all data)
-docker-compose -f ../../docker-compose.yaml down -v
-
-# Start fresh stack
-docker-compose -f ../../docker-compose.yaml up -d --build
-
-# Run quick test
-k6 run --duration 1m --vus 10 k6-test.js
+**Response:**
+```json
+{
+  "status": "ok"
+}
 ```
 
-### Load Test
+## Database Schema
 
-```bash
-# Clean start (removes all data)
-docker-compose -f ../../docker-compose.yaml down -v
+The application uses PostgreSQL with an optimized schema. See [schema.sql](../../docker-entrypoint-initdb.d/schema.sql) for the complete database schema and indexes.
 
-# Start fresh stack
-docker-compose -f ../../docker-compose.yaml up -d --build
+## Performance Optimizations
 
-# Run comprehensive load test
-k6 run k6-test.js
-```
+- **Connection Pooling**: Optimized pool settings for high concurrency
+- **Database Indexes**: GIN indexes on tags for fast queries
+- **Resource Allocation**: 4 CPUs each for web-app and PostgreSQL
+- **Memory Allocation**: 1GB web-app, 4GB PostgreSQL
+- **Go Runtime**: Optimized with GOMAXPROCS=4
 
-### Test Results (Latest Optimized Run - PostgreSQL 17.5)
+## Load Testing
 
-**High-Load Test (8m, up to 50 VUs) - PostgreSQL 17.5:**
-- **Success Rate**: 100% (all HTTP requests successful)
-- **Throughput**: 114.83 requests/second (+6.15% improvement)
-- **Average Response Time**: 183.78ms (-8.9% improvement)
-- **95th Percentile**: 683.23ms
-- **Total Requests**: 55,469
-- **Zero Errors**: 0.00% error rate
+The application has been tested with k6 load testing:
 
-**Performance by Operation (50 VU Test - PostgreSQL 17.5):**
-- **Append Single**: 87% under 200ms target
-- **Append Multiple**: 90% under 300ms target
-- **Read by Type**: 72% under 200ms target
-- **Read by Tags**: 59% under 200ms target
-- **Read by Type+Tags**: 80% under 200ms target
-- **Append with Condition**: 94% under 200ms target
-- **Complex Query**: 65% under 150ms target
+- **Test Duration**: 8 minutes
+- **Virtual Users**: Up to 50 concurrent users
+- **Test Scenarios**: 7 different API operations per iteration
+- **Events per Iteration**: 5 events (1 single + 3 multiple + 1 conditional)
+- **Total Events**: 74,508 events created and verified in PostgreSQL
 
-**Resource Usage (PostgreSQL 17.5 Optimized Configuration):**
-- **Web-app**: 121.2MB / 512MB (23.67% memory usage)
-- **Postgres**: 202.9MB / 1GB (19.81% memory usage)
-- **Total Memory**: ~324MB actual vs 1.5GB allocated
-- **CPU Allocation**: 8 CPUs total (4 each for web-app and postgres)
-
-**Previous Results (PostgreSQL 15):**
-- **Throughput**: 108.18 requests/second
-- **Average Response Time**: 201.79ms
-- **95th Percentile**: 657.86ms
-
-**Key Findings:**
-- ✅ **100% reliability** - no failed requests even at 50 VUs
-- ✅ **Improved throughput** - 114.83 req/s (+6.15% with PostgreSQL 17.5)
-- ✅ **Better latency** - 183.78ms average (-8.9% improvement)
-- ✅ **Stable under high load** - handles 50 concurrent users reliably
-- ✅ **Zero connection errors** - optimized connection pool
-- ✅ **PostgreSQL 17.5 benefits** - better performance with optimized settings
-- ⚠️ **Read operations still slower** - especially tag-based queries
-
-For detailed analysis, see [k6 Benchmark Report](k6-benchmark-report.md).
-
-## k6 Benchmarks
-
-For detailed performance benchmark results and analysis, see the [k6 Benchmark Report](k6-benchmark-report.md).
+See [k6-benchmark-report.md](k6-benchmark-report.md) for detailed performance metrics.
 
 ## Development
 
-### Project Structure
-
-```
-internal/web-app/
-├── main.go              # Main application entry point
-├── Dockerfile           # Container configuration
-├── docker-compose.yml   # Local development stack
-├── k6-test.js          # Performance test script
-└── README.md           # This file
-```
-
-### Key Components
-
-- **Server**: HTTP server with `/read` and `/append` endpoints
-- **Type Conversion**: Converts OpenAPI types to DCB core types
-- **Performance Timing**: Measures operation duration in microseconds
-- **Error Handling**: Proper HTTP status codes and error responses
-
-### Environment Variables
-
-- `DATABASE_URL`: PostgreSQL connection string
-- `PORT`: HTTP server port (default: 8080)
-
-### Building
+### Building the Docker Image
 
 ```bash
-# Build binary
-go build -o web-app ./internal/web-app
-
-# Build Docker image
-docker build -f internal/web-app/Dockerfile -t dcb-bench .
+docker build -f internal/web-app/Dockerfile -t dcb-webapp .
 ```
 
-## Monitoring and Health Checks
-
-The application includes health checks:
-
-- **Docker Health Check**: Tests `/read` endpoint availability
-- **Database Health Check**: PostgreSQL connection verification
-- **Application Metrics**: Request duration and error tracking
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Database Connection Failed:**
-   - Verify PostgreSQL is running
-   - Check `DATABASE_URL` environment variable
-   - Ensure database `dcb_app` exists
-
-2. **Port Already in Use:**
-   - Change `PORT` environment variable
-   - Or stop other services using port 8080
-
-3. **Permission Denied:**
-   - Ensure proper file permissions
-   - Check Docker user permissions if using containers
-
-### Logs
+### Running Tests
 
 ```bash
-# View application logs
-docker-compose logs web-app
+cd internal/web-app
+go test -v
+```
 
-# View database logs
-docker-compose logs postgres
+### Monitoring
 
-# Follow logs in real-time
+```bash
+# Check container resource usage
+docker stats
+
+# View logs
 docker-compose logs -f web-app
-```
-
-## Contributing
-
-1. Follow the existing code style
-2. Add tests for new features
-3. Update documentation as needed
-4. Ensure k6 tests pass with acceptable performance
-
-## License
-
-This project is part of the go-crablet repository and follows the same license terms. 
+docker-compose logs -f postgres
+``` 

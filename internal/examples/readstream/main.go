@@ -28,6 +28,9 @@ func main() {
 		log.Fatalf("Failed to create event store: %v", err)
 	}
 
+	// Cast to CrabletEventStore for extended functionality
+	channelStore := store.(dcb.CrabletEventStore)
+
 	// Define projectors
 	accountProjector := dcb.StateProjector{
 		Query: dcb.NewQuery(
@@ -100,13 +103,7 @@ func main() {
 	// Use ProjectDecisionModel to build decision model
 	fmt.Println("\n=== Using ProjectDecisionModel API ===")
 
-	// Define read options for efficient processing
-	readOptions := &dcb.ReadOptions{
-		Limit:     &[]int{1000}[0], // Limit to 1000 events for efficiency
-		BatchSize: &[]int{100}[0],  // Process in batches of 100
-	}
-
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, readOptions)
+	states, appendCondition, err := channelStore.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
 		log.Fatalf("Failed to read stream: %v", err)
 	}

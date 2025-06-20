@@ -1,0 +1,38 @@
+{
+  "Append": {
+    "Operation": "Append",
+    "TotalRequests": 100,
+    "SuccessCount": 0,
+    "ErrorCount": 100,
+    "TotalDuration": 30657791,
+    "MinDuration": 135500,
+    "MaxDuration": 631625,
+    "AvgDuration": 306577,
+    "P95Duration": 568292,
+    "P99Duration": 631625
+  },
+  "Health": {
+    "Operation": "Health",
+    "TotalRequests": 100,
+    "SuccessCount": 100,
+    "ErrorCount": 0,
+    "TotalDuration": 38684248,
+    "MinDuration": 197458,
+    "MaxDuration": 1140083,
+    "AvgDuration": 386842,
+    "P95Duration": 755959,
+    "P99Duration": 1140083
+  },
+  "Read": {
+    "Operation": "Read",
+    "TotalRequests": 100,
+    "SuccessCount": 0,
+    "ErrorCount": 100,
+    "TotalDuration": 28770789,
+    "MinDuration": 138750,
+    "MaxDuration": 785083,
+    "AvgDuration": 287707,
+    "P95Duration": 508667,
+    "P99Duration": 785083
+  }
+}

@@ -63,26 +63,26 @@ func main() {
 	fmt.Println("   - Error handling via Close()")
 
 	// Method 2: Current iterator-based approach
-	fmt.Println("\n2. Current iterator-based streaming:")
-	iterator, err := store.ReadStream(ctx, query, nil)
+	fmt.Println("\n2. ReadStream has been removed - use ReadStreamChannel instead:")
+	// ReadStream method has been removed from the interface
+	// Use ReadStreamChannel for streaming operations
+
+	// Cast to CrabletEventStore to access ReadStreamChannel
+	channelStore := store.(dcb.CrabletEventStore)
+
+	eventChan, err := channelStore.ReadStreamChannel(ctx, query)
 	if err != nil {
-		log.Fatalf("Failed to create stream: %v", err)
+		log.Fatalf("Failed to create channel stream: %v", err)
 	}
-	defer iterator.Close()
 
 	count := 0
-	for iterator.Next() {
-		event := iterator.Event()
-		fmt.Printf("   Event %d: ID=%s, Type=%s, Position=%d\n",
-			count+1, event.ID, event.Type, event.Position)
+	for event := range eventChan {
+		fmt.Printf("   Event %d: Type=%s, Position=%d\n",
+			count+1, event.Type, event.Position)
 		count++
 	}
 
-	if err := iterator.Err(); err != nil {
-		log.Printf("Iterator error: %v", err)
-	}
-
-	fmt.Printf("\nProcessed %d events using iterator\n", count)
+	fmt.Printf("\nProcessed %d events using channel streaming\n", count)
 
 	// Method 3: Traditional Read (loads all into memory)
 	fmt.Println("\n3. Traditional Read (loads all into memory):")
@@ -93,8 +93,8 @@ func main() {
 
 	fmt.Printf("   Loaded %d events into memory\n", len(sequencedEvents.Events))
 	for i, event := range sequencedEvents.Events {
-		fmt.Printf("   Event %d: ID=%s, Type=%s, Position=%d\n",
-			i+1, event.ID, event.Type, event.Position)
+		fmt.Printf("   Event %d: Type=%s, Position=%d\n",
+			i+1, event.Type, event.Position)
 	}
 
 	fmt.Println("\n=== Comparison Summary ===")

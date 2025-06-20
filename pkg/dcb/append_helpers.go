@@ -2,70 +2,38 @@ package dcb
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 
 	"github.com/jackc/pgx/v5"
 )
 
-// convertTagsToJSON converts a slice of tags to JSON bytes
-func convertTagsToJSON(tags []Tag) ([]byte, error) {
-	tagMap := make(map[string]string)
-	for _, t := range tags {
-		tagMap[t.Key] = t.Value
-	}
-	return json.Marshal(tagMap)
-}
-
 // prepareEventBatch prepares arrays for batch insert from events
-func prepareEventBatch(events []InputEvent) ([]string, []string, [][]byte, [][]byte, []string, []string, error) {
-	ids := make([]string, len(events))
+func prepareEventBatch(events []InputEvent) ([]string, [][]string, [][]byte, error) {
 	types := make([]string, len(events))
-	tagsJSON := make([][]byte, len(events))
+	tags := make([][]string, len(events))
 	data := make([][]byte, len(events))
-	causationIDs := make([]string, len(events))
-	correlationIDs := make([]string, len(events))
 
 	for i, e := range events {
-		// Generate TypeID for event based on sorted tag keys
-		eventID := generateTagBasedTypeID(e.Tags)
-		ids[i] = eventID
-
 		types[i] = e.Type
 		data[i] = e.Data
 
-		// Convert tags to JSONB
-		jsonBytes, err := convertTagsToJSON(e.Tags)
-		if err != nil {
-			log.Printf("Failed to marshal tags for event %d: %v", i, err)
-			return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to marshal tags for event %d: %w", i, err)
+		// Convert tags to TEXT[] format
+		tagStrings := make([]string, len(e.Tags))
+		for j, tag := range e.Tags {
+			tagStrings[j] = tag.Key + ":" + tag.Value
 		}
-		tagsJSON[i] = jsonBytes
+		tags[i] = tagStrings
 
-		// Set causation_id
-		if i > 0 {
-			causationIDs[i] = ids[i-1] // Previous event's TypeID
-		} else {
-			causationIDs[i] = eventID // Self-caused
-		}
-
-		// Set correlation_id
-		if i == 0 {
-			correlationIDs[i] = eventID // Root event
-		} else {
-			correlationIDs[i] = correlationIDs[0] // Same correlation chain
-		}
-
-		// Log event relationships
-		log.Printf("Appending event %d: ID=%s, CausationID=%s, CorrelationID=%s", i, eventID, causationIDs[i], correlationIDs[i])
+		// Log event details
+		log.Printf("Appending event %d: Type=%s", i, e.Type)
 	}
 
-	return ids, types, tagsJSON, data, causationIDs, correlationIDs, nil
+	return types, tags, data, nil
 }
 
 // executeBatchInsert executes the batch insert and returns positions
-func executeBatchInsert(ctx context.Context, tx pgx.Tx, events []InputEvent, ids []string, types []string, tagsJSON [][]byte, data [][]byte, causationIDs []string, correlationIDs []string) ([]int64, error) {
+func executeBatchInsert(ctx context.Context, tx pgx.Tx, events []InputEvent, types []string, tags [][]string, data [][]byte) ([]int64, error) {
 	// Pre-allocate batch and results for better performance
 	batch := &pgx.Batch{}
 	positions := make([]int64, len(events))
@@ -76,10 +44,10 @@ func executeBatchInsert(ctx context.Context, tx pgx.Tx, events []InputEvent, ids
 	// Add insert statements to batch efficiently
 	for i := range events {
 		batch.Queue(`
-			INSERT INTO events (id, type, tags, data, causation_id, correlation_id)
-			VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6)
+			INSERT INTO events (type, tags, data)
+			VALUES ($1, $2, $3)
 			RETURNING position
-		`, ids[i], types[i], tagsJSON[i], data[i], causationIDs[i], correlationIDs[i])
+		`, types[i], tags[i], data[i])
 	}
 
 	batch.Queue("COMMIT")
@@ -92,18 +60,6 @@ func executeBatchInsert(ctx context.Context, tx pgx.Tx, events []InputEvent, ids
 	for i := range events {
 		err := br.QueryRow().Scan(&positions[i])
 		if err != nil {
-			// Check for specific foreign key violations first
-			if err.Error() == "ERROR: insert or update on table \"events\" violates foreign key constraint \"events_causation_id_fkey\" (SQLSTATE 23503)" ||
-				err.Error() == "ERROR: insert or update on table \"events\" violates foreign key constraint \"events_correlation_id_fkey\" (SQLSTATE 23503)" {
-				return nil, &ValidationError{
-					EventStoreError: EventStoreError{
-						Op:  "executeBatchInsert",
-						Err: fmt.Errorf("foreign key violation: one or more causation_id or correlation_id values are invalid"),
-					},
-					Field: "causation_id/correlation_id",
-					Value: "batch",
-				}
-			}
 			return nil, &EventStoreError{
 				Op:  "executeBatchInsert",
 				Err: fmt.Errorf("failed to insert event %d: %w", i, err),
@@ -115,7 +71,7 @@ func executeBatchInsert(ctx context.Context, tx pgx.Tx, events []InputEvent, ids
 }
 
 // checkForConflictingEvents checks for conflicting events in optimistic locking
-func checkForConflictingEvents(ctx context.Context, tx pgx.Tx, query Query, queryTagsJSON []byte, latestPosition int64) error {
+func checkForConflictingEvents(ctx context.Context, tx pgx.Tx, query Query, latestPosition int64) error {
 	if len(query.Items) == 0 {
 		return nil // No query items, no conflict check needed
 	}
@@ -124,31 +80,21 @@ func checkForConflictingEvents(ctx context.Context, tx pgx.Tx, query Query, quer
 	// This maintains backward compatibility while supporting the new structure
 	item := query.Items[0]
 
-	// Convert item tags to JSONB
-	itemTagMap := make(map[string]string)
-	for _, t := range item.Tags {
-		itemTagMap[t.Key] = t.Value
-	}
-	itemTagsJSON, err := json.Marshal(itemTagMap)
-	if err != nil {
-		return &EventStoreError{
-			Op:  "checkForConflictingEvents",
-			Err: fmt.Errorf("failed to marshal query tags: %w", err),
-		}
-	}
+	// Convert item tags to TEXT[] format
+	itemTagsArray := TagsToArray(item.Tags)
 
 	var exists bool
 	checkQuery := `
 		SELECT EXISTS(
 			SELECT 1 FROM events 
 			WHERE position > $1 
-			  AND tags @> $2::jsonb
+			  AND tags @> $2::text[]
 			  AND ($3::text[] IS NULL OR
 				   array_length($3::text[], 1) = 0 OR
 				   type = ANY($3::text[]))
 		)
 	`
-	err = tx.QueryRow(ctx, checkQuery, latestPosition, itemTagsJSON, item.EventTypes).Scan(&exists)
+	err := tx.QueryRow(ctx, checkQuery, latestPosition, itemTagsArray, item.EventTypes).Scan(&exists)
 	if err != nil {
 		return &EventStoreError{
 			Op:  "checkForConflictingEvents",
@@ -171,7 +117,7 @@ func checkForConflictingEvents(ctx context.Context, tx pgx.Tx, query Query, quer
 }
 
 // checkForMatchingEvents checks if any events match the append condition
-func checkForMatchingEvents(ctx context.Context, tx pgx.Tx, condition AppendCondition, queryTagsJSON []byte) error {
+func checkForMatchingEvents(ctx context.Context, tx pgx.Tx, condition AppendCondition) error {
 	if len(condition.FailIfEventsMatch.Items) == 0 {
 		return nil // No query items, no check needed
 	}
@@ -180,17 +126,16 @@ func checkForMatchingEvents(ctx context.Context, tx pgx.Tx, condition AppendCond
 	// This maintains backward compatibility while supporting the new structure
 	item := condition.FailIfEventsMatch.Items[0]
 
-	// Use the passed queryTagsJSON instead of re-converting
-	// This ensures consistency with the calling function
-	itemTagsJSON := queryTagsJSON
+	// Convert item tags to TEXT[] format
+	itemTagsArray := TagsToArray(item.Tags)
 
 	var exists bool
 	checkQuery := `
 		SELECT EXISTS(
 			SELECT 1 FROM events 
-			WHERE tags @> $1::jsonb
+			WHERE tags @> $1::text[]
 	`
-	args := []interface{}{itemTagsJSON}
+	args := []interface{}{itemTagsArray}
 	argIndex := 2
 
 	// Add position filtering if specified

@@ -244,67 +244,6 @@ var _ = Describe("Append Helpers", func() {
 		})
 	})
 
-	Describe("Causation and Correlation IDs", func() {
-		It("should generate causation and correlation IDs", func() {
-			inputEvent := NewInputEvent("TestEvent", NewTags("key", "value"), toJSON(map[string]string{"data": "test"}))
-			events := []InputEvent{inputEvent}
-
-			position, err := store.Append(ctx, events, nil)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Read back the events to verify IDs
-			query := NewQuerySimple(NewTags("key", "value"), "TestEvent")
-			sequencedEvents, err := store.Read(ctx, query, nil)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(sequencedEvents.Events).To(HaveLen(1))
-
-			readEvent := sequencedEvents.Events[0]
-			Expect(readEvent.CausationID).NotTo(BeEmpty())
-			Expect(readEvent.CorrelationID).NotTo(BeEmpty())
-			Expect(readEvent.Position).To(Equal(position))
-		})
-
-		It("should maintain causation chain across multiple appends", func() {
-			// First append
-			event1 := NewInputEvent("FirstEvent", NewTags("key", "value"), toJSON(map[string]string{"data": "first"}))
-			events1 := []InputEvent{event1}
-			position1, err := store.Append(ctx, events1, nil)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Second append
-			event2 := NewInputEvent("SecondEvent", NewTags("key", "value"), toJSON(map[string]string{"data": "second"}))
-			events2 := []InputEvent{event2}
-			position2, err := store.Append(ctx, events2, nil)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Verify positions are sequential
-			Expect(position2).To(BeNumerically(">", position1))
-		})
-
-		It("should maintain correlation across related events", func() {
-			// Create related events
-			event1 := NewInputEvent("Event1", NewTags("key", "value"), toJSON(map[string]string{"order": "1"}))
-			event2 := NewInputEvent("Event2", NewTags("key", "value"), toJSON(map[string]string{"order": "2"}))
-			event3 := NewInputEvent("Event3", NewTags("key", "value"), toJSON(map[string]string{"order": "3"}))
-			events := []InputEvent{event1, event2, event3}
-
-			_, err := store.Append(ctx, events, nil)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Read back events to verify correlation
-			query := NewQuerySimple(NewTags("key", "value"), "Event1", "Event2", "Event3")
-			sequencedEvents, err := store.Read(ctx, query, nil)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(sequencedEvents.Events).To(HaveLen(3))
-
-			// All events should have the same correlation ID
-			correlationID := sequencedEvents.Events[0].CorrelationID
-			for _, event := range sequencedEvents.Events {
-				Expect(event.CorrelationID).To(Equal(correlationID))
-			}
-		})
-	})
-
 	Describe("Error handling", func() {
 		It("should handle database connection errors gracefully", func() {
 			event := NewInputEvent("TestEvent", NewTags("key", "value"), toJSON(map[string]string{"data": "test"}))

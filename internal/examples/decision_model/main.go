@@ -39,12 +39,15 @@ func main() {
 		log.Fatalf("Failed to create event store: %v", err)
 	}
 
+	// Cast to CrabletEventStore for extended functionality
+	channelStore := store.(dcb.CrabletEventStore)
+
 	// Command 1: Open Account
 	openAccountCmd := OpenAccountCommand{
 		AccountID:      "acc123",
 		InitialBalance: 1000,
 	}
-	err = handleOpenAccount(ctx, store, openAccountCmd)
+	err = handleOpenAccount(ctx, channelStore, openAccountCmd)
 	if err != nil {
 		log.Fatalf("Open account failed: %v", err)
 	}
@@ -54,19 +57,13 @@ func main() {
 		AccountID: "acc123",
 		Amount:    500,
 	}
-	err = handleProcessTransaction(ctx, store, processTransactionCmd)
+	err = handleProcessTransaction(ctx, channelStore, processTransactionCmd)
 	if err != nil {
 		log.Fatalf("Process transaction failed: %v", err)
 	}
 
 	// Use ProjectDecisionModel to build decision model
 	fmt.Println("\n=== Using ProjectDecisionModel API ===")
-
-	// Define read options for efficient processing
-	readOptions := &dcb.ReadOptions{
-		Limit:     &[]int{1000}[0], // Limit to 1000 events for efficiency
-		BatchSize: &[]int{100}[0],  // Process in batches of 100
-	}
 
 	// Define projectors for decision model
 	accountProjector := dcb.StateProjector{
@@ -115,7 +112,7 @@ func main() {
 		{ID: "transactions", StateProjector: transactionProjector},
 	}
 
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, readOptions)
+	states, appendCondition, err := channelStore.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
 		log.Fatalf("Failed to read stream: %v", err)
 	}
@@ -141,7 +138,7 @@ func main() {
 		AccountID: "acc123",
 		Amount:    200,
 	}
-	err = handleProcessTransactionWithCondition(ctx, store, processTransaction2Cmd, &appendCondition)
+	err = handleProcessTransactionWithCondition(ctx, channelStore, processTransaction2Cmd, &appendCondition)
 	if err != nil {
 		log.Fatalf("Process transaction 2 failed: %v", err)
 	}
@@ -153,7 +150,7 @@ func main() {
 
 // Command handlers with their own business rules
 
-func handleOpenAccount(ctx context.Context, store dcb.EventStore, cmd OpenAccountCommand) error {
+func handleOpenAccount(ctx context.Context, store dcb.CrabletEventStore, cmd OpenAccountCommand) error {
 	// Command-specific projectors
 	projectors := []dcb.BatchProjector{
 		{ID: "accountExists", StateProjector: dcb.StateProjector{
@@ -168,7 +165,7 @@ func handleOpenAccount(ctx context.Context, store dcb.EventStore, cmd OpenAccoun
 		}},
 	}
 
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to check account existence: %w", err)
 	}
@@ -197,7 +194,7 @@ func handleOpenAccount(ctx context.Context, store dcb.EventStore, cmd OpenAccoun
 	return nil
 }
 
-func handleProcessTransaction(ctx context.Context, store dcb.EventStore, cmd ProcessTransactionCommand) error {
+func handleProcessTransaction(ctx context.Context, store dcb.CrabletEventStore, cmd ProcessTransactionCommand) error {
 	// Command-specific projectors
 	accountProjector := dcb.StateProjector{
 		Query: dcb.NewQuery(
@@ -223,7 +220,7 @@ func handleProcessTransaction(ctx context.Context, store dcb.EventStore, cmd Pro
 
 	states, appendCondition, err := store.ProjectDecisionModel(ctx, []dcb.BatchProjector{
 		{ID: "account", StateProjector: accountProjector},
-	}, nil)
+	})
 	if err != nil {
 		return fmt.Errorf("failed to project account state: %w", err)
 	}
@@ -254,7 +251,7 @@ func handleProcessTransaction(ctx context.Context, store dcb.EventStore, cmd Pro
 	return nil
 }
 
-func handleProcessTransactionWithCondition(ctx context.Context, store dcb.EventStore, cmd ProcessTransactionCommand, condition *dcb.AppendCondition) error {
+func handleProcessTransactionWithCondition(ctx context.Context, store dcb.CrabletEventStore, cmd ProcessTransactionCommand, condition *dcb.AppendCondition) error {
 	// Command-specific projectors
 	accountProjector := dcb.StateProjector{
 		Query: dcb.NewQuery(
@@ -280,7 +277,7 @@ func handleProcessTransactionWithCondition(ctx context.Context, store dcb.EventS
 
 	states, _, err := store.ProjectDecisionModel(ctx, []dcb.BatchProjector{
 		{ID: "account", StateProjector: accountProjector},
-	}, nil)
+	})
 	if err != nil {
 		return fmt.Errorf("failed to project account state: %w", err)
 	}

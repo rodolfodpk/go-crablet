@@ -52,8 +52,8 @@ func main() {
 		log.Fatalf("Failed to create event store: %v", err)
 	}
 
-	// Check if ChannelEventStore is available
-	channelStore, hasChannel := store.(dcb.ChannelEventStore)
+	// Check if CrabletEventStore is available
+	channelStore, hasChannel := store.(dcb.CrabletEventStore)
 
 	fmt.Println("=== DCB Performance Benchmarks ===")
 	fmt.Printf("Database: localhost:5432/dcb_app\n")
@@ -99,7 +99,7 @@ func runReadBenchmarks(ctx context.Context, store dcb.EventStore) {
 	fmt.Println()
 }
 
-func runStreamBenchmarks(ctx context.Context, store dcb.EventStore, channelStore dcb.ChannelEventStore, hasChannel bool) {
+func runStreamBenchmarks(ctx context.Context, store dcb.EventStore, channelStore dcb.CrabletEventStore, hasChannel bool) {
 	fmt.Println("--- Streaming Benchmarks ---")
 
 	// Iterator vs Channel comparison
@@ -113,14 +113,14 @@ func runStreamBenchmarks(ctx context.Context, store dcb.EventStore, channelStore
 	fmt.Println()
 }
 
-func runProjectionBenchmarks(ctx context.Context, store dcb.EventStore, channelStore dcb.ChannelEventStore, hasChannel bool) {
+func runProjectionBenchmarks(ctx context.Context, store dcb.EventStore, channelStore dcb.CrabletEventStore, hasChannel bool) {
 	fmt.Println("--- Projection Benchmarks ---")
 
 	// Single projector
-	benchmarkSingleProjector(ctx, store)
+	benchmarkSingleProjector(ctx, store, channelStore)
 
 	// Multiple projectors
-	benchmarkMultipleProjectors(ctx, store)
+	benchmarkMultipleProjectors(ctx, store, channelStore)
 
 	// Channel projection
 	if hasChannel {
@@ -324,29 +324,17 @@ func benchmarkComplexQueries(ctx context.Context, store dcb.EventStore) {
 	}
 }
 
-func benchmarkIteratorVsChannel(ctx context.Context, store dcb.EventStore, channelStore dcb.ChannelEventStore) {
+func benchmarkIteratorVsChannel(ctx context.Context, store dcb.EventStore, channelStore dcb.CrabletEventStore) {
 	fmt.Println("Iterator vs Channel:")
 
 	query := dcb.NewQuery(dcb.NewTags(), "StudentEnrolledInCourse")
 
-	// Iterator approach
-	start := time.Now()
-	iterator, err := store.ReadStream(ctx, query, nil)
-	if err != nil {
-		fmt.Printf("  Iterator: Error creating stream: %v\n", err)
-	} else {
-		count := 0
-		for iterator.Next() {
-			count++
-		}
-		iterator.Close()
-		duration := time.Since(start)
-		fmt.Printf("  Iterator: %v (%d events)\n", duration, count)
-	}
+	// ReadStream has been removed - use Read for batch reading instead
+	fmt.Println("  Iterator: ReadStream method has been removed - use Read for batch operations")
 
 	// Channel approach
-	start = time.Now()
-	eventChan, err := channelStore.ReadStreamChannel(ctx, query, nil)
+	start := time.Now()
+	eventChan, err := channelStore.ReadStreamChannel(ctx, query)
 	if err != nil {
 		fmt.Printf("  Channel: Error creating stream: %v\n", err)
 	} else {
@@ -359,7 +347,7 @@ func benchmarkIteratorVsChannel(ctx context.Context, store dcb.EventStore, chann
 	}
 }
 
-func benchmarkMemoryUsage(ctx context.Context, store dcb.EventStore, channelStore dcb.ChannelEventStore, hasChannel bool) {
+func benchmarkMemoryUsage(ctx context.Context, store dcb.EventStore, channelStore dcb.CrabletEventStore, hasChannel bool) {
 	fmt.Println("Memory Usage Comparison:")
 
 	// This would require runtime.ReadMemStats() for actual memory measurement
@@ -367,7 +355,7 @@ func benchmarkMemoryUsage(ctx context.Context, store dcb.EventStore, channelStor
 	fmt.Println("  (Memory measurement requires runtime.ReadMemStats())")
 }
 
-func benchmarkSingleProjector(ctx context.Context, store dcb.EventStore) {
+func benchmarkSingleProjector(ctx context.Context, store dcb.EventStore, channelStore dcb.CrabletEventStore) {
 	fmt.Println("Single Projector:")
 
 	projector := dcb.BatchProjector{
@@ -382,7 +370,7 @@ func benchmarkSingleProjector(ctx context.Context, store dcb.EventStore) {
 	}
 
 	start := time.Now()
-	states, _, err := store.ProjectDecisionModel(ctx, []dcb.BatchProjector{projector}, nil)
+	states, _, err := channelStore.ProjectDecisionModel(ctx, []dcb.BatchProjector{projector})
 	duration := time.Since(start)
 
 	if err != nil {
@@ -392,7 +380,7 @@ func benchmarkSingleProjector(ctx context.Context, store dcb.EventStore) {
 	}
 }
 
-func benchmarkMultipleProjectors(ctx context.Context, store dcb.EventStore) {
+func benchmarkMultipleProjectors(ctx context.Context, store dcb.EventStore, channelStore dcb.CrabletEventStore) {
 	fmt.Println("Multiple Projectors:")
 
 	projectors := []dcb.BatchProjector{
@@ -429,7 +417,7 @@ func benchmarkMultipleProjectors(ctx context.Context, store dcb.EventStore) {
 	}
 
 	start := time.Now()
-	states, _, err := store.ProjectDecisionModel(ctx, projectors, nil)
+	states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
 	duration := time.Since(start)
 
 	if err != nil {
@@ -442,7 +430,7 @@ func benchmarkMultipleProjectors(ctx context.Context, store dcb.EventStore) {
 	}
 }
 
-func benchmarkChannelProjection(ctx context.Context, channelStore dcb.ChannelEventStore) {
+func benchmarkChannelProjection(ctx context.Context, channelStore dcb.CrabletEventStore) {
 	fmt.Println("Channel Projection:")
 
 	projectors := []dcb.BatchProjector{
@@ -459,7 +447,7 @@ func benchmarkChannelProjection(ctx context.Context, channelStore dcb.ChannelEve
 	}
 
 	start := time.Now()
-	resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors, nil)
+	resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
 	if err != nil {
 		fmt.Printf("  Error: %v\n", err)
 		return

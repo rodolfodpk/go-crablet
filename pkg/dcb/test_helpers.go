@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -95,48 +96,45 @@ func truncateEventsTable(ctx context.Context, pool *pgxpool.Pool) error {
 // dumpEvents queries the events table and prints the results as JSON
 func dumpEvents(pool *pgxpool.Pool) {
 	rows, err := pool.Query(ctx, `
-		SELECT id, type, position, tags, data, causation_id, correlation_id
+		SELECT type, position, tags, data
 		FROM events
 		ORDER BY position
 	`)
 	Expect(err).NotTo(HaveOccurred())
 	defer rows.Close()
 	type EventRecord struct {
-		ID            string      `json:"id"`
-		Type          string      `json:"type"`
-		Position      int64       `json:"position"`
-		Tags          interface{} `json:"tags"`
-		Data          interface{} `json:"data"`
-		CausationID   string      `json:"causation_id"`
-		CorrelationID string      `json:"correlation_id"`
+		Type     string      `json:"type"`
+		Position int64       `json:"position"`
+		Tags     interface{} `json:"tags"`
+		Data     interface{} `json:"data"`
 	}
 	events := []EventRecord{}
 	for rows.Next() {
 		var (
-			id            string
-			eventType     string
-			position      int64
-			tagsBytes     []byte
-			dataBytes     []byte
-			causationID   string
-			correlationID string
+			type_     string
+			position  int64
+			tagsArray []string
+			dataBytes []byte
 		)
-		err := rows.Scan(&id, &eventType, &position, &tagsBytes, &dataBytes, &causationID, &correlationID)
+		err := rows.Scan(&type_, &position, &tagsArray, &dataBytes)
 		Expect(err).NotTo(HaveOccurred())
-		var tags interface{}
-		err = json.Unmarshal(tagsBytes, &tags)
-		Expect(err).NotTo(HaveOccurred())
+
+		// Convert tags array to map for JSON output
+		tagsMap := make(map[string]string)
+		for _, tagItem := range tagsArray {
+			if parts := strings.SplitN(tagItem, ":", 2); len(parts) == 2 {
+				tagsMap[parts[0]] = parts[1]
+			}
+		}
+
 		var data interface{}
 		err = json.Unmarshal(dataBytes, &data)
 		Expect(err).NotTo(HaveOccurred())
 		events = append(events, EventRecord{
-			ID:            id,
-			Type:          eventType,
-			Position:      position,
-			Tags:          tags,
-			Data:          data,
-			CausationID:   causationID,
-			CorrelationID: correlationID,
+			Type:     type_,
+			Position: position,
+			Tags:     tagsMap,
+			Data:     data,
 		})
 	}
 	Expect(rows.Err()).NotTo(HaveOccurred())

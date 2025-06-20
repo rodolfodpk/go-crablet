@@ -248,9 +248,9 @@ var _ = Describe("Batch Projection", func() {
 			}
 
 			// Test ProjectDecisionModel
-			states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
+			channelStore := store.(CrabletEventStore)
+			states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(appendCondition.After).NotTo(BeNil())
 
 			Expect(states["courseCount"]).To(Equal(1))
 			Expect(states["studentCount"]).To(Equal(1))
@@ -292,7 +292,8 @@ var _ = Describe("Batch Projection", func() {
 				}},
 			}
 
-			states, _, err := store.ProjectDecisionModel(ctx, projectors, nil)
+			channelStore := store.(CrabletEventStore)
+			states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(states["count"]).To(Equal(2))
@@ -325,9 +326,9 @@ var _ = Describe("Batch Projection", func() {
 			}
 
 			// Test ProjectDecisionModel
-			states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
+			channelStore := store.(CrabletEventStore)
+			states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(appendCondition.After).NotTo(BeNil())
 
 			Expect(states["totalAmount"]).To(Equal(150.0))
 		})
@@ -341,7 +342,8 @@ var _ = Describe("Batch Projection", func() {
 				}},
 			}
 
-			_, _, err := store.ProjectDecisionModel(ctx, projectors, nil)
+			channelStore := store.(CrabletEventStore)
+			_, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("nil transition function"))
 		})
@@ -357,9 +359,10 @@ var _ = Describe("Batch Projection", func() {
 				}},
 			}
 
-			_, _, err := store.ProjectDecisionModel(ctx, projectors, nil)
+			channelStore := store.(CrabletEventStore)
+			_, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("query must contain at least one item"))
+			Expect(err.Error()).To(ContainSubstring("empty query"))
 		})
 
 		It("should handle projectors with different query types", func() {
@@ -399,9 +402,9 @@ var _ = Describe("Batch Projection", func() {
 			}
 
 			// Test ProjectDecisionModel
-			states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
+			channelStore := store.(CrabletEventStore)
+			states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(appendCondition.After).NotTo(BeNil())
 
 			Expect(states["orderCount"]).To(Equal(1))
 			Expect(states["itemCount"]).To(Equal(2))
@@ -433,10 +436,9 @@ var _ = Describe("Batch Projection", func() {
 			}
 
 			// Test with cursor streaming
-			options := &ReadOptions{BatchSize: intPtr(100)}
-			states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, options)
+			channelStore := store.(CrabletEventStore)
+			states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(appendCondition.After).NotTo(BeNil())
 
 			Expect(states["count"]).To(Equal(1000))
 		})

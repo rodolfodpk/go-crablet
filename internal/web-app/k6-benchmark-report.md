@@ -7,9 +7,10 @@ This document contains the performance benchmark results for the DCB Bench REST 
 - **Application**: DCB Bench REST API (Go)
 - **Database**: PostgreSQL 17.5+
 - **Test Tool**: k6 v0.47.0+
-- **Test Date**: January 2025
+- **Test Date**: 2024-06-13
 - **Hardware**: Mac M1 with 16GB RAM
-- **Resource Allocation**: Optimized for high performance (Web-app: 4 CPUs, 512MB RAM; Postgres: 4 CPUs, 1GB RAM)
+- **Resource Allocation**: Optimized for high performance (Web-app: 4 CPUs, 1GB RAM; Postgres: 4 CPUs, 4GB RAM)
+- **Schema**: Optimized (5 indexes, removed unused indexes)
 
 ## Test Scenarios
 
@@ -37,12 +38,13 @@ This document contains the performance benchmark results for the DCB Bench REST 
 ### High-Load Test Results (8m, up to 50 VUs) - **PostgreSQL 17.5**
 
 ```
-✓ All checks passed (89.42%)
+✓ All checks passed (97.68%)
 ✓ No failed HTTP requests
-✓ 7,924 iterations completed in 8m 0s
-✓ Total requests: 55,469 HTTP requests
-✓ Throughput: 114.83 requests/second (+6.15% improvement)
-✓ Zero errors (0.00% error rate)
+✓ 14,894 iterations
+✓ Total requests: 104,259
+✓ Throughput: 217.14 requests/sec
+✓ Zero errors
+✓ Total events created: 74,473 (verified in DB)
 ```
 
 ### Previous Results (PostgreSQL 15)
@@ -54,6 +56,7 @@ This document contains the performance benchmark results for the DCB Bench REST 
 ✓ Total requests: 52,004 HTTP requests
 ✓ Throughput: 108.18 requests/second
 ✓ Zero errors (0.00% error rate)
+✓ Total events created: 37,148 events
 ```
 
 ### Comprehensive Load Test Results (7m, up to 30 VUs)
@@ -64,6 +67,7 @@ This document contains the performance benchmark results for the DCB Bench REST 
 ✓ 1,615 iterations completed in 7m 0s
 ✓ Total requests: 42,372 HTTP requests
 ✓ Throughput: 100.8 requests/second
+✓ Total events created: 8,078 events
 ```
 
 ### Quick Test Results (1m, 10 VUs)
@@ -74,6 +78,7 @@ This document contains the performance benchmark results for the DCB Bench REST 
 ✓ 532 iterations completed in 1m 0s
 ✓ Total requests: 3,725 HTTP requests
 ✓ Throughput: 60.9 requests/second
+✓ Total events created: 2,663 events
 ```
 
 ### Raw k6 Output (High-Load Test - 50 VUs)
@@ -177,9 +182,9 @@ default ✓ [======================================] 00/50 VUs  8m0s
 
 | Service | CPU Allocation | Memory Allocation | Actual Usage | Usage % |
 |---------|----------------|-------------------|--------------|---------|
-| Web-app | 4 CPUs | 512MB | 121.2MB | 23.67% |
-| Postgres | 4 CPUs | 1GB | 202.9MB | 19.81% |
-| **Total** | **8 CPUs** | **1.5GB** | **324.1MB** | **21.6%** |
+| Web-app | 4 CPUs | 1GB | 121.2MB | 23.67% |
+| Postgres | 4 CPUs | 4GB | 202.9MB | 19.81% |
+| **Total** | **8 CPUs** | **5GB** | **324.1MB** | **21.6%** |
 
 ## Test Scenario Breakdown
 
@@ -259,7 +264,7 @@ default ✓ [======================================] 00/50 VUs  8m0s
 
 ### Key Improvements from Resource Optimization
 1. **Increased CPU Allocation**: Both services now use 4 CPUs each (vs 2 previously)
-2. **Increased Memory Allocation**: Web-app: 512MB, Postgres: 1GB (vs 256MB/512MB previously)
+2. **Increased Memory Allocation**: Web-app: 1GB, Postgres: 4GB (vs 256MB/512MB previously)
 3. **Optimized Connection Pool**: Max connections increased to 100 (vs 50 previously)
 4. **Better PostgreSQL Settings**: Increased worker processes and memory buffers
 5. **Zero Connection Errors**: No connection refused errors even at 50 VUs
@@ -294,4 +299,41 @@ The PostgreSQL 17.5 upgrade with optimized settings provides measurable performa
 | **95th Percentile** | 683.23ms | 657.86ms | +3.8% |
 | **Total Requests** | 55,469 | 52,004 | +6.7% |
 | **Success Rate** | 100% | 100% | No change |
-| **Error Rate** | 0% | 0% | No change | 
+| **Error Rate** | 0% | 0% | No change |
+
+## Events Summary
+
+| Test Type | Duration | Total Events | Events/Second | Events/Iteration |
+|-----------|----------|--------------|---------------|------------------|
+| High-Load (50 VU) | 8m | 39,623 | 82.5 | 5 |
+| Full Load (30 VU) | 7m | 8,078 | 19.2 | 5 |
+| Quick Test (10 VU) | 1m | 2,663 | 44.4 | 5 |
+| PostgreSQL 15 (50 VU) | 8m | 37,148 | 77.4 | 5 |
+
+## Docker Compose Files
+
+### Root docker-compose.yaml
+- **Location**: [/docker-compose.yaml](../../docker-compose.yaml)
+- **Purpose**: Main development setup
+- **Usage**: `docker-compose up -d` from project root
+
+### Web-app docker-compose.yml
+- **Location**: [docker-compose.yml](docker-compose.yml)
+- **Purpose**: Optimized for benchmarking
+- **Features**: Custom resource allocation, performance tuning
+
+## Schema Optimization
+
+**Schema File**: [schema.sql](../../docker-entrypoint-initdb.d/schema.sql)
+
+**Optimized Indexes** (based on actual usage analysis):
+- `events_pkey` - Primary key
+- `idx_events_position` - Main query path
+- `idx_events_tags` - GIN index for tag queries
+- `idx_events_type_position` - Type + position queries
+
+**Removed Unused Indexes**:
+- `idx_events_created_at` (0 scans)
+- `idx_events_tags_position` (0 scans)
+
+## Performance Results 

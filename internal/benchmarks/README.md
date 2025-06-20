@@ -182,14 +182,14 @@ events := []dcb.InputEvent{
     dcb.NewInputEvent("MoneyTransferred", tags2, data2),
     dcb.NewInputEvent("AccountBalanceChanged", tags3, data3),
 }
-store.Append(ctx, events, &appendCondition) // All events share same correlation ID
+store.Append(ctx, events, &appendCondition) // All events processed atomically
 ```
 
 #### **4. Performance Trade-offs**
 - **Throughput**: Batch size 1000 provides ~2,200 events/sec
 - **Latency**: Smaller batches (10-100) for real-time requirements
 - **Memory**: Larger batches use more memory but better throughput
-- **Atomicity**: All events in a batch share the same correlation ID
+- **Atomicity**: All events in a batch are processed as a single unit
 
 ## 🔧 **Configuration**
 

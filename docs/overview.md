@@ -23,20 +23,18 @@ go-crablet is a Go library for event sourcing, exploring and learning about conc
 ```go
 type EventStore interface {
     Read(ctx context.Context, query Query, options *ReadOptions) (SequencedEvents, error)
-    ReadStream(ctx context.Context, query Query, options *ReadOptions) (EventIterator, error)
     Append(ctx context.Context, events []InputEvent, condition *AppendCondition) (int64, error)
-    ProjectDecisionModel(ctx context.Context, projectors []BatchProjector, options *ReadOptions) (map[string]any, AppendCondition, error)
+    ProjectDecisionModel(ctx context.Context, projectors []BatchProjector) (map[string]any, AppendCondition, error)
 }
 ```
 
-### ChannelEventStore Extension Interface
+### CrabletEventStore Extension Interface
 ```go
-type ChannelEventStore interface {
+type CrabletEventStore interface {
     EventStore  // Inherits all core methods
     
-    ReadStreamChannel(ctx context.Context, query Query, options *ReadOptions) (<-chan Event, error)
-    NewEventStream(ctx context.Context, query Query, options *ReadOptions) (*EventStream, error)
-    ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector, options *ReadOptions) (<-chan ProjectionResult, error)
+    ReadStreamChannel(ctx context.Context, query Query) (<-chan Event, error)
+    ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector) (<-chan ProjectionResult, error)
 }
 ```
 

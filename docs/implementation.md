@@ -35,31 +35,27 @@ type EventStore interface {
 
     // ProjectDecisionModel projects multiple states using multiple projectors and returns final states with append condition
     // This is the primary DCB API for building decision models in command handlers
-    ProjectDecisionModel(ctx context.Context, projectors []BatchProjector, options *ReadOptions) (map[string]any, AppendCondition, error)
+    ProjectDecisionModel(ctx context.Context, projectors []BatchProjector) (map[string]any, AppendCondition, error)
 }
 ```
 
-### ChannelEventStore Extension Interface
+### CrabletEventStore Extension Interface
 
 The extension interface provides Go-idiomatic channel-based streaming:
 
 ```go
-type ChannelEventStore interface {
+type CrabletEventStore interface {
     EventStore  // Inherits all core methods
 
     // ReadStreamChannel creates a channel-based stream of events matching a query
     // This is optimized for small to medium datasets (< 500 events) and provides
     // a more Go-idiomatic interface using channels
-    ReadStreamChannel(ctx context.Context, query Query, options *ReadOptions) (<-chan Event, error)
-
-    // NewEventStream creates a new EventStream for the given query
-    // This provides more control over the streaming process
-    NewEventStream(ctx context.Context, query Query, options *ReadOptions) (*EventStream, error)
+    ReadStreamChannel(ctx context.Context, query Query) (<-chan Event, error)
 
     // ProjectDecisionModelChannel projects multiple states using channel-based streaming
     // This is optimized for small to medium datasets (< 500 events) and provides
     // a more Go-idiomatic interface using channels for state projection
-    ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector, options *ReadOptions) (<-chan ProjectionResult, error)
+    ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector) (<-chan ProjectionResult, error)
 }
 ```
 
@@ -168,13 +164,11 @@ for result := range resultChan {
 ```go
 // Event represents a persisted event in the system
 type Event struct {
-    ID            string `json:"id"`
-    Type          string `json:"type"`
-    Tags          []Tag  `json:"tags"`
-    Data          []byte `json:"data"`
-    Position      int64  `json:"position"`
-    CausationID   string `json:"causation_id"`
-    CorrelationID string `json:"correlation_id"`
+    ID       string `json:"id"`
+    Type     string `json:"type"`
+    Tags     []Tag  `json:"tags"`
+    Data     []byte `json:"data"`
+    Position int64  `json:"position"`
 }
 
 // InputEvent represents an event to be appended to the store
@@ -292,7 +286,7 @@ This approach is fully aligned with the [DCB specification](https://dcb.events/s
 The batch projection uses a single optimized PostgreSQL query:
 
 ```sql
-SELECT id, type, tags, data, position, causation_id, correlation_id 
+SELECT type, tags, data, position 
 FROM events 
 WHERE (tags @> '{"course_id": "c1"}' AND type IN ('CourseDefined'))
    OR (tags @> '{"course_id": "c1"}' AND type IN ('StudentSubscribed'))
@@ -368,10 +362,10 @@ go-crablet supports both single and batch event appends, with batch operations p
 
 ### Batch Append Benefits
 
-1. **Atomicity**: All events in a batch share the same correlation ID
+1. **Atomicity**: All events in a batch are processed as a single unit
 2. **Performance**: 268x more efficient than single event appends
-3. **Consistency**: Events are processed as a single unit
-4. **Causation Chain**: Events are linked in a logical sequence
+3. **Consistency**: Events are processed atomically
+4. **Efficiency**: Reduced database round trips
 
 ### Implementation Example
 
@@ -393,7 +387,7 @@ if err != nil {
     log.Fatalf("Failed to append events: %v", err)
 }
 
-// All events share the same correlation ID and are causally linked
+// All events are processed atomically in the same transaction
 ```
 
 ### Best Practices

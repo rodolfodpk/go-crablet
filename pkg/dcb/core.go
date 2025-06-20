@@ -9,14 +9,8 @@ type EventStore interface {
 	// Read reads events matching a query, optionally starting from a specified sequence position
 	Read(ctx context.Context, query Query, options *ReadOptions) (SequencedEvents, error)
 
-	// ReadStream creates a stream of events matching a query
-	ReadStream(ctx context.Context, query Query, options *ReadOptions) (EventIterator, error)
-
 	// Append atomically persists one or more events, optionally with an append condition
 	Append(ctx context.Context, events []InputEvent, condition *AppendCondition) (int64, error)
-
-	// ProjectDecisionModel projects multiple states using multiple projectors and returns final states with append condition
-	ProjectDecisionModel(ctx context.Context, projectors []BatchProjector, options *ReadOptions) (map[string]any, AppendCondition, error)
 }
 
 // ProjectionResult represents a single projection result from channel-based projection
@@ -37,50 +31,31 @@ type ProjectionResult struct {
 	Error error
 }
 
-// ChannelEventStore extends EventStore with channel-based streaming capabilities
+// CrabletEventStore extends EventStore with channel-based streaming capabilities
 // This provides an alternative Go-idiomatic interface for event streaming
-type ChannelEventStore interface {
+type CrabletEventStore interface {
 	EventStore
 
 	// ReadStreamChannel creates a channel-based stream of events matching a query
 	// This is optimized for small to medium datasets (< 500 events) and provides
 	// a more Go-idiomatic interface using channels
-	ReadStreamChannel(ctx context.Context, query Query, options *ReadOptions) (<-chan Event, error)
+	ReadStreamChannel(ctx context.Context, query Query) (<-chan Event, error)
 
-	// NewEventStream creates a new EventStream for the given query
-	// This provides more control over the streaming process
-	NewEventStream(ctx context.Context, query Query, options *ReadOptions) (*EventStream, error)
+	// ProjectDecisionModel projects multiple states using multiple projectors and returns final states with append condition
+	ProjectDecisionModel(ctx context.Context, projectors []BatchProjector) (map[string]any, AppendCondition, error)
 
 	// ProjectDecisionModelChannel projects multiple states using channel-based streaming
 	// This is optimized for small to medium datasets (< 500 events) and provides
 	// a more Go-idiomatic interface using channels for state projection
-	ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector, options *ReadOptions) (<-chan ProjectionResult, error)
-}
-
-// EventIterator provides a streaming interface for reading events
-type EventIterator interface {
-	// Next advances to the next event, returning false if no more events
-	Next() bool
-
-	// Event returns the current event
-	Event() Event
-
-	// Err returns any error that occurred during iteration
-	Err() error
-
-	// Close closes the iterator and releases resources
-	Close() error
+	ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector) (<-chan ProjectionResult, error)
 }
 
 // Event represents a single event in the event store
 type Event struct {
-	ID            string `json:"id"`
-	Type          string `json:"type"`
-	Tags          []Tag  `json:"tags"`
-	Data          []byte `json:"data"`
-	Position      int64  `json:"position"`
-	CausationID   string `json:"causation_id"`
-	CorrelationID string `json:"correlation_id"`
+	Type     string `json:"type"`
+	Tags     []Tag  `json:"tags"`
+	Data     []byte `json:"data"`
+	Position int64  `json:"position"`
 }
 
 // InputEvent represents an event to be appended to the store

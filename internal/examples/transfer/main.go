@@ -69,37 +69,37 @@ func main() {
 		log.Fatalf("failed to create event store: %v", err)
 	}
 
+	// Cast to CrabletEventStore for extended functionality
+	channelStore := store.(dcb.CrabletEventStore)
+
 	// Command 1: Create first account
 	createAccount1Cmd := CreateAccountCommand{
 		AccountID:      "acc1",
 		Owner:          "Alice",
 		InitialBalance: 1000,
 	}
-	err = handleCreateAccount(ctx, store, createAccount1Cmd)
+	err = handleCreateAccount(ctx, channelStore, createAccount1Cmd)
 	if err != nil {
 		log.Fatalf("Create account 1 failed: %v", err)
 	}
 
 	// Command 2: Create second account
 	createAccount2Cmd := CreateAccountCommand{
-		AccountID:      "acc2",
-		Owner:          "Bob",
+		AccountID:      "acc456",
 		InitialBalance: 500,
 	}
-	err = handleCreateAccount(ctx, store, createAccount2Cmd)
+	err = handleCreateAccount(ctx, channelStore, createAccount2Cmd)
 	if err != nil {
 		log.Fatalf("Create account 2 failed: %v", err)
 	}
 
-	// Command 3: Transfer money between accounts
+	// Command 3: Transfer money
 	transferCmd := TransferMoneyCommand{
-		TransferID:    "transfer-123",
 		FromAccountID: "acc1",
-		ToAccountID:   "acc2",
-		Amount:        150,
-		Description:   "Payment for services",
+		ToAccountID:   "acc456",
+		Amount:        300,
 	}
-	err = handleTransferMoney(ctx, store, transferCmd)
+	err = handleTransferMoney(ctx, channelStore, transferCmd)
 	if err != nil {
 		log.Fatalf("Transfer failed: %v", err)
 	}
@@ -113,7 +113,7 @@ func main() {
 
 // Command handlers with their own business rules
 
-func handleCreateAccount(ctx context.Context, store dcb.EventStore, cmd CreateAccountCommand) error {
+func handleCreateAccount(ctx context.Context, store dcb.CrabletEventStore, cmd CreateAccountCommand) error {
 	// Command-specific projectors
 	projectors := []dcb.BatchProjector{
 		{ID: "accountExists", StateProjector: dcb.StateProjector{
@@ -128,7 +128,7 @@ func handleCreateAccount(ctx context.Context, store dcb.EventStore, cmd CreateAc
 		}},
 	}
 
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to check account existence: %w", err)
 	}
@@ -162,7 +162,7 @@ func handleCreateAccount(ctx context.Context, store dcb.EventStore, cmd CreateAc
 	return nil
 }
 
-func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd TransferMoneyCommand) error {
+func handleTransferMoney(ctx context.Context, store dcb.CrabletEventStore, cmd TransferMoneyCommand) error {
 	// Command-specific projectors
 	fromProjector := dcb.StateProjector{
 		Query: dcb.NewQuery(
@@ -234,7 +234,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 	states, appendCondition, err := store.ProjectDecisionModel(ctx, []dcb.BatchProjector{
 		{ID: "from", StateProjector: fromProjector},
 		{ID: "to", StateProjector: toProjector},
-	}, nil)
+	})
 	if err != nil {
 		return fmt.Errorf("projection failed: %w", err)
 	}

@@ -34,6 +34,37 @@ If you're new to Go and want to run the examples, follow these essential steps:
 - `internal/examples/readstream/main.go` - Event streaming basics
 - `internal/examples/streaming_projection/main.go` - Streaming projections
 
+## Multi-Module Development
+
+This project uses separate Go modules for better organization:
+
+### Core Library (`pkg/dcb`)
+```bash
+cd pkg/dcb
+go build ./...    # Build core library
+go test ./...     # Run all tests (136 tests)
+```
+
+### Web Application (`internal/web-app`)
+```bash
+cd internal/web-app
+go build ./...    # Build REST API server
+make test         # Run k6 performance benchmarks
+make run          # Start server locally
+```
+
+### Benchmarks (`internal/benchmarks`)
+```bash
+cd internal/benchmarks
+go build ./...    # Build benchmark tools
+go run main.go    # Run performance benchmarks
+```
+
+### Module Dependencies
+- All modules use Go 1.24
+- Core library (`pkg/dcb`) is reusable
+- `replace` directives enable local development
+
 ## Troubleshooting
 
 - **Database connection error**: Make sure PostgreSQL is running with `docker-compose ps`

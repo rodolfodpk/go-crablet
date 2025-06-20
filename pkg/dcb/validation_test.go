@@ -1,7 +1,6 @@
 package dcb
 
 import (
-	"context"
 	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -286,14 +285,8 @@ var _ = Describe("Validation", func() {
 	})
 
 	Describe("validateBatchSize", func() {
-		var store EventStore
-		var ctx context.Context
-
 		BeforeEach(func() {
 			// Use shared PostgreSQL container and truncate events between tests
-			store = NewEventStoreFromPool(pool)
-			ctx = context.Background()
-
 			// Truncate events table before each test
 			err := truncateEventsTable(ctx, pool)
 			Expect(err).NotTo(HaveOccurred())

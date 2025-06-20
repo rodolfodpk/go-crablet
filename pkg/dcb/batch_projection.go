@@ -1,39 +1,26 @@
 package dcb
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 )
 
 // rowEvent is a helper struct for scanning database rows.
 type rowEvent struct {
-	ID            string
-	Type          string
-	Tags          []byte
-	Data          []byte
-	Position      int64
-	CausationID   string
-	CorrelationID string
+	Type     string
+	Tags     []string
+	Data     []byte
+	Position int64
 }
 
 // convertRowToEvent converts a database row to an Event
 func convertRowToEvent(row rowEvent) Event {
-	var e Event
-	e.ID = row.ID
-	e.Type = row.Type
-	var tagMap map[string]string
-	if err := json.Unmarshal(row.Tags, &tagMap); err != nil {
-		panic(fmt.Sprintf("failed to unmarshal tags at position %d: %v", row.Position, err))
+	return Event{
+		Type:     row.Type,
+		Tags:     ParseTagsArray(row.Tags),
+		Data:     row.Data,
+		Position: row.Position,
 	}
-	for k, v := range tagMap {
-		e.Tags = append(e.Tags, Tag{Key: k, Value: v})
-	}
-	e.Data = row.Data
-	e.Position = row.Position
-	e.CausationID = row.CausationID
-	e.CorrelationID = row.CorrelationID
-	return e
 }
 
 // combineProjectorQueries combines multiple projector queries into a single OR query
@@ -54,7 +41,7 @@ func (es *eventStore) combineProjectorQueries(projectors []BatchProjector) Query
 func (es *eventStore) buildCombinedQuerySQL(query Query, maxPosition int64) (string, []interface{}, error) {
 	if len(query.Items) == 0 {
 		// Empty query matches all events
-		sqlQuery := "SELECT id, type, tags, data, position, causation_id, correlation_id FROM events"
+		sqlQuery := "SELECT type, tags, data, position FROM events"
 		args := []interface{}{}
 
 		if maxPosition >= 0 {
@@ -83,19 +70,9 @@ func (es *eventStore) buildCombinedQuerySQL(query Query, maxPosition int64) (str
 
 		// Add tag conditions - use contains operator for DCB semantics
 		if len(item.Tags) > 0 {
-			tagMap := make(map[string]string)
-			for _, tag := range item.Tags {
-				tagMap[tag.Key] = tag.Value
-			}
-			queryTags, err := json.Marshal(tagMap)
-			if err != nil {
-				return "", nil, &EventStoreError{
-					Op:  "buildCombinedQuerySQL",
-					Err: fmt.Errorf("failed to marshal query tags: %w", err),
-				}
-			}
-			andConditions = append(andConditions, fmt.Sprintf("tags @> $%d", argIndex))
-			args = append(args, queryTags)
+			tagsArray := TagsToArray(item.Tags)
+			andConditions = append(andConditions, fmt.Sprintf("tags @> $%d::text[]", argIndex))
+			args = append(args, tagsArray)
 			argIndex++
 		}
 
@@ -106,7 +83,7 @@ func (es *eventStore) buildCombinedQuerySQL(query Query, maxPosition int64) (str
 	}
 
 	// Combine OR conditions for all items
-	sqlQuery := fmt.Sprintf("SELECT id, type, tags, data, position, causation_id, correlation_id FROM events WHERE (%s)", strings.Join(orConditions, " OR "))
+	sqlQuery := fmt.Sprintf("SELECT type, tags, data, position FROM events WHERE (%s)", strings.Join(orConditions, " OR "))
 
 	// Add position filtering if specified
 	if maxPosition >= 0 {
