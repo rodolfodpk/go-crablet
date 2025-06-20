@@ -1,6 +1,6 @@
-# Minimal Example: Course Subscription
+# Minimal Example: Course Enrollment with DCB Pattern
 
-This document provides a detailed walkthrough of the minimal course subscription example, showing how events are created and stored.
+This document provides a detailed walkthrough of a comprehensive course enrollment example, demonstrating the Dynamic Consistency Boundary (DCB) pattern with proper command handlers, business logic separation, and optimistic concurrency.
 
 ## Complete Example
 
@@ -12,121 +12,237 @@ import (
     "encoding/json"
     "fmt"
     "log"
-    "time"
     "github.com/rodolfodpk/go-crablet/pkg/dcb"
     "github.com/jackc/pgx/v5/pgxpool"
+    "time"
 )
-
-// Generate unique IDs for better concurrency
-func generateUniqueID(prefix string) string {
-    return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
-}
 
 func main() {
     ctx := context.Background()
     pool, _ := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")
     store, _ := dcb.NewEventStore(ctx, pool)
 
-    // Generate unique IDs for this example
-    courseID := generateUniqueID("course")
-    studentID := generateUniqueID("student")
+    // Command 1: Create Course
+    createCourseCmd := CreateCourseCommand{
+        CourseID: generateUniqueID("course"),
+        Title:    "Introduction to Event Sourcing",
+        Capacity: 2,
+    }
+    err := handleCreateCourse(ctx, store, createCourseCmd)
+    if err != nil {
+        log.Fatalf("Create course failed: %v", err)
+    }
 
-    // Define projectors for course capacity check
+    // Command 2: Register Student
+    registerStudentCmd := RegisterStudentCommand{
+        StudentID: generateUniqueID("student"),
+        Name:      "Alice",
+        Email:     "alice@example.com",
+    }
+    err = handleRegisterStudent(ctx, store, registerStudentCmd)
+    if err != nil {
+        log.Fatalf("Register student failed: %v", err)
+    }
+
+    // Command 3: Enroll Student in Course
+    enrollCmd := EnrollStudentCommand{
+        StudentID: registerStudentCmd.StudentID,
+        CourseID:  createCourseCmd.CourseID,
+    }
+    err = handleEnrollStudent(ctx, store, enrollCmd)
+    if err != nil {
+        log.Fatalf("Enroll student failed: %v", err)
+    }
+
+    fmt.Println("All commands executed successfully!")
+}
+
+// Generate unique IDs for better concurrency
+func generateUniqueID(prefix string) string {
+    return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
+}
+
+// Command handlers with their own business rules
+
+func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCourseCommand) error {
+    // Command-specific projectors
     projectors := []dcb.BatchProjector{
         {ID: "courseExists", StateProjector: dcb.StateProjector{
-            Query: dcb.NewQuery(dcb.NewTags("course_id", courseID), "CourseDefined"),
+            Query: dcb.NewQuery(dcb.NewTags("course_id", cmd.CourseID), "CourseCreated"),
             InitialState: false,
             TransitionFn: func(state any, e dcb.Event) any { return true },
         }},
-        {ID: "numSubscriptions", StateProjector: dcb.StateProjector{
-            Query: dcb.NewQuery(dcb.NewTags("course_id", courseID), "StudentSubscribed"),
+    }
+
+    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors, nil)
+    
+    // Command-specific business rule: course must not already exist
+    if states["courseExists"].(bool) {
+        return fmt.Errorf("course %s already exists", cmd.CourseID)
+    }
+
+    // Create events for this command
+    events := []dcb.InputEvent{
+        dcb.NewInputEvent("CourseCreated", 
+            dcb.NewTags("course_id", cmd.CourseID), 
+            mustJSON(map[string]any{"Title": cmd.Title, "Capacity": cmd.Capacity})),
+    }
+
+    // Append events atomically for this command
+    _, err := store.Append(ctx, events, &appendCondition)
+    if err != nil {
+        return fmt.Errorf("failed to create course: %w", err)
+    }
+
+    fmt.Printf("Created course %s with capacity %d\n", cmd.CourseID, cmd.Capacity)
+    return nil
+}
+
+func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd RegisterStudentCommand) error {
+    // Command-specific projectors
+    projectors := []dcb.BatchProjector{
+        {ID: "studentExists", StateProjector: dcb.StateProjector{
+            Query: dcb.NewQuery(dcb.NewTags("student_id", cmd.StudentID), "StudentRegistered"),
+            InitialState: false,
+            TransitionFn: func(state any, e dcb.Event) any { return true },
+        }},
+    }
+
+    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors, nil)
+    
+    // Command-specific business rule: student must not already exist
+    if states["studentExists"].(bool) {
+        return fmt.Errorf("student %s already exists", cmd.StudentID)
+    }
+
+    // Create events for this command
+    events := []dcb.InputEvent{
+        dcb.NewInputEvent("StudentRegistered", 
+            dcb.NewTags("student_id", cmd.StudentID), 
+            mustJSON(map[string]any{"Name": cmd.Name, "Email": cmd.Email})),
+    }
+
+    // Append events atomically for this command
+    _, err := store.Append(ctx, events, &appendCondition)
+    if err != nil {
+        return fmt.Errorf("failed to register student: %w", err)
+    }
+
+    fmt.Printf("Registered student %s (%s)\n", cmd.Name, cmd.Email)
+    return nil
+}
+
+func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollStudentCommand) error {
+    // Command-specific projectors
+    projectors := []dcb.BatchProjector{
+        {ID: "courseState", StateProjector: dcb.StateProjector{
+            Query: dcb.NewQuery(dcb.NewTags("course_id", cmd.CourseID), "CourseCreated", "StudentEnrolled"),
+            InitialState: &CourseState{Capacity: 0, Enrolled: 0},
+            TransitionFn: func(state any, e dcb.Event) any {
+                course := state.(*CourseState)
+                switch e.Type {
+                case "CourseCreated":
+                    var data struct{ Capacity int }
+                    json.Unmarshal(e.Data, &data)
+                    course.Capacity = data.Capacity
+                case "StudentEnrolled":
+                    course.Enrolled++
+                }
+                return course
+            },
+        }},
+        {ID: "studentEnrollmentCount", StateProjector: dcb.StateProjector{
+            Query: dcb.NewQuery(dcb.NewTags("student_id", cmd.StudentID, "course_id", cmd.CourseID), "StudentEnrolled"),
             InitialState: 0,
             TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
         }},
     }
 
-    // Project states and get append condition (exploring Dynamic Consistency Boundary concepts)
-    states, appendCond, _ := store.ProjectDecisionModel(ctx, projectors, nil)
+    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors, nil)
     
-    // Check business rules
-    courseExists := states["courseExists"].(bool)
-    numSubscriptions := states["numSubscriptions"].(int)
+    course := states["courseState"].(*CourseState)
+    enrollmentCount := states["studentEnrollmentCount"].(int)
 
-    fmt.Printf("Course exists: %v, Current subscriptions: %d\n", courseExists, numSubscriptions)
-
-    // Create course if it doesn't exist
-    if !courseExists {
-        data, _ := json.Marshal(map[string]any{"CourseID": courseID, "Capacity": 2})
-        courseEvent := dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", courseID), data)
-        
-        _, err := store.Append(ctx, []dcb.InputEvent{courseEvent}, &appendCond)
-        if err != nil {
-            log.Fatalf("Failed to create course: %v", err)
-        }
-        fmt.Printf("Created course %s with capacity 2\n", courseID)
+    // Command-specific business rules
+    if course.Enrolled >= course.Capacity {
+        return fmt.Errorf("course %s is full (capacity: %d, enrolled: %d)", cmd.CourseID, course.Capacity, course.Enrolled)
+    }
+    if enrollmentCount > 0 {
+        return fmt.Errorf("student %s is already enrolled in course %s", cmd.StudentID, cmd.CourseID)
     }
 
-    // Enroll student if capacity allows
-    if numSubscriptions < 2 {
-        data, _ := json.Marshal(map[string]any{"StudentID": studentID, "CourseID": courseID})
-        enrollEvent := dcb.NewInputEvent("StudentSubscribed", dcb.NewTags("student_id", studentID, "course_id", courseID), data)
-        
-        _, err := store.Append(ctx, []dcb.InputEvent{enrollEvent}, &appendCond)
-        if err != nil {
-            log.Fatalf("Failed to enroll student: %v", err)
-        }
-        fmt.Printf("Enrolled student %s in course %s\n", studentID, courseID)
-    } else {
-        fmt.Printf("Course %s is full, cannot enroll student %s\n", courseID, studentID)
+    // Create events for this command
+    events := []dcb.InputEvent{
+        dcb.NewInputEvent("StudentEnrolled", 
+            dcb.NewTags("student_id", cmd.StudentID, "course_id", cmd.CourseID), 
+            mustJSON(map[string]any{"StudentID": cmd.StudentID, "CourseID": cmd.CourseID})),
     }
 
-    // Demonstrate capacity change
-    changeCourseCapacity(ctx, store, courseID, 5)
+    // Append events atomically for this command
+    _, err := store.Append(ctx, events, &appendCondition)
+    if err != nil {
+        return fmt.Errorf("failed to enroll student: %w", err)
+    }
+
+    fmt.Printf("Enrolled student %s in course %s\n", cmd.StudentID, cmd.CourseID)
+    return nil
 }
 
-// Change course capacity
-func changeCourseCapacity(ctx context.Context, store dcb.EventStore, courseID string, newCapacity int) error {
-    // Project current course state
-    projectors := []dcb.BatchProjector{
-        {ID: "courseCapacity", StateProjector: dcb.StateProjector{
-            Query: dcb.NewQuery(dcb.NewTags("course_id", courseID), "CourseDefined", "CourseCapacityChanged"),
-            InitialState: 0,
-            TransitionFn: func(state any, e dcb.Event) any {
-                switch e.Type {
-                case "CourseDefined":
-                    var data map[string]any
-                    json.Unmarshal(e.Data, &data)
-                    return int(data["Capacity"].(float64))
-                case "CourseCapacityChanged":
-                    var data map[string]any
-                    json.Unmarshal(e.Data, &data)
-                    return int(data["NewCapacity"].(float64))
-                }
-                return state
-            },
-        }},
-    }
-    
-    states, appendCond, _ := store.ProjectDecisionModel(ctx, projectors, nil)
-    currentCapacity := states["courseCapacity"].(int)
-    
-    // Create capacity change event
-    data, _ := json.Marshal(map[string]any{
-        "CourseID": courseID,
-        "OldCapacity": currentCapacity,
-        "NewCapacity": newCapacity,
-        "ChangedAt": time.Now(),
-    })
-    
-    capacityEvent := dcb.NewInputEvent("CourseCapacityChanged", dcb.NewTags("course_id", courseID), data)
-    
-    _, err := store.Append(ctx, []dcb.InputEvent{capacityEvent}, &appendCond)
-    return err
+// Command types
+type CreateCourseCommand struct {
+    CourseID string
+    Title    string
+    Capacity int
 }
+
+type RegisterStudentCommand struct {
+    StudentID string
+    Name      string
+    Email     string
+}
+
+type EnrollStudentCommand struct {
+    StudentID string
+    CourseID  string
+}
+
+type CourseState struct {
+    Capacity int
+    Enrolled int
+}
+
+func mustJSON(v any) []byte {
+    data, _ := json.Marshal(v)
+    return data
+}
+```
+
+## Key Features Demonstrated
+
+### 1. **Command Pattern**
+Each business operation is encapsulated in a command handler:
+- `handleCreateCourse`: Creates a new course with validation
+- `handleRegisterStudent`: Registers a new student with duplicate checking
+- `handleEnrollStudent`: Enrolls a student with capacity and duplicate enrollment checks
+
+### 2. **DCB Pattern Implementation**
+- **Batch Projectors**: Each command defines its own projectors to read relevant state
+- **Optimistic Concurrency**: Uses `appendCondition` to ensure atomic operations
+- **Business Rules**: Validates business constraints before appending events
+
+### 3. **State Projection**
+- **Course State**: Tracks course capacity and current enrollment count
+- **Student Enrollment Count**: Prevents duplicate enrollments
+- **Existence Checks**: Validates that entities exist before operations
+
+### 4. **Event Sourcing Benefits**
+- **Audit Trail**: Complete history of all operations
+- **Concurrency Safety**: Optimistic locking prevents race conditions
+- **Business Rule Enforcement**: Rules are enforced at the event level
 
 ## Resulting Events
 
-After running the minimal example, the events table will contain:
+After running the example, the events table will contain:
 
 ```sql
 SELECT type, tags, data, position 
@@ -136,16 +252,23 @@ ORDER BY position;
 
 | type | tags | data | position |
 |------|------|------|----------|
-| CourseDefined | `{"course_id": "course-1234567890"}` | `{"CourseID": "course-1234567890", "Capacity": 2}` | 1 |
-| StudentSubscribed | `{"student_id": "student-1234567891", "course_id": "course-1234567890"}` | `{"StudentID": "student-1234567891", "CourseID": "course-1234567890"}` | 2 |
-| CourseCapacityChanged | `{"course_id": "course-1234567890"}` | `{"CourseID": "course-1234567890", "OldCapacity": 2, "NewCapacity": 5, "ChangedAt": "..."}` | 3 |
+| CourseCreated | `{"course_id": "course-1234567890"}` | `{"Title": "Introduction to Event Sourcing", "Capacity": 2}` | 1 |
+| StudentRegistered | `{"student_id": "student-1234567891"}` | `{"Name": "Alice", "Email": "alice@example.com"}` | 2 |
+| StudentEnrolled | `{"student_id": "student-1234567891", "course_id": "course-1234567890"}` | `{"StudentID": "student-1234567891", "CourseID": "course-1234567890"}` | 3 |
 
-**Event Flow:**
-1. **CourseDefined**: Creates course with unique ID and capacity 2
-2. **StudentSubscribed**: Enrolls student with unique ID in the course
-3. **CourseCapacityChanged**: Increases course capacity from 2 to 5
+## Business Rules Enforced
 
-**Benefits:**
-- **Audit Trail**: Complete history of course changes and enrollments
-- **Debugging**: Trace exactly which operations occurred and when
-- **Concurrency**: Unique IDs prevent conflicts between different examples 
+1. **Course Creation**: Cannot create a course that already exists
+2. **Student Registration**: Cannot register a student that already exists
+3. **Course Enrollment**: 
+   - Cannot enroll in a course that's at capacity
+   - Cannot enroll the same student twice in the same course
+   - Course must exist before enrollment
+
+## Benefits of This Approach
+
+- **Separation of Concerns**: Each command handler is focused on its specific business logic
+- **Reusability**: Command handlers can be called independently
+- **Testability**: Each handler can be tested in isolation
+- **Maintainability**: Business rules are clearly defined and easy to modify
+- **Scalability**: Commands can be processed in parallel with proper concurrency control 
