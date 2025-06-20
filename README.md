@@ -21,11 +21,16 @@ A Go library for event sourcing, exploring and learning about concepts inspired 
 - [Overview](docs/overview.md): DCB pattern exploration, batch projection, and streaming
 - [Examples](docs/examples.md): DCB-inspired use cases
 - [Implementation](docs/implementation.md): Technical details
-- [Causation and Correlation](docs/causation-correlation.md): Understanding event relationships and tracing
 - [Minimal Example](docs/minimal-example.md): Detailed walkthrough of the course subscription example
 - [Code Coverage](docs/code-coverage.md): Test coverage analysis and improvement guidelines
-- [Performance Benchmarks](internal/benchmarks/README.md): Comprehensive performance testing and analysis
-- [k6 Performance Benchmarks](internal/web-app/k6-benchmark-report.md): Detailed performance test results for REST API
+
+## Performance Benchmarks
+
+Comprehensive performance testing and analysis for different API protocols:
+
+- **[Web-App Benchmarks](internal/web-app/BENCHMARK.md)**: HTTP/REST API performance testing with k6
+- **[gRPC App Benchmarks](internal/grpc-app/BENCHMARK.md)**: gRPC API performance testing with k6
+- **[Go Benchmarks](internal/benchmarks/README.md)**: Core library performance testing and analysis
 
 ## Minimal Example: Batch Append with DCB Invariants
 
@@ -337,4 +342,4 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 ## 📊 **Benchmark Results**
 
-For comprehensive performance benchmarks and analysis, see the [Performance Benchmarks documentation](internal/benchmarks/README.md).
+For comprehensive performance benchmarks and analysis, see the [Performance Benchmarks](#performance-benchmarks) section above.

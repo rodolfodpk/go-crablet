@@ -164,13 +164,11 @@ for result := range resultChan {
 ```go
 // Event represents a persisted event in the system
 type Event struct {
-    ID            string `json:"id"`
-    Type          string `json:"type"`
-    Tags          []Tag  `json:"tags"`
-    Data          []byte `json:"data"`
-    Position      int64  `json:"position"`
-    CausationID   string `json:"causation_id"`
-    CorrelationID string `json:"correlation_id"`
+    ID       string `json:"id"`
+    Type     string `json:"type"`
+    Tags     []Tag  `json:"tags"`
+    Data     []byte `json:"data"`
+    Position int64  `json:"position"`
 }
 
 // InputEvent represents an event to be appended to the store
@@ -288,7 +286,7 @@ This approach is fully aligned with the [DCB specification](https://dcb.events/s
 The batch projection uses a single optimized PostgreSQL query:
 
 ```sql
-SELECT id, type, tags, data, position, causation_id, correlation_id 
+SELECT type, tags, data, position 
 FROM events 
 WHERE (tags @> '{"course_id": "c1"}' AND type IN ('CourseDefined'))
    OR (tags @> '{"course_id": "c1"}' AND type IN ('StudentSubscribed'))
@@ -364,10 +362,10 @@ go-crablet supports both single and batch event appends, with batch operations p
 
 ### Batch Append Benefits
 
-1. **Atomicity**: All events in a batch share the same correlation ID
+1. **Atomicity**: All events in a batch are processed as a single unit
 2. **Performance**: 268x more efficient than single event appends
-3. **Consistency**: Events are processed as a single unit
-4. **Causation Chain**: Events are linked in a logical sequence
+3. **Consistency**: Events are processed atomically
+4. **Efficiency**: Reduced database round trips
 
 ### Implementation Example
 
@@ -389,7 +387,7 @@ if err != nil {
     log.Fatalf("Failed to append events: %v", err)
 }
 
-// All events share the same correlation ID and are causally linked
+// All events are processed atomically in the same transaction
 ```
 
 ### Best Practices

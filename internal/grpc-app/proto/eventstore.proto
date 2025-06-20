@@ -1,0 +1,90 @@
+syntax = "proto3";
+
+package eventstore;
+
+option go_package = "go-crablet/internal/grpc-app/proto";
+
+// EventStoreService provides gRPC endpoints for event sourcing operations
+service EventStoreService {
+  // Read reads events matching a query, optionally starting from a specified position
+  rpc Read(ReadRequest) returns (ReadResponse);
+  
+  // Append atomically persists one or more events, optionally with an append condition
+  rpc Append(AppendRequest) returns (AppendResponse);
+  
+  // Health check endpoint
+  rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+// Health check request
+message HealthRequest {
+}
+
+// Health check response
+message HealthResponse {
+  string status = 1;
+}
+
+// Query represents a composite query with multiple conditions combined with OR logic
+message Query {
+  repeated QueryItem items = 1;
+}
+
+// QueryItem represents a single atomic query condition
+message QueryItem {
+  repeated string types = 1;  // Event types to match (matches OpenAPI EventTypes)
+  repeated string tags = 2;   // Tags to match (matches OpenAPI Tags as string array)
+}
+
+// ReadOptions for controlling read behavior
+message ReadOptions {
+  optional string from = 1;     // Start reading from this event ID
+  optional bool backwards = 2;  // Read backwards
+}
+
+// ReadRequest for reading events
+message ReadRequest {
+  Query query = 1;
+  optional ReadOptions options = 2;
+}
+
+// ReadResponse containing read results
+message ReadResponse {
+  repeated Event events = 1;
+  string checkpoint_event_id = 2;  // ID of the last event returned (if any)
+  int64 duration_in_microseconds = 3;
+  int32 number_of_matching_events = 4;
+}
+
+// Event represents a single event
+message Event {
+  string id = 1;           // EventId
+  string type = 2;         // EventType
+  string data = 3;         // Event data as JSON string
+  repeated string tags = 4; // Tags as string array
+}
+
+// InputEvent for appending events
+message InputEvent {
+  string type = 1;         // EventType
+  repeated string tags = 2; // Tags as string array
+  string data = 3;         // Event data as JSON string
+}
+
+// AppendCondition for conditional appends
+message AppendCondition {
+  optional Query fail_if_events_match = 1; // Fail if events match this query
+  optional string after = 2;               // Only append if position is after this event ID
+}
+
+// AppendRequest for appending events
+message AppendRequest {
+  repeated InputEvent events = 1;
+  optional AppendCondition condition = 2;
+}
+
+// AppendResponse containing append results
+message AppendResponse {
+  int64 duration_in_microseconds = 1;
+  bool append_condition_failed = 2;
+} 

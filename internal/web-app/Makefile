@@ -1,4 +1,4 @@
-.PHONY: help build run test clean docker-build docker-run docker-stop docker-logs k6-test setup-db start-db
+.PHONY: help build run test clean docker-build docker-run docker-stop docker-logs k6-test setup-db start-db stop-db run-server
 
 # Default target
 help:
@@ -14,6 +14,8 @@ help:
 	@echo "  docker-logs  - View application logs"
 	@echo "  start-db     - Start PostgreSQL database"
 	@echo "  setup-db     - Setup database (manual instructions)"
+	@echo "  stop-db      - Stop PostgreSQL database"
+	@echo "  run-server   - Run the web application"
 
 # Build the Go binary
 build:
@@ -115,4 +117,34 @@ clean-test:
 	@echo "Waiting for services to be ready..."
 	@sleep 10
 	@echo "Running k6 load test..."
-	k6 run k6-test.js 
+	k6 run k6-test.js
+
+# Stop PostgreSQL database
+stop-db:
+	@echo "Stopping PostgreSQL..."
+	cd ../.. && docker-compose stop postgres
+
+# Run the web application
+run-server:
+	@echo "Starting web-app server on port $(PORT)..."
+	@echo "(Press Ctrl+C to stop the server after the benchmark)"
+	PORT=$(PORT) DATABASE_URL=$(DB_URL) go run main.go & \
+	sleep 3
+
+# Variables
+DB_URL=postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable
+PORT=8080
+
+# Benchmark
+benchmark: clean start-db run-server full-benchmark
+	@echo "\nBenchmark complete."
+
+# Full benchmark
+full-benchmark:
+	@echo "Running full benchmark (8m)..."
+	k6 run k6-test.js
+
+# Quick test
+quick-test:
+	@echo "Running quick test (10s)..."
+	k6 run quick-test.js 

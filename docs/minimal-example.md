@@ -84,7 +84,7 @@ func main() {
     changeCourseCapacity(ctx, store, courseID, 5)
 }
 
-// Change course capacity with proper causation/correlation
+// Change course capacity
 func changeCourseCapacity(ctx context.Context, store dcb.EventStore, courseID string, newCapacity int) error {
     // Project current course state
     projectors := []dcb.BatchProjector{
@@ -110,7 +110,7 @@ func changeCourseCapacity(ctx context.Context, store dcb.EventStore, courseID st
     states, appendCond, _ := store.ProjectDecisionModel(ctx, projectors, nil)
     currentCapacity := states["courseCapacity"].(int)
     
-    // Create capacity change event with causation/correlation
+    // Create capacity change event
     data, _ := json.Marshal(map[string]any{
         "CourseID": courseID,
         "OldCapacity": currentCapacity,
@@ -119,9 +119,6 @@ func changeCourseCapacity(ctx context.Context, store dcb.EventStore, courseID st
     })
     
     capacityEvent := dcb.NewInputEvent("CourseCapacityChanged", dcb.NewTags("course_id", courseID), data)
-    
-    // If we had a previous event, we could set causation:
-    // capacityEvent.CausationID = previousEventID
     
     _, err := store.Append(ctx, []dcb.InputEvent{capacityEvent}, &appendCond)
     return err
@@ -132,25 +129,23 @@ func changeCourseCapacity(ctx context.Context, store dcb.EventStore, courseID st
 After running the minimal example, the events table will contain:
 
 ```sql
-SELECT id, type, tags, data, position, causation_id, correlation_id 
+SELECT type, tags, data, position 
 FROM events 
 ORDER BY position;
 ```
 
-| id | type | tags | data | position | causation_id | correlation_id |
-|----|------|------|------|----------|--------------|----------------|
-| 1 | CourseDefined | `{"course_id": "course-1234567890"}` | `{"CourseID": "course-1234567890", "Capacity": 2}` | 1 | course_id_01h2xcejqtf2nbrexx3vqjhp41 | course_id_01h2xcejqtf2nbrexx3vqjhp41 |
-| 2 | StudentSubscribed | `{"student_id": "student-1234567891", "course_id": "course-1234567890"}` | `{"StudentID": "student-1234567891", "CourseID": "course-1234567890"}` | 2 | course_id_student_id_01h2xcejqtf2nbrexx3vqjhp43 | course_id_student_id_01h2xcejqtf2nbrexx3vqjhp43 |
-| 3 | CourseCapacityChanged | `{"course_id": "course-1234567890"}` | `{"CourseID": "course-1234567890", "OldCapacity": 2, "NewCapacity": 5, "ChangedAt": "..."}` | 3 | course_id_01h2xcejqtf2nbrexx3vqjhp44 | capacity-change-course-1234567890 |
+| type | tags | data | position |
+|------|------|------|----------|
+| CourseDefined | `{"course_id": "course-1234567890"}` | `{"CourseID": "course-1234567890", "Capacity": 2}` | 1 |
+| StudentSubscribed | `{"student_id": "student-1234567891", "course_id": "course-1234567890"}` | `{"StudentID": "student-1234567891", "CourseID": "course-1234567890"}` | 2 |
+| CourseCapacityChanged | `{"course_id": "course-1234567890"}` | `{"CourseID": "course-1234567890", "OldCapacity": 2, "NewCapacity": 5, "ChangedAt": "..."}` | 3 |
 
 **Event Flow:**
 1. **CourseDefined**: Creates course with unique ID and capacity 2
 2. **StudentSubscribed**: Enrolls student with unique ID in the course
 3. **CourseCapacityChanged**: Increases course capacity from 2 to 5
 
-**Causation and Correlation Benefits:**
-- **Correlation ID**: Groups all capacity change operations for the same course
-- **Causation ID**: Can link to the event that triggered the capacity change
-- **Audit Trail**: Complete history of who changed what and when
-- **Debugging**: Trace exactly which operation caused the capacity change
+**Benefits:**
+- **Audit Trail**: Complete history of course changes and enrollments
+- **Debugging**: Trace exactly which operations occurred and when
 - **Concurrency**: Unique IDs prevent conflicts between different examples 

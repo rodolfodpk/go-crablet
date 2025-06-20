@@ -1,8 +1,6 @@
 package dcb
 
 import (
-	"encoding/json"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -14,105 +12,49 @@ var _ = Describe("Coverage Improvement Tests", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	Describe("convertTagsToJSON", func() {
-		It("should convert empty tags to empty JSON object", func() {
-			tags := []Tag{}
-			result, err := convertTagsToJSON(tags)
-			Expect(err).NotTo(HaveOccurred())
-
-			var actual map[string]string
-			err = json.Unmarshal(result, &actual)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(actual).To(BeEmpty())
-		})
-
-		It("should convert single tag to JSON", func() {
-			tags := []Tag{{Key: "user_id", Value: "123"}}
-			result, err := convertTagsToJSON(tags)
-			Expect(err).NotTo(HaveOccurred())
-
-			var actual map[string]string
-			err = json.Unmarshal(result, &actual)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(actual).To(Equal(map[string]string{"user_id": "123"}))
-		})
-
-		It("should convert multiple tags to JSON", func() {
-			tags := []Tag{
-				{Key: "user_id", Value: "123"},
-				{Key: "session_id", Value: "abc"},
-				{Key: "tenant", Value: "test"},
-			}
-			result, err := convertTagsToJSON(tags)
-			Expect(err).NotTo(HaveOccurred())
-
-			var actual map[string]string
-			err = json.Unmarshal(result, &actual)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(actual).To(Equal(map[string]string{
-				"user_id":    "123",
-				"session_id": "abc",
-				"tenant":     "test",
-			}))
-		})
-	})
-
 	Describe("prepareEventBatch", func() {
 		It("should handle empty events", func() {
 			events := []InputEvent{}
-			ids, types, tagsJSON, data, causationIDs, correlationIDs, err := prepareEventBatch(events)
+			types, tags, data, err := prepareEventBatch(events)
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(ids).To(BeEmpty())
 			Expect(types).To(BeEmpty())
-			Expect(tagsJSON).To(BeEmpty())
+			Expect(tags).To(BeEmpty())
 			Expect(data).To(BeEmpty())
-			Expect(causationIDs).To(BeEmpty())
-			Expect(correlationIDs).To(BeEmpty())
 		})
 
 		It("should prepare single event batch", func() {
 			event := NewInputEvent("UserCreated", NewTags("user_id", "123"), []byte(`{"name": "John"}`))
 			events := []InputEvent{event}
 
-			ids, types, tagsJSON, data, causationIDs, correlationIDs, err := prepareEventBatch(events)
+			types, tags, data, err := prepareEventBatch(events)
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(ids).To(HaveLen(1))
 			Expect(types).To(HaveLen(1))
-			Expect(tagsJSON).To(HaveLen(1))
+			Expect(tags).To(HaveLen(1))
 			Expect(data).To(HaveLen(1))
-			Expect(causationIDs).To(HaveLen(1))
-			Expect(correlationIDs).To(HaveLen(1))
 
 			Expect(types[0]).To(Equal("UserCreated"))
 			Expect(data[0]).To(Equal([]byte(`{"name": "John"}`)))
-			Expect(ids[0]).To(Equal(causationIDs[0]))
-			Expect(ids[0]).To(Equal(correlationIDs[0]))
+			Expect(tags[0]).To(Equal([]string{"user_id:123"}))
 		})
 
-		It("should prepare multiple events batch with proper causation and correlation", func() {
+		It("should prepare multiple events batch", func() {
 			event1 := NewInputEvent("UserCreated", NewTags("user_id", "123"), []byte(`{"name": "John"}`))
 			event2 := NewInputEvent("UserUpdated", NewTags("user_id", "123"), []byte(`{"name": "Jane"}`))
 			events := []InputEvent{event1, event2}
 
-			ids, types, tagsJSON, data, causationIDs, correlationIDs, err := prepareEventBatch(events)
+			types, tags, data, err := prepareEventBatch(events)
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(ids).To(HaveLen(2))
 			Expect(types).To(HaveLen(2))
-			Expect(tagsJSON).To(HaveLen(2))
+			Expect(tags).To(HaveLen(2))
 			Expect(data).To(HaveLen(2))
-			Expect(causationIDs).To(HaveLen(2))
-			Expect(correlationIDs).To(HaveLen(2))
 
-			// First event should be self-caused and root correlation
-			Expect(ids[0]).To(Equal(causationIDs[0]))
-			Expect(ids[0]).To(Equal(correlationIDs[0]))
-
-			// Second event should have first event as causation and same correlation
-			Expect(ids[0]).To(Equal(causationIDs[1]))
-			Expect(correlationIDs[0]).To(Equal(correlationIDs[1]))
+			Expect(types[0]).To(Equal("UserCreated"))
+			Expect(types[1]).To(Equal("UserUpdated"))
+			Expect(tags[0]).To(Equal([]string{"user_id:123"}))
+			Expect(tags[1]).To(Equal([]string{"user_id:123"}))
 		})
 	})
 
@@ -240,17 +182,15 @@ var _ = Describe("Coverage Improvement Tests", func() {
 	Describe("checkForConflictingEvents", func() {
 		It("should return nil for empty query", func() {
 			query := NewQueryEmpty()
-			queryTagsJSON := []byte(`{"user_id": "123"}`)
 			latestPosition := int64(100)
 
-			err := checkForConflictingEvents(ctx, nil, query, queryTagsJSON, latestPosition)
+			err := checkForConflictingEvents(ctx, nil, query, latestPosition)
 
 			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("should handle query with items (will panic due to nil transaction)", func() {
 			query := NewQuery(NewTags("user_id", "123"), "UserCreated")
-			queryTagsJSON := []byte(`{"user_id": "123"}`)
 			latestPosition := int64(100)
 
 			// Use recover to catch the expected panic
@@ -261,7 +201,7 @@ var _ = Describe("Coverage Improvement Tests", func() {
 				}
 			}()
 
-			err := checkForConflictingEvents(ctx, nil, query, queryTagsJSON, latestPosition)
+			err := checkForConflictingEvents(ctx, nil, query, latestPosition)
 			// If we reach here, the function didn't panic, which is also acceptable for coverage
 			Expect(err).To(HaveOccurred())
 		})
@@ -273,9 +213,8 @@ var _ = Describe("Coverage Improvement Tests", func() {
 			condition := AppendCondition{
 				FailIfEventsMatch: &emptyQuery,
 			}
-			queryTagsJSON := []byte(`{"user_id": "123"}`)
 
-			err := checkForMatchingEvents(ctx, nil, condition, queryTagsJSON)
+			err := checkForMatchingEvents(ctx, nil, condition)
 
 			Expect(err).NotTo(HaveOccurred())
 		})
@@ -285,7 +224,6 @@ var _ = Describe("Coverage Improvement Tests", func() {
 			condition := AppendCondition{
 				FailIfEventsMatch: &query,
 			}
-			queryTagsJSON := []byte(`{"user_id": "123"}`)
 
 			// Use recover to catch the expected panic
 			defer func() {
@@ -295,7 +233,7 @@ var _ = Describe("Coverage Improvement Tests", func() {
 				}
 			}()
 
-			err := checkForMatchingEvents(ctx, nil, condition, queryTagsJSON)
+			err := checkForMatchingEvents(ctx, nil, condition)
 			// If we reach here, the function didn't panic, which is also acceptable for coverage
 			Expect(err).To(HaveOccurred())
 		})
@@ -312,7 +250,7 @@ var _ = Describe("Coverage Improvement Tests", func() {
 			}()
 
 			// This will panic due to nil transaction, but we're testing coverage
-			positions, err := executeBatchInsert(ctx, nil, nil, nil, nil, nil, nil, nil, nil)
+			positions, err := executeBatchInsert(ctx, nil, nil, nil, nil, nil)
 
 			// If we reach here, the function didn't panic, which is also acceptable for coverage
 			Expect(err).To(HaveOccurred())

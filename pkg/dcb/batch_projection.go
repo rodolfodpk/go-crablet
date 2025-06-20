@@ -41,7 +41,7 @@ func (es *eventStore) combineProjectorQueries(projectors []BatchProjector) Query
 func (es *eventStore) buildCombinedQuerySQL(query Query, maxPosition int64) (string, []interface{}, error) {
 	if len(query.Items) == 0 {
 		// Empty query matches all events
-		sqlQuery := "SELECT id, type, tags, data, position, causation_id, correlation_id FROM events"
+		sqlQuery := "SELECT type, tags, data, position FROM events"
 		args := []interface{}{}
 
 		if maxPosition >= 0 {
@@ -83,7 +83,7 @@ func (es *eventStore) buildCombinedQuerySQL(query Query, maxPosition int64) (str
 	}
 
 	// Combine OR conditions for all items
-	sqlQuery := fmt.Sprintf("SELECT id, type, tags, data, position, causation_id, correlation_id FROM events WHERE (%s)", strings.Join(orConditions, " OR "))
+	sqlQuery := fmt.Sprintf("SELECT type, tags, data, position FROM events WHERE (%s)", strings.Join(orConditions, " OR "))
 
 	// Add position filtering if specified
 	if maxPosition >= 0 {

@@ -330,11 +330,9 @@ The PostgreSQL 17.5 upgrade with optimized settings provides measurable performa
 - `events_pkey` - Primary key
 - `idx_events_position` - Main query path
 - `idx_events_tags` - GIN index for tag queries
-- `idx_events_correlation_id` - Correlation tracking
 - `idx_events_type_position` - Type + position queries
 
 **Removed Unused Indexes**:
-- `idx_events_causation_id` (0 scans)
 - `idx_events_created_at` (0 scans)
 - `idx_events_tags_position` (0 scans)
 

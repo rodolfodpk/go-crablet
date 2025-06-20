@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 
-	"go-crablet/internal/examples/utils"
 	"go-crablet/pkg/dcb"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -34,7 +33,7 @@ type OrderItem struct {
 func main() {
 	ctx := context.Background()
 
-	// Connect to PostgreSQL
+	// Connect to database
 	pool, err := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
@@ -47,77 +46,72 @@ func main() {
 		log.Fatalf("Failed to create event store: %v", err)
 	}
 
-	// Command 1: Create User
-	createUserCmd := CreateUserCommand{
-		UserID:   "user123",
+	// Cast to CrabletEventStore for extended functionality
+	channelStore := store.(dcb.CrabletEventStore)
+
+	fmt.Println("=== Batch Processing Example ===")
+	fmt.Println("This example demonstrates batch processing with DCB-inspired event sourcing.")
+	fmt.Println()
+
+	// Single command examples
+	fmt.Println("1. Single Command Processing:")
+	if err := handleCreateUser(ctx, channelStore, CreateUserCommand{
+		UserID:   "user1",
 		Username: "john_doe",
 		Email:    "john@example.com",
-	}
-	err = handleCreateUser(ctx, store, createUserCmd)
-	if err != nil {
-		log.Fatalf("Create user failed: %v", err)
+	}); err != nil {
+		log.Printf("Failed to create user: %v", err)
 	}
 
-	// Command 2: Create Order
-	createOrderCmd := CreateOrderCommand{
-		OrderID: "order456",
-		UserID:  "user123",
+	if err := handleCreateOrder(ctx, channelStore, CreateOrderCommand{
+		OrderID: "order1",
+		UserID:  "user1",
 		Items: []OrderItem{
-			{ProductID: "prod1", Quantity: 2, Price: 29.99},
-			{ProductID: "prod2", Quantity: 1, Price: 49.99},
+			{ProductID: "prod1", Quantity: 2, Price: 10.0},
+			{ProductID: "prod2", Quantity: 1, Price: 15.0},
 		},
-	}
-	err = handleCreateOrder(ctx, store, createOrderCmd)
-	if err != nil {
-		log.Fatalf("Create order failed: %v", err)
+	}); err != nil {
+		log.Printf("Failed to create order: %v", err)
 	}
 
-	// Demonstrate batch operations with multiple commands
-	fmt.Println("\n=== Batch Operations ===")
+	fmt.Println()
 
-	// Command 3: Create multiple users in a batch
-	users := []CreateUserCommand{
-		{UserID: "user456", Username: "jane_smith", Email: "jane@example.com"},
-		{UserID: "user789", Username: "bob_wilson", Email: "bob@example.com"},
+	// Batch command examples
+	fmt.Println("2. Batch Command Processing:")
+	batchUsers := []CreateUserCommand{
+		{UserID: "user2", Username: "jane_smith", Email: "jane@example.com"},
+		{UserID: "user3", Username: "bob_wilson", Email: "bob@example.com"},
+		{UserID: "user4", Username: "alice_brown", Email: "alice@example.com"},
 	}
 
-	err = handleBatchCreateUsers(ctx, store, users)
-	if err != nil {
-		log.Fatalf("Batch create users failed: %v", err)
+	if err := handleBatchCreateUsers(ctx, channelStore, batchUsers); err != nil {
+		log.Printf("Failed to batch create users: %v", err)
 	}
 
-	// Command 4: Create multiple orders in a batch
-	orders := []CreateOrderCommand{
+	batchOrders := []CreateOrderCommand{
 		{
-			OrderID: "order789",
-			UserID:  "user456",
-			Items: []OrderItem{
-				{ProductID: "prod3", Quantity: 1, Price: 19.99},
-			},
+			OrderID: "order2",
+			UserID:  "user2",
+			Items:   []OrderItem{{ProductID: "prod3", Quantity: 1, Price: 25.0}},
 		},
 		{
-			OrderID: "order101",
-			UserID:  "user789",
-			Items: []OrderItem{
-				{ProductID: "prod1", Quantity: 3, Price: 29.99},
-				{ProductID: "prod4", Quantity: 1, Price: 99.99},
-			},
+			OrderID: "order3",
+			UserID:  "user3",
+			Items:   []OrderItem{{ProductID: "prod4", Quantity: 3, Price: 8.0}},
 		},
 	}
 
-	err = handleBatchCreateOrders(ctx, store, orders)
-	if err != nil {
-		log.Fatalf("Batch create orders failed: %v", err)
+	if err := handleBatchCreateOrders(ctx, channelStore, batchOrders); err != nil {
+		log.Printf("Failed to batch create orders: %v", err)
 	}
 
-	// Dump all events to show what was created
-	fmt.Println("\n=== Events in Database ===")
-	utils.DumpEvents(ctx, pool)
+	fmt.Println()
+	fmt.Println("=== Example Complete ===")
 }
 
 // Command handlers with their own business rules
 
-func handleCreateUser(ctx context.Context, store dcb.EventStore, cmd CreateUserCommand) error {
+func handleCreateUser(ctx context.Context, store dcb.CrabletEventStore, cmd CreateUserCommand) error {
 	// Command-specific projectors
 	projectors := []dcb.BatchProjector{
 		{ID: "userExists", StateProjector: dcb.StateProjector{
@@ -142,7 +136,7 @@ func handleCreateUser(ctx context.Context, store dcb.EventStore, cmd CreateUserC
 		}},
 	}
 
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to check user existence: %w", err)
 	}
@@ -178,7 +172,7 @@ func handleCreateUser(ctx context.Context, store dcb.EventStore, cmd CreateUserC
 	return nil
 }
 
-func handleCreateOrder(ctx context.Context, store dcb.EventStore, cmd CreateOrderCommand) error {
+func handleCreateOrder(ctx context.Context, store dcb.CrabletEventStore, cmd CreateOrderCommand) error {
 	// Command-specific projectors
 	projectors := []dcb.BatchProjector{
 		{ID: "orderExists", StateProjector: dcb.StateProjector{
@@ -203,7 +197,7 @@ func handleCreateOrder(ctx context.Context, store dcb.EventStore, cmd CreateOrde
 		}},
 	}
 
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to check order and user existence: %w", err)
 	}
@@ -246,7 +240,7 @@ func handleCreateOrder(ctx context.Context, store dcb.EventStore, cmd CreateOrde
 	return nil
 }
 
-func handleBatchCreateUsers(ctx context.Context, store dcb.EventStore, commands []CreateUserCommand) error {
+func handleBatchCreateUsers(ctx context.Context, store dcb.CrabletEventStore, commands []CreateUserCommand) error {
 	// Batch-specific projectors to check all users and emails at once
 	projectors := []dcb.BatchProjector{}
 
@@ -281,7 +275,7 @@ func handleBatchCreateUsers(ctx context.Context, store dcb.EventStore, commands 
 		})
 	}
 
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to check batch user existence: %w", err)
 	}
@@ -320,7 +314,7 @@ func handleBatchCreateUsers(ctx context.Context, store dcb.EventStore, commands 
 	return nil
 }
 
-func handleBatchCreateOrders(ctx context.Context, store dcb.EventStore, commands []CreateOrderCommand) error {
+func handleBatchCreateOrders(ctx context.Context, store dcb.CrabletEventStore, commands []CreateOrderCommand) error {
 	// Batch-specific projectors to check all orders and users at once
 	projectors := []dcb.BatchProjector{}
 
@@ -355,7 +349,7 @@ func handleBatchCreateOrders(ctx context.Context, store dcb.EventStore, commands
 		})
 	}
 
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to check batch order existence: %w", err)
 	}

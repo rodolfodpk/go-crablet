@@ -47,13 +47,16 @@ func main() {
 		log.Fatalf("failed to create event store: %v", err)
 	}
 
+	// Cast to CrabletEventStore for extended functionality
+	channelStore := store.(dcb.CrabletEventStore)
+
 	// Command 1: Create Course
 	createCourseCmd := CreateCourseCommand{
 		CourseID:    "course101",
 		Title:       "Introduction to Event Sourcing",
 		MaxStudents: 25,
 	}
-	err = handleCreateCourse(ctx, store, createCourseCmd)
+	err = handleCreateCourse(ctx, channelStore, createCourseCmd)
 	if err != nil {
 		log.Fatalf("Create course failed: %v", err)
 	}
@@ -64,7 +67,7 @@ func main() {
 		Name:      "Alice Johnson",
 		Email:     "alice@example.com",
 	}
-	err = handleRegisterStudent(ctx, store, registerStudentCmd)
+	err = handleRegisterStudent(ctx, channelStore, registerStudentCmd)
 	if err != nil {
 		log.Fatalf("Register student failed: %v", err)
 	}
@@ -74,7 +77,7 @@ func main() {
 		StudentID: "student42",
 		CourseID:  "course101",
 	}
-	err = handleEnrollStudent(ctx, store, enrollCmd)
+	err = handleEnrollStudent(ctx, channelStore, enrollCmd)
 	if err != nil {
 		log.Fatalf("Enroll student failed: %v", err)
 	}
@@ -85,7 +88,7 @@ func main() {
 		Name:      "Bob Smith",
 		Email:     "bob@example.com",
 	}
-	err = handleRegisterStudent(ctx, store, registerStudent2Cmd)
+	err = handleRegisterStudent(ctx, channelStore, registerStudent2Cmd)
 	if err != nil {
 		log.Fatalf("Register student 2 failed: %v", err)
 	}
@@ -95,7 +98,7 @@ func main() {
 		StudentID: "student43",
 		CourseID:  "course101",
 	}
-	err = handleEnrollStudent(ctx, store, enroll2Cmd)
+	err = handleEnrollStudent(ctx, channelStore, enroll2Cmd)
 	if err != nil {
 		log.Fatalf("Enroll student 2 failed: %v", err)
 	}
@@ -105,7 +108,7 @@ func main() {
 		StudentID: "student42",
 		CourseID:  "course101",
 	}
-	err = handleUnenrollStudent(ctx, store, unenrollCmd)
+	err = handleUnenrollStudent(ctx, channelStore, unenrollCmd)
 	if err != nil {
 		log.Fatalf("Unenroll student failed: %v", err)
 	}
@@ -119,7 +122,7 @@ func main() {
 
 // Command handlers with their own business rules
 
-func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCourseCommand) error {
+func handleCreateCourse(ctx context.Context, store dcb.CrabletEventStore, cmd CreateCourseCommand) error {
 	// Command-specific projectors
 	projectors := []dcb.BatchProjector{
 		{ID: "courseExists", StateProjector: dcb.StateProjector{
@@ -134,7 +137,7 @@ func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCou
 		}},
 	}
 
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to check course existence: %w", err)
 	}
@@ -166,7 +169,7 @@ func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCou
 	return nil
 }
 
-func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd RegisterStudentCommand) error {
+func handleRegisterStudent(ctx context.Context, store dcb.CrabletEventStore, cmd RegisterStudentCommand) error {
 	// Command-specific projectors
 	projectors := []dcb.BatchProjector{
 		{ID: "studentExists", StateProjector: dcb.StateProjector{
@@ -191,7 +194,7 @@ func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd Regist
 		}},
 	}
 
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to check student existence: %w", err)
 	}
@@ -226,7 +229,7 @@ func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd Regist
 	return nil
 }
 
-func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollStudentCommand) error {
+func handleEnrollStudent(ctx context.Context, store dcb.CrabletEventStore, cmd EnrollStudentCommand) error {
 	// Command-specific projectors
 	courseProjector := dcb.StateProjector{
 		Query: dcb.NewQuery(
@@ -305,7 +308,7 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollSt
 		{ID: "course", StateProjector: courseProjector},
 		{ID: "student", StateProjector: studentProjector},
 		{ID: "enrollmentExists", StateProjector: enrollmentProjector},
-	}, nil)
+	})
 	if err != nil {
 		return fmt.Errorf("projection failed: %w", err)
 	}
@@ -353,7 +356,7 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollSt
 	return nil
 }
 
-func handleUnenrollStudent(ctx context.Context, store dcb.EventStore, cmd UnenrollStudentCommand) error {
+func handleUnenrollStudent(ctx context.Context, store dcb.CrabletEventStore, cmd UnenrollStudentCommand) error {
 	// Command-specific projectors
 	enrollmentProjector := dcb.StateProjector{
 		Query: dcb.NewQuery(
@@ -376,7 +379,7 @@ func handleUnenrollStudent(ctx context.Context, store dcb.EventStore, cmd Unenro
 	// Project enrollment state
 	states, appendCondition, err := store.ProjectDecisionModel(ctx, []dcb.BatchProjector{
 		{ID: "enrollment", StateProjector: enrollmentProjector},
-	}, nil)
+	})
 	if err != nil {
 		return fmt.Errorf("projection failed: %w", err)
 	}

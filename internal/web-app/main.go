@@ -395,7 +395,8 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
 
 	// Only set checkpoint if we have events
 	if len(result.Events) > 0 {
-		lastEventID := EventId(result.Events[len(result.Events)-1].ID)
+		lastPosition := result.Events[len(result.Events)-1].Position
+		lastEventID := EventId(fmt.Sprintf("%d", lastPosition))
 		response.CheckpointEventId = &lastEventID
 	}
 
