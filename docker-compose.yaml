@@ -8,7 +8,7 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-     
+      POSTGRES_DB: ${POSTGRES_DB:-dcb_app}
       # Authentication settings for benchmarks
       POSTGRES_HOST_AUTH_METHOD: trust
     ports:
@@ -22,12 +22,12 @@ services:
       resources:
         limits:
           cpus: '4.0'
-          memory: 1G
+          memory: 2G
         reservations:
           cpus: '2.0'
-          memory: 512M
+          memory: 1G
     # Alternative resource limits for older Docker Compose versions
-    mem_limit: 1g
+    mem_limit: 2g
     cpus: 4.0
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]

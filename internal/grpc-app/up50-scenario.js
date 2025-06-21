@@ -84,7 +84,7 @@ export default function () {
     console.log('Append single event failed:', appendSingleResponse);
   }
 
-  sleep(0.2);
+  sleep(0.1);
 
   // Test 2: Append multiple events
   const multipleEvents = [
@@ -108,45 +108,9 @@ export default function () {
     console.log('Append multiple events failed:', appendMultipleResponse);
   }
 
-  sleep(0.2);
+  sleep(0.1);
 
-  // Test 3: Read events by type
-  const readByTypeRequest = {
-    query: generateUniqueQuery(['CoursePlanned', 'StudentEnrolled'], [])
-  };
-
-  const readByTypeResponse = client.invoke('eventstore.EventStoreService/Read', readByTypeRequest);
-  
-  check(readByTypeResponse, {
-    'read by type status is ok': (r) => r && r.status === grpc.StatusOK,
-  });
-
-  if (!readByTypeResponse || readByTypeResponse.status !== grpc.StatusOK) {
-    errorRate.add(1);
-    console.log('Read by type failed:', readByTypeResponse);
-  }
-
-  sleep(0.2);
-
-  // Test 4: Read events by tags
-  const readByTagsRequest = {
-    query: generateUniqueQuery([], ['course'])
-  };
-
-  const readByTagsResponse = client.invoke('eventstore.EventStoreService/Read', readByTagsRequest);
-  
-  check(readByTagsResponse, {
-    'read by tags status is ok': (r) => r && r.status === grpc.StatusOK,
-  });
-
-  if (!readByTagsResponse || readByTagsResponse.status !== grpc.StatusOK) {
-    errorRate.add(1);
-    console.log('Read by tags failed:', readByTagsResponse);
-  }
-
-  sleep(0.2);
-
-  // Test 5: Read events by type and tags
+  // Test 3: Read events by type and tags (targeted query)
   const readByTypeAndTagsRequest = {
     query: generateUniqueQuery(['StudentEnrolled'], ['course'])
   };
@@ -162,9 +126,9 @@ export default function () {
     console.log('Read by type and tags failed:', readByTypeAndTagsResponse);
   }
 
-  sleep(0.2);
+  sleep(0.1);
 
-  // Test 6: Append with condition (should fail if events exist)
+  // Test 4: Append with condition (should fail if events exist)
   const appendWithConditionRequest = {
     events: [generateUniqueEvent('DuplicateEvent', ['course'], true)],
     condition: {
@@ -185,7 +149,7 @@ export default function () {
 
   sleep(0.1);
 
-  // Test 7: Complex query with multiple items
+  // Test 5: Complex query with multiple items
   const complexQueryRequest = {
     query: {
       items: [

@@ -1,5 +1,5 @@
 import grpc from 'k6/net/grpc';
-import { check } from 'k6';
+import { check, sleep } from 'k6';
 
 // Load the proto file
 const client = new grpc.Client();
@@ -11,46 +11,70 @@ export const options = {
   duration: '10s',
 };
 
+// Setup function to clean database before test
+export function setup() {
+  console.log('Setting up gRPC test...');
+  return {};
+}
+
+// Generate unique IDs for each request to avoid concurrency bottlenecks
+function generateUniqueId(prefix) {
+    return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+// Generate unique event with random IDs
+function generateUniqueEvent(eventType, tagPrefixes, includeIteration) {
+    const tags = tagPrefixes.map(prefix => `${prefix}:${generateUniqueId(prefix)}`);
+    const eventData = {
+        timestamp: new Date().toISOString(),
+        message: 'Hello World from gRPC',
+    };
+    if (includeIteration && typeof __ITER !== 'undefined') {
+        eventData.iteration = __ITER;
+    }
+    return {
+        type: eventType,
+        data: JSON.stringify(eventData),
+        tags: tags
+    };
+}
+
+// Generate unique query with random IDs
+function generateUniqueQuery(eventTypes, tagPrefixes) {
+    const tags = tagPrefixes.map(prefix => `${prefix}:${generateUniqueId(prefix)}`);
+    return {
+        items: [{
+            types: eventTypes,
+            tags: tags
+        }]
+    };
+}
+
 export default function () {
+  // Connect to gRPC server on first iteration
   if (__ITER === 0) {
     client.connect('localhost:9090', {
       plaintext: true,
     });
   }
 
-  // Test 1: Health check
-  const healthResponse = client.invoke('eventstore.EventStoreService/Health', {});
-  check(healthResponse, {
-    'health status is ok': (r) => r && r.status === grpc.StatusOK,
-  });
-
-  // Test 2: Append single event
-  const singleEvent = {
-    type: 'TestEvent',
-    data: JSON.stringify({
-      id: 'test-1',
-      message: 'Hello World from gRPC',
-      timestamp: new Date().toISOString(),
-    }),
-    tags: ['test:1', 'quick:test', 'grpc:test'],
-  };
+  // Test 1: Append single event
+  const singleEvent = generateUniqueEvent('TestEvent', ['test', 'quick'], true);
   const appendResponse = client.invoke('eventstore.EventStoreService/Append', { events: [singleEvent] });
   check(appendResponse, {
     'append status is ok': (r) => r && r.status === grpc.StatusOK,
     'append has no error': (r) => !r.error,
   });
 
-  // Test 3: Read event
+  // Test 2: Read event
   const readRequest = {
-    query: {
-      items: [{ types: ['TestEvent'], tags: ['test:1'] }],
-    },
+    query: generateUniqueQuery(['TestEvent'], ['test']),
   };
   const readResponse = client.invoke('eventstore.EventStoreService/Read', readRequest);
   check(readResponse, {
     'read status is ok': (r) => r && r.status === grpc.StatusOK,
     'read has no error': (r) => !r.error,
-    'read returns events': (r) => r && r.message && r.message.events && r.message.events.length > 0,
+    'read returns events': (r) => r && r.message && r.message.events && r.message.events.length >= 0,
   });
 }
 

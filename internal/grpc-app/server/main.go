@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -22,6 +24,7 @@ import (
 type server struct {
 	pb.UnimplementedEventStoreServiceServer
 	store dcb.EventStore
+	pool  *pgxpool.Pool
 }
 
 func (s *server) Health(ctx context.Context, req *pb.HealthRequest) (*pb.HealthResponse, error) {
@@ -29,7 +32,6 @@ func (s *server) Health(ctx context.Context, req *pb.HealthRequest) (*pb.HealthR
 }
 
 func (s *server) Read(ctx context.Context, req *pb.ReadRequest) (*pb.ReadResponse, error) {
-	log.Printf("[gRPC] Read request: %+v", req)
 	start := time.Now()
 
 	// Convert proto query to DCB query
@@ -39,7 +41,6 @@ func (s *server) Read(ctx context.Context, req *pb.ReadRequest) (*pb.ReadRespons
 	// Execute read
 	result, err := s.store.Read(ctx, query, options)
 	if err != nil {
-		log.Printf("[gRPC] Read error: %v", err)
 		return nil, err
 	}
 
@@ -65,7 +66,6 @@ func (s *server) Read(ctx context.Context, req *pb.ReadRequest) (*pb.ReadRespons
 }
 
 func (s *server) Append(ctx context.Context, req *pb.AppendRequest) (*pb.AppendResponse, error) {
-	log.Printf("[gRPC] Append request: %+v", req)
 	start := time.Now()
 
 	// Convert proto events to DCB events
@@ -83,7 +83,6 @@ func (s *server) Append(ctx context.Context, req *pb.AppendRequest) (*pb.AppendR
 	// Execute append
 	_, err := s.store.Append(ctx, events, condition)
 	if err != nil {
-		log.Printf("[gRPC] Append error: %v", err)
 		// Check if it's a concurrency error
 		if _, ok := err.(*dcb.ConcurrencyError); ok {
 			return &pb.AppendResponse{
@@ -278,9 +277,45 @@ func main() {
 		log.Fatalf("Failed to create event store: %v", err)
 	}
 
+	// Create HTTP cleanup endpoint on port 8081
+	http.HandleFunc("/cleanup", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Truncate the events table and reset the position sequence
+		_, err := pool.Exec(context.Background(), `
+			TRUNCATE TABLE events RESTART IDENTITY CASCADE;
+		`)
+
+		if err != nil {
+			log.Printf("Failed to cleanup database: %v", err)
+			http.Error(w, fmt.Sprintf("Failed to cleanup database: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		response := map[string]interface{}{
+			"success": true,
+			"message": "Database cleaned up successfully",
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+		log.Printf("Database cleaned up successfully")
+	})
+
+	// Start HTTP server for cleanup endpoint on port 9091
+	go func() {
+		log.Printf("Starting HTTP cleanup server on port 9091")
+		if err := http.ListenAndServe(":9091", nil); err != nil {
+			log.Printf("HTTP server error: %v", err)
+		}
+	}()
+
 	// Create gRPC server
 	grpcServer := grpc.NewServer()
-	pb.RegisterEventStoreServiceServer(grpcServer, &server{store: store})
+	pb.RegisterEventStoreServiceServer(grpcServer, &server{store: store, pool: pool})
 
 	// Enable reflection for debugging
 	reflection.Register(grpcServer)
@@ -288,7 +323,7 @@ func main() {
 	// Get port from environment
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "9091"
+		port = "9090"
 	}
 
 	// Start listening

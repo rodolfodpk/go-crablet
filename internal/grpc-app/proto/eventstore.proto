@@ -14,6 +14,9 @@ service EventStoreService {
   
   // Health check endpoint
   rpc Health(HealthRequest) returns (HealthResponse);
+  
+  // Cleanup truncates all tables and resets sequences (for testing)
+  rpc Cleanup(CleanupRequest) returns (CleanupResponse);
 }
 
 // Health check request
@@ -87,4 +90,14 @@ message AppendRequest {
 message AppendResponse {
   int64 duration_in_microseconds = 1;
   bool append_condition_failed = 2;
+}
+
+// CleanupRequest for cleaning up the database
+message CleanupRequest {
+}
+
+// CleanupResponse containing cleanup results
+message CleanupResponse {
+  bool success = 1;
+  string message = 2;
 } 

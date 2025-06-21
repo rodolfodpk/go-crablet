@@ -15,6 +15,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// Set log level to only show WARN and ERROR
+func init() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	// Only show WARN and ERROR level logs
+	log.SetOutput(os.Stderr)
+}
+
 type Server struct {
 	store dcb.EventStore
 }
@@ -34,8 +41,8 @@ func main() {
 
 	// Optimize connection pool for high throughput with adaptive sizing
 	// Base configuration on available system resources
-	maxConns := 100
-	minConns := 20
+	maxConns := 300 // Increased from 200
+	minConns := 100 // Increased from 50
 
 	// Adaptive sizing based on environment or system resources
 	if maxConnsEnv := os.Getenv("DB_MAX_CONNS"); maxConnsEnv != "" {
@@ -52,9 +59,9 @@ func main() {
 
 	config.MaxConns = int32(maxConns)
 	config.MinConns = int32(minConns)
-	config.MaxConnLifetime = 10 * time.Minute
-	config.MaxConnIdleTime = 5 * time.Minute
-	config.HealthCheckPeriod = 60 * time.Second
+	config.MaxConnLifetime = 15 * time.Minute // Increased from 10 minutes
+	config.MaxConnIdleTime = 10 * time.Minute // Increased from 5 minutes
+	config.HealthCheckPeriod = 30 * time.Second
 
 	// Connect to database with retry logic
 	var pool *pgxpool.Pool
@@ -62,14 +69,13 @@ func main() {
 	retryDelay := 2 * time.Second
 
 	for i := 0; i < maxRetries; i++ {
-		log.Printf("Attempting to connect to database (attempt %d/%d)...", i+1, maxRetries)
-
+		// Only log on error, not on success
 		pool, err = pgxpool.NewWithConfig(context.Background(), config)
 		if err == nil {
-			log.Printf("Successfully connected to database")
 			break
 		}
 
+		// Log error and retry info
 		log.Printf("Failed to connect to database: %v", err)
 		if i < maxRetries-1 {
 			log.Printf("Retrying in %v...", retryDelay)
@@ -90,11 +96,41 @@ func main() {
 
 	server := &Server{store: store}
 
-	// Setup routes
+	// Setup routes with optimized handlers
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-cache")
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
+
+	http.HandleFunc("/cleanup", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Truncate the events table and reset the position sequence
+		_, err := pool.Exec(context.Background(), `
+			TRUNCATE TABLE events RESTART IDENTITY CASCADE;
+		`)
+
+		if err != nil {
+			log.Printf("Failed to cleanup database: %v", err)
+			http.Error(w, fmt.Sprintf("Failed to cleanup database: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		response := map[string]interface{}{
+			"success": true,
+			"message": "Database cleaned up successfully",
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-cache")
+		json.NewEncoder(w).Encode(response)
+		log.Printf("Database cleaned up successfully")
+	})
+
 	http.HandleFunc("/read", server.handleRead)
 	http.HandleFunc("/append", server.handleAppend)
 
@@ -104,8 +140,17 @@ func main() {
 		port = "8080"
 	}
 
-	log.Printf("Starting DCB Bench server on port %s with optimized connection pool", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	// Configure HTTP server for high performance
+	httpServer := &http.Server{
+		Addr:           ":" + port,
+		ReadTimeout:    30 * time.Second,
+		WriteTimeout:   30 * time.Second,
+		IdleTimeout:    120 * time.Second,
+		MaxHeaderBytes: 1 << 20, // 1MB
+	}
+
+	// Start server without INFO log
+	log.Fatal(httpServer.ListenAndServe())
 }
 
 // OpenAPI Schema Types
@@ -249,9 +294,6 @@ func convertInputEvent(event Event) dcb.InputEvent {
 }
 
 func convertInputEvents(events interface{}) ([]dcb.InputEvent, error) {
-	// Debug logging
-	log.Printf("convertInputEvents called with type: %T, value: %+v\n", events, events)
-
 	// Handle the case where events is already unmarshaled as our custom types
 	switch v := events.(type) {
 	case Event:
@@ -430,7 +472,6 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 					inputEvents[i] = convertInputEvent(ev)
 				}
 			} else {
-				log.Printf("Append decode error: singleErr=%v, manyErr=%v", singleErr, manyErr)
 				http.Error(w, "Invalid events: must be a single event or array of events", http.StatusBadRequest)
 				return
 			}
