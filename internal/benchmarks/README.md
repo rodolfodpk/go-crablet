@@ -1,10 +1,10 @@
 # go-crablet Performance Benchmarks
 
-This directory contains comprehensive performance benchmarks for the go-crablet library, which implements Dynamic Consistency Boundaries (DCB). The benchmarks test all public API operations with realistic datasets and DCB-focused queries that demonstrate proper consistency boundary patterns.
+This directory contains comprehensive performance benchmarks for the go-crablet library, which explores and learns about Dynamic Consistency Boundaries (DCB). The benchmarks test all public API operations with realistic datasets and DCB-focused queries that demonstrate proper consistency boundary patterns.
 
 ## 📋 **Latest Benchmark Report**
 
-📊 **[View Latest Performance Analysis](BENCHMARK_REPORT.md)** - Comprehensive analysis of go-crablet performance across all operations with DCB pattern implementation, detailed metrics, and raw benchmark results.
+📊 **[View Latest Performance Analysis](BENCHMARK_REPORT.md)** - Comprehensive analysis of go-crablet performance across all operations with DCB pattern exploration, detailed metrics, and raw benchmark results.
 
 ---
 
@@ -233,11 +233,11 @@ events := []dcb.InputEvent{
 store.Append(ctx, events, &appendCondition) // All events processed atomically
 ```
 
-#### **4. DCB Pattern Compliance**
+#### **4. DCB Pattern Exploration**
 - **Use specific tags**: Always query with specific consistency boundaries
 - **Avoid empty tags**: Never use queries that would cause full table scans
 - **Business logic**: Projectors should represent real decision scenarios
-- **Cross-entity consistency**: Use OR queries for proper boundary implementation
+- **Cross-entity consistency**: Use OR queries for proper boundary exploration
 
 ## 🔧 **Configuration**
 
@@ -284,7 +284,7 @@ queries := []dcb.Query{
 ## 📊 **Performance Analysis**
 
 ### **Strengths**
-1. **DCB Pattern Compliance**: All queries use specific consistency boundaries
+1. **DCB Pattern Exploration**: All queries use specific consistency boundaries
 2. **No Full Scans**: Zero empty tag queries that would cause performance issues
 3. **Excellent Append Performance**: Up to 8,285 events/sec with concurrency
 4. **Fast Targeted Queries**: Sub-15ms performance for all DCB-focused queries
@@ -302,7 +302,7 @@ queries := []dcb.Query{
 - ✅ **Performance**: Excellent throughput and latency
 - ✅ **Reliability**: Consistent, predictable performance
 - ✅ **Scalability**: Good concurrency and batch performance
-- ✅ **DCB Compliance**: Proper pattern implementation
+- ✅ **DCB Exploration**: Proper pattern exploration
 - ✅ **Memory Efficiency**: Optimized for large datasets
 
 ---
