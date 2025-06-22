@@ -6,7 +6,7 @@ Current test coverage status and improvement guidelines for the go-crablet libra
 
 | Package | Coverage | Status |
 |---------|----------|---------|
-| **pkg/dcb** (Core Library) | **86.7%** | ✅ Good |
+| **pkg/dcb** (Core Library) | **85.7%** | ✅ Good |
 
 ### **Coverage by Function Type**
 

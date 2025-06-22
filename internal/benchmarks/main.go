@@ -218,44 +218,66 @@ func setupTestData(ctx context.Context, store dcb.EventStore) {
 	students := 10000
 	enrollments := 50000
 
-	// Append course events
-	courseEvents := make([]dcb.InputEvent, courses)
-	for i := 0; i < courses; i++ {
-		courseID := fmt.Sprintf("course-%d", i)
-		courseEvents[i] = dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", courseID), []byte(fmt.Sprintf(`{"courseId": "%s", "name": "Course %d", "capacity": 100, "instructor": "Instructor %d"}`, courseID, i, i)))
+	// Append course events in batches
+	const batchSize = 1000
+	for i := 0; i < courses; i += batchSize {
+		end := i + batchSize
+		if end > courses {
+			end = courses
+		}
+
+		courseEvents := make([]dcb.InputEvent, end-i)
+		for j := 0; j < end-i; j++ {
+			courseID := fmt.Sprintf("course-%d", i+j)
+			courseEvents[j] = dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", courseID), []byte(fmt.Sprintf(`{"courseId": "%s", "name": "Course %d", "capacity": 100, "instructor": "Instructor %d"}`, courseID, i+j, i+j)))
+		}
+
+		_, err := store.Append(ctx, courseEvents, nil)
+		if err != nil {
+			fmt.Printf("Error creating courses batch %d-%d: %v\n", i, end-1, err)
+			return
+		}
 	}
 
-	_, err := store.Append(ctx, courseEvents, nil)
-	if err != nil {
-		fmt.Printf("Error creating courses: %v\n", err)
-		return
+	// Append student events in batches
+	for i := 0; i < students; i += batchSize {
+		end := i + batchSize
+		if end > students {
+			end = students
+		}
+
+		studentEvents := make([]dcb.InputEvent, end-i)
+		for j := 0; j < end-i; j++ {
+			studentID := fmt.Sprintf("student-%d", i+j)
+			studentEvents[j] = dcb.NewInputEvent("StudentRegistered", dcb.NewTags("student_id", studentID), []byte(fmt.Sprintf(`{"studentId": "%s", "name": "Student %d", "email": "student%d@example.com"}`, studentID, i+j, i+j)))
+		}
+
+		_, err := store.Append(ctx, studentEvents, nil)
+		if err != nil {
+			fmt.Printf("Error creating students batch %d-%d: %v\n", i, end-1, err)
+			return
+		}
 	}
 
-	// Append student events
-	studentEvents := make([]dcb.InputEvent, students)
-	for i := 0; i < students; i++ {
-		studentID := fmt.Sprintf("student-%d", i)
-		studentEvents[i] = dcb.NewInputEvent("StudentRegistered", dcb.NewTags("student_id", studentID), []byte(fmt.Sprintf(`{"studentId": "%s", "name": "Student %d", "email": "student%d@example.com"}`, studentID, i, i)))
-	}
+	// Append enrollment events in batches
+	for i := 0; i < enrollments; i += batchSize {
+		end := i + batchSize
+		if end > enrollments {
+			end = enrollments
+		}
 
-	_, err = store.Append(ctx, studentEvents, nil)
-	if err != nil {
-		fmt.Printf("Error creating students: %v\n", err)
-		return
-	}
+		enrollmentEvents := make([]dcb.InputEvent, end-i)
+		for j := 0; j < end-i; j++ {
+			studentID := fmt.Sprintf("student-%d", (i+j)%students)
+			courseID := fmt.Sprintf("course-%d", (i+j)%courses)
+			enrollmentEvents[j] = dcb.NewInputEvent("StudentEnrolledInCourse", dcb.NewTags("student_id", studentID, "course_id", courseID), []byte(fmt.Sprintf(`{"studentId": "%s", "courseId": "%s", "enrolledAt": "2024-01-01"}`, studentID, courseID)))
+		}
 
-	// Append enrollment events
-	enrollmentEvents := make([]dcb.InputEvent, enrollments)
-	for i := 0; i < enrollments; i++ {
-		studentID := fmt.Sprintf("student-%d", i%students)
-		courseID := fmt.Sprintf("course-%d", i%courses)
-		enrollmentEvents[i] = dcb.NewInputEvent("StudentEnrolledInCourse", dcb.NewTags("student_id", studentID, "course_id", courseID), []byte(fmt.Sprintf(`{"studentId": "%s", "courseId": "%s", "enrolledAt": "2024-01-01"}`, studentID, courseID)))
-	}
-
-	_, err = store.Append(ctx, enrollmentEvents, nil)
-	if err != nil {
-		fmt.Printf("Error creating enrollments: %v\n", err)
-		return
+		_, err := store.Append(ctx, enrollmentEvents, nil)
+		if err != nil {
+			fmt.Printf("Error creating enrollments batch %d-%d: %v\n", i, end-1, err)
+			return
+		}
 	}
 
 	fmt.Printf("Created %d courses, %d students, %d enrollments\n", courses, students, enrollments)
@@ -264,19 +286,19 @@ func setupTestData(ctx context.Context, store dcb.EventStore) {
 func benchmarkSimpleQueries(ctx context.Context, store dcb.EventStore) {
 	fmt.Println("Simple Queries:")
 
-	// Query all course events
+	// Query courses by category (DCB-focused: specific category instead of all courses)
 	start := time.Now()
-	query := dcb.NewQuery(dcb.NewTags(), "CourseDefined")
+	query := dcb.NewQuery(dcb.NewTags("category", "Computer Science"), "CourseDefined")
 	result, err := store.Read(ctx, query, nil)
 	duration := time.Since(start)
 
 	if err != nil {
-		fmt.Printf("  All courses: Error: %v\n", err)
+		fmt.Printf("  Courses by category: Error: %v\n", err)
 	} else {
-		fmt.Printf("  All courses: %v (%d events)\n", duration, len(result.Events))
+		fmt.Printf("  Courses by category: %v (%d events)\n", duration, len(result.Events))
 	}
 
-	// Query by tag
+	// Query by specific course ID (DCB-focused: targeted query)
 	start = time.Now()
 	query = dcb.NewQuery(dcb.NewTags("course_id", "course-1"), "CourseDefined")
 	result, err = store.Read(ctx, query, nil)
@@ -292,7 +314,7 @@ func benchmarkSimpleQueries(ctx context.Context, store dcb.EventStore) {
 func benchmarkComplexQueries(ctx context.Context, store dcb.EventStore) {
 	fmt.Println("Complex Queries:")
 
-	// OR query
+	// OR query with specific tags (DCB-focused: targeted cross-entity query)
 	start := time.Now()
 	query := dcb.Query{
 		Items: []dcb.QueryItem{
@@ -309,25 +331,26 @@ func benchmarkComplexQueries(ctx context.Context, store dcb.EventStore) {
 		fmt.Printf("  OR query: %v (%d events)\n", duration, len(result.Events))
 	}
 
-	// Query with limit
+	// Query enrollments by grade (DCB-focused: specific grade instead of all enrollments)
 	start = time.Now()
 	limit := 100
 	options := &dcb.ReadOptions{Limit: &limit}
-	query = dcb.NewQuery(dcb.NewTags(), "StudentEnrolledInCourse")
+	query = dcb.NewQuery(dcb.NewTags("grade", "A"), "StudentEnrolledInCourse")
 	result, err = store.Read(ctx, query, options)
 	duration = time.Since(start)
 
 	if err != nil {
-		fmt.Printf("  Limited query: Error: %v\n", err)
+		fmt.Printf("  Enrollments by grade: Error: %v\n", err)
 	} else {
-		fmt.Printf("  Limited query: %v (%d events)\n", duration, len(result.Events))
+		fmt.Printf("  Enrollments by grade: %v (%d events)\n", duration, len(result.Events))
 	}
 }
 
 func benchmarkIteratorVsChannel(ctx context.Context, store dcb.EventStore, channelStore dcb.CrabletEventStore) {
 	fmt.Println("Iterator vs Channel:")
 
-	query := dcb.NewQuery(dcb.NewTags(), "StudentEnrolledInCourse")
+	// DCB-focused query: specific student's enrollments instead of all enrollments
+	query := dcb.NewQuery(dcb.NewTags("student_id", "student-1"), "StudentEnrolledInCourse")
 
 	// ReadStream has been removed - use Read for batch reading instead
 	fmt.Println("  Iterator: ReadStream method has been removed - use Read for batch operations")
@@ -358,10 +381,11 @@ func benchmarkMemoryUsage(ctx context.Context, store dcb.EventStore, channelStor
 func benchmarkSingleProjector(ctx context.Context, store dcb.EventStore, channelStore dcb.CrabletEventStore) {
 	fmt.Println("Single Projector:")
 
+	// DCB-focused projector: count courses in specific category instead of all courses
 	projector := dcb.BatchProjector{
-		ID: "courseCount",
+		ID: "csCourseCount",
 		StateProjector: dcb.StateProjector{
-			Query:        dcb.NewQuery(dcb.NewTags(), "CourseDefined"),
+			Query:        dcb.NewQuery(dcb.NewTags("category", "Computer Science"), "CourseDefined"),
 			InitialState: 0,
 			TransitionFn: func(state any, event dcb.Event) any {
 				return state.(int) + 1
@@ -376,18 +400,19 @@ func benchmarkSingleProjector(ctx context.Context, store dcb.EventStore, channel
 	if err != nil {
 		fmt.Printf("  Error: %v\n", err)
 	} else {
-		fmt.Printf("  Duration: %v (count: %d)\n", duration, states["courseCount"])
+		fmt.Printf("  Duration: %v (count: %d)\n", duration, states["csCourseCount"])
 	}
 }
 
 func benchmarkMultipleProjectors(ctx context.Context, store dcb.EventStore, channelStore dcb.CrabletEventStore) {
 	fmt.Println("Multiple Projectors:")
 
+	// DCB-focused projectors: specific targeted queries instead of full scans
 	projectors := []dcb.BatchProjector{
 		{
-			ID: "courseCount",
+			ID: "csCourseCount",
 			StateProjector: dcb.StateProjector{
-				Query:        dcb.NewQuery(dcb.NewTags(), "CourseDefined"),
+				Query:        dcb.NewQuery(dcb.NewTags("category", "Computer Science"), "CourseDefined"),
 				InitialState: 0,
 				TransitionFn: func(state any, event dcb.Event) any {
 					return state.(int) + 1
@@ -395,9 +420,9 @@ func benchmarkMultipleProjectors(ctx context.Context, store dcb.EventStore, chan
 			},
 		},
 		{
-			ID: "studentCount",
+			ID: "csStudentCount",
 			StateProjector: dcb.StateProjector{
-				Query:        dcb.NewQuery(dcb.NewTags(), "StudentRegistered"),
+				Query:        dcb.NewQuery(dcb.NewTags("major", "Computer Science"), "StudentRegistered"),
 				InitialState: 0,
 				TransitionFn: func(state any, event dcb.Event) any {
 					return state.(int) + 1
@@ -405,9 +430,9 @@ func benchmarkMultipleProjectors(ctx context.Context, store dcb.EventStore, chan
 			},
 		},
 		{
-			ID: "enrollmentCount",
+			ID: "aGradeEnrollments",
 			StateProjector: dcb.StateProjector{
-				Query:        dcb.NewQuery(dcb.NewTags(), "StudentEnrolledInCourse"),
+				Query:        dcb.NewQuery(dcb.NewTags("grade", "A"), "StudentEnrolledInCourse"),
 				InitialState: 0,
 				TransitionFn: func(state any, event dcb.Event) any {
 					return state.(int) + 1
@@ -433,11 +458,12 @@ func benchmarkMultipleProjectors(ctx context.Context, store dcb.EventStore, chan
 func benchmarkChannelProjection(ctx context.Context, channelStore dcb.CrabletEventStore) {
 	fmt.Println("Channel Projection:")
 
+	// DCB-focused projector: specific category instead of all courses
 	projectors := []dcb.BatchProjector{
 		{
-			ID: "courseCount",
+			ID: "csCourseCount",
 			StateProjector: dcb.StateProjector{
-				Query:        dcb.NewQuery(dcb.NewTags(), "CourseDefined"),
+				Query:        dcb.NewQuery(dcb.NewTags("category", "Computer Science"), "CourseDefined"),
 				InitialState: 0,
 				TransitionFn: func(state any, event dcb.Event) any {
 					return state.(int) + 1
