@@ -16,11 +16,8 @@ CREATE TABLE events (type TEXT NOT NULL,
 CREATE INDEX idx_events_position ON events (position);
 CREATE INDEX idx_events_tags ON events USING GIN (tags);
 
-
 -- Performance optimization indexes
 CREATE INDEX idx_events_type_position ON events (type, position);
 
 -- Additional indexes for better read performance
 CREATE INDEX idx_events_type ON events (type);
-CREATE INDEX idx_events_created_at ON events (created_at);
-CREATE INDEX idx_events_type_created_at ON events (type, created_at);

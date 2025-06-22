@@ -21,7 +21,20 @@ func main() {
 	// Wait for database to be ready
 	maxRetries := 30
 	for i := 0; i < maxRetries; i++ {
-		pool, err := pgxpool.New(ctx, dsn)
+		// Configure connection pool for performance (matching web app)
+		config, err := pgxpool.ParseConfig(dsn)
+		if err != nil {
+			log.Fatalf("Failed to parse database URL: %v", err)
+		}
+
+		// Use same pool configuration as web app for fair benchmarking
+		config.MaxConns = 300
+		config.MinConns = 100
+		config.MaxConnLifetime = 15 * time.Minute
+		config.MaxConnIdleTime = 10 * time.Minute
+		config.HealthCheckPeriod = 30 * time.Second
+
+		pool, err := pgxpool.NewWithConfig(ctx, config)
 		if err == nil {
 			// Test the connection
 			err = pool.Ping(ctx)
@@ -39,8 +52,20 @@ func main() {
 		time.Sleep(1 * time.Second)
 	}
 
-	// Connect to database
-	pool, err := pgxpool.New(ctx, dsn)
+	// Connect to database with same pool configuration
+	config, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		log.Fatalf("Failed to parse database URL: %v", err)
+	}
+
+	// Use same pool configuration as web app for fair benchmarking
+	config.MaxConns = 300
+	config.MinConns = 100
+	config.MaxConnLifetime = 15 * time.Minute
+	config.MaxConnIdleTime = 10 * time.Minute
+	config.HealthCheckPeriod = 30 * time.Second
+
+	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}

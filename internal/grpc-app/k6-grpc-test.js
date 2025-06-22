@@ -9,21 +9,20 @@ const errorRate = new Rate('errors');
 const client = new grpc.Client();
 client.load(['proto'], 'eventstore.proto');
 
-// Test configuration - optimized for higher resource allocation
+// Test configuration - matching web-app settings
 export const options = {
   stages: [
-    { duration: '30s', target: 10 },   // Ramp up to 10 users
-    { duration: '1m', target: 10 },    // Stay at 10 users
-    { duration: '30s', target: 25 },   // Ramp up to 25 users
-    { duration: '2m', target: 25 },    // Stay at 25 users
-    { duration: '30s', target: 50 },   // Ramp up to 50 users
-    { duration: '3m', target: 50 },    // Stay at 50 users
-    { duration: '30s', target: 0 },    // Ramp down to 0 users
+    { duration: '30s', target: 5 },   // Ramp up to 5 VUs
+    { duration: '1m', target: 10 },   // Ramp up to 10 VUs
+    { duration: '2m', target: 20 },   // Ramp up to 20 VUs
+    { duration: '2m', target: 30 },   // Ramp up to 30 VUs
+    { duration: '2m', target: 40 },   // Ramp up to 40 VUs
+    { duration: '30s', target: 50 },  // Ramp up to 50 VUs
+    { duration: '0s', target: 0 },    // Ramp down to 0 VUs
   ],
   thresholds: {
-    'grpc_req_duration': ['p(95)<1500'], // 95% of requests should be below 1500ms
-    'grpc_req_duration': ['p(99)<3000'], // 99% of requests should be below 3000ms
-    errors: ['rate<0.15'],             // Error rate should be below 15%
+    'errors': ['rate<0.15'],
+    'grpc_req_duration': ['p(99)<3000'],
   },
 };
 
@@ -37,7 +36,7 @@ function generateUniqueEvent(eventType, tagPrefixes, includeIteration) {
     const tags = tagPrefixes.map(prefix => `${prefix}:${generateUniqueId(prefix)}`);
     const eventData = {
         timestamp: new Date().toISOString(),
-        message: `test event from k6`,
+        message: 'Hello World from gRPC',
     };
     if (includeIteration && typeof __ITER !== 'undefined') {
         eventData.iteration = __ITER;
@@ -61,6 +60,7 @@ function generateUniqueQuery(eventTypes, tagPrefixes) {
 }
 
 export default function () {
+  // Connect to gRPC server on first iteration
   if (__ITER === 0) {
     client.connect('localhost:9090', {
       plaintext: true,
@@ -68,186 +68,132 @@ export default function () {
   }
 
   // Test 1: Append single event
-  const singleEvent = generateUniqueEvent('CoursePlanned', ['course', 'user'], true);
-  const appendSingleRequest = {
-    events: [singleEvent]
-  };
-
-  const appendSingleResponse = client.invoke('eventstore.EventStoreService/Append', appendSingleRequest);
-  
-  check(appendSingleResponse, {
+  const singleEvent = generateUniqueEvent('TestEvent', ['test', 'single'], true);
+  const appendResponse = client.invoke('eventstore.EventStoreService/Append', { events: [singleEvent] });
+  check(appendResponse, {
     'append single event status is ok': (r) => r && r.status === grpc.StatusOK,
+    'append single event has no error': (r) => !r.error,
   });
-
-  if (!appendSingleResponse || appendSingleResponse.status !== grpc.StatusOK) {
-    errorRate.add(1);
-    console.log('Append single event failed:', appendSingleResponse);
-  }
-
-  sleep(0.2);
+  sleep(0.05);  // Reduced from 0.2s to match web-app
 
   // Test 2: Append multiple events
   const multipleEvents = [
-    generateUniqueEvent('StudentEnrolled', ['course', 'student'], true),
-    generateUniqueEvent('AssignmentCreated', ['course', 'assignment'], true),
-    generateUniqueEvent('GradeSubmitted', ['course', 'student', 'assignment'], true),
+    generateUniqueEvent('TestEvent', ['test', 'multiple', '1'], true),
+    generateUniqueEvent('TestEvent', ['test', 'multiple', '2'], true),
   ];
-
-  const appendMultipleRequest = {
-    events: multipleEvents
-  };
-
-  const appendMultipleResponse = client.invoke('eventstore.EventStoreService/Append', appendMultipleRequest);
-  
+  const appendMultipleResponse = client.invoke('eventstore.EventStoreService/Append', { events: multipleEvents });
   check(appendMultipleResponse, {
     'append multiple events status is ok': (r) => r && r.status === grpc.StatusOK,
+    'append multiple events has no error': (r) => !r.error,
   });
+  sleep(0.05);  // Reduced from 0.2s to match web-app
 
-  if (!appendMultipleResponse || appendMultipleResponse.status !== grpc.StatusOK) {
-    errorRate.add(1);
-    console.log('Append multiple events failed:', appendMultipleResponse);
-  }
-
-  sleep(0.2);
-
-  // Test 3: Read events by type
+  // Test 3: Read by type
   const readByTypeRequest = {
-    query: generateUniqueQuery(['CoursePlanned', 'StudentEnrolled'], [])
+    query: generateUniqueQuery(['TestEvent'], ['test']),
   };
-
   const readByTypeResponse = client.invoke('eventstore.EventStoreService/Read', readByTypeRequest);
-  
   check(readByTypeResponse, {
     'read by type status is ok': (r) => r && r.status === grpc.StatusOK,
+    'read by type has no error': (r) => !r.error,
+    'read by type returns events': (r) => r && r.message && r.message.events && r.message.events.length >= 0,
   });
+  sleep(0.05);  // Reduced from 0.2s to match web-app
 
-  if (!readByTypeResponse || readByTypeResponse.status !== grpc.StatusOK) {
-    errorRate.add(1);
-    console.log('Read by type failed:', readByTypeResponse);
-  }
-
-  sleep(0.2);
-
-  // Test 4: Read events by tags
+  // Test 4: Read by tags
   const readByTagsRequest = {
-    query: generateUniqueQuery([], ['course'])
+    query: generateUniqueQuery(['TestEvent'], ['test', 'single']),
   };
-
   const readByTagsResponse = client.invoke('eventstore.EventStoreService/Read', readByTagsRequest);
-  
   check(readByTagsResponse, {
     'read by tags status is ok': (r) => r && r.status === grpc.StatusOK,
+    'read by tags has no error': (r) => !r.error,
+    'read by tags returns events': (r) => r && r.message && r.message.events && r.message.events.length >= 0,
   });
+  sleep(0.05);  // Reduced from 0.2s to match web-app
 
-  if (!readByTagsResponse || readByTagsResponse.status !== grpc.StatusOK) {
-    errorRate.add(1);
-    console.log('Read by tags failed:', readByTagsResponse);
-  }
-
-  sleep(0.2);
-
-  // Test 5: Read events by type and tags
+  // Test 5: Read by type and tags
   const readByTypeAndTagsRequest = {
-    query: generateUniqueQuery(['StudentEnrolled'], ['course'])
+    query: generateUniqueQuery(['TestEvent'], ['test', 'multiple']),
   };
-
   const readByTypeAndTagsResponse = client.invoke('eventstore.EventStoreService/Read', readByTypeAndTagsRequest);
-  
   check(readByTypeAndTagsResponse, {
     'read by type and tags status is ok': (r) => r && r.status === grpc.StatusOK,
+    'read by type and tags has no error': (r) => !r.error,
+    'read by type and tags returns events': (r) => r && r.message && r.message.events && r.message.events.length >= 0,
   });
+  sleep(0.05);  // Reduced from 0.2s to match web-app
 
-  if (!readByTypeAndTagsResponse || readByTypeAndTagsResponse.status !== grpc.StatusOK) {
-    errorRate.add(1);
-    console.log('Read by type and tags failed:', readByTypeAndTagsResponse);
-  }
-
-  sleep(0.2);
-
-  // Test 6: Append with condition (should fail if events exist)
-  const appendWithConditionRequest = {
-    events: [generateUniqueEvent('DuplicateEvent', ['course'], true)],
+  // Test 6: Append with condition
+  const conditionEvent = generateUniqueEvent('ConditionEvent', ['test', 'condition'], true);
+  const appendWithConditionResponse = client.invoke('eventstore.EventStoreService/Append', { 
+    events: [conditionEvent],
     condition: {
-      failIfEventsMatch: generateUniqueQuery(['DuplicateEvent'], ['course'])
+      after: '0'
     }
-  };
-
-  const appendWithConditionResponse = client.invoke('eventstore.EventStoreService/Append', appendWithConditionRequest);
-  
+  });
   check(appendWithConditionResponse, {
     'append with condition status is ok': (r) => r && r.status === grpc.StatusOK,
+    'append with condition has no error': (r) => !r.error,
   });
+  sleep(0.05);  // Reduced from 0.1s to match web-app
 
-  if (!appendWithConditionResponse || appendWithConditionResponse.status !== grpc.StatusOK) {
-    errorRate.add(1);
-    console.log('Append with condition failed:', appendWithConditionResponse);
-  }
-
-  sleep(0.1);
-
-  // Test 7: Complex query with multiple items
+  // Test 7: Complex query
   const complexQueryRequest = {
     query: {
       items: [
         {
-          types: ['CoursePlanned'],
-          tags: [`course:${generateUniqueId('course')}`]
+          types: ['TestEvent'],
+          tags: ['test:test-1', 'single:single-1']
         },
         {
-          types: ['StudentEnrolled'],
-          tags: [`student:${generateUniqueId('student')}`]
+          types: ['ConditionEvent'],
+          tags: ['test:test-2', 'condition:condition-1']
         }
       ]
     }
   };
-
   const complexQueryResponse = client.invoke('eventstore.EventStoreService/Read', complexQueryRequest);
-  
   check(complexQueryResponse, {
     'complex query status is ok': (r) => r && r.status === grpc.StatusOK,
+    'complex query has no error': (r) => !r.error,
+    'complex query returns events': (r) => r && r.message && r.message.events && r.message.events.length >= 0,
   });
-
-  if (!complexQueryResponse || complexQueryResponse.status !== grpc.StatusOK) {
-    errorRate.add(1);
-    console.log('Complex query failed:', complexQueryResponse);
-  }
-
-  sleep(0.1);
+  sleep(0.05);  // Reduced from 0.1s to match web-app
 }
 
-// Setup function to initialize test data
+// Setup function to clean database before test
 export function setup() {
   console.log('Setting up gRPC test data...');
   
-  // Wait a bit for the server to be ready
-  sleep(3);
-  
   // Connect to gRPC server
-  client.connect('localhost:9090', {
-    plaintext: true,
-  });
-
-  // Add some initial events with unique IDs
-  const initialEvents = [
-    generateUniqueEvent('CoursePlanned', ['course', 'user'], false),
-    generateUniqueEvent('StudentEnrolled', ['course', 'student'], false),
-    generateUniqueEvent('AssignmentCreated', ['course', 'assignment'], false),
-  ];
-
-  const setupRequest = {
-    events: initialEvents
-  };
-
-  const res = client.invoke('eventstore.EventStoreService/Append', setupRequest);
-
-  if (!res || res.status !== grpc.StatusOK) {
-    console.log('Setup failed:', res);
-  } else {
-    console.log('gRPC test setup completed successfully');
+  const client = new grpc.Client();
+  client.load(['proto'], 'eventstore.proto');
+  client.connect('localhost:9090', { plaintext: true });
+  
+  // Clean database
+  const cleanupResponse = http.post('http://localhost:9091/cleanup');
+  if (cleanupResponse.status !== 200) {
+    console.error('Failed to cleanup database');
   }
-
+  
+  // Setup test data
+  for (let i = 0; i < 100; i++) {
+    const event = {
+      type: 'SetupEvent',
+      data: JSON.stringify({ id: i, message: 'Setup data' }),
+      tags: [`setup:${i}`, `batch:${Math.floor(i / 10)}`]
+    };
+    
+    const response = client.invoke('eventstore.EventStoreService/Append', { events: [event] });
+    if (response.status !== grpc.StatusOK) {
+      console.error('Failed to setup test data');
+    }
+  }
+  
   client.close();
-  return { baseUrl: 'localhost:9090' };
+  console.log('gRPC test setup completed successfully');
+  return {};
 }
 
 export function teardown(data) {

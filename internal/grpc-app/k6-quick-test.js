@@ -1,14 +1,17 @@
 import grpc from 'k6/net/grpc';
-import { check, sleep } from 'k6';
+import { check } from 'k6';
 
 // Load the proto file
 const client = new grpc.Client();
 client.load(['proto'], 'eventstore.proto');
 
-// Very short test configuration
+// Very short test configuration - optimized for speed (matching web-app)
 export const options = {
-  vus: 1,
+  vus: 2,  // Increased from 1 to match web-app
   duration: '10s',
+  // Optimize for higher throughput (matching web-app)
+  batch: 10,
+  batchPerHost: 10,
 };
 
 // Setup function to clean database before test

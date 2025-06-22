@@ -224,8 +224,8 @@ func main() {
 	}
 
 	// Optimize connection pool for high throughput
-	maxConns := 100
-	minConns := 20
+	maxConns := 300 // Increased to match web app
+	minConns := 100 // Increased to match web app
 
 	if maxConnsEnv := os.Getenv("DB_MAX_CONNS"); maxConnsEnv != "" {
 		if parsed, err := strconv.Atoi(maxConnsEnv); err == nil && parsed > 0 {
@@ -241,9 +241,9 @@ func main() {
 
 	config.MaxConns = int32(maxConns)
 	config.MinConns = int32(minConns)
-	config.MaxConnLifetime = 10 * time.Minute
-	config.MaxConnIdleTime = 5 * time.Minute
-	config.HealthCheckPeriod = 60 * time.Second
+	config.MaxConnLifetime = 15 * time.Minute   // Increased to match web app
+	config.MaxConnIdleTime = 10 * time.Minute   // Increased to match web app
+	config.HealthCheckPeriod = 30 * time.Second // Decreased to match web app
 
 	// Connect to database with retry logic
 	var pool *pgxpool.Pool
