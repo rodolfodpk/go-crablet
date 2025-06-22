@@ -222,7 +222,7 @@ func setupTestData(ctx context.Context, store dcb.EventStore) {
 	courseEvents := make([]dcb.InputEvent, courses)
 	for i := 0; i < courses; i++ {
 		courseID := fmt.Sprintf("course-%d", i)
-		courseEvents[i] = dcb.NewInputEvent("CourseCreated", dcb.NewTags("course_id", courseID), []byte(fmt.Sprintf(`{"courseId": "%s", "name": "Course %d", "capacity": 100, "instructor": "Instructor %d"}`, courseID, i, i)))
+		courseEvents[i] = dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", courseID), []byte(fmt.Sprintf(`{"courseId": "%s", "name": "Course %d", "capacity": 100, "instructor": "Instructor %d"}`, courseID, i, i)))
 	}
 
 	_, err := store.Append(ctx, courseEvents, nil)
@@ -266,7 +266,7 @@ func benchmarkSimpleQueries(ctx context.Context, store dcb.EventStore) {
 
 	// Query all course events
 	start := time.Now()
-	query := dcb.NewQuery(dcb.NewTags(), "CourseCreated")
+	query := dcb.NewQuery(dcb.NewTags(), "CourseDefined")
 	result, err := store.Read(ctx, query, nil)
 	duration := time.Since(start)
 
@@ -278,7 +278,7 @@ func benchmarkSimpleQueries(ctx context.Context, store dcb.EventStore) {
 
 	// Query by tag
 	start = time.Now()
-	query = dcb.NewQuery(dcb.NewTags("course_id", "course-1"), "CourseCreated")
+	query = dcb.NewQuery(dcb.NewTags("course_id", "course-1"), "CourseDefined")
 	result, err = store.Read(ctx, query, nil)
 	duration = time.Since(start)
 
@@ -296,7 +296,7 @@ func benchmarkComplexQueries(ctx context.Context, store dcb.EventStore) {
 	start := time.Now()
 	query := dcb.Query{
 		Items: []dcb.QueryItem{
-			{EventTypes: []string{"CourseCreated"}, Tags: dcb.NewTags("course_id", "course-1")},
+			{EventTypes: []string{"CourseDefined"}, Tags: dcb.NewTags("course_id", "course-1")},
 			{EventTypes: []string{"StudentRegistered"}, Tags: dcb.NewTags("student_id", "student-1")},
 		},
 	}
@@ -361,7 +361,7 @@ func benchmarkSingleProjector(ctx context.Context, store dcb.EventStore, channel
 	projector := dcb.BatchProjector{
 		ID: "courseCount",
 		StateProjector: dcb.StateProjector{
-			Query:        dcb.NewQuery(dcb.NewTags(), "CourseCreated"),
+			Query:        dcb.NewQuery(dcb.NewTags(), "CourseDefined"),
 			InitialState: 0,
 			TransitionFn: func(state any, event dcb.Event) any {
 				return state.(int) + 1
@@ -387,7 +387,7 @@ func benchmarkMultipleProjectors(ctx context.Context, store dcb.EventStore, chan
 		{
 			ID: "courseCount",
 			StateProjector: dcb.StateProjector{
-				Query:        dcb.NewQuery(dcb.NewTags(), "CourseCreated"),
+				Query:        dcb.NewQuery(dcb.NewTags(), "CourseDefined"),
 				InitialState: 0,
 				TransitionFn: func(state any, event dcb.Event) any {
 					return state.(int) + 1
@@ -437,7 +437,7 @@ func benchmarkChannelProjection(ctx context.Context, channelStore dcb.CrabletEve
 		{
 			ID: "courseCount",
 			StateProjector: dcb.StateProjector{
-				Query:        dcb.NewQuery(dcb.NewTags(), "CourseCreated"),
+				Query:        dcb.NewQuery(dcb.NewTags(), "CourseDefined"),
 				InitialState: 0,
 				TransitionFn: func(state any, event dcb.Event) any {
 					return state.(int) + 1

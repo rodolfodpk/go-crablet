@@ -32,8 +32,8 @@ type EnrollmentState struct {
 	IsEnrolled bool   `json:"isEnrolled"`
 }
 
-// CourseCreated represents the data in a CourseCreated event
-type CourseCreated struct {
+// CourseDefined represents the data in a CourseDefined event
+type CourseDefined struct {
 	CourseID   string `json:"courseId"`
 	Name       string `json:"name"`
 	Capacity   int    `json:"capacity"`
@@ -70,7 +70,7 @@ type CourseCapacityChanged struct {
 // CreateCourseExistsProjector creates a projector that tracks if a course exists
 func CreateCourseExistsProjector(courseID string) dcb.StateProjector {
 	return dcb.StateProjector{
-		Query:        dcb.NewQuery(dcb.NewTags("course_id", courseID), "CourseCreated"),
+		Query:        dcb.NewQuery(dcb.NewTags("course_id", courseID), "CourseDefined"),
 		InitialState: false,
 		TransitionFn: func(state any, event dcb.Event) any {
 			return true
@@ -81,13 +81,13 @@ func CreateCourseExistsProjector(courseID string) dcb.StateProjector {
 // CreateCourseStateProjector creates a projector that tracks the complete state of a course
 func CreateCourseStateProjector(courseID string) dcb.StateProjector {
 	return dcb.StateProjector{
-		Query:        dcb.NewQuery(dcb.NewTags("course_id", courseID), "CourseCreated", "CourseCapacityChanged"),
+		Query:        dcb.NewQuery(dcb.NewTags("course_id", courseID), "CourseDefined", "CourseCapacityChanged"),
 		InitialState: &CourseState{CourseID: courseID, Exists: false},
 		TransitionFn: func(state any, event dcb.Event) any {
 			course := state.(*CourseState)
 			switch event.Type {
-			case "CourseCreated":
-				var data CourseCreated
+			case "CourseDefined":
+				var data CourseDefined
 				json.Unmarshal(event.Data, &data)
 				course.Name = data.Name
 				course.Capacity = data.Capacity
@@ -251,7 +251,7 @@ func CreateBenchmarkProjectors(dataset *Dataset) []dcb.BatchProjector {
 	projectors := []dcb.BatchProjector{
 		{
 			ID:             "courseCount",
-			StateProjector: CreateSimpleCountProjector("CourseCreated", "", ""),
+			StateProjector: CreateSimpleCountProjector("CourseDefined", "", ""),
 		},
 		{
 			ID:             "studentCount",

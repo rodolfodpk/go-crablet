@@ -40,7 +40,7 @@ type ChangeCourseCapacityCommand struct {
 }
 
 // Course Subscription Domain Types
-type CourseCreated struct {
+type CourseDefined struct {
 	CourseID   string `json:"courseId"`
 	Name       string `json:"name"`
 	Capacity   int    `json:"capacity"`
@@ -95,8 +95,8 @@ type EnrollmentState struct {
 }
 
 // Event Constructors
-func NewCourseCreatedEvent(courseID, name, instructor string, capacity int) InputEvent {
-	return NewInputEventUnsafe("CourseCreated", NewTags("course_id", courseID), toJSON(CourseCreated{
+func NewCourseDefinedEvent(courseID, name, instructor string, capacity int) InputEvent {
+	return NewInputEventUnsafe("CourseDefined", NewTags("course_id", courseID), toJSON(CourseDefined{
 		CourseID:   courseID,
 		Name:       name,
 		Capacity:   capacity,
@@ -138,7 +138,7 @@ func NewCourseCapacityChangedEvent(courseID string, newCapacity int) InputEvent 
 // Projectors
 func CourseExistsProjector(courseID string) StateProjector {
 	return StateProjector{
-		Query:        NewQuerySimple(NewTags("course_id", courseID), "CourseCreated"),
+		Query:        NewQuerySimple(NewTags("course_id", courseID), "CourseDefined"),
 		InitialState: false,
 		TransitionFn: func(state any, event Event) any {
 			return true
@@ -148,13 +148,13 @@ func CourseExistsProjector(courseID string) StateProjector {
 
 func CourseStateProjector(courseID string) StateProjector {
 	return StateProjector{
-		Query:        NewQuerySimple(NewTags("course_id", courseID), "CourseCreated", "CourseCapacityChanged"),
+		Query:        NewQuerySimple(NewTags("course_id", courseID), "CourseDefined", "CourseCapacityChanged"),
 		InitialState: &CourseState{CourseID: courseID, Exists: false},
 		TransitionFn: func(state any, event Event) any {
 			course := state.(*CourseState)
 			switch event.Type {
-			case "CourseCreated":
-				var data CourseCreated
+			case "CourseDefined":
+				var data CourseDefined
 				json.Unmarshal(event.Data, &data)
 				course.Name = data.Name
 				course.Capacity = data.Capacity
@@ -266,7 +266,7 @@ func handleCreateCourse(ctx context.Context, store CrabletEventStore, cmd Create
 	}
 
 	_, err = store.Append(ctx, []InputEvent{
-		NewCourseCreatedEvent(cmd.CourseID, cmd.Name, cmd.Instructor, cmd.Capacity),
+		NewCourseDefinedEvent(cmd.CourseID, cmd.Name, cmd.Instructor, cmd.Capacity),
 	}, &appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to create course: %w", err)
@@ -440,11 +440,11 @@ var _ = Describe("Course Subscription Domain", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Read events
-			query := NewQuerySimple(NewTags("course_id", "course-1"), "CourseCreated")
+			query := NewQuerySimple(NewTags("course_id", "course-1"), "CourseDefined")
 			sequencedEvents, err := store.Read(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(sequencedEvents.Events).To(HaveLen(1))
-			Expect(sequencedEvents.Events[0].Type).To(Equal("CourseCreated"))
+			Expect(sequencedEvents.Events[0].Type).To(Equal("CourseDefined"))
 		})
 
 		It("should use ReadStreamChannel for large datasets", func() {
@@ -462,7 +462,7 @@ var _ = Describe("Course Subscription Domain", func() {
 			}
 
 			// Use ReadStreamChannel instead of ReadStream
-			query := NewQuerySimple(NewTags(), "CourseCreated")
+			query := NewQuerySimple(NewTags(), "CourseDefined")
 			eventChan, err := channelStore.ReadStreamChannel(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -488,7 +488,7 @@ var _ = Describe("Course Subscription Domain", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Verify course was created
-			query := NewQuerySimple(NewTags("course_id", "math-101"), "CourseCreated")
+			query := NewQuerySimple(NewTags("course_id", "math-101"), "CourseDefined")
 			events, err := store.Read(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events.Events).To(HaveLen(1))
@@ -885,8 +885,8 @@ func intPtr(i int) *int {
 	return &i
 }
 
-func createCourseCreatedEvent(courseID string, name string, capacity int) InputEvent {
-	return NewCourseCreatedEvent(courseID, name, "Instructor", capacity)
+func createCourseDefinedEvent(courseID string, name string, capacity int) InputEvent {
+	return NewCourseDefinedEvent(courseID, name, "Instructor", capacity)
 }
 
 func createStudentRegisteredEvent(studentID string, name string) InputEvent {

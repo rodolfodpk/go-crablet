@@ -20,7 +20,6 @@ A Go library for event sourcing, exploring and learning about concepts inspired 
 ## Documentation
 - [Overview](docs/overview.md): DCB pattern exploration, batch projection, and streaming
 - [Examples](docs/examples.md): DCB-inspired use cases
-- [Implementation](docs/implementation.md): Technical details
 - [Minimal Example](docs/minimal-example.md): Detailed walkthrough of the course subscription example
 - [Code Coverage](docs/code-coverage.md): Test coverage analysis and improvement guidelines
 
@@ -31,10 +30,6 @@ Comprehensive performance testing and analysis for different API protocols:
 - **[Web-App Benchmarks](internal/web-app/BENCHMARK.md)**: HTTP/REST API performance testing with k6
 - **[gRPC App Benchmarks](internal/grpc-app/BENCHMARK.md)**: gRPC API performance testing with k6
 - **[Go Benchmarks](internal/benchmarks/README.md)**: Core library performance testing and analysis
-
-## Minimal Example
-
-See the **[Minimal Example](docs/minimal-example.md)** for a comprehensive walkthrough of the DCB pattern with course enrollment, demonstrating command handlers, business logic separation, and optimistic concurrency.
 
 ## Examples
 

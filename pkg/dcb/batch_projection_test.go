@@ -30,7 +30,7 @@ var _ = Describe("Batch Projection", func() {
 		It("should combine multiple projector queries with OR logic", func() {
 			projectors := []BatchProjector{
 				{ID: "projector1", StateProjector: StateProjector{
-					Query: NewQuerySimple(NewTags("course_id", "c1"), "CourseCreated"),
+					Query: NewQuerySimple(NewTags("course_id", "c1"), "CourseDefined"),
 				}},
 				{ID: "projector2", StateProjector: StateProjector{
 					Query: NewQuerySimple(NewTags("student_id", "s1"), "StudentRegistered"),
@@ -45,7 +45,7 @@ var _ = Describe("Batch Projection", func() {
 			combinedQuery := es.combineProjectorQueries(projectors)
 
 			Expect(combinedQuery.Items).To(HaveLen(3))
-			Expect(combinedQuery.Items[0].EventTypes).To(Equal([]string{"CourseCreated"}))
+			Expect(combinedQuery.Items[0].EventTypes).To(Equal([]string{"CourseDefined"}))
 			Expect(combinedQuery.Items[1].EventTypes).To(Equal([]string{"StudentRegistered"}))
 			Expect(combinedQuery.Items[2].EventTypes).To(Equal([]string{"StudentEnrolled"}))
 		})
@@ -77,11 +77,11 @@ var _ = Describe("Batch Projection", func() {
 			es := store.(*eventStore)
 
 			projector := StateProjector{
-				Query: NewQuerySimple(NewTags("course_id", "c1"), "CourseCreated"),
+				Query: NewQuerySimple(NewTags("course_id", "c1"), "CourseDefined"),
 			}
 
 			event := Event{
-				Type: "CourseCreated",
+				Type: "CourseDefined",
 				Tags: []Tag{{Key: "course_id", Value: "c1"}},
 			}
 
@@ -93,7 +93,7 @@ var _ = Describe("Batch Projection", func() {
 			es := store.(*eventStore)
 
 			projector := StateProjector{
-				Query: NewQuerySimple(NewTags("course_id", "c1"), "CourseCreated"),
+				Query: NewQuerySimple(NewTags("course_id", "c1"), "CourseDefined"),
 			}
 
 			event := Event{
@@ -109,11 +109,11 @@ var _ = Describe("Batch Projection", func() {
 			es := store.(*eventStore)
 
 			projector := StateProjector{
-				Query: NewQuerySimple(NewTags("course_id", "c1"), "CourseCreated"),
+				Query: NewQuerySimple(NewTags("course_id", "c1"), "CourseDefined"),
 			}
 
 			event := Event{
-				Type: "CourseCreated",
+				Type: "CourseDefined",
 				Tags: []Tag{{Key: "course_id", Value: "c2"}},
 			}
 
@@ -125,11 +125,11 @@ var _ = Describe("Batch Projection", func() {
 			es := store.(*eventStore)
 
 			projector := StateProjector{
-				Query: NewQuerySimple(NewTags("course_id", "c1"), "CourseCreated"),
+				Query: NewQuerySimple(NewTags("course_id", "c1"), "CourseDefined"),
 			}
 
 			event := Event{
-				Type: "CourseCreated",
+				Type: "CourseDefined",
 				Tags: []Tag{
 					{Key: "course_id", Value: "c1"},
 					{Key: "student_id", Value: "s1"},
@@ -160,11 +160,11 @@ var _ = Describe("Batch Projection", func() {
 			es := store.(*eventStore)
 
 			projector := StateProjector{
-				Query: NewQuerySimple([]Tag{}, "CourseCreated"), // No tags
+				Query: NewQuerySimple([]Tag{}, "CourseDefined"), // No tags
 			}
 
 			event := Event{
-				Type: "CourseCreated",
+				Type: "CourseDefined",
 				Tags: []Tag{{Key: "course_id", Value: "c1"}},
 			}
 
@@ -179,7 +179,7 @@ var _ = Describe("Batch Projection", func() {
 
 			projectors := []BatchProjector{
 				{ID: "projector1", StateProjector: StateProjector{
-					Query: NewQuerySimple(NewTags("course_id", "c1"), "CourseCreated"),
+					Query: NewQuerySimple(NewTags("course_id", "c1"), "CourseDefined"),
 				}},
 				{ID: "projector2", StateProjector: StateProjector{
 					Query: NewQuerySimple(NewTags("student_id", "s1"), "StudentRegistered"),
@@ -206,7 +206,7 @@ var _ = Describe("Batch Projection", func() {
 	Describe("ProjectDecisionModel with complex scenarios", func() {
 		It("should handle multiple projectors with overlapping queries", func() {
 			// Create test events
-			event1 := NewInputEvent("CourseCreated", NewTags("course_id", "c1"), toJSON(map[string]string{"name": "Math 101"}))
+			event1 := NewInputEvent("CourseDefined", NewTags("course_id", "c1"), toJSON(map[string]string{"name": "Math 101"}))
 			event2 := NewInputEvent("StudentRegistered", NewTags("student_id", "s1"), toJSON(map[string]string{"name": "Alice"}))
 			event3 := NewInputEvent("StudentEnrolled", NewTags("course_id", "c1", "student_id", "s1"), toJSON(map[string]string{"enrolled_at": "2024-01-01"}))
 			event4 := NewInputEvent("StudentEnrolled", NewTags("course_id", "c1", "student_id", "s2"), toJSON(map[string]string{"enrolled_at": "2024-01-02"}))
@@ -218,7 +218,7 @@ var _ = Describe("Batch Projection", func() {
 			// Define projectors with overlapping queries
 			projectors := []BatchProjector{
 				{ID: "courseCount", StateProjector: StateProjector{
-					Query:        NewQuerySimple(NewTags("course_id", "c1"), "CourseCreated"),
+					Query:        NewQuerySimple(NewTags("course_id", "c1"), "CourseDefined"),
 					InitialState: 0,
 					TransitionFn: func(state any, event Event) any {
 						return state.(int) + 1

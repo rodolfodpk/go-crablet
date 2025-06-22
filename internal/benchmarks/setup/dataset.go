@@ -158,7 +158,7 @@ func loadCourses(ctx context.Context, store dcb.EventStore, courses []CourseData
 		events := make([]dcb.InputEvent, len(batch))
 
 		for j, course := range batch {
-			events[j] = dcb.NewInputEvent("CourseCreated",
+			events[j] = dcb.NewInputEvent("CourseDefined",
 				dcb.NewTags("course_id", course.ID),
 				[]byte(fmt.Sprintf(`{"courseId": "%s", "name": "%s", "capacity": %d, "instructor": "%s"}`,
 					course.ID, course.Name, course.Capacity, course.Instructor)))
@@ -243,7 +243,7 @@ func GenerateRandomQueries(dataset *Dataset, count int) []dcb.Query {
 		case 0:
 			// Random course query
 			courseIdx := rand.Intn(len(dataset.Courses))
-			queries[i] = dcb.NewQuery(dcb.NewTags("course_id", dataset.Courses[courseIdx].ID), "CourseCreated")
+			queries[i] = dcb.NewQuery(dcb.NewTags("course_id", dataset.Courses[courseIdx].ID), "CourseDefined")
 		case 1:
 			// Random student query
 			studentIdx := rand.Intn(len(dataset.Students))
@@ -255,7 +255,7 @@ func GenerateRandomQueries(dataset *Dataset, count int) []dcb.Query {
 			queries[i] = dcb.NewQuery(dcb.NewTags("student_id", enrollment.StudentID, "course_id", enrollment.CourseID), "StudentEnrolledInCourse")
 		case 3:
 			// All events of a type
-			eventTypes := []string{"CourseCreated", "StudentRegistered", "StudentEnrolledInCourse"}
+			eventTypes := []string{"CourseDefined", "StudentRegistered", "StudentEnrolledInCourse"}
 			eventType := eventTypes[rand.Intn(len(eventTypes))]
 			queries[i] = dcb.NewQuery(dcb.NewTags(), eventType)
 		}

@@ -28,7 +28,7 @@ done
 
 # Run a quick performance test
 echo "🚀 Running quick performance test..."
-k6 run --out json=k6-quick-test.json k6-test.js
+k6 run --out json=k6-quick-test.json quick.js
 
 # Show resource usage for both containers
 echo "📊 Resource usage:"

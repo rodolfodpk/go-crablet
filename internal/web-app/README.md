@@ -90,7 +90,7 @@ This is a web application that implements the DCB Bench OpenAPI specification, p
 ```bash
 # From the web-app directory
 cd internal/web-app
-k6 run k6-test.js
+k6 run quick.js
 ```
 
 ## Manual Setup
