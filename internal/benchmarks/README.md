@@ -1,10 +1,10 @@
 # go-crablet Performance Benchmarks
 
-This directory contains comprehensive performance benchmarks for the go-crablet library, which aims to implement Dynamic Consistency Boundaries (DCB). The benchmarks test all public API operations with realistic datasets and various configurations.
+This directory contains comprehensive performance benchmarks for the go-crablet library, which implements Dynamic Consistency Boundaries (DCB). The benchmarks test all public API operations with realistic datasets and DCB-focused queries that demonstrate proper consistency boundary patterns.
 
 ## 📋 **Latest Benchmark Report**
 
-📊 **[View Latest Performance Analysis](BENCHMARK_REPORT.md)** - Comprehensive analysis of go-crablet performance across all operations with detailed metrics, recommendations, and raw benchmark results.
+📊 **[View Latest Performance Analysis](BENCHMARK_REPORT.md)** - Comprehensive analysis of go-crablet performance across all operations with DCB pattern implementation, detailed metrics, and raw benchmark results.
 
 ---
 
@@ -15,36 +15,42 @@ This directory contains comprehensive performance benchmarks for the go-crablet 
 #### **1. Append Operations**
 - **Single Event Append**: Tests `store.Append(ctx, []dcb.InputEvent{event}, nil)` - baseline performance
 - **Batch Event Append**: Tests `store.Append(ctx, events, nil)` with different sizes (10, 100, 1000 events)
-- **Performance Comparison**: Shows the dramatic efficiency gains of batch operations
+- **Concurrent Append**: Tests append performance with multiple goroutines
+- **Performance Comparison**: Shows the efficiency gains of batch operations
 - **Throughput measurements**: Events/second for different batch sizes
 
-**Key Insight**: Batch append is ~268x more efficient than single event appends (1000-event batches vs single events)
+**Key Insight**: Batch append is ~26x more efficient than single event appends (1000-event batches vs single events)
 
-#### **2. Read Operations**
-- Simple queries (single event type, single tag)
-- Complex queries (OR conditions, multiple tags)
-- Traditional batch read vs streaming read
-- Iterator-based streaming vs channel-based streaming
+#### **2. Read Operations (DCB-Focused)**
+- **Targeted Queries**: All queries use specific consistency boundaries (no empty tags)
+- **Course Queries**: `category="Computer Science"`, `course_id="course-1"`
+- **Student Queries**: `major="Computer Science"`, `student_id="student-1"`
+- **Enrollment Queries**: `grade="A"`, `semester="Fall2024"`
+- **Cross-Entity Consistency**: OR queries demonstrating proper DCB boundaries
 
-#### **3. Projection Operations**
-- Single projector performance
-- Multiple projector performance (1, 5 projectors)
-- Traditional projection vs channel-based projection
-- Memory usage analysis
+#### **3. Streaming Operations**
+- **Channel Streaming**: DCB-focused streaming with specific student enrollments
+- **Memory Efficiency**: Only processes relevant events (5 vs 50,000+)
+- **Performance**: Sub-10ms for targeted streaming operations
 
-#### **4. Memory Usage**
-- Memory allocation per operation
-- Memory efficiency comparison between read methods
-- Memory usage for different dataset sizes
+#### **4. Projection Operations (DCB-Focused)**
+- **Business Decision Boundaries**: Projectors represent real business scenarios
+- **Single Projector**: CS course count, student major analysis
+- **Multiple Projectors**: CS courses + CS students + A-grade enrollments
+- **Channel Projection**: Real-time state projection with DCB patterns
 
-### **Dataset Sizes**
+### **Dataset Sizes & Realistic Distribution**
 
-| Size   | Courses | Students | Enrollments | Total Events |
-|--------|---------|----------|-------------|--------------|
-| Small  | 1,000   | 10,000   | 50,000      | 61,000       |
-| Medium | 5,000   | 50,000   | 250,000     | 305,000      |
-| Large  | 10,000  | 100,000  | 500,000     | 610,000      |
-| XLarge | 20,000  | 200,000  | 1,000,000   | 1,220,000    |
+| Size   | Courses | Students | Enrollments | Total Events | Distribution |
+|--------|---------|----------|-------------|--------------|--------------|
+| Small  | 1,000   | 10,000   | 50,000      | 61,000       | Realistic course popularity, student behavior patterns |
+
+**Realistic Data Features:**
+- **Course Popularity**: Computer Science courses are more popular (30% of enrollments)
+- **Student Behavior**: 70% of students enroll in 3-7 courses, 20% in 1-2, 10% in 8+
+- **Temporal Patterns**: Fall semester has 60% of enrollments, Spring 40%
+- **Grade Distribution**: A (25%), B (35%), C (25%), D/F (15%)
+- **Major Distribution**: CS (30%), Engineering (25%), Business (20%), Arts (15%), Other (10%)
 
 ## 🚀 **Running Benchmarks**
 
@@ -70,12 +76,11 @@ docker-compose up -d
 ### **Quick Start**
 
 ```bash
-# Run all benchmarks with small dataset
-cd internal/benchmarks/benchmarks
-go test -bench=. -benchmem -benchtime=10s
+# Run all benchmarks with DCB-focused queries
+cd internal/benchmarks
+go run main.go
 
 # Or use the convenient script
-cd internal/benchmarks
 ./run_benchmarks.sh quick
 
 # Run specific benchmark category
@@ -107,10 +112,10 @@ go test -bench=BenchmarkAppendSingle_Small -benchmem -v
 # Append benchmarks
 go test -bench=BenchmarkAppend -benchmem
 
-# Read benchmarks
+# Read benchmarks (DCB-focused)
 go test -bench=BenchmarkRead -benchmem
 
-# Projection benchmarks
+# Projection benchmarks (DCB-focused)
 go test -bench=BenchmarkProjection -benchmem
 
 # Memory usage benchmarks
@@ -138,22 +143,65 @@ BenchmarkAppendSingle_Small-8         1000           1234567 ns/op        2048 B
 3. **Memory Usage**: Bytes allocated per operation (lower is better)
 4. **Allocation Count**: Number of allocations per operation (lower is better)
 
-### **Performance Expectations**
+### **Performance Expectations (DCB-Focused)**
 
 #### **Append Operations**
-- **Single append**: ~578 events/second (baseline)
-- **Batch append**: ~2,000-2,200 events/second (268x more efficient for large batches)
+- **Single append**: ~100 events/second (baseline)
+- **Batch append**: ~1,800-2,600 events/second (26x more efficient for large batches)
+- **Concurrent append**: Up to 8,285 events/second with 20 goroutines
 - **Optimal batch size**: 1000 events provides best throughput
-- **Memory scaling**: Linear memory usage with batch size
 
-#### **Read Operations**
-- Simple queries: ~1,000-10,000 events/second
-- Complex queries: ~100-1,000 events/second
-- Streaming: Similar to batch read but with lower memory usage
+#### **Read Operations (DCB-Focused)**
+- **Targeted queries**: 9-14ms for all DCB-focused queries
+- **No full scans**: Zero empty tag queries that would cause performance issues
+- **Cross-entity consistency**: 12-14ms for OR queries with proper boundaries
 
-#### **Projection Operations**
-- Single projector: ~1,000-10,000 events/second
-- Multiple projectors: ~100-1,000 events/second (scales with projector count)
+#### **Streaming Operations**
+- **Channel streaming**: 9ms for targeted student enrollments
+- **Memory efficient**: Only processes relevant events (5 vs 50,000+)
+
+#### **Projection Operations (DCB-Focused)**
+- **Single projector**: 6-10ms for business decision scenarios
+- **Multiple projectors**: 14ms for complex multi-projector scenarios
+- **Realistic scenarios**: CS courses, CS students, A-grade enrollments
+
+### **DCB Pattern Benefits Demonstrated**
+
+#### **1. Consistency Boundaries**
+```go
+// ✅ DCB Pattern: Specific course category instead of all courses
+query := dcb.NewQuery(dcb.NewTags("category", "Computer Science"), "CourseDefined")
+
+// ✅ DCB Pattern: Specific student major instead of all students  
+query := dcb.NewQuery(dcb.NewTags("major", "Computer Science"), "StudentRegistered")
+
+// ✅ DCB Pattern: Specific enrollment grade instead of all enrollments
+query := dcb.NewQuery(dcb.NewTags("grade", "A"), "StudentEnrolledInCourse")
+```
+
+#### **2. Business Decision Boundaries**
+```go
+// ✅ Business Decision: Count CS courses
+projector := dcb.BatchProjector{
+    ID: "csCourseCount",
+    StateProjector: dcb.StateProjector{
+        Query: dcb.NewQuery(dcb.NewTags("category", "Computer Science"), "CourseDefined"),
+        InitialState: 0,
+        TransitionFn: func(state any, event dcb.Event) any { return state.(int) + 1 },
+    },
+}
+```
+
+#### **3. Cross-Entity Consistency**
+```go
+// ✅ DCB Pattern: Cross-entity consistency check
+query := dcb.Query{
+    Items: []dcb.QueryItem{
+        {EventTypes: []string{"CourseDefined"}, Tags: dcb.NewTags("course_id", "course-1")},
+        {EventTypes: []string{"StudentRegistered"}, Tags: dcb.NewTags("student_id", "student-1")},
+    },
+}
+```
 
 ### **Batch Append Best Practices**
 
@@ -172,87 +220,94 @@ store.Append(ctx, events, nil)
 #### **2. Optimal Batch Sizes**
 - **Small batches (10-100)**: Good for real-time processing
 - **Large batches (1000+)**: Best for bulk operations and maximum throughput
-- **Memory consideration**: Larger batches use more memory but provide better throughput
+- **Concurrent processing**: Up to 8,285 events/sec with 20 goroutines
 
 #### **3. Related Events in Same Batch**
 ```go
 // ✅ Group related events atomically
 events := []dcb.InputEvent{
-    dcb.NewInputEvent("AccountOpened", tags1, data1),
-    dcb.NewInputEvent("MoneyTransferred", tags2, data2),
-    dcb.NewInputEvent("AccountBalanceChanged", tags3, data3),
+    dcb.NewInputEvent("CourseDefined", tags1, data1),
+    dcb.NewInputEvent("StudentRegistered", tags2, data2),
+    dcb.NewInputEvent("StudentEnrolledInCourse", tags3, data3),
 }
 store.Append(ctx, events, &appendCondition) // All events processed atomically
 ```
 
-#### **4. Performance Trade-offs**
-- **Throughput**: Batch size 1000 provides ~2,200 events/sec
-- **Latency**: Smaller batches (10-100) for real-time requirements
-- **Memory**: Larger batches use more memory but better throughput
-- **Atomicity**: All events in a batch are processed as a single unit
+#### **4. DCB Pattern Compliance**
+- **Use specific tags**: Always query with specific consistency boundaries
+- **Avoid empty tags**: Never use queries that would cause full table scans
+- **Business logic**: Projectors should represent real decision scenarios
+- **Cross-entity consistency**: Use OR queries for proper boundary implementation
 
 ## 🔧 **Configuration**
 
 ### **Dataset Configuration**
 
-Edit `setup/dataset.go` to modify dataset sizes:
+Edit `setup/dataset.go` to modify dataset sizes and distribution:
 
 ```go
-var DatasetSizes = map[string]DatasetConfig{
-    "small": {
-        Courses:     1_000,
-        Students:    10_000,
-        Enrollments: 50_000,
-        Capacity:    100,
-    },
-    // Add more configurations...
+// Realistic course popularity distribution
+var courseCategories = []string{
+    "Computer Science",    // 30% of courses
+    "Engineering",         // 25% of courses
+    "Business",            // 20% of courses
+    "Arts",                // 15% of courses
+    "Other",               // 10% of courses
+}
+
+// Student behavior patterns
+var enrollmentPatterns = []struct {
+    minCourses int
+    maxCourses int
+    percentage  float64
+}{
+    {1, 2, 0.20},   // 20% enroll in 1-2 courses
+    {3, 7, 0.70},   // 70% enroll in 3-7 courses
+    {8, 12, 0.10},  // 10% enroll in 8+ courses
 }
 ```
 
-### **Benchmark Parameters**
+### **Query Configuration**
 
-Modify benchmark parameters in `benchmarks/benchmark_runner.go`:
+All benchmarks use DCB-focused queries:
 
 ```go
-// Change batch sizes
-batchSizes := []int{10, 100, 1000, 10000}
-
-// Change concurrency levels
-concurrencyLevels := []int{1, 5, 10, 20, 50}
-
-// Change projector counts
-projectorCounts := []int{1, 5, 10, 20}
+// DCB-focused query examples
+queries := []dcb.Query{
+    dcb.NewQuery(dcb.NewTags("category", "Computer Science"), "CourseDefined"),
+    dcb.NewQuery(dcb.NewTags("major", "Computer Science"), "StudentRegistered"),
+    dcb.NewQuery(dcb.NewTags("grade", "A"), "StudentEnrolledInCourse"),
+    dcb.NewQuery(dcb.NewTags("course_id", "course-1"), "CourseDefined"),
+}
 ```
 
-## 📊 **Results Analysis**
+## 📊 **Performance Analysis**
 
-### **Comparing Results**
+### **Strengths**
+1. **DCB Pattern Compliance**: All queries use specific consistency boundaries
+2. **No Full Scans**: Zero empty tag queries that would cause performance issues
+3. **Excellent Append Performance**: Up to 8,285 events/sec with concurrency
+4. **Fast Targeted Queries**: Sub-15ms performance for all DCB-focused queries
+5. **Realistic Business Scenarios**: Projectors represent actual use cases
+6. **Memory Efficient Streaming**: Only processes relevant events
 
-```bash
-# Save baseline results
-go test -bench=. -benchmem > baseline.txt
+### **Performance Characteristics**
+1. **Batch Append Scaling**: Linear performance improvement with batch size
+2. **Concurrency Performance**: Excellent scaling with multiple goroutines
+3. **Query Performance**: Consistent sub-15ms performance for targeted queries
+4. **Projection Efficiency**: Fast multi-projector scenarios
+5. **Streaming Performance**: Efficient channel-based processing
 
-# After changes, compare results
-go test -bench=. -benchmem > new.txt
-benchcmp baseline.txt new.txt
-```
+### **Production Readiness**
+- ✅ **Performance**: Excellent throughput and latency
+- ✅ **Reliability**: Consistent, predictable performance
+- ✅ **Scalability**: Good concurrency and batch performance
+- ✅ **DCB Compliance**: Proper pattern implementation
+- ✅ **Memory Efficiency**: Optimized for large datasets
 
-### **Performance Regression Testing**
+---
 
-```bash
-# Run benchmarks in CI/CD pipeline
-go test -bench=. -benchmem -benchtime=5s -count=3
-```
-
-### **Profiling Analysis**
-
-```bash
-# Generate CPU profile
-go test -bench=BenchmarkAppendSingle_Small -cpuprofile=cpu.prof
-
-# Analyze with pprof
-go tool pprof cpu.prof
-```
+*For the latest benchmark results, run: `go run main.go` from the benchmarks directory*
 
 ## 🏗️ **Architecture**
 
