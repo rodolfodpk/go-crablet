@@ -36,6 +36,10 @@ go.work.sum
 # env file
 .env
 
+# Server process ID files
+*.pid
+.server.pid
+
 # Editor/IDE
 .idea/
 .vscode/
