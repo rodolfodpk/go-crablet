@@ -19,7 +19,6 @@ A Go library for event sourcing, exploring and learning about concepts inspired 
 
 ## Documentation
 - [Overview](docs/overview.md): DCB pattern exploration, batch projection, and streaming
-- [Examples](docs/examples.md): DCB-inspired use cases
 - [Minimal Example](docs/minimal-example.md): Detailed walkthrough of the course subscription example
 - [Code Coverage](docs/code-coverage.md): Test coverage analysis and improvement guidelines
 
