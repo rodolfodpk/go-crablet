@@ -54,11 +54,11 @@ func main() {
 	// Create some test events
 	events := []dcb.InputEvent{
 		func() dcb.InputEvent {
-			event := dcb.NewInputEvent("CourseCreated", dcb.NewTags("course_id", "course-1"), []byte(`{"name": "Go Programming", "capacity": 30}`))
+			event := dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", "course-1"), []byte(`{"name": "Go Programming", "capacity": 30}`))
 			return event
 		}(),
 		func() dcb.InputEvent {
-			event := dcb.NewInputEvent("CourseCreated", dcb.NewTags("course_id", "course-2"), []byte(`{"name": "Event Sourcing", "capacity": 25}`))
+			event := dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", "course-2"), []byte(`{"name": "Event Sourcing", "capacity": 25}`))
 			return event
 		}(),
 		func() dcb.InputEvent {
@@ -111,13 +111,13 @@ func demonstrateCursorProjection(ctx context.Context, store dcb.CrabletEventStor
 	courseProjector := dcb.BatchProjector{
 		ID: "course-projector",
 		StateProjector: dcb.StateProjector{
-			Query:        dcb.NewQuerySimple(dcb.NewTags(), "CourseCreated", "StudentEnrolled"),
+			Query:        dcb.NewQuerySimple(dcb.NewTags(), "CourseDefined", "StudentEnrolled"),
 			InitialState: map[string]*CourseState{},
 			TransitionFn: func(state any, event dcb.Event) any {
 				courses := state.(map[string]*CourseState)
 
 				switch event.Type {
-				case "CourseCreated":
+				case "CourseDefined":
 					var data struct {
 						Name     string `json:"name"`
 						Capacity int    `json:"capacity"`
@@ -265,13 +265,13 @@ func demonstrateChannelProjection(ctx context.Context, store dcb.EventStore) {
 	courseProjector := dcb.BatchProjector{
 		ID: "course-projector",
 		StateProjector: dcb.StateProjector{
-			Query:        dcb.NewQuerySimple(dcb.NewTags(), "CourseCreated", "StudentEnrolled"),
+			Query:        dcb.NewQuerySimple(dcb.NewTags(), "CourseDefined", "StudentEnrolled"),
 			InitialState: map[string]*CourseState{},
 			TransitionFn: func(state any, event dcb.Event) any {
 				courses := state.(map[string]*CourseState)
 
 				switch event.Type {
-				case "CourseCreated":
+				case "CourseDefined":
 					var data struct {
 						Name     string `json:"name"`
 						Capacity int    `json:"capacity"`

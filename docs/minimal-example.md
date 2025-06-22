@@ -271,4 +271,14 @@ ORDER BY position;
 - **Reusability**: Command handlers can be called independently
 - **Testability**: Each handler can be tested in isolation
 - **Maintainability**: Business rules are clearly defined and easy to modify
-- **Scalability**: Commands can be processed in parallel with proper concurrency control 
+- **Scalability**: Commands can be processed in parallel with proper concurrency control
+
+## Running the Example
+
+To run this complete course enrollment example:
+
+```bash
+go run internal/examples/enrollment/main.go
+```
+
+This will execute the full course enrollment workflow with all business rules and optimistic concurrency controls. 

@@ -128,11 +128,11 @@ func handleCreateCourse(ctx context.Context, store dcb.CrabletEventStore, cmd Cr
 		{ID: "courseExists", StateProjector: dcb.StateProjector{
 			Query: dcb.NewQuery(
 				dcb.NewTags("course_id", cmd.CourseID),
-				"CourseCreated",
+				"CourseDefined",
 			),
 			InitialState: false,
 			TransitionFn: func(state any, event dcb.Event) any {
-				return true // If we see a CourseCreated event, course exists
+				return true // If we see a CourseDefined event, course exists
 			},
 		}},
 	}
@@ -150,7 +150,7 @@ func handleCreateCourse(ctx context.Context, store dcb.CrabletEventStore, cmd Cr
 	// Create events for this command
 	events := []dcb.InputEvent{
 		dcb.NewInputEvent(
-			"CourseCreated",
+			"CourseDefined",
 			dcb.NewTags("course_id", cmd.CourseID),
 			mustJSON(map[string]any{
 				"Title":       cmd.Title,
@@ -234,13 +234,13 @@ func handleEnrollStudent(ctx context.Context, store dcb.CrabletEventStore, cmd E
 	courseProjector := dcb.StateProjector{
 		Query: dcb.NewQuery(
 			dcb.NewTags("course_id", cmd.CourseID),
-			"CourseCreated", "StudentEnrolled", "StudentUnenrolled",
+			"CourseDefined", "StudentEnrolled", "StudentUnenrolled",
 		),
 		InitialState: &CourseState{MaxStudents: 30},
 		TransitionFn: func(state any, event dcb.Event) any {
 			course := state.(*CourseState)
 			switch event.Type {
-			case "CourseCreated":
+			case "CourseDefined":
 				var data struct {
 					Title       string
 					MaxStudents int

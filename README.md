@@ -46,5 +46,9 @@ Ready-to-run examples demonstrating different aspects of the DCB pattern:
 - **[Decision Model](internal/examples/decision_model/main.go)**: Exploring Dynamic Consistency Boundary concepts with multiple projectors
 - **[Cursor Streaming](internal/examples/cursor_streaming/main.go)**: Large dataset processing with batching and streaming
 - **[ReadStream](internal/examples/readstream/main.go)**: Event streaming with projections and optimistic locking
+- **[Batch Operations](internal/examples/batch/main.go)**: Batch event processing and atomic operations
+- **[Channel Projection](internal/examples/channel_projection/main.go)**: Channel-based state projections
+- **[Channel Streaming](internal/examples/channel_streaming/main.go)**: Channel-based event streaming
+- **[Extension Interface](internal/examples/extension_interface/main.go)**: Extending the event store interface
 
 Run any example with: `go run internal/examples/[example-name]/main.go`

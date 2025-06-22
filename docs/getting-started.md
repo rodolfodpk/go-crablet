@@ -4,7 +4,7 @@ If you're new to Go and want to run the examples, follow these essential steps:
 
 ## Prerequisites
 
-1. **Install Go** (1.22+): Download from [golang.org](https://golang.org/dl/)
+1. **Install Go** (1.24+): Download from [golang.org](https://golang.org/dl/)
 2. **Install Docker**: Download from [docker.com](https://docker.com/get-started/)
 3. **Install Git**: Download from [git-scm.com](https://git-scm.com/)
 
@@ -28,21 +28,28 @@ If you're new to Go and want to run the examples, follow these essential steps:
 
 ## Available Examples
 
+All examples are located in `internal/examples/` and demonstrate different aspects of the DCB pattern:
+
 - `internal/examples/decision_model/main.go` - Exploring Dynamic Consistency Boundary concepts
 - `internal/examples/enrollment/main.go` - Course enrollment with business rules
 - `internal/examples/transfer/main.go` - Money transfer between accounts
 - `internal/examples/readstream/main.go` - Event streaming basics
 - `internal/examples/streaming_projection/main.go` - Streaming projections
+- `internal/examples/cursor_streaming/main.go` - Large dataset processing
+- `internal/examples/batch/main.go` - Batch event processing
+- `internal/examples/channel_projection/main.go` - Channel-based projections
+- `internal/examples/channel_streaming/main.go` - Channel-based streaming
+- `internal/examples/extension_interface/main.go` - Extending the event store
 
-## Multi-Module Development
+## Project Structure
 
-This project uses separate Go modules for better organization:
+This project uses a single Go module with organized internal packages:
 
 ### Core Library (`pkg/dcb`)
 ```bash
 cd pkg/dcb
 go build ./...    # Build core library
-go test ./...     # Run all tests (136 tests)
+go test ./...     # Run all tests
 ```
 
 ### Web Application (`internal/web-app`)
@@ -53,17 +60,20 @@ make test         # Run k6 performance benchmarks
 make run          # Start server locally
 ```
 
+### gRPC Application (`internal/grpc-app`)
+```bash
+cd internal/grpc-app
+go build ./...    # Build gRPC server
+make test         # Run k6 performance benchmarks
+make run          # Start server locally
+```
+
 ### Benchmarks (`internal/benchmarks`)
 ```bash
 cd internal/benchmarks
 go build ./...    # Build benchmark tools
 go run main.go    # Run performance benchmarks
 ```
-
-### Module Dependencies
-- All modules use Go 1.24
-- Core library (`pkg/dcb`) is reusable
-- `replace` directives enable local development
 
 ## Troubleshooting
 
