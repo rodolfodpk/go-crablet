@@ -207,30 +207,10 @@ The application has been tested with k6 load testing:
 - **Events per Iteration**: 5 events (1 single + 3 multiple + 1 conditional)
 - **Total Events**: 74,508 events created and verified in PostgreSQL
 
-See [k6-benchmark-report.md](k6-benchmark-report.md) for detailed performance metrics.
+See [BENCHMARK.md](BENCHMARK.md) for detailed performance metrics and latest results.
 
 ## Development
 
 ### Building the Docker Image
 
-```bash
-docker build -f internal/web-app/Dockerfile -t dcb-webapp .
 ```
-
-### Running Tests
-
-```bash
-cd internal/web-app
-go test -v
-```
-
-### Monitoring
-
-```bash
-# Check container resource usage
-docker stats
-
-# View logs
-docker-compose logs -f web-app
-docker-compose logs -f postgres
-``` 

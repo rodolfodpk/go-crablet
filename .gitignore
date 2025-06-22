@@ -21,6 +21,10 @@ profile.cov
 k6-*.json
 k6-*.html
 k6-results/
+*-benchmark-*.json
+*-test-*.json
+benchmark-results/
+test-results/
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
