@@ -68,7 +68,7 @@ func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCou
     // Command-specific projectors
     projectors := []dcb.BatchProjector{
         {ID: "courseExists", StateProjector: dcb.StateProjector{
-            Query: dcb.NewQuery(dcb.NewTags("course_id", cmd.CourseID), "CourseCreated"),
+            Query: dcb.NewQuery(dcb.NewTags("course_id", cmd.CourseID), "CourseDefined"),
             InitialState: false,
             TransitionFn: func(state any, e dcb.Event) any { return true },
         }},
@@ -83,7 +83,7 @@ func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCou
 
     // Create events for this command
     events := []dcb.InputEvent{
-        dcb.NewInputEvent("CourseCreated", 
+        dcb.NewInputEvent("CourseDefined", 
             dcb.NewTags("course_id", cmd.CourseID), 
             mustJSON(map[string]any{"Title": cmd.Title, "Capacity": cmd.Capacity})),
     }
@@ -136,12 +136,12 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollSt
     // Command-specific projectors
     projectors := []dcb.BatchProjector{
         {ID: "courseState", StateProjector: dcb.StateProjector{
-            Query: dcb.NewQuery(dcb.NewTags("course_id", cmd.CourseID), "CourseCreated", "StudentEnrolled"),
+            Query: dcb.NewQuery(dcb.NewTags("course_id", cmd.CourseID), "CourseDefined", "StudentEnrolled"),
             InitialState: &CourseState{Capacity: 0, Enrolled: 0},
             TransitionFn: func(state any, e dcb.Event) any {
                 course := state.(*CourseState)
                 switch e.Type {
-                case "CourseCreated":
+                case "CourseDefined":
                     var data struct{ Capacity int }
                     json.Unmarshal(e.Data, &data)
                     course.Capacity = data.Capacity
@@ -252,7 +252,7 @@ ORDER BY position;
 
 | type | tags | data | position |
 |------|------|------|----------|
-| CourseCreated | `{"course_id": "course-1234567890"}` | `{"Title": "Introduction to Event Sourcing", "Capacity": 2}` | 1 |
+| CourseDefined | `{"course_id": "course-1234567890"}` | `{"Title": "Introduction to Event Sourcing", "Capacity": 2}` | 1 |
 | StudentRegistered | `{"student_id": "student-1234567891"}` | `{"Name": "Alice", "Email": "alice@example.com"}` | 2 |
 | StudentEnrolled | `{"student_id": "student-1234567891", "course_id": "course-1234567890"}` | `{"StudentID": "student-1234567891", "CourseID": "course-1234567890"}` | 3 |
 
