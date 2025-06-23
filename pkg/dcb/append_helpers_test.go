@@ -149,15 +149,14 @@ var _ = Describe("Append Helpers", func() {
 			Expect(position2).To(BeNumerically(">", position1))
 		})
 
-		It("should fail append with invalid After condition", func() {
+		It("should allow append with non-existent After position (modern event store semantics)", func() {
 			event := NewInputEvent("TestEvent", NewTags("key", "value"), toJSON(map[string]string{"data": "test"}))
 			events := []InputEvent{event}
 
 			invalidPosition := int64(999999)
 			condition := &AppendCondition{After: &invalidPosition}
 			_, err := store.Append(ctx, events, condition)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("optimistic"))
+			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("should append events with FailIfEventsMatch condition", func() {

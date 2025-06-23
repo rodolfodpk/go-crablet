@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -203,30 +204,6 @@ func (es *eventStore) Append(ctx context.Context, events []InputEvent, condition
 
 	// Check append condition if provided
 	if condition != nil {
-		// Check if After position exists
-		if condition.After != nil {
-			var exists bool
-			err := es.pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM events WHERE position = $1)", *condition.After).Scan(&exists)
-			if err != nil {
-				return 0, &ResourceError{
-					EventStoreError: EventStoreError{
-						Op:  "append",
-						Err: fmt.Errorf("failed to check After position existence: %w", err),
-					},
-					Resource: "database",
-				}
-			}
-			if !exists {
-				return 0, &ConcurrencyError{
-					EventStoreError: EventStoreError{
-						Op:  "append",
-						Err: fmt.Errorf("optimistic concurrency conflict: After position %d does not exist", *condition.After),
-					},
-					ExpectedPosition: *condition.After,
-					ActualPosition:   0,
-				}
-			}
-		}
 		if err := es.checkAppendCondition(ctx, *condition); err != nil {
 			return 0, err
 		}
@@ -371,7 +348,7 @@ func (es *eventStore) checkAppendCondition(ctx context.Context, condition Append
 	return nil
 }
 
-// insertEvents inserts the events into the database
+// insertEvents inserts the events into the database using optimized batch insertion
 func (es *eventStore) insertEvents(ctx context.Context, events []InputEvent) (int64, error) {
 	// Start a transaction
 	tx, err := es.pool.Begin(ctx)
@@ -386,27 +363,27 @@ func (es *eventStore) insertEvents(ctx context.Context, events []InputEvent) (in
 	}
 	defer tx.Rollback(ctx)
 
+	// Use batch insertion for better performance
+	if len(events) > 1 {
+		return es.insertEventsBatch(ctx, tx, events)
+	}
+
+	// For single events, use the simple approach
 	var lastPosition int64
+	tagsArray := TagsToArray(events[0].Tags)
 
-	// Insert each event
-	for i, event := range events {
-		// Convert tags to TEXT[] array
-		tagsArray := TagsToArray(event.Tags)
-
-		// Insert event and get the position
-		err = tx.QueryRow(ctx, `
-			INSERT INTO events (type, tags, data, position)
-			VALUES ($1, $2, $3, nextval('events_position_seq'))
-			RETURNING position
-		`, event.Type, tagsArray, event.Data).Scan(&lastPosition)
-		if err != nil {
-			return 0, &ResourceError{
-				EventStoreError: EventStoreError{
-					Op:  "insertEvents",
-					Err: fmt.Errorf("failed to insert event at index %d: %w", i, err),
-				},
-				Resource: "database",
-			}
+	err = tx.QueryRow(ctx, `
+		INSERT INTO events (type, tags, data, position)
+		VALUES ($1, $2, $3, nextval('events_position_seq'))
+		RETURNING position
+	`, events[0].Type, tagsArray, events[0].Data).Scan(&lastPosition)
+	if err != nil {
+		return 0, &ResourceError{
+			EventStoreError: EventStoreError{
+				Op:  "insertEvents",
+				Err: fmt.Errorf("failed to insert single event: %w", err),
+			},
+			Resource: "database",
 		}
 	}
 
@@ -415,6 +392,69 @@ func (es *eventStore) insertEvents(ctx context.Context, events []InputEvent) (in
 		return 0, &ResourceError{
 			EventStoreError: EventStoreError{
 				Op:  "insertEvents",
+				Err: fmt.Errorf("failed to commit transaction: %w", err),
+			},
+			Resource: "database",
+		}
+	}
+
+	return lastPosition, nil
+}
+
+// insertEventsBatch performs optimized batch insertion using pgx.Batch
+func (es *eventStore) insertEventsBatch(ctx context.Context, tx pgx.Tx, events []InputEvent) (int64, error) {
+	// Create a batch for all insert operations
+	batch := &pgx.Batch{}
+
+	// Add all insert statements to the batch
+	for _, event := range events {
+		tagsArray := TagsToArray(event.Tags)
+		batch.Queue(`
+			INSERT INTO events (type, tags, data, position)
+			VALUES ($1, $2, $3, nextval('events_position_seq'))
+			RETURNING position
+		`, event.Type, tagsArray, event.Data)
+	}
+
+	// Execute the batch
+	br := tx.SendBatch(ctx, batch)
+	defer br.Close()
+
+	// Get all returned positions and find the maximum
+	var lastPosition int64
+	for i := 0; i < len(events); i++ {
+		var currentPosition int64
+		err := br.QueryRow().Scan(&currentPosition)
+		if err != nil {
+			return 0, &ResourceError{
+				EventStoreError: EventStoreError{
+					Op:  "insertEventsBatch",
+					Err: fmt.Errorf("failed to scan position for event %d: %w", i, err),
+				},
+				Resource: "database",
+			}
+		}
+		if currentPosition > lastPosition {
+			lastPosition = currentPosition
+		}
+	}
+
+	// Close the batch before committing
+	if err := br.Close(); err != nil {
+		return 0, &ResourceError{
+			EventStoreError: EventStoreError{
+				Op:  "insertEventsBatch",
+				Err: fmt.Errorf("failed to close batch: %w", err),
+			},
+			Resource: "database",
+		}
+	}
+
+	// Commit transaction
+	if err := tx.Commit(ctx); err != nil {
+		return 0, &ResourceError{
+			EventStoreError: EventStoreError{
+				Op:  "insertEventsBatch",
 				Err: fmt.Errorf("failed to commit transaction: %w", err),
 			},
 			Resource: "database",
