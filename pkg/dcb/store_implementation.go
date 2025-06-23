@@ -340,70 +340,30 @@ func (es *eventStore) checkAppendCondition(ctx context.Context, condition Append
 		}
 	}
 
-	// Check After field for optimistic locking if provided
-	if condition.After != nil {
-		// For optimistic locking with After field, we need to check if any events exist
-		// after the specified position that match the same query scope as the projection.
-		// Since we don't have the original query here, we use the FailIfEventsMatch query
-		// as a proxy for the query scope, or check for any events if no query is provided.
-		if condition.FailIfEventsMatch != nil {
-			// Use the same query scope as the FailIfEventsMatch condition
-			sqlQuery, args, err := es.buildReadQuerySQL(*condition.FailIfEventsMatch, &ReadOptions{
-				FromPosition: condition.After,
-				Limit:        &[]int{1}[0], // Just need to know if any exist
-			})
-			if err != nil {
-				return err
+	// Check After field for optimistic locking if provided (only if no FailIfEventsMatch was checked)
+	if condition.After != nil && condition.FailIfEventsMatch == nil {
+		// If no query scope is provided, check for any events after the position (global optimistic locking)
+		var exists bool
+		checkQuery := `SELECT EXISTS(SELECT 1 FROM events WHERE position > $1)`
+		err := es.pool.QueryRow(ctx, checkQuery, *condition.After).Scan(&exists)
+		if err != nil {
+			return &ResourceError{
+				EventStoreError: EventStoreError{
+					Op:  "checkAppendCondition",
+					Err: fmt.Errorf("failed to check optimistic locking condition: %w", err),
+				},
+				Resource: "database",
 			}
+		}
 
-			// Execute the query
-			rows, err := es.pool.Query(ctx, sqlQuery, args...)
-			if err != nil {
-				return &ResourceError{
-					EventStoreError: EventStoreError{
-						Op:  "checkAppendCondition",
-						Err: fmt.Errorf("failed to check optimistic locking condition: %w", err),
-					},
-					Resource: "database",
-				}
-			}
-			defer rows.Close()
-
-			// If we get any rows, there are events after the specified position
-			if rows.Next() {
-				return &ConcurrencyError{
-					EventStoreError: EventStoreError{
-						Op:  "append",
-						Err: fmt.Errorf("optimistic concurrency conflict: events exist after position %d", *condition.After),
-					},
-					ExpectedPosition: *condition.After,
-					ActualPosition:   *condition.After + 1, // Since we found events after, they must be at next position
-				}
-			}
-		} else {
-			// If no query scope is provided, check for any events after the position (global optimistic locking)
-			var exists bool
-			checkQuery := `SELECT EXISTS(SELECT 1 FROM events WHERE position > $1)`
-			err := es.pool.QueryRow(ctx, checkQuery, *condition.After).Scan(&exists)
-			if err != nil {
-				return &ResourceError{
-					EventStoreError: EventStoreError{
-						Op:  "checkAppendCondition",
-						Err: fmt.Errorf("failed to check optimistic locking condition: %w", err),
-					},
-					Resource: "database",
-				}
-			}
-
-			if exists {
-				return &ConcurrencyError{
-					EventStoreError: EventStoreError{
-						Op:  "append",
-						Err: fmt.Errorf("optimistic concurrency conflict: events exist after position %d", *condition.After),
-					},
-					ExpectedPosition: *condition.After,
-					ActualPosition:   *condition.After + 1, // Since we found events after, they must be at next position
-				}
+		if exists {
+			return &ConcurrencyError{
+				EventStoreError: EventStoreError{
+					Op:  "append",
+					Err: fmt.Errorf("optimistic concurrency conflict: events exist after position %d", *condition.After),
+				},
+				ExpectedPosition: *condition.After,
+				ActualPosition:   *condition.After + 1, // Since we found events after, they must be at next position
 			}
 		}
 	}
@@ -426,34 +386,27 @@ func (es *eventStore) insertEvents(ctx context.Context, events []InputEvent) (in
 	}
 	defer tx.Rollback(ctx)
 
+	var lastPosition int64
+
 	// Insert each event
-	for _, event := range events {
+	for i, event := range events {
 		// Convert tags to TEXT[] array
 		tagsArray := TagsToArray(event.Tags)
 
-		// Insert event
-		_, err = tx.Exec(ctx, `
+		// Insert event and get the position
+		err = tx.QueryRow(ctx, `
 			INSERT INTO events (type, tags, data, position)
 			VALUES ($1, $2, $3, nextval('events_position_seq'))
-		`, event.Type, tagsArray, event.Data)
+			RETURNING position
+		`, event.Type, tagsArray, event.Data).Scan(&lastPosition)
 		if err != nil {
 			return 0, &ResourceError{
 				EventStoreError: EventStoreError{
 					Op:  "insertEvents",
-					Err: fmt.Errorf("failed to insert event: %w", err),
+					Err: fmt.Errorf("failed to insert event at index %d: %w", i, err),
 				},
 				Resource: "database",
 			}
-		}
-	}
-
-	// Get the position of the last event before committing
-	var position int64
-	err = tx.QueryRow(ctx, "SELECT COALESCE(MAX(position), 0) FROM events").Scan(&position)
-	if err != nil {
-		return 0, &EventStoreError{
-			Op:  "insertEvents",
-			Err: fmt.Errorf("failed to get current position: %w", err),
 		}
 	}
 
@@ -468,5 +421,5 @@ func (es *eventStore) insertEvents(ctx context.Context, events []InputEvent) (in
 		}
 	}
 
-	return position, nil
+	return lastPosition, nil
 }
