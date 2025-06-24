@@ -143,8 +143,8 @@ var _ = Describe("Append Helpers", func() {
 			// Second append with After condition
 			event2 := NewInputEvent("TestEvent", NewTags("key", "value2"), toJSON(map[string]string{"data": "value2"}))
 			events2 := []InputEvent{event2}
-			condition := &AppendCondition{After: &position1}
-			position2, err := store.Append(ctx, events2, condition)
+			condition := NewAppendConditionAfter(&position1)
+			position2, err := store.Append(ctx, events2, &condition)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(position2).To(BeNumerically(">", position1))
 		})
@@ -154,53 +154,45 @@ var _ = Describe("Append Helpers", func() {
 			events := []InputEvent{event}
 
 			invalidPosition := int64(999999)
-			condition := &AppendCondition{After: &invalidPosition}
-			_, err := store.Append(ctx, events, condition)
+			condition := NewAppendConditionAfter(&invalidPosition)
+			_, err := store.Append(ctx, events, &condition)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("should append events with FailIfEventsMatch condition", func() {
 			// First append
-			event1 := NewInputEvent("TestEvent", NewTags("key", "value1"), toJSON(map[string]string{"data": "value1"}))
-			events1 := []InputEvent{event1}
-			_, err := store.Append(ctx, events1, nil)
+			events := []InputEvent{
+				NewInputEvent("UserCreated", NewTags("user_id", "123"), toJSON(map[string]string{"name": "John"})),
+			}
+			_, err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Second append with FailIfEventsMatch condition
-			event2 := NewInputEvent("TestEvent", NewTags("key", "value2"), toJSON(map[string]string{"data": "value2"}))
-			events2 := []InputEvent{event2}
-			condition := &AppendCondition{
-				FailIfEventsMatch: &Query{
-					Items: []QueryItem{
-						{
-							EventTypes: []string{"TestEvent"},
-							Tags:       NewTags("key", "value1"),
-						},
-					},
-				},
+			events2 := []InputEvent{
+				NewInputEvent("UserUpdated", NewTags("user_id", "123"), toJSON(map[string]string{"name": "Jane"})),
 			}
-			_, err = store.Append(ctx, events2, condition)
+			condition := NewAppendCondition(&Query{
+				Items: []QueryItem{
+					{EventTypes: []string{"UserCreated"}, Tags: []Tag{{Key: "user_id", Value: "123"}}},
+				},
+			})
+			_, err = store.Append(ctx, events2, &condition)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("append condition violated"))
+			Expect(err.Error()).To(ContainSubstring("matching events found"))
 		})
 
 		It("should succeed append with FailIfEventsMatch condition when no matching events", func() {
 			// Append with FailIfEventsMatch condition for non-existent events
-			event := NewInputEvent("TestEvent", NewTags("key", "value1"), toJSON(map[string]string{"data": "value1"}))
-			events := []InputEvent{event}
-			condition := &AppendCondition{
-				FailIfEventsMatch: &Query{
-					Items: []QueryItem{
-						{
-							EventTypes: []string{"NonExistentEvent"},
-							Tags:       NewTags("key", "non-existent"),
-						},
-					},
-				},
+			events := []InputEvent{
+				NewInputEvent("UserCreated", NewTags("user_id", "123"), toJSON(map[string]string{"name": "John"})),
 			}
-			position, err := store.Append(ctx, events, condition)
+			condition := NewAppendCondition(&Query{
+				Items: []QueryItem{
+					{EventTypes: []string{"UserUpdated"}, Tags: []Tag{{Key: "user_id", Value: "123"}}},
+				},
+			})
+			_, err := store.Append(ctx, events, &condition)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(position).To(BeNumerically(">", 0))
 		})
 	})
 

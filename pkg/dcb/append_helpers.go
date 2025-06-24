@@ -118,13 +118,14 @@ func checkForConflictingEvents(ctx context.Context, tx pgx.Tx, query Query, late
 
 // checkForMatchingEvents checks if any events match the append condition
 func checkForMatchingEvents(ctx context.Context, tx pgx.Tx, condition AppendCondition) error {
-	if len(condition.FailIfEventsMatch.Items) == 0 {
+	failIfEventsMatch := condition.getFailIfEventsMatch()
+	if failIfEventsMatch == nil || len(failIfEventsMatch.Items) == 0 {
 		return nil // No query items, no check needed
 	}
 
 	// For append conditions, we only check the first query item
 	// This maintains backward compatibility while supporting the new structure
-	item := condition.FailIfEventsMatch.Items[0]
+	item := failIfEventsMatch.Items[0]
 
 	// Convert item tags to TEXT[] format
 	itemTagsArray := TagsToArray(item.Tags)
@@ -139,9 +140,10 @@ func checkForMatchingEvents(ctx context.Context, tx pgx.Tx, condition AppendCond
 	argIndex := 2
 
 	// Add position filtering if specified
-	if condition.After != nil {
+	after := condition.getAfter()
+	if after != nil {
 		checkQuery += fmt.Sprintf(" AND position > $%d", argIndex)
-		args = append(args, *condition.After)
+		args = append(args, *after)
 		argIndex++
 	}
 

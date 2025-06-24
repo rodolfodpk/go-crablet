@@ -210,9 +210,7 @@ var _ = Describe("Coverage Improvement Tests", func() {
 	Describe("checkForMatchingEvents", func() {
 		It("should return nil for empty condition", func() {
 			emptyQuery := NewQueryEmpty()
-			condition := AppendCondition{
-				FailIfEventsMatch: &emptyQuery,
-			}
+			condition := NewAppendCondition(&emptyQuery)
 
 			err := checkForMatchingEvents(ctx, nil, condition)
 
@@ -221,9 +219,7 @@ var _ = Describe("Coverage Improvement Tests", func() {
 
 		It("should handle condition with items (will panic due to nil transaction)", func() {
 			query := NewQuery(NewTags("user_id", "123"), "UserCreated")
-			condition := AppendCondition{
-				FailIfEventsMatch: &query,
-			}
+			condition := NewAppendCondition(&query)
 
 			// Use recover to catch the expected panic
 			defer func() {
@@ -272,6 +268,41 @@ var _ = Describe("Coverage Improvement Tests", func() {
 			Expect(func() {
 				dumpEvents(pool)
 			}).NotTo(Panic())
+		})
+	})
+
+	Describe("handleAppendCondition", func() {
+		It("should handle append condition with empty query", func() {
+			events := []InputEvent{
+				NewInputEvent("TestEvent", NewTags("key", "value"), toJSON(map[string]string{"data": "test"})),
+			}
+			emptyQuery := Query{Items: []QueryItem{}}
+			condition := NewAppendCondition(&emptyQuery)
+			_, err := store.Append(ctx, events, &condition)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should handle append condition with non-empty query", func() {
+			// First append
+			events1 := []InputEvent{
+				NewInputEvent("TestEvent", NewTags("key", "value1"), toJSON(map[string]string{"data": "value1"})),
+			}
+			_, err := store.Append(ctx, events1, nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Second append with condition
+			events2 := []InputEvent{
+				NewInputEvent("TestEvent", NewTags("key", "value2"), toJSON(map[string]string{"data": "value2"})),
+			}
+			query := Query{
+				Items: []QueryItem{
+					{EventTypes: []string{"TestEvent"}, Tags: []Tag{{Key: "key", Value: "value1"}}},
+				},
+			}
+			condition := NewAppendCondition(&query)
+			_, err = store.Append(ctx, events2, &condition)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("matching events found"))
 		})
 	})
 })

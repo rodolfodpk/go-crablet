@@ -173,33 +173,55 @@ var _ = Describe("Batch Projection", func() {
 		})
 	})
 
-	Describe("buildAppendConditionFromProjectors", func() {
-		It("should build append condition from projector queries", func() {
+	// Note: buildAppendConditionFromProjectors was removed as it was not DCB-compliant
+	// The DCB-compliant approach is to use buildAppendConditionFromQuery with specific queries
+	// from Decision Models, as demonstrated in the tests below.
+
+	Describe("buildAppendConditionFromQuery (DCB-compliant)", func() {
+		It("should build append condition from specific query (DCB approach)", func() {
 			es := store.(*eventStore)
 
-			projectors := []BatchProjector{
-				{ID: "projector1", StateProjector: StateProjector{
-					Query: NewQuerySimple(NewTags("course_id", "c1"), "CourseDefined"),
-				}},
-				{ID: "projector2", StateProjector: StateProjector{
-					Query: NewQuerySimple(NewTags("student_id", "s1"), "StudentRegistered"),
-				}},
-			}
+			// DCB-compliant approach: use specific query from Decision Model
+			query := NewQuerySimple(NewTags("course_id", "c1"), "CourseDefined")
+			appendCondition := es.buildAppendConditionFromQuery(query)
 
-			appendCondition := es.buildAppendConditionFromProjectors(projectors)
-
-			Expect(appendCondition.FailIfEventsMatch).NotTo(BeNil())
-			Expect(appendCondition.FailIfEventsMatch.Items).To(HaveLen(2))
-			Expect(appendCondition.After).To(BeNil()) // Will be set during processing
+			// Should use the exact query from Decision Model
+			Expect(appendCondition).NotTo(BeNil())
+			// Note: We can't directly access fields anymore since AppendCondition is opaque
+			// This enforces DCB semantics where consumers only build and pass conditions
 		})
 
-		It("should handle empty projectors list", func() {
+		It("should handle complex query with multiple items (DCB approach)", func() {
 			es := store.(*eventStore)
 
-			appendCondition := es.buildAppendConditionFromProjectors([]BatchProjector{})
+			// DCB-compliant approach: use specific query from Decision Model
+			query := Query{
+				Items: []QueryItem{
+					{EventTypes: []string{"CourseDefined"}, Tags: []Tag{{Key: "course_id", Value: "c1"}}},
+					{EventTypes: []string{"StudentEnrolled"}, Tags: []Tag{{Key: "course_id", Value: "c1"}, {Key: "student_id", Value: "s1"}}},
+				},
+			}
+			appendCondition := es.buildAppendConditionFromQuery(query)
 
-			Expect(appendCondition.FailIfEventsMatch).NotTo(BeNil())
-			Expect(appendCondition.FailIfEventsMatch.Items).To(BeEmpty())
+			// Should use the exact query from Decision Model
+			Expect(appendCondition).NotTo(BeNil())
+			// Note: We can't directly access fields anymore since AppendCondition is opaque
+			// This enforces DCB semantics where consumers only build and pass conditions
+		})
+
+		It("should demonstrate DCB principle: same query from Decision Model", func() {
+			es := store.(*eventStore)
+
+			// Simulate building a Decision Model for course enrollment
+			enrollmentQuery := NewQuerySimple(NewTags("course_id", "c1", "student_id", "s1"), "StudentEnrolled")
+
+			// DCB principle: use the same query for append condition
+			appendCondition := es.buildAppendConditionFromQuery(enrollmentQuery)
+
+			// This ensures no new enrollment events exist for this student-course pair
+			Expect(appendCondition).NotTo(BeNil())
+			// Note: We can't directly access fields anymore since AppendCondition is opaque
+			// This enforces DCB semantics where consumers only build and pass conditions
 		})
 	})
 

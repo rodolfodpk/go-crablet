@@ -309,7 +309,7 @@ func handleEnrollStudent(ctx context.Context, store CrabletEventStore, cmd Enrol
 		{ID: "studentEnrollmentState", StateProjector: StudentEnrollmentStateProjector(cmd.StudentID, cmd.CourseID)},
 	}
 
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
+	states, _, err := store.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to project enrollment state: %w", err)
 	}
@@ -341,6 +341,11 @@ func handleEnrollStudent(ctx context.Context, store CrabletEventStore, cmd Enrol
 		return fmt.Errorf("student \"%s\" is already enrolled in 10 courses (maximum allowed)", cmd.StudentID)
 	}
 
+	// DCB-compliant approach: use specific query for enrollment append condition
+	// Only check for duplicate enrollment events, not all projector queries
+	enrollmentQuery := NewQuerySimple(NewTags("student_id", cmd.StudentID, "course_id", cmd.CourseID), "StudentEnrolledInCourse")
+	appendCondition := NewAppendCondition(&enrollmentQuery)
+
 	_, err = store.Append(ctx, []InputEvent{
 		NewStudentEnrolledEvent(cmd.StudentID, cmd.CourseID, time.Now().Format(time.RFC3339)),
 	}, &appendCondition)
@@ -356,7 +361,7 @@ func handleDropStudent(ctx context.Context, store CrabletEventStore, cmd DropStu
 		{ID: "studentEnrollmentState", StateProjector: StudentEnrollmentStateProjector(cmd.StudentID, cmd.CourseID)},
 	}
 
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
+	states, _, err := store.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to project enrollment state: %w", err)
 	}
@@ -366,6 +371,11 @@ func handleDropStudent(ctx context.Context, store CrabletEventStore, cmd DropStu
 	if !studentEnrollmentState.IsEnrolled {
 		return fmt.Errorf("student \"%s\" is not enrolled in course \"%s\"", cmd.StudentID, cmd.CourseID)
 	}
+
+	// DCB-compliant approach: for drop operations, we don't need FailIfEventsMatch
+	// because we've already verified the student is enrolled through the projection
+	// We only need optimistic locking to ensure no concurrent changes
+	appendCondition := NewAppendCondition(nil) // No need to check for existing events
 
 	_, err = store.Append(ctx, []InputEvent{
 		NewStudentDroppedEvent(cmd.StudentID, cmd.CourseID, time.Now().Format(time.RFC3339)),

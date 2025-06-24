@@ -266,7 +266,7 @@ func convertReadOptions(options *ReadOptions) *dcb.ReadOptions {
 	}
 }
 
-func convertAppendCondition(condition *AppendCondition) *dcb.AppendCondition {
+func convertAppendCondition(condition *AppendCondition) dcb.AppendCondition {
 	if condition == nil {
 		return nil
 	}
@@ -279,9 +279,18 @@ func convertAppendCondition(condition *AppendCondition) *dcb.AppendCondition {
 	}
 
 	query := convertQuery(condition.FailIfEventsMatch)
-	return &dcb.AppendCondition{
-		FailIfEventsMatch: &query,
-		After:             after,
+	queryPtr := &query
+	isQueryEmpty := len(query.Items) == 0
+
+	switch {
+	case !isQueryEmpty && after != nil:
+		return dcb.NewAppendConditionWithAfter(queryPtr, after)
+	case !isQueryEmpty:
+		return dcb.NewAppendCondition(queryPtr)
+	case after != nil:
+		return dcb.NewAppendConditionAfter(after)
+	default:
+		return nil
 	}
 }
 
