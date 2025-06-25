@@ -15,18 +15,18 @@ func prepareEventBatch(events []InputEvent) ([]string, [][]string, [][]byte, err
 	data := make([][]byte, len(events))
 
 	for i, e := range events {
-		types[i] = e.Type
-		data[i] = e.Data
+		types[i] = e.GetType()
+		data[i] = e.GetData()
 
 		// Convert tags to TEXT[] format
-		tagStrings := make([]string, len(e.Tags))
-		for j, tag := range e.Tags {
+		tagStrings := make([]string, len(e.GetTags()))
+		for j, tag := range e.GetTags() {
 			tagStrings[j] = tag.Key + ":" + tag.Value
 		}
 		tags[i] = tagStrings
 
 		// Log event details
-		log.Printf("Appending event %d: Type=%s", i, e.Type)
+		log.Printf("Appending event %d: Type=%s", i, e.GetType())
 	}
 
 	return types, tags, data, nil
@@ -72,16 +72,16 @@ func executeBatchInsert(ctx context.Context, tx pgx.Tx, events []InputEvent, typ
 
 // checkForConflictingEvents checks for conflicting events in optimistic locking
 func checkForConflictingEvents(ctx context.Context, tx pgx.Tx, query Query, latestPosition int64) error {
-	if len(query.Items) == 0 {
+	if len(query.getItems()) == 0 {
 		return nil // No query items, no conflict check needed
 	}
 
 	// For optimistic locking, we only check the first query item
 	// This maintains backward compatibility while supporting the new structure
-	item := query.Items[0]
+	item := query.getItems()[0]
 
 	// Convert item tags to TEXT[] format
-	itemTagsArray := TagsToArray(item.Tags)
+	itemTagsArray := TagsToArray(item.getTags())
 
 	var exists bool
 	checkQuery := `
@@ -94,7 +94,7 @@ func checkForConflictingEvents(ctx context.Context, tx pgx.Tx, query Query, late
 				   type = ANY($3::text[]))
 		)
 	`
-	err := tx.QueryRow(ctx, checkQuery, latestPosition, itemTagsArray, item.EventTypes).Scan(&exists)
+	err := tx.QueryRow(ctx, checkQuery, latestPosition, itemTagsArray, item.getEventTypes()).Scan(&exists)
 	if err != nil {
 		return &EventStoreError{
 			Op:  "checkForConflictingEvents",
@@ -116,18 +116,19 @@ func checkForConflictingEvents(ctx context.Context, tx pgx.Tx, query Query, late
 	return nil
 }
 
-// checkForMatchingEvents checks if any events match the append condition
+// checkForMatchingEvents checks if any events match the given condition
 func checkForMatchingEvents(ctx context.Context, tx pgx.Tx, condition AppendCondition) error {
-	if len(condition.FailIfEventsMatch.Items) == 0 {
+	failIfEventsMatch := condition.getFailIfEventsMatch()
+	if failIfEventsMatch == nil || len((*failIfEventsMatch).getItems()) == 0 {
 		return nil // No query items, no check needed
 	}
 
 	// For append conditions, we only check the first query item
 	// This maintains backward compatibility while supporting the new structure
-	item := condition.FailIfEventsMatch.Items[0]
+	item := (*failIfEventsMatch).getItems()[0]
 
 	// Convert item tags to TEXT[] format
-	itemTagsArray := TagsToArray(item.Tags)
+	itemTagsArray := TagsToArray(item.getTags())
 
 	var exists bool
 	checkQuery := `
@@ -139,16 +140,17 @@ func checkForMatchingEvents(ctx context.Context, tx pgx.Tx, condition AppendCond
 	argIndex := 2
 
 	// Add position filtering if specified
-	if condition.After != nil {
+	after := condition.getAfter()
+	if after != nil {
 		checkQuery += fmt.Sprintf(" AND position > $%d", argIndex)
-		args = append(args, *condition.After)
+		args = append(args, *after)
 		argIndex++
 	}
 
 	// Add event type filtering if specified
-	if len(item.EventTypes) > 0 {
+	if len(item.getEventTypes()) > 0 {
 		checkQuery += fmt.Sprintf(" AND type = ANY($%d)", argIndex)
-		args = append(args, item.EventTypes)
+		args = append(args, item.getEventTypes())
 		argIndex++
 	}
 

@@ -6,13 +6,13 @@ import (
 )
 
 // ProjectDecisionModel projects multiple states using projectors and returns final states and append condition
-// This is the primary DCB API for building decision models in command handlers
+// This is a go-crablet feature for building decision models in command handlers
 // The function internally computes the combined query from all projectors for the append condition
 func (es *eventStore) ProjectDecisionModel(ctx context.Context, projectors []BatchProjector) (map[string]any, AppendCondition, error) {
 	// Validate projectors
 	for _, bp := range projectors {
 		if bp.ID == "" {
-			return nil, AppendCondition{}, &ValidationError{
+			return nil, nil, &ValidationError{
 				EventStoreError: EventStoreError{
 					Op:  "ProjectDecisionModel",
 					Err: fmt.Errorf("projector ID cannot be empty"),
@@ -22,7 +22,7 @@ func (es *eventStore) ProjectDecisionModel(ctx context.Context, projectors []Bat
 			}
 		}
 		if bp.StateProjector.TransitionFn == nil {
-			return nil, AppendCondition{}, &ValidationError{
+			return nil, nil, &ValidationError{
 				EventStoreError: EventStoreError{
 					Op:  "ProjectDecisionModel",
 					Err: fmt.Errorf("projector %s has nil transition function", bp.ID),
@@ -31,8 +31,8 @@ func (es *eventStore) ProjectDecisionModel(ctx context.Context, projectors []Bat
 				Value: "nil",
 			}
 		}
-		if len(bp.StateProjector.Query.Items) == 0 {
-			return nil, AppendCondition{}, &ValidationError{
+		if len(bp.StateProjector.Query.getItems()) == 0 {
+			return nil, nil, &ValidationError{
 				EventStoreError: EventStoreError{
 					Op:  "ProjectDecisionModel",
 					Err: fmt.Errorf("projector %s has empty query", bp.ID),
@@ -55,13 +55,13 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 	// Build SQL query based on query items
 	sqlQuery, args, err := es.buildReadQuerySQL(query, nil)
 	if err != nil {
-		return nil, AppendCondition{}, err
+		return nil, nil, err
 	}
 
 	// Execute the query
 	rows, err := es.pool.Query(ctx, sqlQuery, args...)
 	if err != nil {
-		return nil, AppendCondition{}, &ResourceError{
+		return nil, nil, &ResourceError{
 			EventStoreError: EventStoreError{
 				Op:  "ProjectDecisionModel",
 				Err: fmt.Errorf("failed to execute read query: %w", err),
@@ -78,7 +78,7 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 	}
 
 	// Build AppendCondition from projector queries for optimistic locking
-	appendCondition := es.buildAppendConditionFromProjectors(projectors)
+	appendCondition := es.buildAppendConditionFromQuery(query)
 
 	// Process all events to build final states
 	var lastPosition int64
@@ -86,7 +86,7 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 	for rows.Next() {
 		var row rowEvent
 		if err := rows.Scan(&row.Type, &row.Tags, &row.Data, &row.Position); err != nil {
-			return nil, AppendCondition{}, &ResourceError{
+			return nil, nil, &ResourceError{
 				EventStoreError: EventStoreError{
 					Op:  "ProjectDecisionModel",
 					Err: fmt.Errorf("failed to scan event row: %w", err),
@@ -101,7 +101,7 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 		hasEvents = true
 
 		// Update AppendCondition.After field with current position
-		appendCondition.After = &lastPosition
+		appendCondition.setAfterPosition(&lastPosition)
 
 		// Apply projectors
 		for _, bp := range projectors {
@@ -113,12 +113,12 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 
 	// Only set After field if we actually processed events
 	if !hasEvents {
-		appendCondition.After = nil
+		appendCondition.setAfterPosition(nil)
 	}
 
 	// Check for iteration errors
 	if err := rows.Err(); err != nil {
-		return nil, AppendCondition{}, &ResourceError{
+		return nil, nil, &ResourceError{
 			EventStoreError: EventStoreError{
 				Op:  "ProjectDecisionModel",
 				Err: fmt.Errorf("error iterating over events: %w", err),
@@ -130,17 +130,9 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 	return states, appendCondition, nil
 }
 
-// buildAppendConditionFromProjectors builds an AppendCondition from projector queries
-// This ensures that when appending new events, we check that no conflicting events
-// have been added since we read the current state
-func (es *eventStore) buildAppendConditionFromProjectors(projectors []BatchProjector) AppendCondition {
-	// Combine all projector queries into a single OR query
-	combinedQuery := es.combineProjectorQueries(projectors)
-
-	// The AppendCondition should fail if any events match the combined projector queries
-	// after the current position (which will be updated as events are processed)
-	return AppendCondition{
-		FailIfEventsMatch: &combinedQuery,
-		After:             nil, // Will be set to current position when processing completes
-	}
+// buildAppendConditionFromQuery builds an AppendCondition from a specific query
+// This aligns with DCB specification: each append operation should use the same query
+// that was used when building the Decision Model
+func (es *eventStore) buildAppendConditionFromQuery(query Query) AppendCondition {
+	return NewAppendCondition(&query)
 }

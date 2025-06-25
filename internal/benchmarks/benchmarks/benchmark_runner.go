@@ -17,7 +17,7 @@ import (
 // BenchmarkContext holds the context for running benchmarks
 type BenchmarkContext struct {
 	Store        dcb.EventStore
-	ChannelStore dcb.CrabletEventStore
+	ChannelStore dcb.ChannelEventStore
 	HasChannel   bool
 	Dataset      *setup.Dataset
 	Queries      []dcb.Query
@@ -65,8 +65,8 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
 		b.Fatalf("Failed to create event store: %v", err)
 	}
 
-	// Check if CrabletEventStore is available
-	channelStore, hasChannel := store.(dcb.CrabletEventStore)
+	// Check if ChannelEventStore is available
+	channelStore, hasChannel := store.(dcb.ChannelEventStore)
 
 	// Generate dataset
 	config, exists := setup.DatasetSizes[datasetSize]
@@ -115,7 +115,7 @@ func BenchmarkAppendSingle(b *testing.B, benchCtx *BenchmarkContext) {
 			dcb.NewTags("test", "single", "iteration", fmt.Sprintf("%d", i)),
 			[]byte(`{"value": "test"}`))
 
-		_, err := benchCtx.Store.Append(ctx, []dcb.InputEvent{event}, nil)
+		err := benchCtx.Store.Append(ctx, []dcb.InputEvent{event}, nil)
 		if err != nil {
 			b.Fatalf("Append failed: %v", err)
 		}
@@ -137,7 +137,7 @@ func BenchmarkAppendBatch(b *testing.B, benchCtx *BenchmarkContext, batchSize in
 				[]byte(`{"value": "test"}`))
 		}
 
-		_, err := benchCtx.Store.Append(ctx, events, nil)
+		err := benchCtx.Store.Append(ctx, events, nil)
 		if err != nil {
 			b.Fatalf("Batch append failed: %v", err)
 		}

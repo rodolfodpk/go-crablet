@@ -46,8 +46,8 @@ func main() {
 		log.Fatalf("Failed to create event store: %v", err)
 	}
 
-	// Cast to CrabletEventStore for extended functionality
-	channelStore := store.(dcb.CrabletEventStore)
+	// Cast to ChannelEventStore for extended functionality
+	channelStore := store.(dcb.ChannelEventStore)
 
 	fmt.Println("=== Batch Processing Example ===")
 	fmt.Println("This example demonstrates batch processing with DCB-inspired event sourcing.")
@@ -111,7 +111,7 @@ func main() {
 
 // Command handlers with their own business rules
 
-func handleCreateUser(ctx context.Context, store dcb.CrabletEventStore, cmd CreateUserCommand) error {
+func handleCreateUser(ctx context.Context, store dcb.ChannelEventStore, cmd CreateUserCommand) error {
 	// Command-specific projectors
 	projectors := []dcb.BatchProjector{
 		{ID: "userExists", StateProjector: dcb.StateProjector{
@@ -163,16 +163,16 @@ func handleCreateUser(ctx context.Context, store dcb.CrabletEventStore, cmd Crea
 	}
 
 	// Append events atomically for this command
-	position, err := store.Append(ctx, events, &appendCondition)
+	err = store.Append(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
 
-	fmt.Printf("Created user %s (%s) at position %d\n", cmd.Username, cmd.Email, position)
+	fmt.Printf("Created user %s (%s)\n", cmd.Username, cmd.Email)
 	return nil
 }
 
-func handleCreateOrder(ctx context.Context, store dcb.CrabletEventStore, cmd CreateOrderCommand) error {
+func handleCreateOrder(ctx context.Context, store dcb.ChannelEventStore, cmd CreateOrderCommand) error {
 	// Command-specific projectors
 	projectors := []dcb.BatchProjector{
 		{ID: "orderExists", StateProjector: dcb.StateProjector{
@@ -231,16 +231,16 @@ func handleCreateOrder(ctx context.Context, store dcb.CrabletEventStore, cmd Cre
 	}
 
 	// Append events atomically for this command
-	position, err := store.Append(ctx, events, &appendCondition)
+	err = store.Append(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to create order: %w", err)
 	}
 
-	fmt.Printf("Created order %s for user %s with total %.2f at position %d\n", cmd.OrderID, cmd.UserID, total, position)
+	fmt.Printf("Created order %s for user %s with total %.2f\n", cmd.OrderID, cmd.UserID, total)
 	return nil
 }
 
-func handleBatchCreateUsers(ctx context.Context, store dcb.CrabletEventStore, commands []CreateUserCommand) error {
+func handleBatchCreateUsers(ctx context.Context, store dcb.ChannelEventStore, commands []CreateUserCommand) error {
 	// Batch-specific projectors to check all users and emails at once
 	projectors := []dcb.BatchProjector{}
 
@@ -304,17 +304,17 @@ func handleBatchCreateUsers(ctx context.Context, store dcb.CrabletEventStore, co
 		))
 	}
 
-	// Append all events atomically for this batch
-	position, err := store.Append(ctx, events, &appendCondition)
+	// Append events atomically for this batch
+	err = store.Append(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to batch create users: %w", err)
 	}
 
-	fmt.Printf("Batch created %d users at position %d\n", len(commands), position)
+	fmt.Printf("Created %d users in batch\n", len(commands))
 	return nil
 }
 
-func handleBatchCreateOrders(ctx context.Context, store dcb.CrabletEventStore, commands []CreateOrderCommand) error {
+func handleBatchCreateOrders(ctx context.Context, store dcb.ChannelEventStore, commands []CreateOrderCommand) error {
 	// Batch-specific projectors to check all orders and users at once
 	projectors := []dcb.BatchProjector{}
 
@@ -385,13 +385,13 @@ func handleBatchCreateOrders(ctx context.Context, store dcb.CrabletEventStore, c
 		))
 	}
 
-	// Append all events atomically for this batch
-	position, err := store.Append(ctx, events, &appendCondition)
+	// Append events atomically for this batch
+	err = store.Append(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to batch create orders: %w", err)
 	}
 
-	fmt.Printf("Batch created %d orders at position %d\n", len(commands), position)
+	fmt.Printf("Created %d orders in batch\n", len(commands))
 	return nil
 }
 

@@ -65,9 +65,20 @@ var _ = Describe("Coverage Improvement Tests", func() {
 
 			query := NewQuerySimpleUnsafe(tags, eventTypes...)
 
-			Expect(query.Items).To(HaveLen(1))
-			Expect(query.Items[0].EventTypes).To(Equal(eventTypes))
-			Expect(query.Items[0].Tags).To(Equal(tags))
+			Expect(query.getItems()).To(HaveLen(1))
+			Expect(query.getItems()[0].getEventTypes()).To(Equal(eventTypes))
+			Expect(query.getItems()[0].getTags()).To(Equal(tags))
+		})
+
+		It("should create query with event types and tags using unsafe constructor", func() {
+			eventTypes := []string{"Event1", "Event2"}
+			tags := []Tag{{Key: "key1", Value: "value1"}}
+
+			query := NewQuerySimpleUnsafe(tags, eventTypes...)
+
+			Expect(query.getItems()).To(HaveLen(1))
+			Expect(query.getItems()[0].getEventTypes()).To(Equal(eventTypes))
+			Expect(query.getItems()[0].getTags()).To(Equal(tags))
 		})
 	})
 
@@ -78,8 +89,8 @@ var _ = Describe("Coverage Improvement Tests", func() {
 
 			item := NewQItem(eventType, tags)
 
-			Expect(item.EventTypes).To(Equal([]string{eventType}))
-			Expect(item.Tags).To(Equal(tags))
+			Expect(item.getEventTypes()).To(Equal([]string{eventType}))
+			Expect(item.getTags()).To(Equal(tags))
 		})
 	})
 
@@ -90,92 +101,12 @@ var _ = Describe("Coverage Improvement Tests", func() {
 
 			item := NewQItemKV(eventType, kv...)
 
-			Expect(item.EventTypes).To(Equal([]string{eventType}))
-			Expect(item.Tags).To(HaveLen(2))
-			Expect(item.Tags[0].Key).To(Equal("user_id"))
-			Expect(item.Tags[0].Value).To(Equal("123"))
-			Expect(item.Tags[1].Key).To(Equal("tenant"))
-			Expect(item.Tags[1].Value).To(Equal("test"))
-		})
-	})
-
-	Describe("buildCombinedQuerySQL", func() {
-		It("should build SQL for empty query", func() {
-			es := store.(*eventStore)
-			query := NewQueryEmpty()
-			maxPosition := int64(100)
-
-			sql, args, err := es.buildCombinedQuerySQL(query, maxPosition)
-
-			Expect(err).NotTo(HaveOccurred())
-			Expect(sql).To(ContainSubstring("SELECT"))
-			Expect(sql).To(ContainSubstring("FROM events"))
-			Expect(sql).To(ContainSubstring("position <="))
-			Expect(args).To(HaveLen(1))
-			Expect(args[0]).To(Equal(maxPosition))
-		})
-
-		It("should build SQL for query with event types only", func() {
-			es := store.(*eventStore)
-			query := NewQuery(NewTags(), "UserCreated", "UserUpdated")
-			maxPosition := int64(100)
-
-			sql, args, err := es.buildCombinedQuerySQL(query, maxPosition)
-
-			Expect(err).NotTo(HaveOccurred())
-			Expect(sql).To(ContainSubstring("SELECT"))
-			Expect(sql).To(ContainSubstring("FROM events"))
-			Expect(sql).To(ContainSubstring("type = ANY"))
-			Expect(sql).To(ContainSubstring("position <="))
-			Expect(args).To(HaveLen(2))
-		})
-
-		It("should build SQL for query with tags only", func() {
-			es := store.(*eventStore)
-			query := NewQuery(NewTags("user_id", "123"))
-			maxPosition := int64(100)
-
-			sql, args, err := es.buildCombinedQuerySQL(query, maxPosition)
-
-			Expect(err).NotTo(HaveOccurred())
-			Expect(sql).To(ContainSubstring("SELECT"))
-			Expect(sql).To(ContainSubstring("FROM events"))
-			Expect(sql).To(ContainSubstring("tags @>"))
-			Expect(sql).To(ContainSubstring("position <="))
-			Expect(args).To(HaveLen(2))
-		})
-
-		It("should build SQL for query with both event types and tags", func() {
-			es := store.(*eventStore)
-			query := NewQuery(NewTags("user_id", "123"), "UserCreated")
-			maxPosition := int64(100)
-
-			sql, args, err := es.buildCombinedQuerySQL(query, maxPosition)
-
-			Expect(err).NotTo(HaveOccurred())
-			Expect(sql).To(ContainSubstring("SELECT"))
-			Expect(sql).To(ContainSubstring("FROM events"))
-			Expect(sql).To(ContainSubstring("type = ANY"))
-			Expect(sql).To(ContainSubstring("tags @>"))
-			Expect(sql).To(ContainSubstring("position <="))
-			Expect(args).To(HaveLen(3))
-		})
-
-		It("should build SQL for multiple query items", func() {
-			es := store.(*eventStore)
-			item1 := NewQueryItem([]string{"UserCreated"}, NewTags("user_id", "123"))
-			item2 := NewQueryItem([]string{"UserUpdated"}, NewTags("user_id", "456"))
-			query := NewQueryFromItems(item1, item2)
-			maxPosition := int64(100)
-
-			sql, args, err := es.buildCombinedQuerySQL(query, maxPosition)
-
-			Expect(err).NotTo(HaveOccurred())
-			Expect(sql).To(ContainSubstring("SELECT"))
-			Expect(sql).To(ContainSubstring("FROM events"))
-			Expect(sql).To(ContainSubstring("OR"))
-			Expect(sql).To(ContainSubstring("position <="))
-			Expect(args).To(HaveLen(5)) // 2 event types + 2 tag sets + 1 position
+			Expect(item.getEventTypes()).To(Equal([]string{eventType}))
+			Expect(item.getTags()).To(HaveLen(2))
+			Expect(item.getTags()[0].Key).To(Equal("user_id"))
+			Expect(item.getTags()[0].Value).To(Equal("123"))
+			Expect(item.getTags()[1].Key).To(Equal("tenant"))
+			Expect(item.getTags()[1].Value).To(Equal("test"))
 		})
 	})
 
@@ -210,9 +141,7 @@ var _ = Describe("Coverage Improvement Tests", func() {
 	Describe("checkForMatchingEvents", func() {
 		It("should return nil for empty condition", func() {
 			emptyQuery := NewQueryEmpty()
-			condition := AppendCondition{
-				FailIfEventsMatch: &emptyQuery,
-			}
+			condition := NewAppendCondition(&emptyQuery)
 
 			err := checkForMatchingEvents(ctx, nil, condition)
 
@@ -221,9 +150,7 @@ var _ = Describe("Coverage Improvement Tests", func() {
 
 		It("should handle condition with items (will panic due to nil transaction)", func() {
 			query := NewQuery(NewTags("user_id", "123"), "UserCreated")
-			condition := AppendCondition{
-				FailIfEventsMatch: &query,
-			}
+			condition := NewAppendCondition(&query)
 
 			// Use recover to catch the expected panic
 			defer func() {
@@ -265,13 +192,77 @@ var _ = Describe("Coverage Improvement Tests", func() {
 			event2 := NewInputEvent("UserUpdated", NewTags("user_id", "123"), []byte(`{"name": "Jane"}`))
 			events := NewEventBatch(event1, event2)
 
-			_, err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Now dump events - this should not panic
 			Expect(func() {
 				dumpEvents(pool)
 			}).NotTo(Panic())
+		})
+	})
+
+	Describe("handleAppendCondition", func() {
+		It("should handle append condition with empty query", func() {
+			events := []InputEvent{
+				NewInputEvent("TestEvent", NewTags("key", "value"), toJSON(map[string]string{"data": "test"})),
+			}
+			emptyQuery := NewQueryEmpty()
+			condition := NewAppendCondition(&emptyQuery)
+			err := store.Append(ctx, events, condition)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should handle append condition with non-empty query", func() {
+			// First append
+			events1 := []InputEvent{
+				NewInputEvent("TestEvent", NewTags("key", "value1"), toJSON(map[string]string{"data": "value1"})),
+			}
+			err := store.Append(ctx, events1, nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Second append with condition
+			events2 := []InputEvent{
+				NewInputEvent("TestEvent", NewTags("key", "value2"), toJSON(map[string]string{"data": "value2"})),
+			}
+			query := NewQuery(NewTags("key", "value1"), "TestEvent")
+			condition := NewAppendCondition(&query)
+			err = store.Append(ctx, events2, condition)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("matching events found"))
+		})
+	})
+
+	Describe("NewQuery", func() {
+		It("should create query with event types and tags", func() {
+			eventTypes := []string{"Event1", "Event2"}
+			tags := []Tag{{Key: "key1", Value: "value1"}}
+			query := NewQuery(tags, eventTypes...)
+
+			Expect(query.getItems()).To(HaveLen(1))
+			Expect(query.getItems()[0].getEventTypes()).To(Equal(eventTypes))
+			Expect(query.getItems()[0].getTags()).To(Equal(tags))
+		})
+
+		It("should create query item with single event type", func() {
+			eventType := "TestEvent"
+			tags := []Tag{{Key: "key1", Value: "value1"}}
+			item := NewQItem(eventType, tags)
+
+			Expect(item.getEventTypes()).To(Equal([]string{eventType}))
+			Expect(item.getTags()).To(Equal(tags))
+		})
+
+		It("should create query item with key-value pairs", func() {
+			eventType := "TestEvent"
+			item := NewQItemKV(eventType, "user_id", "123", "tenant", "test")
+
+			Expect(item.getEventTypes()).To(Equal([]string{eventType}))
+			Expect(item.getTags()).To(HaveLen(2))
+			Expect(item.getTags()[0].Key).To(Equal("user_id"))
+			Expect(item.getTags()[0].Value).To(Equal("123"))
+			Expect(item.getTags()[1].Key).To(Equal("tenant"))
+			Expect(item.getTags()[1].Value).To(Equal("test"))
 		})
 	})
 })

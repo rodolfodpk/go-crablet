@@ -48,8 +48,8 @@ func main() {
 		log.Fatalf("Failed to create event store: %v", err)
 	}
 
-	// Cast to CrabletEventStore for extended functionality
-	channelStore := store.(dcb.CrabletEventStore)
+	// Cast to ChannelEventStore for extended functionality
+	channelStore := store.(dcb.ChannelEventStore)
 
 	// Create some test events
 	events := []dcb.InputEvent{
@@ -84,7 +84,7 @@ func main() {
 	}
 
 	// Append events
-	_, err = store.Append(ctx, events, nil)
+	err = store.Append(ctx, events, nil)
 	if err != nil {
 		log.Fatalf("Failed to append events: %v", err)
 	}
@@ -104,7 +104,7 @@ func main() {
 }
 
 // demonstrateCursorProjection shows the traditional cursor-based approach
-func demonstrateCursorProjection(ctx context.Context, store dcb.CrabletEventStore) {
+func demonstrateCursorProjection(ctx context.Context, store dcb.ChannelEventStore) {
 	fmt.Println("   Using traditional ProjectDecisionModel:")
 
 	// Create projectors
@@ -251,13 +251,13 @@ func demonstrateCursorProjection(ctx context.Context, store dcb.CrabletEventStor
 }
 
 // demonstrateChannelProjection shows the channel-based approach
-func demonstrateChannelProjection(ctx context.Context, store dcb.EventStore) {
+func demonstrateChannelProjection(ctx context.Context, store dcb.ChannelEventStore) {
 	fmt.Println("   Using channel-based ProjectDecisionModelChannel:")
 
-	// Check if store implements CrabletEventStore
-	channelStore, ok := store.(dcb.CrabletEventStore)
+	// Check if store implements ChannelEventStore
+	channelStore, ok := store.(dcb.ChannelEventStore)
 	if !ok {
-		fmt.Println("   - Store does not implement CrabletEventStore interface")
+		fmt.Println("   - Store does not implement ChannelEventStore interface")
 		return
 	}
 

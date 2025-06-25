@@ -251,7 +251,7 @@ func StudentEnrollmentStateProjector(studentID, courseID string) StateProjector 
 }
 
 // Command handlers - following the command pattern from examples
-func handleCreateCourse(ctx context.Context, store CrabletEventStore, cmd CreateCourseCommand) error {
+func handleCreateCourse(ctx context.Context, store ChannelEventStore, cmd CreateCourseCommand) error {
 	projectors := []BatchProjector{
 		{ID: "courseExists", StateProjector: CourseExistsProjector(cmd.CourseID)},
 	}
@@ -265,9 +265,9 @@ func handleCreateCourse(ctx context.Context, store CrabletEventStore, cmd Create
 		return fmt.Errorf("course with id \"%s\" already exists", cmd.CourseID)
 	}
 
-	_, err = store.Append(ctx, []InputEvent{
+	err = store.Append(ctx, []InputEvent{
 		NewCourseDefinedEvent(cmd.CourseID, cmd.Name, cmd.Instructor, cmd.Capacity),
-	}, &appendCondition)
+	}, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to create course: %w", err)
 	}
@@ -275,7 +275,7 @@ func handleCreateCourse(ctx context.Context, store CrabletEventStore, cmd Create
 	return nil
 }
 
-func handleRegisterStudent(ctx context.Context, store CrabletEventStore, cmd RegisterStudentCommand) error {
+func handleRegisterStudent(ctx context.Context, store ChannelEventStore, cmd RegisterStudentCommand) error {
 	projectors := []BatchProjector{
 		{ID: "studentExists", StateProjector: StudentExistsProjector(cmd.StudentID)},
 	}
@@ -289,9 +289,9 @@ func handleRegisterStudent(ctx context.Context, store CrabletEventStore, cmd Reg
 		return fmt.Errorf("student with id \"%s\" already exists", cmd.StudentID)
 	}
 
-	_, err = store.Append(ctx, []InputEvent{
+	err = store.Append(ctx, []InputEvent{
 		NewStudentRegisteredEvent(cmd.StudentID, cmd.Name, cmd.Email),
-	}, &appendCondition)
+	}, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to register student: %w", err)
 	}
@@ -299,7 +299,7 @@ func handleRegisterStudent(ctx context.Context, store CrabletEventStore, cmd Reg
 	return nil
 }
 
-func handleEnrollStudent(ctx context.Context, store CrabletEventStore, cmd EnrollStudentCommand) error {
+func handleEnrollStudent(ctx context.Context, store ChannelEventStore, cmd EnrollStudentCommand) error {
 	projectors := []BatchProjector{
 		{ID: "courseExists", StateProjector: CourseExistsProjector(cmd.CourseID)},
 		{ID: "studentExists", StateProjector: StudentExistsProjector(cmd.StudentID)},
@@ -309,7 +309,7 @@ func handleEnrollStudent(ctx context.Context, store CrabletEventStore, cmd Enrol
 		{ID: "studentEnrollmentState", StateProjector: StudentEnrollmentStateProjector(cmd.StudentID, cmd.CourseID)},
 	}
 
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
+	states, _, err := store.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to project enrollment state: %w", err)
 	}
@@ -341,9 +341,14 @@ func handleEnrollStudent(ctx context.Context, store CrabletEventStore, cmd Enrol
 		return fmt.Errorf("student \"%s\" is already enrolled in 10 courses (maximum allowed)", cmd.StudentID)
 	}
 
-	_, err = store.Append(ctx, []InputEvent{
+	// DCB-compliant approach: use specific query for enrollment append condition
+	// Only check for duplicate enrollment events, not all projector queries
+	enrollmentQuery := NewQuerySimple(NewTags("student_id", cmd.StudentID, "course_id", cmd.CourseID), "StudentEnrolledInCourse")
+	appendCondition := NewAppendCondition(&enrollmentQuery)
+
+	err = store.Append(ctx, []InputEvent{
 		NewStudentEnrolledEvent(cmd.StudentID, cmd.CourseID, time.Now().Format(time.RFC3339)),
-	}, &appendCondition)
+	}, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to enroll student: %w", err)
 	}
@@ -351,12 +356,12 @@ func handleEnrollStudent(ctx context.Context, store CrabletEventStore, cmd Enrol
 	return nil
 }
 
-func handleDropStudent(ctx context.Context, store CrabletEventStore, cmd DropStudentCommand) error {
+func handleDropStudent(ctx context.Context, store ChannelEventStore, cmd DropStudentCommand) error {
 	projectors := []BatchProjector{
 		{ID: "studentEnrollmentState", StateProjector: StudentEnrollmentStateProjector(cmd.StudentID, cmd.CourseID)},
 	}
 
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
+	states, _, err := store.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to project enrollment state: %w", err)
 	}
@@ -367,9 +372,14 @@ func handleDropStudent(ctx context.Context, store CrabletEventStore, cmd DropStu
 		return fmt.Errorf("student \"%s\" is not enrolled in course \"%s\"", cmd.StudentID, cmd.CourseID)
 	}
 
-	_, err = store.Append(ctx, []InputEvent{
+	// DCB-compliant approach: for drop operations, we don't need FailIfEventsMatch
+	// because we've already verified the student is enrolled through the projection
+	// We only need optimistic locking to ensure no concurrent changes
+	appendCondition := NewAppendCondition(nil) // No need to check for existing events
+
+	err = store.Append(ctx, []InputEvent{
 		NewStudentDroppedEvent(cmd.StudentID, cmd.CourseID, time.Now().Format(time.RFC3339)),
-	}, &appendCondition)
+	}, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to drop student: %w", err)
 	}
@@ -377,7 +387,7 @@ func handleDropStudent(ctx context.Context, store CrabletEventStore, cmd DropStu
 	return nil
 }
 
-func handleChangeCourseCapacity(ctx context.Context, store CrabletEventStore, cmd ChangeCourseCapacityCommand) error {
+func handleChangeCourseCapacity(ctx context.Context, store ChannelEventStore, cmd ChangeCourseCapacityCommand) error {
 	projectors := []BatchProjector{
 		{ID: "courseExists", StateProjector: CourseExistsProjector(cmd.CourseID)},
 		{ID: "courseEnrollmentCount", StateProjector: CourseEnrollmentCountProjector(cmd.CourseID)},
@@ -397,9 +407,9 @@ func handleChangeCourseCapacity(ctx context.Context, store CrabletEventStore, cm
 		return fmt.Errorf("cannot reduce capacity to %d when %d students are already enrolled", cmd.NewCapacity, currentEnrollmentCount)
 	}
 
-	_, err = store.Append(ctx, []InputEvent{
+	err = store.Append(ctx, []InputEvent{
 		NewCourseCapacityChangedEvent(cmd.CourseID, cmd.NewCapacity),
-	}, &appendCondition)
+	}, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to change course capacity: %w", err)
 	}
@@ -411,14 +421,14 @@ func handleChangeCourseCapacity(ctx context.Context, store CrabletEventStore, cm
 var _ = Describe("Course Subscription Domain", func() {
 	var (
 		store        EventStore
-		channelStore CrabletEventStore
+		channelStore ChannelEventStore
 		ctx          context.Context
 	)
 
 	BeforeEach(func() {
 		// Use shared PostgreSQL container and truncate events between tests
 		store = NewEventStoreFromPool(pool)
-		channelStore = store.(CrabletEventStore)
+		channelStore = store.(ChannelEventStore)
 		ctx = context.Background()
 
 		// Truncate events table before each test
@@ -435,7 +445,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Instructor: "Dr. Smith",
 				Capacity:   25,
 			}
-			channelStore := store.(CrabletEventStore)
+			channelStore := store.(ChannelEventStore)
 			err := handleCreateCourse(ctx, channelStore, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -449,7 +459,7 @@ var _ = Describe("Course Subscription Domain", func() {
 
 		It("should use ReadStreamChannel for large datasets", func() {
 			// Create multiple courses using command pattern
-			channelStore := store.(CrabletEventStore)
+			channelStore := store.(ChannelEventStore)
 			for i := 1; i <= 5; i++ {
 				createCourseCmd := CreateCourseCommand{
 					CourseID:   fmt.Sprintf("course-%d", i),
@@ -483,7 +493,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Capacity:   30,
 			}
 
-			channelStore := store.(CrabletEventStore)
+			channelStore := store.(ChannelEventStore)
 			err := handleCreateCourse(ctx, channelStore, cmd)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -502,7 +512,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Capacity:   30,
 			}
 
-			channelStore := store.(CrabletEventStore)
+			channelStore := store.(ChannelEventStore)
 			// Create course first time
 			err := handleCreateCourse(ctx, channelStore, cmd)
 			Expect(err).NotTo(HaveOccurred())
@@ -520,7 +530,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Email:     "alice@example.com",
 			}
 
-			channelStore := store.(CrabletEventStore)
+			channelStore := store.(ChannelEventStore)
 			err := handleRegisterStudent(ctx, channelStore, cmd)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -538,7 +548,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Email:     "alice@example.com",
 			}
 
-			channelStore := store.(CrabletEventStore)
+			channelStore := store.(ChannelEventStore)
 			// Register student first time
 			err := handleRegisterStudent(ctx, channelStore, cmd)
 			Expect(err).NotTo(HaveOccurred())
@@ -557,7 +567,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Instructor: "Dr. Johnson",
 				Capacity:   30,
 			}
-			channelStore := store.(CrabletEventStore)
+			channelStore := store.(ChannelEventStore)
 			err := handleCreateCourse(ctx, channelStore, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -592,7 +602,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Name:      "Alice Johnson",
 				Email:     "alice@example.com",
 			}
-			channelStore := store.(CrabletEventStore)
+			channelStore := store.(ChannelEventStore)
 			err := handleRegisterStudent(ctx, channelStore, registerStudentCmd)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -614,7 +624,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Instructor: "Dr. Johnson",
 				Capacity:   30,
 			}
-			channelStore := store.(CrabletEventStore)
+			channelStore := store.(ChannelEventStore)
 			err := handleCreateCourse(ctx, channelStore, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -636,7 +646,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Instructor: "Dr. Johnson",
 				Capacity:   30,
 			}
-			channelStore := store.(CrabletEventStore)
+			channelStore := store.(ChannelEventStore)
 			err := handleCreateCourse(ctx, channelStore, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 

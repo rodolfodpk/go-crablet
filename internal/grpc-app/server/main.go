@@ -75,13 +75,13 @@ func (s *server) Append(ctx context.Context, req *pb.AppendRequest) (*pb.AppendR
 	}
 
 	// Convert proto condition to DCB condition
-	var condition *dcb.AppendCondition
+	var condition dcb.AppendCondition
 	if req.Condition != nil {
 		condition = convertProtoAppendCondition(req.Condition)
 	}
 
 	// Execute append
-	_, err := s.store.Append(ctx, events, condition)
+	err := s.store.Append(ctx, events, condition)
 	if err != nil {
 		// Check if it's a concurrency error
 		if _, ok := err.(*dcb.ConcurrencyError); ok {
@@ -101,18 +101,14 @@ func (s *server) Append(ctx context.Context, req *pb.AppendRequest) (*pb.AppendR
 
 // Conversion functions
 func convertProtoQuery(query *pb.Query) dcb.Query {
-	if query == nil {
-		return dcb.Query{Items: []dcb.QueryItem{}}
+	if query == nil || len(query.Items) == 0 {
+		return dcb.NewQueryEmpty()
 	}
-
-	items := make([]dcb.QueryItem, len(query.Items))
-	for i, item := range query.Items {
-		items[i] = dcb.QueryItem{
-			EventTypes: item.Types,
-			Tags:       convertProtoTags(item.Tags),
-		}
+	items := make([]dcb.QueryItem, 0, len(query.Items))
+	for _, item := range query.Items {
+		items = append(items, dcb.NewQueryItem(item.Types, convertProtoTags(item.Tags)))
 	}
-	return dcb.Query{Items: items}
+	return dcb.NewQueryFromItems(items...)
 }
 
 func convertProtoReadOptions(options *pb.ReadOptions) *dcb.ReadOptions {
@@ -175,14 +171,10 @@ func convertDCBEvent(event dcb.Event) *pb.Event {
 }
 
 func convertProtoInputEvent(event *pb.InputEvent) dcb.InputEvent {
-	return dcb.InputEvent{
-		Type: event.Type,
-		Tags: convertProtoTags(event.Tags),
-		Data: []byte(event.Data),
-	}
+	return dcb.NewInputEvent(event.Type, convertProtoTags(event.Tags), []byte(event.Data))
 }
 
-func convertProtoAppendCondition(condition *pb.AppendCondition) *dcb.AppendCondition {
+func convertProtoAppendCondition(condition *pb.AppendCondition) dcb.AppendCondition {
 	if condition == nil {
 		return nil
 	}
@@ -200,10 +192,10 @@ func convertProtoAppendCondition(condition *pb.AppendCondition) *dcb.AppendCondi
 		}
 	}
 
-	return &dcb.AppendCondition{
-		FailIfEventsMatch: failIfEventsMatch,
-		After:             after,
+	if failIfEventsMatch != nil || after != nil {
+		return dcb.NewAppendConditionWithAfter(failIfEventsMatch, after)
 	}
+	return nil
 }
 
 func parseEventID(id string) (int64, error) {
@@ -224,8 +216,8 @@ func main() {
 	}
 
 	// Optimize connection pool for high throughput
-	maxConns := 300 // Increased to match web app
-	minConns := 100 // Increased to match web app
+	maxConns := 50 // Reduced from 300 to prevent exhaustion
+	minConns := 10 // Reduced from 100 to prevent exhaustion
 
 	if maxConnsEnv := os.Getenv("DB_MAX_CONNS"); maxConnsEnv != "" {
 		if parsed, err := strconv.Atoi(maxConnsEnv); err == nil && parsed > 0 {
@@ -241,8 +233,8 @@ func main() {
 
 	config.MaxConns = int32(maxConns)
 	config.MinConns = int32(minConns)
-	config.MaxConnLifetime = 15 * time.Minute   // Increased to match web app
-	config.MaxConnIdleTime = 10 * time.Minute   // Increased to match web app
+	config.MaxConnLifetime = 10 * time.Minute   // Reduced from 15 minutes
+	config.MaxConnIdleTime = 5 * time.Minute    // Reduced from 10 minutes
 	config.HealthCheckPeriod = 30 * time.Second // Decreased to match web app
 
 	// Connect to database with retry logic

@@ -1,4 +1,4 @@
-// This example demonstrates the Extension Interface pattern with CrabletEventStore
+// This example demonstrates the Extension Interface pattern with ChannelEventStore
 package main
 
 import (
@@ -44,7 +44,7 @@ func main() {
 	}
 
 	// Append events
-	_, err = store.Append(ctx, events, nil)
+	err = store.Append(ctx, events, nil)
 	if err != nil {
 		log.Fatalf("Failed to append events: %v", err)
 	}
@@ -55,8 +55,8 @@ func main() {
 	fmt.Println("\n1. Core EventStore Interface:")
 	demonstrateCoreInterface(ctx, store)
 
-	// Method 2: Using the CrabletEventStore extension interface
-	fmt.Println("\n2. CrabletEventStore Extension Interface:")
+	// Method 2: Using the ChannelEventStore extension interface
+	fmt.Println("\n2. ChannelEventStore Extension Interface:")
 	demonstrateChannelInterface(ctx, store)
 }
 
@@ -74,19 +74,19 @@ func demonstrateCoreInterface(ctx context.Context, store dcb.EventStore) {
 	fmt.Printf("   - Read(): Loaded %d events into memory\n", len(sequencedEvents.Events))
 
 	// Note: ReadStream method has been removed from the EventStore interface
-	// Streaming is now handled through the CrabletEventStore extension interface
+	// Streaming is now handled through the ChannelEventStore extension interface
 	fmt.Println("   - Note: ReadStream() method has been removed from the core interface")
-	fmt.Println("   - Streaming is now handled through CrabletEventStore extension")
+	fmt.Println("   - Streaming is now handled through ChannelEventStore extension")
 }
 
-// demonstrateChannelInterface shows usage of the CrabletEventStore extension interface
+// demonstrateChannelInterface shows usage of the ChannelEventStore extension interface
 func demonstrateChannelInterface(ctx context.Context, store dcb.EventStore) {
-	fmt.Println("   Using CrabletEventStore extension methods:")
+	fmt.Println("   Using ChannelEventStore extension methods:")
 
-	// Check if store implements CrabletEventStore
-	channelStore, ok := store.(dcb.CrabletEventStore)
+	// Check if store implements ChannelEventStore
+	channelStore, ok := store.(dcb.ChannelEventStore)
 	if !ok {
-		fmt.Println("   - Store does not implement CrabletEventStore interface")
+		fmt.Println("   - Store does not implement ChannelEventStore interface")
 		return
 	}
 
@@ -107,21 +107,33 @@ func demonstrateChannelInterface(ctx context.Context, store dcb.EventStore) {
 	}
 	fmt.Printf("   - ReadStreamChannel(): Processed %d events using channels\n", count)
 
-	// Note: NewEventStream method has been removed from the CrabletEventStore interface
-	// Channel-based streaming is now handled directly through ReadStreamChannel
+	// Note: NewEventStream method has been removed from the ChannelEventStore interface
 	fmt.Println("   - Note: NewEventStream() method has been removed from the interface")
-	fmt.Println("   - Channel-based streaming is now handled through ReadStreamChannel()")
+	fmt.Println("   - ChannelEventStore extends EventStore with channel methods")
+
+	// This works for both EventStore and ChannelEventStore
+	if channelStore, ok := store.(dcb.ChannelEventStore); ok {
+		query := dcb.NewQuerySimple(dcb.NewTags(), "UserCreated")
+		_, err := channelStore.ReadStreamChannel(ctx, query)
+		if err != nil {
+			log.Printf("Extension interface failed: %v", err)
+		} else {
+			fmt.Println("   ✅ Extension interface works")
+		}
+	} else {
+		fmt.Println("   - Store does not implement ChannelEventStore")
+	}
 }
 
 // demonstrateInterfaceCompatibility shows how both interfaces work together
 func demonstrateInterfaceCompatibility(ctx context.Context, store dcb.EventStore) {
 	fmt.Println("\n3. Interface Compatibility:")
 	fmt.Println("   - Core EventStore methods work on all implementations")
-	fmt.Println("   - CrabletEventStore extends EventStore with channel methods")
+	fmt.Println("   - ChannelEventStore extends EventStore with channel methods")
 	fmt.Println("   - Type assertion allows access to extension methods")
 	fmt.Println("   - Graceful fallback when extension not available")
 
-	// This works for both EventStore and CrabletEventStore
+	// This works for both EventStore and ChannelEventStore
 	query := dcb.NewQuerySimple(dcb.NewTags(), "UserCreated")
 	_, err := store.Read(ctx, query, nil)
 	if err != nil {
@@ -131,7 +143,7 @@ func demonstrateInterfaceCompatibility(ctx context.Context, store dcb.EventStore
 	}
 
 	// Extension methods require type assertion
-	if channelStore, ok := store.(dcb.CrabletEventStore); ok {
+	if channelStore, ok := store.(dcb.ChannelEventStore); ok {
 		_, err := channelStore.ReadStreamChannel(ctx, query)
 		if err != nil {
 			log.Printf("Extension interface failed: %v", err)

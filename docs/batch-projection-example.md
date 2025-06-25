@@ -1,6 +1,6 @@
-# Batch Projection & Exploring Dynamic Consistency Boundary Concepts
+# Batch Projection - A go-crablet Feature
 
-Batch projection is the core of the Dynamic Consistency Boundary (DCB) pattern in go-crablet. It allows you to:
+Batch projection is a feature provided by go-crablet that allows you to:
 - Project multiple states (decision model) in a single query
 - Enforce all business invariants atomically
 - Use a combined append condition for optimistic concurrency

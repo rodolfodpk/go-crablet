@@ -8,36 +8,25 @@ import (
 var _ = Describe("Helper Functions", func() {
 	Describe("NewQueryFromItems", func() {
 		It("should create query from multiple items", func() {
-			item1 := QueryItem{
-				EventTypes: []string{"Event1", "Event2"},
-				Tags:       []Tag{{Key: "key1", Value: "value1"}},
-			}
-			item2 := QueryItem{
-				EventTypes: []string{"Event3"},
-				Tags:       []Tag{{Key: "key2", Value: "value2"}},
-			}
-
+			item1 := NewQueryItem([]string{"Event1"}, []Tag{{Key: "key1", Value: "value1"}})
+			item2 := NewQueryItem([]string{"Event2"}, []Tag{{Key: "key2", Value: "value2"}})
 			query := NewQueryFromItems(item1, item2)
 
-			Expect(query.Items).To(HaveLen(2))
-			Expect(query.Items[0]).To(Equal(item1))
-			Expect(query.Items[1]).To(Equal(item2))
+			Expect(query.getItems()).To(HaveLen(2))
+			Expect(query.getItems()[0]).To(Equal(item1))
+			Expect(query.getItems()[1]).To(Equal(item2))
 		})
 
-		It("should create empty query when no items provided", func() {
-			query := NewQueryFromItems()
-
-			Expect(query.Items).To(BeEmpty())
+		It("should create empty query", func() {
+			query := NewQueryEmpty()
+			Expect(query.getItems()).To(BeEmpty())
 		})
-	})
 
-	Describe("NewQueryAll", func() {
 		It("should create query that matches all events", func() {
 			query := NewQueryAll()
-
-			Expect(query.Items).To(HaveLen(1))
-			Expect(query.Items[0].EventTypes).To(BeEmpty())
-			Expect(query.Items[0].Tags).To(BeEmpty())
+			Expect(query.getItems()).To(HaveLen(1))
+			Expect(query.getItems()[0].getEventTypes()).To(BeEmpty())
+			Expect(query.getItems()[0].getTags()).To(BeEmpty())
 		})
 	})
 
@@ -45,18 +34,16 @@ var _ = Describe("Helper Functions", func() {
 		It("should create query item with types and tags", func() {
 			types := []string{"Event1", "Event2"}
 			tags := []Tag{{Key: "key1", Value: "value1"}}
-
 			item := NewQueryItem(types, tags)
 
-			Expect(item.EventTypes).To(Equal(types))
-			Expect(item.Tags).To(Equal(tags))
+			Expect(item.getEventTypes()).To(Equal(types))
+			Expect(item.getTags()).To(Equal(tags))
 		})
 
-		It("should create query item with empty slices", func() {
+		It("should create query item with empty types and tags", func() {
 			item := NewQueryItem([]string{}, []Tag{})
-
-			Expect(item.EventTypes).To(BeEmpty())
-			Expect(item.Tags).To(BeEmpty())
+			Expect(item.getEventTypes()).To(BeEmpty())
+			Expect(item.getTags()).To(BeEmpty())
 		})
 	})
 

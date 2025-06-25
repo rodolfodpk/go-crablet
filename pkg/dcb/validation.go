@@ -8,14 +8,14 @@ import (
 // validateQueryTags validates the query tags and returns a ValidationError if invalid
 func validateQueryTags(query Query) error {
 	// Handle empty query (matches all events)
-	if len(query.Items) == 0 {
+	if len(query.getItems()) == 0 {
 		return nil
 	}
 
 	// Validate each query item
-	for itemIndex, item := range query.Items {
+	for itemIndex, item := range query.getItems() {
 		// Validate individual tags if present
-		for i, t := range item.Tags {
+		for i, t := range item.getTags() {
 			if t.Key == "" {
 				return &ValidationError{
 					EventStoreError: EventStoreError{
@@ -39,7 +39,7 @@ func validateQueryTags(query Query) error {
 		}
 
 		// Validate event types if present
-		for i, eventType := range item.EventTypes {
+		for i, eventType := range item.getEventTypes() {
 			if eventType == "" {
 				return &ValidationError{
 					EventStoreError: EventStoreError{
@@ -59,7 +59,7 @@ func validateQueryTags(query Query) error {
 // validateEvent validates a single event and returns a ValidationError if invalid
 func validateEvent(e InputEvent, index int) error {
 	// Early validation checks with early returns
-	if e.Type == "" {
+	if e.GetType() == "" {
 		return &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  "validateEvent",
@@ -70,7 +70,7 @@ func validateEvent(e InputEvent, index int) error {
 		}
 	}
 
-	if len(e.Tags) == 0 {
+	if len(e.GetTags()) == 0 {
 		return &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  "validateEvent",
@@ -82,7 +82,7 @@ func validateEvent(e InputEvent, index int) error {
 	}
 
 	// Validate tags efficiently
-	for j, t := range e.Tags {
+	for j, t := range e.GetTags() {
 		if t.Key == "" {
 			return &ValidationError{
 				EventStoreError: EventStoreError{
@@ -106,7 +106,7 @@ func validateEvent(e InputEvent, index int) error {
 	}
 
 	// Validate Data as JSON
-	if !json.Valid(e.Data) {
+	if !json.Valid(e.GetData()) {
 		return &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  "validateEvent",
@@ -137,6 +137,19 @@ func (es *eventStore) validateBatchSize(events []InputEvent, operation string) e
 
 // validateEvents validates all events in a batch
 func validateEvents(events []InputEvent) error {
+	// Check batch size limit (default 1000)
+	const maxBatchSize = 1000
+	if len(events) > maxBatchSize {
+		return &ValidationError{
+			EventStoreError: EventStoreError{
+				Op:  "validateEvents",
+				Err: fmt.Errorf("batch size %d exceeds maximum %d", len(events), maxBatchSize),
+			},
+			Field: "batchSize",
+			Value: fmt.Sprintf("%d", len(events)),
+		}
+	}
+
 	for i, event := range events {
 		if err := validateEvent(event, i); err != nil {
 			return err

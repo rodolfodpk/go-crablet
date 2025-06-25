@@ -41,8 +41,8 @@ func main() {
 
 	// Optimize connection pool for high throughput with adaptive sizing
 	// Base configuration on available system resources
-	maxConns := 300 // Increased from 200
-	minConns := 100 // Increased from 50
+	maxConns := 50 // Reduced from 300 to prevent exhaustion
+	minConns := 10 // Reduced from 100 to prevent exhaustion
 
 	// Adaptive sizing based on environment or system resources
 	if maxConnsEnv := os.Getenv("DB_MAX_CONNS"); maxConnsEnv != "" {
@@ -59,8 +59,8 @@ func main() {
 
 	config.MaxConns = int32(maxConns)
 	config.MinConns = int32(minConns)
-	config.MaxConnLifetime = 15 * time.Minute // Increased from 10 minutes
-	config.MaxConnIdleTime = 10 * time.Minute // Increased from 5 minutes
+	config.MaxConnLifetime = 10 * time.Minute // Reduced from 15 minutes
+	config.MaxConnIdleTime = 5 * time.Minute  // Reduced from 10 minutes
 	config.HealthCheckPeriod = 30 * time.Second
 
 	// Connect to database with retry logic
@@ -234,18 +234,19 @@ func parseTag(tag string) (string, string) {
 }
 
 func convertQuery(query Query) dcb.Query {
-	items := make([]dcb.QueryItem, len(query.Items))
-	for i, item := range query.Items {
-		eventTypes := make([]string, len(item.Types))
-		for j, eventType := range item.Types {
-			eventTypes[j] = string(eventType)
-		}
-		items[i] = dcb.QueryItem{
-			EventTypes: eventTypes,
-			Tags:       convertTags(item.Tags),
-		}
+	if len(query.Items) == 0 {
+		return dcb.NewQueryEmpty()
 	}
-	return dcb.Query{Items: items}
+	items := make([]dcb.QueryItem, 0, len(query.Items))
+	for _, item := range query.Items {
+		// Convert EventTypes ([]EventType) to []string
+		types := make([]string, len(item.Types))
+		for i, eventType := range item.Types {
+			types[i] = string(eventType)
+		}
+		items = append(items, dcb.NewQueryItem(types, convertTags(item.Tags)))
+	}
+	return dcb.NewQueryFromItems(items...)
 }
 
 func convertReadOptions(options *ReadOptions) *dcb.ReadOptions {
@@ -266,7 +267,7 @@ func convertReadOptions(options *ReadOptions) *dcb.ReadOptions {
 	}
 }
 
-func convertAppendCondition(condition *AppendCondition) *dcb.AppendCondition {
+func convertAppendCondition(condition *AppendCondition) dcb.AppendCondition {
 	if condition == nil {
 		return nil
 	}
@@ -278,19 +279,27 @@ func convertAppendCondition(condition *AppendCondition) *dcb.AppendCondition {
 		after = &pos
 	}
 
-	query := convertQuery(condition.FailIfEventsMatch)
-	return &dcb.AppendCondition{
-		FailIfEventsMatch: &query,
-		After:             after,
+	// Check if the original query is empty before converting
+	isQueryEmpty := len(condition.FailIfEventsMatch.Items) == 0
+
+	switch {
+	case !isQueryEmpty && after != nil:
+		query := convertQuery(condition.FailIfEventsMatch)
+		queryPtr := &query
+		return dcb.NewAppendConditionWithAfter(queryPtr, after)
+	case !isQueryEmpty:
+		query := convertQuery(condition.FailIfEventsMatch)
+		queryPtr := &query
+		return dcb.NewAppendCondition(queryPtr)
+	case after != nil:
+		return dcb.NewAppendConditionAfter(after)
+	default:
+		return nil
 	}
 }
 
 func convertInputEvent(event Event) dcb.InputEvent {
-	return dcb.InputEvent{
-		Type: string(event.Type),
-		Tags: convertTags(event.Tags),
-		Data: []byte(event.Data),
-	}
+	return dcb.NewInputEvent(string(event.Type), convertTags(event.Tags), []byte(event.Data))
 }
 
 func convertInputEvents(events interface{}) ([]dcb.InputEvent, error) {
@@ -338,11 +347,7 @@ func convertInputEvents(events interface{}) ([]dcb.InputEvent, error) {
 			tagsSlice[i] = Tag(tag)
 		}
 
-		return []dcb.InputEvent{{
-			Type: eventType,
-			Tags: convertTags(tagsSlice),
-			Data: []byte(data),
-		}}, nil
+		return []dcb.InputEvent{dcb.NewInputEvent(eventType, convertTags(tagsSlice), []byte(data))}, nil
 
 	case []interface{}:
 		// Array of events
@@ -381,11 +386,7 @@ func convertInputEvents(events interface{}) ([]dcb.InputEvent, error) {
 				tagsSlice[j] = Tag(tag)
 			}
 
-			result[i] = dcb.InputEvent{
-				Type: eventType,
-				Tags: convertTags(tagsSlice),
-				Data: []byte(data),
-			}
+			result[i] = dcb.NewInputEvent(eventType, convertTags(tagsSlice), []byte(data))
 		}
 		return result, nil
 
@@ -483,7 +484,7 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 
 	// Execute append
 	ctx := context.Background()
-	_, err := s.store.Append(ctx, inputEvents, condition)
+	err := s.store.Append(ctx, inputEvents, condition)
 
 	duration := time.Since(start)
 	durationMicroseconds := duration.Microseconds()

@@ -22,13 +22,16 @@ func main() {
     pool, _ := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")
     store, _ := dcb.NewEventStore(ctx, pool)
 
+    // Cast to ChannelEventStore for extended functionality
+    channelStore := store.(dcb.ChannelEventStore)
+
     // Command 1: Create Course
     createCourseCmd := CreateCourseCommand{
         CourseID: generateUniqueID("course"),
         Title:    "Introduction to Event Sourcing",
         Capacity: 2,
     }
-    err := handleCreateCourse(ctx, store, createCourseCmd)
+    err := handleCreateCourse(ctx, channelStore, createCourseCmd)
     if err != nil {
         log.Fatalf("Create course failed: %v", err)
     }
@@ -39,7 +42,7 @@ func main() {
         Name:      "Alice",
         Email:     "alice@example.com",
     }
-    err = handleRegisterStudent(ctx, store, registerStudentCmd)
+    err = handleRegisterStudent(ctx, channelStore, registerStudentCmd)
     if err != nil {
         log.Fatalf("Register student failed: %v", err)
     }
@@ -49,7 +52,7 @@ func main() {
         StudentID: registerStudentCmd.StudentID,
         CourseID:  createCourseCmd.CourseID,
     }
-    err = handleEnrollStudent(ctx, store, enrollCmd)
+    err = handleEnrollStudent(ctx, channelStore, enrollCmd)
     if err != nil {
         log.Fatalf("Enroll student failed: %v", err)
     }
@@ -64,7 +67,7 @@ func generateUniqueID(prefix string) string {
 
 // Command handlers with their own business rules
 
-func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCourseCommand) error {
+func handleCreateCourse(ctx context.Context, store dcb.ChannelEventStore, cmd CreateCourseCommand) error {
     // Command-specific projectors
     projectors := []dcb.BatchProjector{
         {ID: "courseExists", StateProjector: dcb.StateProjector{
@@ -74,7 +77,7 @@ func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCou
         }},
     }
 
-    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors, nil)
+    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors)
     
     // Command-specific business rule: course must not already exist
     if states["courseExists"].(bool) {
@@ -89,7 +92,7 @@ func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCou
     }
 
     // Append events atomically for this command
-    _, err := store.Append(ctx, events, &appendCondition)
+    err := store.Append(ctx, events, appendCondition)
     if err != nil {
         return fmt.Errorf("failed to create course: %w", err)
     }
@@ -98,7 +101,7 @@ func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCou
     return nil
 }
 
-func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd RegisterStudentCommand) error {
+func handleRegisterStudent(ctx context.Context, store dcb.ChannelEventStore, cmd RegisterStudentCommand) error {
     // Command-specific projectors
     projectors := []dcb.BatchProjector{
         {ID: "studentExists", StateProjector: dcb.StateProjector{
@@ -108,7 +111,7 @@ func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd Regist
         }},
     }
 
-    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors, nil)
+    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors)
     
     // Command-specific business rule: student must not already exist
     if states["studentExists"].(bool) {
@@ -123,7 +126,7 @@ func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd Regist
     }
 
     // Append events atomically for this command
-    _, err := store.Append(ctx, events, &appendCondition)
+    err := store.Append(ctx, events, appendCondition)
     if err != nil {
         return fmt.Errorf("failed to register student: %w", err)
     }
@@ -132,7 +135,7 @@ func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd Regist
     return nil
 }
 
-func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollStudentCommand) error {
+func handleEnrollStudent(ctx context.Context, store dcb.ChannelEventStore, cmd EnrollStudentCommand) error {
     // Command-specific projectors
     projectors := []dcb.BatchProjector{
         {ID: "courseState", StateProjector: dcb.StateProjector{
@@ -158,7 +161,7 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollSt
         }},
     }
 
-    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors, nil)
+    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors)
     
     course := states["courseState"].(*CourseState)
     enrollmentCount := states["studentEnrollmentCount"].(int)
@@ -179,7 +182,7 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollSt
     }
 
     // Append events atomically for this command
-    _, err := store.Append(ctx, events, &appendCondition)
+    err := store.Append(ctx, events, appendCondition)
     if err != nil {
         return fmt.Errorf("failed to enroll student: %w", err)
     }
@@ -215,70 +218,11 @@ func mustJSON(v any) []byte {
     data, _ := json.Marshal(v)
     return data
 }
-```
 
-## Key Features Demonstrated
+## Key Points
 
-### 1. **Command Pattern**
-Each business operation is encapsulated in a command handler:
-- `handleCreateCourse`: Creates a new course with validation
-- `handleRegisterStudent`: Registers a new student with duplicate checking
-- `handleEnrollStudent`: Enrolls a student with capacity and duplicate enrollment checks
-
-### 2. **DCB Pattern Implementation**
-- **Batch Projectors**: Each command defines its own projectors to read relevant state
-- **Optimistic Concurrency**: Uses `appendCondition` to ensure atomic operations
-- **Business Rules**: Validates business constraints before appending events
-
-### 3. **State Projection**
-- **Course State**: Tracks course capacity and current enrollment count
-- **Student Enrollment Count**: Prevents duplicate enrollments
-- **Existence Checks**: Validates that entities exist before operations
-
-### 4. **Event Sourcing Benefits**
-- **Audit Trail**: Complete history of all operations
-- **Concurrency Safety**: Optimistic locking prevents race conditions
-- **Business Rule Enforcement**: Rules are enforced at the event level
-
-## Resulting Events
-
-After running the example, the events table will contain:
-
-```sql
-SELECT type, tags, data, position 
-FROM events 
-ORDER BY position;
-```
-
-| type | tags | data | position |
-|------|------|------|----------|
-| CourseDefined | `{"course_id": "course-1234567890"}` | `{"Title": "Introduction to Event Sourcing", "Capacity": 2}` | 1 |
-| StudentRegistered | `{"student_id": "student-1234567891"}` | `{"Name": "Alice", "Email": "alice@example.com"}` | 2 |
-| StudentEnrolled | `{"student_id": "student-1234567891", "course_id": "course-1234567890"}` | `{"StudentID": "student-1234567891", "CourseID": "course-1234567890"}` | 3 |
-
-## Business Rules Enforced
-
-1. **Course Creation**: Cannot create a course that already exists
-2. **Student Registration**: Cannot register a student that already exists
-3. **Course Enrollment**: 
-   - Cannot enroll in a course that's at capacity
-   - Cannot enroll the same student twice in the same course
-   - Course must exist before enrollment
-
-## Benefits of This Approach
-
-- **Separation of Concerns**: Each command handler is focused on its specific business logic
-- **Reusability**: Command handlers can be called independently
-- **Testability**: Each handler can be tested in isolation
-- **Maintainability**: Business rules are clearly defined and easy to modify
-- **Scalability**: Commands can be processed in parallel with proper concurrency control
-
-## Running the Example
-
-To run this complete course enrollment example:
-
-```bash
-go run internal/examples/enrollment/main.go
-```
-
-This will execute the full course enrollment workflow with all business rules and optimistic concurrency controls. 
+- **Opaque Types**: `Query` and `QueryItem` are opaque types that must be constructed using helper functions (e.g., `NewQuery`, `NewQueryItem`). Direct struct access is not supported.
+- **ChannelEventStore**: The example uses `ChannelEventStore` interface for extended functionality including batch projections.
+- **Append Method**: The `Append` method returns only an error, not a position. This simplifies the API and enforces DCB semantics.
+- **AppendCondition**: Use the interface directly, not as a pointer (`appendCondition` not `&appendCondition`).
+- **Type Safety**: All queries and conditions are constructed through helper functions, ensuring DCB compliance and improving type safety.

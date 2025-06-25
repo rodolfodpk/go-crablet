@@ -39,8 +39,8 @@ func main() {
 		log.Fatalf("Failed to create event store: %v", err)
 	}
 
-	// Cast to CrabletEventStore for extended functionality
-	channelStore := store.(dcb.CrabletEventStore)
+	// Cast to ChannelEventStore for extended functionality
+	channelStore := store.(dcb.ChannelEventStore)
 
 	// Command 1: Open Account
 	openAccountCmd := OpenAccountCommand{
@@ -130,15 +130,14 @@ func main() {
 
 	// The AppendCondition can be used for optimistic locking
 	fmt.Printf("\n=== Append Condition for Optimistic Locking ===\n")
-	fmt.Printf("FailIfEventsMatch: %+v\n", appendCondition.FailIfEventsMatch)
-	fmt.Printf("After position: %d\n", *appendCondition.After)
+	fmt.Printf("Using append condition for optimistic locking\n")
 
 	// Command 3: Process another transaction with optimistic locking
 	processTransaction2Cmd := ProcessTransactionCommand{
 		AccountID: "acc123",
 		Amount:    200,
 	}
-	err = handleProcessTransactionWithCondition(ctx, channelStore, processTransaction2Cmd, &appendCondition)
+	err = handleProcessTransactionWithCondition(ctx, channelStore, processTransaction2Cmd, appendCondition)
 	if err != nil {
 		log.Fatalf("Process transaction 2 failed: %v", err)
 	}
@@ -150,7 +149,7 @@ func main() {
 
 // Command handlers with their own business rules
 
-func handleOpenAccount(ctx context.Context, store dcb.CrabletEventStore, cmd OpenAccountCommand) error {
+func handleOpenAccount(ctx context.Context, store dcb.ChannelEventStore, cmd OpenAccountCommand) error {
 	// Command-specific projectors
 	projectors := []dcb.BatchProjector{
 		{ID: "accountExists", StateProjector: dcb.StateProjector{
@@ -185,16 +184,16 @@ func handleOpenAccount(ctx context.Context, store dcb.CrabletEventStore, cmd Ope
 	}
 
 	// Append events atomically for this command
-	position, err := store.Append(ctx, events, &appendCondition)
+	err = store.Append(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to open account: %w", err)
 	}
 
-	fmt.Printf("Opened account %s with balance %d (position: %d)\n", cmd.AccountID, cmd.InitialBalance, position)
+	fmt.Printf("Opened account %s with balance %d\n", cmd.AccountID, cmd.InitialBalance)
 	return nil
 }
 
-func handleProcessTransaction(ctx context.Context, store dcb.CrabletEventStore, cmd ProcessTransactionCommand) error {
+func handleProcessTransaction(ctx context.Context, store dcb.ChannelEventStore, cmd ProcessTransactionCommand) error {
 	// Command-specific projectors
 	accountProjector := dcb.StateProjector{
 		Query: dcb.NewQuery(
@@ -242,16 +241,16 @@ func handleProcessTransaction(ctx context.Context, store dcb.CrabletEventStore, 
 	}
 
 	// Append events atomically for this command
-	position, err := store.Append(ctx, events, &appendCondition)
+	err = store.Append(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to process transaction: %w", err)
 	}
 
-	fmt.Printf("Processed transaction of %d for account %s (position: %d)\n", cmd.Amount, cmd.AccountID, position)
+	fmt.Printf("Processed transaction of %d for account %s\n", cmd.Amount, cmd.AccountID)
 	return nil
 }
 
-func handleProcessTransactionWithCondition(ctx context.Context, store dcb.CrabletEventStore, cmd ProcessTransactionCommand, condition *dcb.AppendCondition) error {
+func handleProcessTransactionWithCondition(ctx context.Context, store dcb.ChannelEventStore, cmd ProcessTransactionCommand, condition dcb.AppendCondition) error {
 	// Command-specific projectors
 	accountProjector := dcb.StateProjector{
 		Query: dcb.NewQuery(
@@ -299,12 +298,12 @@ func handleProcessTransactionWithCondition(ctx context.Context, store dcb.Crable
 	}
 
 	// Append events atomically for this command with optimistic locking
-	newPosition, err := store.Append(ctx, events, condition)
+	err = store.Append(ctx, events, condition)
 	if err != nil {
 		return fmt.Errorf("failed to process transaction with optimistic locking: %w", err)
 	}
 
-	fmt.Printf("Successfully processed transaction of %d for account %s (position: %d)\n", cmd.Amount, cmd.AccountID, newPosition)
+	fmt.Printf("Successfully processed transaction of %d for account %s\n", cmd.Amount, cmd.AccountID)
 	return nil
 }
 

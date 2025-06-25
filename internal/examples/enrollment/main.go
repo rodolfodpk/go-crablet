@@ -47,8 +47,8 @@ func main() {
 		log.Fatalf("failed to create event store: %v", err)
 	}
 
-	// Cast to CrabletEventStore for extended functionality
-	channelStore := store.(dcb.CrabletEventStore)
+	// Cast to ChannelEventStore for extended functionality
+	channelStore := store.(dcb.ChannelEventStore)
 
 	// Command 1: Create Course
 	createCourseCmd := CreateCourseCommand{
@@ -122,7 +122,7 @@ func main() {
 
 // Command handlers with their own business rules
 
-func handleCreateCourse(ctx context.Context, store dcb.CrabletEventStore, cmd CreateCourseCommand) error {
+func handleCreateCourse(ctx context.Context, store dcb.ChannelEventStore, cmd CreateCourseCommand) error {
 	// Command-specific projectors
 	projectors := []dcb.BatchProjector{
 		{ID: "courseExists", StateProjector: dcb.StateProjector{
@@ -160,16 +160,16 @@ func handleCreateCourse(ctx context.Context, store dcb.CrabletEventStore, cmd Cr
 	}
 
 	// Append events atomically for this command
-	position, err := store.Append(ctx, events, &appendCondition)
+	err = store.Append(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to create course: %w", err)
 	}
 
-	fmt.Printf("Created course %s (%s) with max students %d at position %d\n", cmd.CourseID, cmd.Title, cmd.MaxStudents, position)
+	fmt.Printf("Created course %s (%s) with max students %d\n", cmd.CourseID, cmd.Title, cmd.MaxStudents)
 	return nil
 }
 
-func handleRegisterStudent(ctx context.Context, store dcb.CrabletEventStore, cmd RegisterStudentCommand) error {
+func handleRegisterStudent(ctx context.Context, store dcb.ChannelEventStore, cmd RegisterStudentCommand) error {
 	// Command-specific projectors
 	projectors := []dcb.BatchProjector{
 		{ID: "studentExists", StateProjector: dcb.StateProjector{
@@ -220,16 +220,16 @@ func handleRegisterStudent(ctx context.Context, store dcb.CrabletEventStore, cmd
 	}
 
 	// Append events atomically for this command
-	position, err := store.Append(ctx, events, &appendCondition)
+	err = store.Append(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to register student: %w", err)
 	}
 
-	fmt.Printf("Registered student %s (%s) at position %d\n", cmd.Name, cmd.Email, position)
+	fmt.Printf("Registered student %s (%s)\n", cmd.Name, cmd.Email)
 	return nil
 }
 
-func handleEnrollStudent(ctx context.Context, store dcb.CrabletEventStore, cmd EnrollStudentCommand) error {
+func handleEnrollStudent(ctx context.Context, store dcb.ChannelEventStore, cmd EnrollStudentCommand) error {
 	// Command-specific projectors
 	courseProjector := dcb.StateProjector{
 		Query: dcb.NewQuery(
@@ -347,16 +347,16 @@ func handleEnrollStudent(ctx context.Context, store dcb.CrabletEventStore, cmd E
 	}
 
 	// Append events atomically for this command
-	position, err := store.Append(ctx, events, &appendCondition)
+	err = store.Append(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to enroll student: %w", err)
 	}
 
-	fmt.Printf("Enrolled student %s in course %s at position %d\n", cmd.StudentID, cmd.CourseID, position)
+	fmt.Printf("Enrolled student %s in course %s\n", cmd.StudentID, cmd.CourseID)
 	return nil
 }
 
-func handleUnenrollStudent(ctx context.Context, store dcb.CrabletEventStore, cmd UnenrollStudentCommand) error {
+func handleUnenrollStudent(ctx context.Context, store dcb.ChannelEventStore, cmd UnenrollStudentCommand) error {
 	// Command-specific projectors
 	enrollmentProjector := dcb.StateProjector{
 		Query: dcb.NewQuery(
@@ -404,12 +404,12 @@ func handleUnenrollStudent(ctx context.Context, store dcb.CrabletEventStore, cmd
 	}
 
 	// Append events atomically for this command
-	position, err := store.Append(ctx, events, &appendCondition)
+	err = store.Append(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to unenroll student: %w", err)
 	}
 
-	fmt.Printf("Unenrolled student %s from course %s at position %d\n", cmd.StudentID, cmd.CourseID, position)
+	fmt.Printf("Unenrolled student %s from course %s\n", cmd.StudentID, cmd.CourseID)
 	return nil
 }
 

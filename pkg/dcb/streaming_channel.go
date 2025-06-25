@@ -3,14 +3,15 @@ package dcb
 import (
 	"context"
 	"fmt"
+	"log"
 )
 
-// ReadStreamChannel creates a channel-based stream of events matching a query.
-// This method is part of the CrabletEventStore interface.
-// It's optimized for small to medium datasets (< 500 events).
+// ReadStreamChannel creates a channel-based stream of events matching a query
+// This is optimized for small to medium datasets (< 500 events) and provides
+// a more Go-idiomatic interface using channels
 func (es *eventStore) ReadStreamChannel(ctx context.Context, query Query) (<-chan Event, error) {
 	// Validate that the query is not empty (same validation as Read method)
-	if len(query.Items) == 0 {
+	if len(query.getItems()) == 0 {
 		return nil, &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  "ReadStreamChannel",
@@ -38,14 +39,21 @@ func (es *eventStore) ReadStreamChannel(ctx context.Context, query Query) (<-cha
 
 	// Start streaming events in a goroutine
 	go func() {
-		defer rows.Close()
-		defer close(resultChan)
+		// Ensure rows are always closed, even if goroutine panics
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("ReadStreamChannel panic recovered: %v", r)
+			}
+			rows.Close()
+			close(resultChan)
+		}()
 
 		for rows.Next() {
 			select {
 			case <-ctx.Done():
+				// Context cancelled - exit cleanly
 				return
-			default:
+			case resultChan <- func() Event {
 				var row rowEvent
 				err := rows.Scan(
 					&row.Type,
@@ -55,25 +63,26 @@ func (es *eventStore) ReadStreamChannel(ctx context.Context, query Query) (<-cha
 				)
 				if err != nil {
 					// Log error but continue processing
-					continue
+					log.Printf("Error scanning row in ReadStreamChannel: %v", err)
+					return Event{} // Return empty event, will be filtered out
 				}
-
-				event := convertRowToEvent(row)
-				resultChan <- event
+				return convertRowToEvent(row)
+			}():
+				// Event sent successfully
 			}
 		}
 
+		// Check for row iteration errors
 		if err := rows.Err(); err != nil {
-			// Log error but don't send it through channel
-			// The channel will be closed normally
+			log.Printf("Row iteration error in ReadStreamChannel: %v", err)
 		}
 	}()
 
 	return resultChan, nil
 }
 
-// Ensure eventStore implements CrabletEventStore interface
-var _ CrabletEventStore = (*eventStore)(nil)
+// Ensure eventStore implements ChannelEventStore interface
+var _ ChannelEventStore = (*eventStore)(nil)
 
 // ProjectDecisionModelChannel projects multiple states using channel-based streaming
 // This is optimized for small to medium datasets (< 500 events) and provides
@@ -101,7 +110,7 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 	query := es.combineProjectorQueries(projectors)
 
 	// Validate that the combined query is not empty (same validation as Read method)
-	if len(query.Items) == 0 {
+	if len(query.getItems()) == 0 {
 		return nil, &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  "ProjectDecisionModelChannel",
@@ -129,8 +138,14 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 
 	// Start projection processing in a goroutine
 	go func() {
-		defer rows.Close()
-		defer close(resultChan)
+		// Ensure rows are always closed, even if goroutine panics
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("ProjectDecisionModelChannel panic recovered: %v", r)
+			}
+			rows.Close()
+			close(resultChan)
+		}()
 
 		// Initialize projector states
 		projectorStates := make(map[string]interface{})
@@ -142,6 +157,7 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 		for rows.Next() {
 			select {
 			case <-ctx.Done():
+				// Context cancelled - send error and exit cleanly
 				resultChan <- ProjectionResult{
 					Error: ctx.Err(),
 				}
@@ -156,6 +172,7 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 				)
 				if err != nil {
 					// Log error but continue processing
+					log.Printf("Error scanning row in ProjectDecisionModelChannel: %v", err)
 					continue
 				}
 
@@ -177,12 +194,18 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 					// Update state
 					projectorStates[projector.ID] = newState
 
-					// Send result
-					resultChan <- ProjectionResult{
+					// Send result (non-blocking to avoid deadlocks)
+					select {
+					case resultChan <- ProjectionResult{
 						ProjectorID: projector.ID,
 						State:       newState,
 						Event:       event,
 						Position:    event.Position,
+					}:
+						// Result sent successfully
+					case <-ctx.Done():
+						// Context cancelled while trying to send
+						return
 					}
 				}
 			}
@@ -190,11 +213,19 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 
 		// Check for row iteration errors
 		if err := rows.Err(); err != nil {
-			resultChan <- ProjectionResult{
+			log.Printf("Row iteration error in ProjectDecisionModelChannel: %v", err)
+			select {
+			case resultChan <- ProjectionResult{
 				Error: fmt.Errorf("row iteration failed: %w", err),
+			}:
+			case <-ctx.Done():
+				// Context cancelled while trying to send error
 			}
 		}
 	}()
 
 	return resultChan, nil
 }
+
+// ChannelEventStore extends EventStore with channel-based streaming capabilities
+// Append now returns only error, not position.
