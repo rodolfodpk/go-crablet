@@ -1,12 +1,12 @@
 # Makefile for gRPC app benchmark
 
-.PHONY: benchmark quick-test up50-scenario full-scan concurrency-test clean start-db stop-db run-server kill-server ensure-server
+.PHONY: benchmark quick-test full full-scan concurrency-test clean start-db stop-db run-server kill-server ensure-server
 
 # Variables
 DB_URL=postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable
 PORT=9090
 
-benchmark: clean start-db ensure-server up50-scenario
+benchmark: clean start-db ensure-server full
 	@echo "\nBenchmark complete."
 
 quick-test:
@@ -23,19 +23,11 @@ quick-test:
 	k6 run k6-quick-test.js
 	@echo "Quick test completed."
 
-up50-scenario:
-	@echo "Running gRPC up50-scenario test..."
-	@echo "Ensuring database is running..."
-	cd ../.. && docker-compose up -d postgres
-	@echo "Waiting for database to be ready..."
-	@sleep 5
-	@echo "Ensuring gRPC server is running..."
-	@make ensure-server
-	@echo "Cleaning up database before test..."
-	@curl -X POST http://localhost:9091/cleanup || echo "Cleanup failed, continuing anyway..."
-	@echo "Running k6 up50-scenario test..."
-	k6 run up50-scenario.js
-	@echo "Up50-scenario test completed."
+full:
+	@echo "Running gRPC full scenario test..."
+	@echo "Running k6 full scenario test..."
+	k6 run full.js
+	@echo "Full scenario test completed."
 
 full-scan:
 	@echo "Running gRPC full-scan test (resource-intensive queries)..."

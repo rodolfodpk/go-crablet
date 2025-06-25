@@ -64,8 +64,12 @@ func (es *eventStore) Read(ctx context.Context, query Query, options *ReadOption
 		return SequencedEvents{}, err
 	}
 
+	// Execute the query with timeout
+	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	// Execute the query
-	rows, err := es.pool.Query(ctx, sqlQuery, args...)
+	rows, err := es.pool.Query(queryCtx, sqlQuery, args...)
 	if err != nil {
 		return SequencedEvents{}, &ResourceError{
 			EventStoreError: EventStoreError{
@@ -129,9 +133,9 @@ func (es *eventStore) Read(ctx context.Context, query Query, options *ReadOption
 
 // Append atomically persists one or more events, optionally with an append condition
 // This matches the DCB specification exactly
-func (es *eventStore) Append(ctx context.Context, events []InputEvent, condition AppendCondition) (int64, error) {
+func (es *eventStore) Append(ctx context.Context, events []InputEvent, condition AppendCondition) error {
 	if len(events) == 0 {
-		return 0, &ValidationError{
+		return &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  "append",
 				Err: fmt.Errorf("events must not be empty"),
@@ -142,7 +146,7 @@ func (es *eventStore) Append(ctx context.Context, events []InputEvent, condition
 	}
 
 	if len(events) > es.maxBatchSize {
-		return 0, &ValidationError{
+		return &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  "append",
 				Err: fmt.Errorf("batch size %d exceeds maximum of %d", len(events), es.maxBatchSize),
@@ -155,7 +159,7 @@ func (es *eventStore) Append(ctx context.Context, events []InputEvent, condition
 	// Validate events
 	for i, event := range events {
 		if event.Type == "" {
-			return 0, &ValidationError{
+			return &ValidationError{
 				EventStoreError: EventStoreError{
 					Op:  "append",
 					Err: fmt.Errorf("event at index %d has empty type", i),
@@ -169,7 +173,7 @@ func (es *eventStore) Append(ctx context.Context, events []InputEvent, condition
 		tagKeys := make(map[string]bool)
 		for _, tag := range event.Tags {
 			if tag.Key == "" {
-				return 0, &ValidationError{
+				return &ValidationError{
 					EventStoreError: EventStoreError{
 						Op:  "append",
 						Err: fmt.Errorf("event at index %d has tag with empty key", i),
@@ -179,7 +183,7 @@ func (es *eventStore) Append(ctx context.Context, events []InputEvent, condition
 				}
 			}
 			if tag.Value == "" {
-				return 0, &ValidationError{
+				return &ValidationError{
 					EventStoreError: EventStoreError{
 						Op:  "append",
 						Err: fmt.Errorf("event at index %d has tag with empty value", i),
@@ -189,7 +193,7 @@ func (es *eventStore) Append(ctx context.Context, events []InputEvent, condition
 				}
 			}
 			if tagKeys[tag.Key] {
-				return 0, &ValidationError{
+				return &ValidationError{
 					EventStoreError: EventStoreError{
 						Op:  "append",
 						Err: fmt.Errorf("event at index %d has duplicate tag key: %s", i, tag.Key),
@@ -207,7 +211,7 @@ func (es *eventStore) Append(ctx context.Context, events []InputEvent, condition
 }
 
 // appendEventsWithCondition uses PostgreSQL functions for atomic append with condition checking
-func (es *eventStore) appendEventsWithCondition(ctx context.Context, events []InputEvent, condition AppendCondition) (int64, error) {
+func (es *eventStore) appendEventsWithCondition(ctx context.Context, events []InputEvent, condition AppendCondition) error {
 	// Prepare data for batch insert
 	types := make([]string, len(events))
 	tags := make([]string, len(events)) // now []string of array literals
@@ -225,7 +229,7 @@ func (es *eventStore) appendEventsWithCondition(ctx context.Context, events []In
 	if condition != nil {
 		conditionJSON, err = json.Marshal(condition)
 		if err != nil {
-			return 0, &ResourceError{
+			return &ResourceError{
 				EventStoreError: EventStoreError{
 					Op:  "appendEventsWithCondition",
 					Err: fmt.Errorf("failed to marshal condition: %w", err),
@@ -236,15 +240,14 @@ func (es *eventStore) appendEventsWithCondition(ctx context.Context, events []In
 	}
 
 	// Execute PostgreSQL function for atomic append
-	var lastPosition int64
-	err = es.pool.QueryRow(ctx, `
+	_, err = es.pool.Exec(ctx, `
 		SELECT append_events_with_condition($1, $2, $3, $4)
-	`, types, tags, data, conditionJSON).Scan(&lastPosition)
+	`, types, tags, data, conditionJSON)
 
 	if err != nil {
 		// Check if it's a condition violation error
 		if strings.Contains(err.Error(), "append condition violated") {
-			return 0, &ConcurrencyError{
+			return &ConcurrencyError{
 				EventStoreError: EventStoreError{
 					Op:  "append",
 					Err: fmt.Errorf("append condition violated: %w", err),
@@ -252,7 +255,7 @@ func (es *eventStore) appendEventsWithCondition(ctx context.Context, events []In
 			}
 		}
 
-		return 0, &ResourceError{
+		return &ResourceError{
 			EventStoreError: EventStoreError{
 				Op:  "appendEventsWithCondition",
 				Err: fmt.Errorf("failed to append events: %w", err),
@@ -261,7 +264,7 @@ func (es *eventStore) appendEventsWithCondition(ctx context.Context, events []In
 		}
 	}
 
-	return lastPosition, nil
+	return nil
 }
 
 // buildReadQuerySQL builds the SQL query for reading events

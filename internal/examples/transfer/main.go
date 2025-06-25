@@ -69,8 +69,8 @@ func main() {
 		log.Fatalf("failed to create event store: %v", err)
 	}
 
-	// Cast to CrabletEventStore for extended functionality
-	channelStore := store.(dcb.CrabletEventStore)
+	// Cast to ChannelEventStore for extended functionality
+	channelStore := store.(dcb.ChannelEventStore)
 
 	// Command 1: Create first account
 	createAccount1Cmd := CreateAccountCommand{
@@ -113,7 +113,7 @@ func main() {
 
 // Command handlers with their own business rules
 
-func handleCreateAccount(ctx context.Context, store dcb.CrabletEventStore, cmd CreateAccountCommand) error {
+func handleCreateAccount(ctx context.Context, store dcb.ChannelEventStore, cmd CreateAccountCommand) error {
 	// Command-specific projectors
 	projectors := []dcb.BatchProjector{
 		{ID: "accountExists", StateProjector: dcb.StateProjector{
@@ -153,7 +153,7 @@ func handleCreateAccount(ctx context.Context, store dcb.CrabletEventStore, cmd C
 	}
 
 	// Append events atomically for this command
-	_, err = store.Append(ctx, events, &appendCondition)
+	err = store.Append(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to create account: %w", err)
 	}
@@ -162,7 +162,7 @@ func handleCreateAccount(ctx context.Context, store dcb.CrabletEventStore, cmd C
 	return nil
 }
 
-func handleTransferMoney(ctx context.Context, store dcb.CrabletEventStore, cmd TransferMoneyCommand) error {
+func handleTransferMoney(ctx context.Context, store dcb.ChannelEventStore, cmd TransferMoneyCommand) error {
 	// Command-specific projectors
 	fromProjector := dcb.StateProjector{
 		Query: dcb.NewQuery(
@@ -281,7 +281,7 @@ func handleTransferMoney(ctx context.Context, store dcb.CrabletEventStore, cmd T
 
 	// Use the append condition from the decision model for optimistic locking
 	// All events are appended atomically for this command
-	_, err = store.Append(ctx, events, &appendCondition)
+	err = store.Append(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("append failed: %w", err)
 	}

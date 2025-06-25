@@ -22,85 +22,44 @@ CREATE INDEX idx_events_type_position ON events (type, position);
 -- Additional indexes for better read performance
 CREATE INDEX idx_events_type ON events (type);
 
--- Function to check append conditions
+-- Optimized function to check append conditions using CTEs and better query structure
 CREATE OR REPLACE FUNCTION check_append_condition(
     p_fail_if_events_match JSONB DEFAULT NULL,
     p_after_position BIGINT DEFAULT NULL
 ) RETURNS BOOLEAN AS $$
 DECLARE
-    condition_sql TEXT;
     condition_count INTEGER;
-    query_item JSONB;
-    event_types TEXT[];
-    tags TEXT[];
-    item_conditions TEXT[];
-    combined_condition TEXT;
-    args TEXT[];
-    arg_count INTEGER;
 BEGIN
     -- Check FailIfEventsMatch condition (with optional after position scope)
     IF p_fail_if_events_match IS NOT NULL THEN
-        -- Build dynamic SQL from the query structure
-        item_conditions := ARRAY[]::TEXT[];
-        args := ARRAY[]::TEXT[];
-        arg_count := 0;
+        -- Use CTE for better performance and readability
+        WITH condition_queries AS (
+            SELECT 
+                jsonb_array_elements(p_fail_if_events_match->'items') AS query_item
+        ),
+        event_matches AS (
+            SELECT DISTINCT e.position
+            FROM events e
+            CROSS JOIN condition_queries cq
+            WHERE (
+                -- Check event types if specified
+                (cq.query_item->'event_types' IS NULL OR 
+                 e.type = ANY(SELECT jsonb_array_elements_text(cq.query_item->'event_types')))
+                AND
+                -- Check tags if specified (using GIN index efficiently for TEXT[] arrays)
+                (cq.query_item->'tags' IS NULL OR 
+                 e.tags @> (
+                     SELECT array_agg((obj->>'key') || ':' || (obj->>'value'))
+                     FROM jsonb_array_elements((cq.query_item->'tags')::jsonb) AS obj
+                 )::TEXT[])
+            )
+            -- Apply after position filter within query scope (DCB compliant)
+            AND (p_after_position IS NULL OR e.position > p_after_position)
+        )
+        SELECT COUNT(*) INTO condition_count FROM event_matches;
         
-        FOR query_item IN SELECT * FROM jsonb_array_elements(p_fail_if_events_match->'items')
-        LOOP
-            -- Extract event types
-            event_types := ARRAY[]::TEXT[];
-            IF query_item->'event_types' IS NOT NULL THEN
-                SELECT array_agg(value::TEXT) INTO event_types 
-                FROM jsonb_array_elements_text(query_item->'event_types');
-            END IF;
-            
-            -- Extract tags (fix: use obj->>'key' and obj->>'value' with explicit cast)
-            tags := ARRAY[]::TEXT[];
-            IF query_item->'tags' IS NOT NULL THEN
-                SELECT array_agg((obj->>'key') || ':' || (obj->>'value')) INTO tags
-                FROM jsonb_array_elements((query_item->'tags')::jsonb) AS obj;
-            END IF;
-            
-            -- Build condition for this item
-            combined_condition := '';
-            
-            IF array_length(event_types, 1) > 0 THEN
-                arg_count := arg_count + 1;
-                combined_condition := 'type = ANY($' || arg_count || '::TEXT[])';
-                args := array_append(args, array_to_string(event_types, ','));
-            END IF;
-            
-            IF array_length(tags, 1) > 0 THEN
-                IF combined_condition != '' THEN
-                    combined_condition := combined_condition || ' AND ';
-                END IF;
-                arg_count := arg_count + 1;
-                combined_condition := combined_condition || 'tags @> $' || arg_count || '::TEXT[]';
-                args := array_append(args, array_to_string(tags, ','));
-            END IF;
-            
-            IF combined_condition != '' THEN
-                item_conditions := array_append(item_conditions, combined_condition);
-            END IF;
-        END LOOP;
-        
-        -- Build final SQL with query-scoped after position
-        IF array_length(item_conditions, 1) > 0 THEN
-            condition_sql := 'SELECT COUNT(*) FROM events WHERE (' || array_to_string(item_conditions, ' OR ') || ')';
-            
-            -- Add after position filter within query scope (DCB compliant)
-            IF p_after_position IS NOT NULL THEN
-                arg_count := arg_count + 1;
-                condition_sql := condition_sql || ' AND position > $' || arg_count;
-                args := array_append(args, p_after_position::TEXT);
-            END IF;
-            
-            -- Execute the query with dynamic arguments
-            EXECUTE condition_sql INTO condition_count USING args;
-            
-            IF condition_count > 0 THEN
-                RAISE EXCEPTION 'append condition violated: % matching events found', condition_count;
-            END IF;
+        IF condition_count > 0 THEN
+            RAISE EXCEPTION 'append condition violated: % matching events found', condition_count;
         END IF;
     END IF;
     
@@ -108,45 +67,31 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to batch insert events
+-- Function to batch insert events using UNNEST for better performance
 CREATE OR REPLACE FUNCTION append_events_batch(
     p_types TEXT[],
     p_tags TEXT[], -- array of Postgres array literals as strings
     p_data JSONB[]
-) RETURNS BIGINT AS $$
-DECLARE
-    last_position BIGINT;
-    values_clause TEXT;
-    i INT;
+) RETURNS VOID AS $$
 BEGIN
-    -- Build VALUES clause for true batch insert
-    values_clause := '';
-    FOR i IN 1..array_length(p_types, 1) LOOP
-        IF i > 1 THEN
-            values_clause := values_clause || ', ';
-        END IF;
-        values_clause := values_clause || 
-            '(' || quote_literal(p_types[i]) || ', ' || 
-            quote_literal(p_tags[i]) || '::text[], ' || 
-            quote_literal(p_data[i]) || ')';
-    END LOOP;
-    
-    -- Execute true batch insert
-    EXECUTE 'INSERT INTO events (type, tags, data) VALUES ' || values_clause || ' RETURNING position' INTO last_position;
-    
-    RETURN last_position;
+    -- Use UNNEST for efficient batch insert with proper array handling
+    INSERT INTO events (type, tags, data)
+    SELECT 
+        t.type,
+        t.tag_string::TEXT[], -- Cast the array literal string to TEXT[]
+        t.data
+    FROM UNNEST(p_types, p_tags, p_data) AS t(type, tag_string, data);
 END;
 $$ LANGUAGE plpgsql;
 
 -- Combined function to check conditions and append events atomically
 CREATE OR REPLACE FUNCTION append_events_with_condition(
     p_types TEXT[],
-    p_tags TEXT[][],
+    p_tags TEXT[], -- array of Postgres array literals as strings
     p_data JSONB[],
     p_condition JSONB DEFAULT NULL
-) RETURNS BIGINT AS $$
+) RETURNS VOID AS $$
 DECLARE
-    last_position BIGINT;
     fail_if_events_match JSONB;
     after_position BIGINT;
 BEGIN
@@ -161,10 +106,8 @@ BEGIN
     -- Check append conditions first
     PERFORM check_append_condition(fail_if_events_match, after_position);
     
-    -- If conditions pass, insert events
-    SELECT append_events_batch(p_types, p_tags, p_data) INTO last_position;
-    
-    RETURN last_position;
+    -- If conditions pass, insert events using UNNEST for all cases
+    PERFORM append_events_batch(p_types, p_tags, p_data);
 END;
 $$ LANGUAGE plpgsql;
     

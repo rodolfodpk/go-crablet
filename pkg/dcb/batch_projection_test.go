@@ -234,7 +234,7 @@ var _ = Describe("Batch Projection", func() {
 			event4 := NewInputEvent("StudentEnrolled", NewTags("course_id", "c1", "student_id", "s2"), toJSON(map[string]string{"enrolled_at": "2024-01-02"}))
 			events := []InputEvent{event1, event2, event3, event4}
 
-			_, err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Define projectors with overlapping queries
@@ -270,7 +270,7 @@ var _ = Describe("Batch Projection", func() {
 			}
 
 			// Test ProjectDecisionModel
-			channelStore := store.(CrabletEventStore)
+			channelStore := store.(ChannelEventStore)
 			states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -286,7 +286,7 @@ var _ = Describe("Batch Projection", func() {
 			event2 := NewInputEvent("MoneyTransferred", NewTags("account_id", "acc1"), toJSON(map[string]string{"amount": "50"}))
 			events := []InputEvent{event1, event2}
 
-			_, err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Define projectors with different initial states
@@ -314,7 +314,7 @@ var _ = Describe("Batch Projection", func() {
 				}},
 			}
 
-			channelStore := store.(CrabletEventStore)
+			channelStore := store.(ChannelEventStore)
 			states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -328,7 +328,7 @@ var _ = Describe("Batch Projection", func() {
 			event2 := NewInputEvent("MoneyTransferred", NewTags("account_id", "acc1"), toJSON(map[string]string{"amount": "50"}))
 			events := []InputEvent{event1, event2}
 
-			_, err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Define projector with complex state
@@ -348,7 +348,7 @@ var _ = Describe("Batch Projection", func() {
 			}
 
 			// Test ProjectDecisionModel
-			channelStore := store.(CrabletEventStore)
+			channelStore := store.(ChannelEventStore)
 			states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -364,7 +364,7 @@ var _ = Describe("Batch Projection", func() {
 				}},
 			}
 
-			channelStore := store.(CrabletEventStore)
+			channelStore := store.(ChannelEventStore)
 			_, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("nil transition function"))
@@ -381,7 +381,7 @@ var _ = Describe("Batch Projection", func() {
 				}},
 			}
 
-			channelStore := store.(CrabletEventStore)
+			channelStore := store.(ChannelEventStore)
 			_, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("empty query"))
@@ -395,7 +395,7 @@ var _ = Describe("Batch Projection", func() {
 			event4 := NewInputEvent("OrderCompleted", NewTags("order_id", "order1"), toJSON(map[string]string{"status": "completed"}))
 			events := []InputEvent{event1, event2, event3, event4}
 
-			_, err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Define projectors with different query types
@@ -424,7 +424,7 @@ var _ = Describe("Batch Projection", func() {
 			}
 
 			// Test ProjectDecisionModel
-			channelStore := store.(CrabletEventStore)
+			channelStore := store.(ChannelEventStore)
 			states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -443,7 +443,7 @@ var _ = Describe("Batch Projection", func() {
 				events[i] = event
 			}
 
-			_, err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Define projector
@@ -458,7 +458,7 @@ var _ = Describe("Batch Projection", func() {
 			}
 
 			// Test with cursor streaming
-			channelStore := store.(CrabletEventStore)
+			channelStore := store.(ChannelEventStore)
 			states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 

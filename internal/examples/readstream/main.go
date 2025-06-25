@@ -28,8 +28,8 @@ func main() {
 		log.Fatalf("Failed to create event store: %v", err)
 	}
 
-	// Cast to CrabletEventStore for extended functionality
-	channelStore := store.(dcb.CrabletEventStore)
+	// Cast to ChannelEventStore for extended functionality
+	channelStore := store.(dcb.ChannelEventStore)
 
 	// Define projectors
 	accountProjector := dcb.StateProjector{
@@ -94,7 +94,7 @@ func main() {
 	events := dcb.NewEventBatch(accountOpenedEvent, transactionProcessedEvent)
 
 	// Append events
-	position, err := store.Append(ctx, events, nil)
+	err = store.Append(ctx, events, nil)
 	if err != nil {
 		log.Fatalf("Failed to append events: %v", err)
 	}
@@ -121,8 +121,7 @@ func main() {
 
 	// The AppendCondition can be used for optimistic locking
 	fmt.Printf("\n=== Append Condition for Optimistic Locking ===\n")
-	fmt.Printf("FailIfEventsMatch: %+v\n", appendCondition.FailIfEventsMatch)
-	fmt.Printf("After position: %d\n", *appendCondition.After)
+	fmt.Printf("AppendCondition created for optimistic locking\n")
 
 	// Example: Use the AppendCondition to append new events
 	newTransactionEvent := dcb.NewInputEvent(
@@ -134,7 +133,7 @@ func main() {
 	newEvents := dcb.NewEventBatch(newTransactionEvent)
 
 	fmt.Println("\n=== Appending New Events with Optimistic Locking ===")
-	newPosition, err := store.Append(ctx, newEvents, &appendCondition)
+	err = store.Append(ctx, newEvents, appendCondition)
 	if err != nil {
 		log.Fatalf("Failed to append new events: %v", err)
 	}

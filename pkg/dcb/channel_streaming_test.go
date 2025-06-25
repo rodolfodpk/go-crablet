@@ -12,7 +12,7 @@ import (
 var _ = Describe("Channel-Based Streaming", func() {
 	var (
 		store        EventStore
-		channelStore CrabletEventStore
+		channelStore ChannelEventStore
 		ctx          context.Context
 	)
 
@@ -20,8 +20,8 @@ var _ = Describe("Channel-Based Streaming", func() {
 		// Use shared PostgreSQL container and truncate events between tests
 		store = NewEventStoreFromPool(pool)
 		var ok bool
-		channelStore, ok = store.(CrabletEventStore)
-		Expect(ok).To(BeTrue(), "Store should implement CrabletEventStore")
+		channelStore, ok = store.(ChannelEventStore)
+		Expect(ok).To(BeTrue(), "Store should implement ChannelEventStore")
 		ctx = context.Background()
 
 		// Truncate events table before each test
@@ -38,7 +38,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 			events := []InputEvent{event1, event2, event3}
 
-			_, err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Test channel-based streaming
@@ -75,7 +75,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 			events := []InputEvent{event1, event2}
 
-			_, err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Create cancellable context
@@ -107,7 +107,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 				events[i] = event
 			}
 
-			_, err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Test with small batch size
@@ -134,7 +134,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 			events := []InputEvent{event1, event2, event3}
 
-			_, err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Define projectors
@@ -207,7 +207,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 			events := []InputEvent{event1, event2}
 
-			_, err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Create cancellable context
@@ -277,7 +277,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 			events := []InputEvent{event1, event2, event3}
 
-			_, err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Define projectors for different event types
@@ -339,7 +339,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 				events[i] = event
 			}
 
-			_, err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Define projector
@@ -371,29 +371,15 @@ var _ = Describe("Channel-Based Streaming", func() {
 	})
 
 	Describe("Extension Interface Pattern", func() {
-		It("should properly implement CrabletEventStore interface", func() {
-			// Verify that the store implements both interfaces
-			var eventStore EventStore = store
-			var channelEventStore CrabletEventStore = channelStore
-
-			// Test that we can use both interfaces
-			Expect(eventStore).NotTo(BeNil())
+		It("should properly implement ChannelEventStore interface", func() {
+			// Test that the store implements the ChannelEventStore interface
+			var channelEventStore ChannelEventStore = channelStore
 			Expect(channelEventStore).NotTo(BeNil())
 
-			// Test that channel store has all EventStore methods
-			_, ok := channelEventStore.(EventStore)
-			Expect(ok).To(BeTrue())
-		})
-
-		It("should handle type assertion failures gracefully", func() {
-			// Create a store that doesn't implement CrabletEventStore
-			// This would be a different implementation
-			regularStore := store
-
-			// Try to cast to CrabletEventStore
-			_, ok := regularStore.(CrabletEventStore)
-			// This should be true for our implementation, but we're testing the pattern
-			Expect(ok).To(BeTrue())
+			// Test that our implementation does implement ChannelEventStore
+			// (since our eventStore has the ReadStreamChannel method)
+			_, ok := store.(ChannelEventStore)
+			Expect(ok).To(BeTrue(), "Our EventStore implementation should implement ChannelEventStore")
 		})
 	})
 
@@ -406,7 +392,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 				events[i] = event
 			}
 
-			_, err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Test channel-based streaming performance

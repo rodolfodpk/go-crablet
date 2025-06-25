@@ -28,10 +28,10 @@ func main() {
 		}
 
 		// Use same pool configuration as web app for fair benchmarking
-		config.MaxConns = 300
-		config.MinConns = 100
-		config.MaxConnLifetime = 15 * time.Minute
-		config.MaxConnIdleTime = 10 * time.Minute
+		config.MaxConns = 50                      // Reduced from 300 to prevent exhaustion
+		config.MinConns = 10                      // Reduced from 100 to prevent exhaustion
+		config.MaxConnLifetime = 10 * time.Minute // Reduced from 15 minutes
+		config.MaxConnIdleTime = 5 * time.Minute  // Reduced from 10 minutes
 		config.HealthCheckPeriod = 30 * time.Second
 
 		pool, err := pgxpool.NewWithConfig(ctx, config)
@@ -59,10 +59,10 @@ func main() {
 	}
 
 	// Use same pool configuration as web app for fair benchmarking
-	config.MaxConns = 300
-	config.MinConns = 100
-	config.MaxConnLifetime = 15 * time.Minute
-	config.MaxConnIdleTime = 10 * time.Minute
+	config.MaxConns = 50                      // Reduced from 300 to prevent exhaustion
+	config.MinConns = 10                      // Reduced from 100 to prevent exhaustion
+	config.MaxConnLifetime = 10 * time.Minute // Reduced from 15 minutes
+	config.MaxConnIdleTime = 5 * time.Minute  // Reduced from 10 minutes
 	config.HealthCheckPeriod = 30 * time.Second
 
 	pool, err := pgxpool.NewWithConfig(ctx, config)
@@ -77,8 +77,8 @@ func main() {
 		log.Fatalf("Failed to create event store: %v", err)
 	}
 
-	// Check if CrabletEventStore is available
-	channelStore, hasChannel := store.(dcb.CrabletEventStore)
+	// Check if ChannelEventStore is available
+	channelStore, hasChannel := store.(dcb.ChannelEventStore)
 
 	fmt.Println("=== DCB Performance Benchmarks ===")
 	fmt.Printf("Database: localhost:5432/dcb_app\n")
@@ -124,7 +124,7 @@ func runReadBenchmarks(ctx context.Context, store dcb.EventStore) {
 	fmt.Println()
 }
 
-func runStreamBenchmarks(ctx context.Context, store dcb.EventStore, channelStore dcb.CrabletEventStore, hasChannel bool) {
+func runStreamBenchmarks(ctx context.Context, store dcb.EventStore, channelStore dcb.ChannelEventStore, hasChannel bool) {
 	fmt.Println("--- Streaming Benchmarks ---")
 
 	// Iterator vs Channel comparison
@@ -138,7 +138,7 @@ func runStreamBenchmarks(ctx context.Context, store dcb.EventStore, channelStore
 	fmt.Println()
 }
 
-func runProjectionBenchmarks(ctx context.Context, store dcb.EventStore, channelStore dcb.CrabletEventStore, hasChannel bool) {
+func runProjectionBenchmarks(ctx context.Context, store dcb.EventStore, channelStore dcb.ChannelEventStore, hasChannel bool) {
 	fmt.Println("--- Projection Benchmarks ---")
 
 	// Single projector
@@ -162,7 +162,7 @@ func benchmarkSingleAppend(ctx context.Context, store dcb.EventStore) {
 
 	start := time.Now()
 	// Use batch append with a single event to demonstrate the pattern
-	_, err := store.Append(ctx, []dcb.InputEvent{event}, nil)
+	err := store.Append(ctx, []dcb.InputEvent{event}, nil)
 	duration := time.Since(start)
 
 	if err != nil {
@@ -186,7 +186,7 @@ func benchmarkBatchAppend(ctx context.Context, store dcb.EventStore) {
 		}
 
 		start := time.Now()
-		_, err := store.Append(ctx, events, nil)
+		err := store.Append(ctx, events, nil)
 		duration := time.Since(start)
 
 		if err != nil {
@@ -215,7 +215,7 @@ func benchmarkConcurrentAppend(ctx context.Context, store dcb.EventStore) {
 				for j := 0; j < eventsPerGoroutine; j++ {
 					events[j] = dcb.NewInputEvent("TestEvent", dcb.NewTags("test", "concurrent", "goroutine", fmt.Sprintf("%d", id), "index", fmt.Sprintf("%d", j)), []byte(`{"value": "test"}`))
 				}
-				_, err := store.Append(ctx, events, nil)
+				err := store.Append(ctx, events, nil)
 				if err != nil {
 					fmt.Printf("    Goroutine %d error: %v\n", id, err)
 				}
@@ -257,7 +257,7 @@ func setupTestData(ctx context.Context, store dcb.EventStore) {
 			courseEvents[j] = dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", courseID), []byte(fmt.Sprintf(`{"courseId": "%s", "name": "Course %d", "capacity": 100, "instructor": "Instructor %d"}`, courseID, i+j, i+j)))
 		}
 
-		_, err := store.Append(ctx, courseEvents, nil)
+		err := store.Append(ctx, courseEvents, nil)
 		if err != nil {
 			fmt.Printf("Error creating courses batch %d-%d: %v\n", i, end-1, err)
 			return
@@ -277,7 +277,7 @@ func setupTestData(ctx context.Context, store dcb.EventStore) {
 			studentEvents[j] = dcb.NewInputEvent("StudentRegistered", dcb.NewTags("student_id", studentID), []byte(fmt.Sprintf(`{"studentId": "%s", "name": "Student %d", "email": "student%d@example.com"}`, studentID, i+j, i+j)))
 		}
 
-		_, err := store.Append(ctx, studentEvents, nil)
+		err := store.Append(ctx, studentEvents, nil)
 		if err != nil {
 			fmt.Printf("Error creating students batch %d-%d: %v\n", i, end-1, err)
 			return
@@ -298,7 +298,7 @@ func setupTestData(ctx context.Context, store dcb.EventStore) {
 			enrollmentEvents[j] = dcb.NewInputEvent("StudentEnrolledInCourse", dcb.NewTags("student_id", studentID, "course_id", courseID), []byte(fmt.Sprintf(`{"studentId": "%s", "courseId": "%s", "enrolledAt": "2024-01-01"}`, studentID, courseID)))
 		}
 
-		_, err := store.Append(ctx, enrollmentEvents, nil)
+		err := store.Append(ctx, enrollmentEvents, nil)
 		if err != nil {
 			fmt.Printf("Error creating enrollments batch %d-%d: %v\n", i, end-1, err)
 			return
@@ -371,7 +371,7 @@ func benchmarkComplexQueries(ctx context.Context, store dcb.EventStore) {
 	}
 }
 
-func benchmarkIteratorVsChannel(ctx context.Context, store dcb.EventStore, channelStore dcb.CrabletEventStore) {
+func benchmarkIteratorVsChannel(ctx context.Context, store dcb.EventStore, channelStore dcb.ChannelEventStore) {
 	fmt.Println("Iterator vs Channel:")
 
 	// DCB-focused query: specific student's enrollments instead of all enrollments
@@ -395,7 +395,7 @@ func benchmarkIteratorVsChannel(ctx context.Context, store dcb.EventStore, chann
 	}
 }
 
-func benchmarkMemoryUsage(ctx context.Context, store dcb.EventStore, channelStore dcb.CrabletEventStore, hasChannel bool) {
+func benchmarkMemoryUsage(ctx context.Context, store dcb.EventStore, channelStore dcb.ChannelEventStore, hasChannel bool) {
 	fmt.Println("Memory Usage Comparison:")
 
 	// This would require runtime.ReadMemStats() for actual memory measurement
@@ -403,7 +403,7 @@ func benchmarkMemoryUsage(ctx context.Context, store dcb.EventStore, channelStor
 	fmt.Println("  (Memory measurement requires runtime.ReadMemStats())")
 }
 
-func benchmarkSingleProjector(ctx context.Context, store dcb.EventStore, channelStore dcb.CrabletEventStore) {
+func benchmarkSingleProjector(ctx context.Context, store dcb.EventStore, channelStore dcb.ChannelEventStore) {
 	fmt.Println("Single Projector:")
 
 	// DCB-focused projector: count courses in specific category instead of all courses
@@ -429,7 +429,7 @@ func benchmarkSingleProjector(ctx context.Context, store dcb.EventStore, channel
 	}
 }
 
-func benchmarkMultipleProjectors(ctx context.Context, store dcb.EventStore, channelStore dcb.CrabletEventStore) {
+func benchmarkMultipleProjectors(ctx context.Context, store dcb.EventStore, channelStore dcb.ChannelEventStore) {
 	fmt.Println("Multiple Projectors:")
 
 	// DCB-focused projectors: specific targeted queries instead of full scans
@@ -480,7 +480,7 @@ func benchmarkMultipleProjectors(ctx context.Context, store dcb.EventStore, chan
 	}
 }
 
-func benchmarkChannelProjection(ctx context.Context, channelStore dcb.CrabletEventStore) {
+func benchmarkChannelProjection(ctx context.Context, channelStore dcb.ChannelEventStore) {
 	fmt.Println("Channel Projection:")
 
 	// DCB-focused projector: specific category instead of all courses

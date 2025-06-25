@@ -31,7 +31,7 @@ http_reqs..........................: 10700  1069.493809/s
 iterations.........................: 5350   534.746904/s
 ```
 
-## Up50-Scenario Test (8m)
+## Full Scenario Test (5m, up to 100 VUs)
 
 **Purpose**: Sustained load testing with gradual ramp-up to 50 VUs, testing DCB-focused queries
 

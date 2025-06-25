@@ -40,7 +40,7 @@ var _ = Describe("Append Helpers", func() {
 
 			// Try to append the event - this should fail validation
 			events := []InputEvent{event}
-			_, err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events, nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("invalid input syntax for type json"))
 		})
@@ -52,7 +52,7 @@ var _ = Describe("Append Helpers", func() {
 
 			// Try to append the event - this should fail validation
 			events := []InputEvent{event}
-			_, err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events, nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("empty type"))
 		})
@@ -65,7 +65,7 @@ var _ = Describe("Append Helpers", func() {
 
 			// Try to append the event - this should fail validation
 			events := []InputEvent{event}
-			_, err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events, nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("empty key"))
 		})
@@ -78,7 +78,7 @@ var _ = Describe("Append Helpers", func() {
 
 			// Try to append the event - this should fail validation
 			events := []InputEvent{event}
-			_, err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events, nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("empty value"))
 		})
@@ -128,25 +128,24 @@ var _ = Describe("Append Helpers", func() {
 			event2 := NewInputEvent("TestEvent", NewTags("key", "value2"), toJSON(map[string]string{"data": "value2"}))
 			events := []InputEvent{event1, event2}
 
-			position, err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(position).To(BeNumerically(">", 0))
 		})
 
 		It("should append events with After condition", func() {
 			// First append
 			event1 := NewInputEvent("TestEvent", NewTags("key", "value1"), toJSON(map[string]string{"data": "value1"}))
 			events1 := []InputEvent{event1}
-			position1, err := store.Append(ctx, events1, nil)
+			err := store.Append(ctx, events1, nil)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Second append with After condition
+			// Second append with After condition (using position 1 since we just appended an event)
 			event2 := NewInputEvent("TestEvent", NewTags("key", "value2"), toJSON(map[string]string{"data": "value2"}))
 			events2 := []InputEvent{event2}
+			position1 := int64(1)
 			condition := NewAppendConditionAfter(&position1)
-			position2, err := store.Append(ctx, events2, &condition)
+			err = store.Append(ctx, events2, condition)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(position2).To(BeNumerically(">", position1))
 		})
 
 		It("should allow append with non-existent After position (modern event store semantics)", func() {
@@ -155,7 +154,7 @@ var _ = Describe("Append Helpers", func() {
 
 			invalidPosition := int64(999999)
 			condition := NewAppendConditionAfter(&invalidPosition)
-			_, err := store.Append(ctx, events, &condition)
+			err := store.Append(ctx, events, condition)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -164,7 +163,7 @@ var _ = Describe("Append Helpers", func() {
 			events := []InputEvent{
 				NewInputEvent("UserCreated", NewTags("user_id", "123"), toJSON(map[string]string{"name": "John"})),
 			}
-			_, err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Second append with FailIfEventsMatch condition
@@ -176,7 +175,7 @@ var _ = Describe("Append Helpers", func() {
 					{EventTypes: []string{"UserCreated"}, Tags: []Tag{{Key: "user_id", Value: "123"}}},
 				},
 			})
-			_, err = store.Append(ctx, events2, &condition)
+			err = store.Append(ctx, events2, condition)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("matching events found"))
 		})
@@ -191,20 +190,20 @@ var _ = Describe("Append Helpers", func() {
 					{EventTypes: []string{"UserUpdated"}, Tags: []Tag{{Key: "user_id", Value: "123"}}},
 				},
 			})
-			_, err := store.Append(ctx, events, &condition)
+			err := store.Append(ctx, events, condition)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Describe("Append validation", func() {
 		It("should validate empty events slice", func() {
-			_, err := store.Append(ctx, []InputEvent{}, nil)
+			err := store.Append(ctx, []InputEvent{}, nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("empty"))
 		})
 
 		It("should validate nil events slice", func() {
-			_, err := store.Append(ctx, nil, nil)
+			err := store.Append(ctx, nil, nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("empty"))
 		})
@@ -217,7 +216,7 @@ var _ = Describe("Append Helpers", func() {
 				events[i] = event
 			}
 
-			_, err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events, nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("exceeds maximum"))
 		})
@@ -229,7 +228,7 @@ var _ = Describe("Append Helpers", func() {
 				{Type: "", Tags: NewTags("key", "value"), Data: toJSON(map[string]string{"data": "invalid"})}, // Empty type
 			}
 
-			_, err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events, nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("empty type"))
 		})

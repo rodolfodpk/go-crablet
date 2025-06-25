@@ -12,12 +12,14 @@ client.load(['proto'], 'eventstore.proto');
 // Test configuration - optimized for higher resource allocation
 export const options = {
   stages: [
-    { duration: '30s', target: 10 },   // Ramp up to 10 users
-    { duration: '1m', target: 10 },    // Stay at 10 users
+    { duration: '30s', target: 5 },    // Warm-up: ramp up to 5 users
+    { duration: '30s', target: 5 },    // Stay at 5 users (warm-up)
     { duration: '30s', target: 25 },   // Ramp up to 25 users
-    { duration: '2m', target: 25 },    // Stay at 25 users
+    { duration: '1m', target: 25 },    // Stay at 25 users
     { duration: '30s', target: 50 },   // Ramp up to 50 users
-    { duration: '3m', target: 50 },    // Stay at 50 users
+    { duration: '1m', target: 50 },    // Stay at 50 users
+    { duration: '30s', target: 100 },  // Ramp up to 100 users
+    { duration: '1m', target: 100 },   // Stay at 100 users
     { duration: '30s', target: 0 },    // Ramp down to 0 users
   ],
   thresholds: {

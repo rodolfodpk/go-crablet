@@ -4,10 +4,11 @@ import (
 	"context"
 )
 
-// EventStore defines the interface for event store operations
+// EventStore is the core interface for appending and reading events
+// Append now returns only error
 type EventStore interface {
 	// Append appends events to the store with optional append condition
-	Append(ctx context.Context, events []InputEvent, condition AppendCondition) (int64, error)
+	Append(ctx context.Context, events []InputEvent, condition AppendCondition) error
 
 	// Read reads events matching the query with optional read options
 	Read(ctx context.Context, query Query, options *ReadOptions) (SequencedEvents, error)
@@ -35,9 +36,9 @@ type ProjectionResult struct {
 	Error error
 }
 
-// CrabletEventStore extends EventStore with channel-based streaming capabilities
+// ChannelEventStore extends EventStore with channel-based streaming capabilities
 // This provides an alternative Go-idiomatic interface for event streaming
-type CrabletEventStore interface {
+type ChannelEventStore interface {
 	EventStore
 
 	// ReadStreamChannel creates a channel-based stream of events matching a query

@@ -41,8 +41,8 @@ func main() {
 
 	// Optimize connection pool for high throughput with adaptive sizing
 	// Base configuration on available system resources
-	maxConns := 300 // Increased from 200
-	minConns := 100 // Increased from 50
+	maxConns := 50 // Reduced from 300 to prevent exhaustion
+	minConns := 10 // Reduced from 100 to prevent exhaustion
 
 	// Adaptive sizing based on environment or system resources
 	if maxConnsEnv := os.Getenv("DB_MAX_CONNS"); maxConnsEnv != "" {
@@ -59,8 +59,8 @@ func main() {
 
 	config.MaxConns = int32(maxConns)
 	config.MinConns = int32(minConns)
-	config.MaxConnLifetime = 15 * time.Minute // Increased from 10 minutes
-	config.MaxConnIdleTime = 10 * time.Minute // Increased from 5 minutes
+	config.MaxConnLifetime = 10 * time.Minute // Reduced from 15 minutes
+	config.MaxConnIdleTime = 5 * time.Minute  // Reduced from 10 minutes
 	config.HealthCheckPeriod = 30 * time.Second
 
 	// Connect to database with retry logic
@@ -492,7 +492,7 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 
 	// Execute append
 	ctx := context.Background()
-	_, err := s.store.Append(ctx, inputEvents, condition)
+	err := s.store.Append(ctx, inputEvents, condition)
 
 	duration := time.Since(start)
 	durationMicroseconds := duration.Microseconds()

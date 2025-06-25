@@ -1,4 +1,4 @@
-.PHONY: help build run test clean k6-test setup-db start-db stop-db run-server kill-server quick-test up50-scenario full-scan concurrency-test ensure-server cleanup-db
+.PHONY: help build run test clean k6-test setup-db start-db stop-db run-server kill-server quick-test full-scan concurrency-test ensure-server cleanup-db full
 
 # Default target
 help:
@@ -16,7 +16,7 @@ help:
 	@echo "  ensure-server - Ensure server is running on port 8080"
 	@echo "  cleanup-db   - Clean database using HTTP endpoint"
 	@echo "  quick-test   - Quick k6 test (10s)"
-	@echo "  up50-scenario - Up50 scenario k6 test (8m)"
+	@echo "  full - Full scenario k6 test (5m, up to 100 VUs)"
 	@echo "  full-scan    - Full scan k6 test (resource-intensive)"
 	@echo "  concurrency-test - Concurrency test (4m)"
 
@@ -59,7 +59,7 @@ test:
 	@make run-server &
 	@sleep 3
 	@echo "Running k6 load test..."
-	k6 run up50-scenario.js
+	k6 run full.js
 	@echo "Cleaning up after test..."
 	@make kill-server
 	@make stop-db
@@ -131,7 +131,7 @@ clean-test:
 	@make run-server &
 	@sleep 3
 	@echo "Running k6 load test..."
-	k6 run up50-scenario.js
+	k6 run full.js
 	@echo "Cleaning up after test..."
 	@make kill-server
 	@make stop-db
@@ -158,17 +158,15 @@ DB_URL=postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable
 PORT=8080
 
 # Benchmark
-benchmark: clean start-db run-server up50-scenario
+benchmark: clean start-db run-server full
 	@echo "\nBenchmark complete."
 
-# Up50 scenario test
-up50-scenario:
-	@echo "Running up50-scenario test (8m)..."
-	@make ensure-server
-	@make cleanup-db
-	@echo "Running k6 up50-scenario test..."
-	k6 run up50-scenario.js
-	@echo "Up50-scenario test completed."
+# Full scenario test
+full:
+	@echo "Running full scenario test (5m, up to 100 VUs)..."
+	@echo "Running k6 full scenario test..."
+	k6 run full.js
+	@echo "Full scenario test completed."
 
 # Full scan test (resource-intensive queries)
 full-scan:

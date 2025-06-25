@@ -208,7 +208,7 @@ For benchmark-related issues:
 
 ## gRPC Benchmarks
 
-The latest gRPC benchmark results are available in [internal/grpc-app/BENCHMARK.md](../internal/grpc-app/BENCHMARK.md). Each test is run with a clean database using the HTTP `/cleanup` endpoint before the benchmark. Only the k6 screen output is shown for each scenario (quick, up50-scenario, full-scan, concurrency).
+The latest gRPC benchmark results are available in [internal/grpc-app/BENCHMARK.md](../internal/grpc-app/BENCHMARK.md). Each test is run with a clean database using the HTTP `/cleanup` endpoint before the benchmark. Only the k6 screen output is shown for each scenario (quick, full, full-scan, concurrency).
 
 Older reports have been removed to keep the documentation concise and up to date.
 

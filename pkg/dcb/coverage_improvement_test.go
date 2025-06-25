@@ -261,7 +261,7 @@ var _ = Describe("Coverage Improvement Tests", func() {
 			event2 := NewInputEvent("UserUpdated", NewTags("user_id", "123"), []byte(`{"name": "Jane"}`))
 			events := NewEventBatch(event1, event2)
 
-			_, err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Now dump events - this should not panic
@@ -278,7 +278,7 @@ var _ = Describe("Coverage Improvement Tests", func() {
 			}
 			emptyQuery := Query{Items: []QueryItem{}}
 			condition := NewAppendCondition(&emptyQuery)
-			_, err := store.Append(ctx, events, &condition)
+			err := store.Append(ctx, events, condition)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -287,7 +287,7 @@ var _ = Describe("Coverage Improvement Tests", func() {
 			events1 := []InputEvent{
 				NewInputEvent("TestEvent", NewTags("key", "value1"), toJSON(map[string]string{"data": "value1"})),
 			}
-			_, err := store.Append(ctx, events1, nil)
+			err := store.Append(ctx, events1, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Second append with condition
@@ -300,7 +300,7 @@ var _ = Describe("Coverage Improvement Tests", func() {
 				},
 			}
 			condition := NewAppendCondition(&query)
-			_, err = store.Append(ctx, events2, &condition)
+			err = store.Append(ctx, events2, condition)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("matching events found"))
 		})

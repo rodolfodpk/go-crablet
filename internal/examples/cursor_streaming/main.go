@@ -25,8 +25,8 @@ func main() {
 		log.Fatalf("Failed to create event store: %v", err)
 	}
 
-	// Cast to CrabletEventStore to access extended methods
-	channelStore := store.(dcb.CrabletEventStore)
+	// Cast to ChannelEventStore to access extended methods
+	channelStore := store.(dcb.ChannelEventStore)
 
 	ctx := context.Background()
 
@@ -35,11 +35,11 @@ func main() {
 	events := createTestEvents(1000) // Create 1000 events
 
 	// Append events
-	position, err := store.Append(ctx, events, nil)
+	err = store.Append(ctx, events, nil)
 	if err != nil {
 		log.Fatalf("Failed to append events: %v", err)
 	}
-	fmt.Printf("Appended %d events, last position: %d\n", len(events), position)
+	fmt.Printf("Appended %d events\n", len(events))
 
 	// Define projectors
 	projectors := []dcb.BatchProjector{
@@ -97,7 +97,7 @@ func main() {
 
 	fmt.Printf("Order count: %d\n", states["order_count"])
 	fmt.Printf("Total amount: $%.2f\n", states["total_amount"])
-	fmt.Printf("Last position: %d\n", *appendCondition.After)
+	fmt.Printf("AppendCondition created for optimistic locking\n")
 
 	fmt.Println("\n=== ReadStream has been removed - use Read for batch operations ===")
 	// ReadStream method has been removed from the interface
@@ -118,6 +118,26 @@ func main() {
 	}
 
 	fmt.Printf("Processed %d events via batch read\n", count)
+
+	// The AppendCondition can be used for optimistic locking
+	fmt.Printf("\n=== Append Condition for Optimistic Locking ===\n")
+	fmt.Printf("AppendCondition created for optimistic locking\n")
+
+	// Example: Use the AppendCondition to append new events
+	newTransactionEvent := dcb.NewInputEvent(
+		"TransactionProcessed",
+		dcb.NewTags("account_id", "acc123"),
+		[]byte(`{"amount": 200}`),
+	)
+
+	newEvents := dcb.NewEventBatch(newTransactionEvent)
+
+	fmt.Println("\n=== Appending New Events with Optimistic Locking ===")
+	err = store.Append(ctx, newEvents, appendCondition)
+	if err != nil {
+		log.Fatalf("Failed to append new events: %v", err)
+	}
+	fmt.Printf("Successfully appended new events\n")
 }
 
 func createTestEvents(count int) []dcb.InputEvent {

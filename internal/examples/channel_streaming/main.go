@@ -44,7 +44,7 @@ func main() {
 	}
 
 	// Append events
-	_, err = store.Append(ctx, events, nil)
+	err = store.Append(ctx, events, nil)
 	if err != nil {
 		log.Fatalf("Failed to append events: %v", err)
 	}
@@ -67,8 +67,8 @@ func main() {
 	// ReadStream method has been removed from the interface
 	// Use ReadStreamChannel for streaming operations
 
-	// Cast to CrabletEventStore to access ReadStreamChannel
-	channelStore := store.(dcb.CrabletEventStore)
+	// Cast to ChannelEventStore to access ReadStreamChannel
+	channelStore := store.(dcb.ChannelEventStore)
 
 	eventChan, err := channelStore.ReadStreamChannel(ctx, query)
 	if err != nil {
