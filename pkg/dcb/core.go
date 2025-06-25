@@ -61,11 +61,26 @@ type Event struct {
 }
 
 // InputEvent represents an event to be appended to the store
-type InputEvent struct {
-	Type string `json:"type"`
-	Tags []Tag  `json:"tags"`
-	Data []byte `json:"data"`
+// This is now an opaque type: construct only via NewInputEvent
+// and access fields only via methods
+
+type InputEvent interface {
+	isInputEvent()
+	GetType() string
+	GetTags() []Tag
+	GetData() []byte
 }
+
+type inputEvent struct {
+	eventType string
+	tags      []Tag
+	data      []byte
+}
+
+func (e *inputEvent) isInputEvent()   {}
+func (e *inputEvent) GetType() string { return e.eventType }
+func (e *inputEvent) GetTags() []Tag  { return e.tags }
+func (e *inputEvent) GetData() []byte { return e.data }
 
 // Tag represents a key-value pair for event categorization
 type Tag struct {

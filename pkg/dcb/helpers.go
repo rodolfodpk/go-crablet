@@ -118,20 +118,20 @@ func NewQueryItem(types []string, tags []Tag) QueryItem {
 // NewInputEvent creates a new InputEvent with the given type, tags, and data.
 // Validation is performed when the event is used in EventStore operations.
 func NewInputEvent(eventType string, tags []Tag, data []byte) InputEvent {
-	return InputEvent{
-		Type: eventType,
-		Tags: tags,
-		Data: data,
+	return &inputEvent{
+		eventType: eventType,
+		tags:      tags,
+		data:      data,
 	}
 }
 
 // NewInputEventUnsafe creates a new InputEvent without validation.
 // Use this only when you're certain the data is valid and you need maximum performance.
 func NewInputEventUnsafe(eventType string, tags []Tag, data []byte) InputEvent {
-	return InputEvent{
-		Type: eventType,
-		Tags: tags,
-		Data: data,
+	return &inputEvent{
+		eventType: eventType,
+		tags:      tags,
+		data:      data,
 	}
 }
 

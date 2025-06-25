@@ -27,16 +27,16 @@ var _ = Describe("Append Helpers", func() {
 	Describe("NewInputEvent", func() {
 		It("should create valid input event", func() {
 			event := NewInputEvent("TestEvent", NewTags("key", "value"), toJSON(map[string]string{"data": "test"}))
-			Expect(event.Type).To(Equal("TestEvent"))
-			Expect(event.Tags).To(Equal(NewTags("key", "value")))
-			Expect(event.Data).To(Equal(toJSON(map[string]string{"data": "test"})))
+			Expect(event.GetType()).To(Equal("TestEvent"))
+			Expect(event.GetTags()).To(Equal(NewTags("key", "value")))
+			Expect(event.GetData()).To(Equal(toJSON(map[string]string{"data": "test"})))
 		})
 
 		It("should validate JSON data", func() {
 			// Create event with invalid JSON - validation should happen in EventStore operations
 			event := NewInputEvent("TestEvent", NewTags("key", "value"), []byte("invalid json"))
-			Expect(event.Type).To(Equal("TestEvent"))
-			Expect(event.Data).To(Equal([]byte("invalid json")))
+			Expect(event.GetType()).To(Equal("TestEvent"))
+			Expect(event.GetData()).To(Equal([]byte("invalid json")))
 
 			// Try to append the event - this should fail validation
 			events := []InputEvent{event}
@@ -48,7 +48,7 @@ var _ = Describe("Append Helpers", func() {
 		It("should validate empty event type", func() {
 			// Create event with empty type - validation should happen in EventStore operations
 			event := NewInputEvent("", NewTags("key", "value"), toJSON(map[string]string{"data": "test"}))
-			Expect(event.Type).To(Equal(""))
+			Expect(event.GetType()).To(Equal(""))
 
 			// Try to append the event - this should fail validation
 			events := []InputEvent{event}
@@ -60,8 +60,8 @@ var _ = Describe("Append Helpers", func() {
 		It("should validate empty tag keys", func() {
 			// Create event with empty tag key - validation should happen in EventStore operations
 			event := NewInputEvent("TestEvent", []Tag{{Key: "", Value: "value"}}, toJSON(map[string]string{"data": "test"}))
-			Expect(event.Type).To(Equal("TestEvent"))
-			Expect(event.Tags[0].Key).To(Equal(""))
+			Expect(event.GetType()).To(Equal("TestEvent"))
+			Expect(event.GetTags()[0].Key).To(Equal(""))
 
 			// Try to append the event - this should fail validation
 			events := []InputEvent{event}
@@ -73,8 +73,8 @@ var _ = Describe("Append Helpers", func() {
 		It("should validate empty tag values", func() {
 			// Create event with empty tag value - validation should happen in EventStore operations
 			event := NewInputEvent("TestEvent", []Tag{{Key: "key", Value: ""}}, toJSON(map[string]string{"data": "test"}))
-			Expect(event.Type).To(Equal("TestEvent"))
-			Expect(event.Tags[0].Value).To(Equal(""))
+			Expect(event.GetType()).To(Equal("TestEvent"))
+			Expect(event.GetTags()[0].Value).To(Equal(""))
 
 			// Try to append the event - this should fail validation
 			events := []InputEvent{event}
@@ -85,12 +85,12 @@ var _ = Describe("Append Helpers", func() {
 
 		It("should handle empty tags", func() {
 			event := NewInputEvent("TestEvent", []Tag{}, toJSON(map[string]string{"data": "test"}))
-			Expect(event.Tags).To(BeEmpty())
+			Expect(event.GetTags()).To(BeEmpty())
 		})
 
 		It("should handle empty data", func() {
 			event := NewInputEvent("TestEvent", NewTags("key", "value"), []byte{})
-			Expect(event.Data).To(BeEmpty())
+			Expect(event.GetData()).To(BeEmpty())
 		})
 	})
 
@@ -217,9 +217,10 @@ var _ = Describe("Append Helpers", func() {
 
 		It("should validate individual events in batch", func() {
 			event1 := NewInputEvent("ValidEvent", NewTags("key", "value"), toJSON(map[string]string{"data": "valid"}))
+			event2 := NewInputEvent("", NewTags("key", "value"), toJSON(map[string]string{"data": "invalid"})) // Empty type
 			events := []InputEvent{
 				event1,
-				{Type: "", Tags: NewTags("key", "value"), Data: toJSON(map[string]string{"data": "invalid"})}, // Empty type
+				event2,
 			}
 
 			err := store.Append(ctx, events, nil)
@@ -234,8 +235,8 @@ var _ = Describe("Append Helpers", func() {
 
 			// This test would require a way to simulate connection errors
 			// For now, just verify the event is created correctly
-			Expect(event.Type).To(Equal("TestEvent"))
-			Expect(event.Tags).To(HaveLen(1))
+			Expect(event.GetType()).To(Equal("TestEvent"))
+			Expect(event.GetTags()).To(HaveLen(1))
 		})
 
 		It("should handle validation errors in batch", func() {
@@ -243,7 +244,7 @@ var _ = Describe("Append Helpers", func() {
 
 			// This test would require a way to simulate validation errors
 			// For now, just verify the event is valid
-			Expect(event.Type).To(Equal("TestEvent"))
+			Expect(event.GetType()).To(Equal("TestEvent"))
 		})
 	})
 })

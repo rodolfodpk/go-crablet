@@ -22,13 +22,16 @@ func main() {
     pool, _ := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")
     store, _ := dcb.NewEventStore(ctx, pool)
 
+    // Cast to ChannelEventStore for extended functionality
+    channelStore := store.(dcb.ChannelEventStore)
+
     // Command 1: Create Course
     createCourseCmd := CreateCourseCommand{
         CourseID: generateUniqueID("course"),
         Title:    "Introduction to Event Sourcing",
         Capacity: 2,
     }
-    err := handleCreateCourse(ctx, store, createCourseCmd)
+    err := handleCreateCourse(ctx, channelStore, createCourseCmd)
     if err != nil {
         log.Fatalf("Create course failed: %v", err)
     }
@@ -39,7 +42,7 @@ func main() {
         Name:      "Alice",
         Email:     "alice@example.com",
     }
-    err = handleRegisterStudent(ctx, store, registerStudentCmd)
+    err = handleRegisterStudent(ctx, channelStore, registerStudentCmd)
     if err != nil {
         log.Fatalf("Register student failed: %v", err)
     }
@@ -49,7 +52,7 @@ func main() {
         StudentID: registerStudentCmd.StudentID,
         CourseID:  createCourseCmd.CourseID,
     }
-    err = handleEnrollStudent(ctx, store, enrollCmd)
+    err = handleEnrollStudent(ctx, channelStore, enrollCmd)
     if err != nil {
         log.Fatalf("Enroll student failed: %v", err)
     }
@@ -64,7 +67,7 @@ func generateUniqueID(prefix string) string {
 
 // Command handlers with their own business rules
 
-func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCourseCommand) error {
+func handleCreateCourse(ctx context.Context, store dcb.ChannelEventStore, cmd CreateCourseCommand) error {
     // Command-specific projectors
     projectors := []dcb.BatchProjector{
         {ID: "courseExists", StateProjector: dcb.StateProjector{
@@ -89,7 +92,7 @@ func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCou
     }
 
     // Append events atomically for this command
-    _, err := store.Append(ctx, events, &appendCondition)
+    err := store.Append(ctx, events, appendCondition)
     if err != nil {
         return fmt.Errorf("failed to create course: %w", err)
     }
@@ -98,7 +101,7 @@ func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCou
     return nil
 }
 
-func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd RegisterStudentCommand) error {
+func handleRegisterStudent(ctx context.Context, store dcb.ChannelEventStore, cmd RegisterStudentCommand) error {
     // Command-specific projectors
     projectors := []dcb.BatchProjector{
         {ID: "studentExists", StateProjector: dcb.StateProjector{
@@ -123,7 +126,7 @@ func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd Regist
     }
 
     // Append events atomically for this command
-    _, err := store.Append(ctx, events, &appendCondition)
+    err := store.Append(ctx, events, appendCondition)
     if err != nil {
         return fmt.Errorf("failed to register student: %w", err)
     }
@@ -132,7 +135,7 @@ func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd Regist
     return nil
 }
 
-func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollStudentCommand) error {
+func handleEnrollStudent(ctx context.Context, store dcb.ChannelEventStore, cmd EnrollStudentCommand) error {
     // Command-specific projectors
     projectors := []dcb.BatchProjector{
         {ID: "courseState", StateProjector: dcb.StateProjector{
@@ -179,7 +182,7 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollSt
     }
 
     // Append events atomically for this command
-    _, err := store.Append(ctx, events, &appendCondition)
+    err := store.Append(ctx, events, appendCondition)
     if err != nil {
         return fmt.Errorf("failed to enroll student: %w", err)
     }
@@ -216,4 +219,10 @@ func mustJSON(v any) []byte {
     return data
 }
 
-Queries must be constructed using helper functions (e.g., `NewQuery`, `NewQueryItem`). Direct struct access is not supported.
+## Key Points
+
+- **Opaque Types**: `Query` and `QueryItem` are opaque types that must be constructed using helper functions (e.g., `NewQuery`, `NewQueryItem`). Direct struct access is not supported.
+- **ChannelEventStore**: The example uses `ChannelEventStore` interface for extended functionality including batch projections.
+- **Append Method**: The `Append` method returns only an error, not a position. This simplifies the API and enforces DCB semantics.
+- **AppendCondition**: Use the interface directly, not as a pointer (`appendCondition` not `&appendCondition`).
+- **Type Safety**: All queries and conditions are constructed through helper functions, ensuring DCB compliance and improving type safety.

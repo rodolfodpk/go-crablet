@@ -154,7 +154,7 @@ func (es *eventStore) Append(ctx context.Context, events []InputEvent, condition
 
 	// Validate events
 	for i, event := range events {
-		if event.Type == "" {
+		if event.GetType() == "" {
 			return &ValidationError{
 				EventStoreError: EventStoreError{
 					Op:  "append",
@@ -167,7 +167,7 @@ func (es *eventStore) Append(ctx context.Context, events []InputEvent, condition
 
 		// Validate tags
 		tagKeys := make(map[string]bool)
-		for _, tag := range event.Tags {
+		for _, tag := range event.GetTags() {
 			if tag.Key == "" {
 				return &ValidationError{
 					EventStoreError: EventStoreError{
@@ -214,9 +214,9 @@ func (es *eventStore) appendEventsWithCondition(ctx context.Context, events []In
 	data := make([][]byte, len(events))
 
 	for i, event := range events {
-		types[i] = event.Type
-		tags[i] = encodeTagsArrayLiteral(TagsToArray(event.Tags))
-		data[i] = event.Data
+		types[i] = event.GetType()
+		tags[i] = encodeTagsArrayLiteral(TagsToArray(event.GetTags()))
+		data[i] = event.GetData()
 	}
 
 	// Convert condition to JSONB for PostgreSQL function

@@ -171,11 +171,7 @@ func convertDCBEvent(event dcb.Event) *pb.Event {
 }
 
 func convertProtoInputEvent(event *pb.InputEvent) dcb.InputEvent {
-	return dcb.InputEvent{
-		Type: event.Type,
-		Tags: convertProtoTags(event.Tags),
-		Data: []byte(event.Data),
-	}
+	return dcb.NewInputEvent(event.Type, convertProtoTags(event.Tags), []byte(event.Data))
 }
 
 func convertProtoAppendCondition(condition *pb.AppendCondition) dcb.AppendCondition {

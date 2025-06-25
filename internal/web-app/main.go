@@ -299,11 +299,7 @@ func convertAppendCondition(condition *AppendCondition) dcb.AppendCondition {
 }
 
 func convertInputEvent(event Event) dcb.InputEvent {
-	return dcb.InputEvent{
-		Type: string(event.Type),
-		Tags: convertTags(event.Tags),
-		Data: []byte(event.Data),
-	}
+	return dcb.NewInputEvent(string(event.Type), convertTags(event.Tags), []byte(event.Data))
 }
 
 func convertInputEvents(events interface{}) ([]dcb.InputEvent, error) {
@@ -351,11 +347,7 @@ func convertInputEvents(events interface{}) ([]dcb.InputEvent, error) {
 			tagsSlice[i] = Tag(tag)
 		}
 
-		return []dcb.InputEvent{{
-			Type: eventType,
-			Tags: convertTags(tagsSlice),
-			Data: []byte(data),
-		}}, nil
+		return []dcb.InputEvent{dcb.NewInputEvent(eventType, convertTags(tagsSlice), []byte(data))}, nil
 
 	case []interface{}:
 		// Array of events
@@ -394,11 +386,7 @@ func convertInputEvents(events interface{}) ([]dcb.InputEvent, error) {
 				tagsSlice[j] = Tag(tag)
 			}
 
-			result[i] = dcb.InputEvent{
-				Type: eventType,
-				Tags: convertTags(tagsSlice),
-				Data: []byte(data),
-			}
+			result[i] = dcb.NewInputEvent(eventType, convertTags(tagsSlice), []byte(data))
 		}
 		return result, nil
 

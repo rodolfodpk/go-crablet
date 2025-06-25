@@ -15,18 +15,18 @@ func prepareEventBatch(events []InputEvent) ([]string, [][]string, [][]byte, err
 	data := make([][]byte, len(events))
 
 	for i, e := range events {
-		types[i] = e.Type
-		data[i] = e.Data
+		types[i] = e.GetType()
+		data[i] = e.GetData()
 
 		// Convert tags to TEXT[] format
-		tagStrings := make([]string, len(e.Tags))
-		for j, tag := range e.Tags {
+		tagStrings := make([]string, len(e.GetTags()))
+		for j, tag := range e.GetTags() {
 			tagStrings[j] = tag.Key + ":" + tag.Value
 		}
 		tags[i] = tagStrings
 
 		// Log event details
-		log.Printf("Appending event %d: Type=%s", i, e.Type)
+		log.Printf("Appending event %d: Type=%s", i, e.GetType())
 	}
 
 	return types, tags, data, nil
