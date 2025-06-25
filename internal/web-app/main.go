@@ -140,6 +140,10 @@ func main() {
 		port = "8080"
 	}
 
+	// Log startup information
+	log.Printf("Starting go-crablet web-app server on port %s", port)
+	log.Printf("Database connected successfully (pool: %d-%d connections)", minConns, maxConns)
+
 	// Configure HTTP server for high performance
 	httpServer := &http.Server{
 		Addr:           ":" + port,
@@ -149,7 +153,9 @@ func main() {
 		MaxHeaderBytes: 1 << 20, // 1MB
 	}
 
-	// Start server without INFO log
+	// Start server with startup log
+	log.Printf("Server listening on http://localhost:%s", port)
+	log.Printf("Health check available at http://localhost:%s/health", port)
 	log.Fatal(httpServer.ListenAndServe())
 }
 

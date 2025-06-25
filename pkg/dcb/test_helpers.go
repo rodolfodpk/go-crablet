@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -97,47 +96,39 @@ func truncateEventsTable(ctx context.Context, pool *pgxpool.Pool) error {
 func dumpEvents(pool *pgxpool.Pool) {
 	rows, err := pool.Query(ctx, `
 		SELECT type, position, tags, data
-		FROM events
+		FROM events 
 		ORDER BY position
 	`)
-	Expect(err).NotTo(HaveOccurred())
-	defer rows.Close()
-	type EventRecord struct {
-		Type     string      `json:"type"`
-		Position int64       `json:"position"`
-		Tags     interface{} `json:"tags"`
-		Data     interface{} `json:"data"`
+	if err != nil {
+		return
 	}
-	events := []EventRecord{}
-	for rows.Next() {
-		var (
-			type_     string
-			position  int64
-			tagsArray []string
-			dataBytes []byte
-		)
-		err := rows.Scan(&type_, &position, &tagsArray, &dataBytes)
-		Expect(err).NotTo(HaveOccurred())
+	defer rows.Close()
 
-		// Convert tags array to map for JSON output
-		tagsMap := make(map[string]string)
-		for _, tagItem := range tagsArray {
-			if parts := strings.SplitN(tagItem, ":", 2); len(parts) == 2 {
-				tagsMap[parts[0]] = parts[1]
-			}
+	// Event structure for scanning
+	type Event struct {
+		Type     string          `json:"type"`
+		Position int64           `json:"position"`
+		Tags     []string        `json:"tags"`
+		Data     json.RawMessage `json:"data"`
+	}
+
+	var events []Event
+	for rows.Next() {
+		var event Event
+		var tagsArray []string
+		var dataBytes []byte
+
+		err := rows.Scan(&event.Type, &event.Position, &tagsArray, &dataBytes)
+		if err != nil {
+			return
 		}
 
-		var data interface{}
-		err = json.Unmarshal(dataBytes, &data)
-		Expect(err).NotTo(HaveOccurred())
-		events = append(events, EventRecord{
-			Type:     type_,
-			Position: position,
-			Tags:     tagsMap,
-			Data:     data,
-		})
+		event.Tags = tagsArray
+		event.Data = dataBytes
+
+		events = append(events, event)
 	}
-	Expect(rows.Err()).NotTo(HaveOccurred())
+
 	jsonData, err := json.MarshalIndent(events, "", "  ")
 	Expect(err).NotTo(HaveOccurred())
 	GinkgoWriter.Println("--- Events Table Contents (JSON) ---")

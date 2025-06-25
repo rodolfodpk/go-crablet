@@ -236,6 +236,11 @@ func (es *eventStore) appendEventsWithCondition(ctx context.Context, events []In
 	}
 
 	// Execute PostgreSQL function for atomic append
+	for i, tagLiteral := range tags {
+		if len(tagLiteral) < 2 || tagLiteral[0] != '{' || tagLiteral[len(tagLiteral)-1] != '}' {
+			return fmt.Errorf("event %d: tag is not a valid Postgres array literal: %q", i, tagLiteral)
+		}
+	}
 	_, err = es.pool.Exec(ctx, `
 		SELECT append_events_with_condition($1, $2, $3, $4)
 	`, types, tags, data, conditionJSON)

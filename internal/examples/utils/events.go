@@ -23,13 +23,14 @@ func DumpEvents(ctx context.Context, pool *pgxpool.Pool) {
 	}
 	defer rows.Close()
 
-	fmt.Printf("%-8s %-20s %-30s %-50s %-20s\n",
+	fmt.Printf("%-8s %-20s %-30s %-50s %-15s\n",
 		"Position", "Type", "Tags", "Data", "Created At")
 	fmt.Println(strings.Repeat("-", 130))
 
 	for rows.Next() {
 		var eventType string
-		var tags, data []byte
+		var tags []string
+		var data []byte
 		var position int64
 		var createdAt time.Time
 
@@ -39,17 +40,65 @@ func DumpEvents(ctx context.Context, pool *pgxpool.Pool) {
 			continue
 		}
 
-		// Truncate long fields for display
-		tagsStr := string(tags)
-		dataStr := string(data)
+		// Format tags
+		tagsStr := strings.Join(tags, ", ")
 		if len(tagsStr) > 28 {
 			tagsStr = tagsStr[:25] + "..."
 		}
+
+		// Format data
+		dataStr := string(data)
 		if len(dataStr) > 48 {
 			dataStr = dataStr[:45] + "..."
 		}
 
-		fmt.Printf("%-8d %-20s %-30s %-50s %-20s\n",
-			position, eventType, tagsStr, dataStr, createdAt.Format("15:04:05"))
+		fmt.Printf("%-8d %-20s %-30s %-50s %-15s\n",
+			position, eventType, tagsStr, dataStr, createdAt.Format("2006-01-02 15:04:05"))
+	}
+}
+
+func PrintEventsTable(pool *pgxpool.Pool) {
+	rows, err := pool.Query(context.Background(), `
+		SELECT type, tags, data, position, created_at
+		FROM events 
+		ORDER BY position
+	`)
+	if err != nil {
+		fmt.Printf("Error querying events: %v\n", err)
+		return
+	}
+	defer rows.Close()
+
+	fmt.Printf("%-8s %-20s %-30s %-50s %-15s\n",
+		"Position", "Type", "Tags", "Data", "Created At")
+	fmt.Println(strings.Repeat("-", 130))
+
+	for rows.Next() {
+		var eventType string
+		var tags []string
+		var data []byte
+		var position int64
+		var createdAt time.Time
+
+		err := rows.Scan(&eventType, &tags, &data, &position, &createdAt)
+		if err != nil {
+			fmt.Printf("Error scanning row: %v\n", err)
+			continue
+		}
+
+		// Format tags
+		tagsStr := strings.Join(tags, ", ")
+		if len(tagsStr) > 28 {
+			tagsStr = tagsStr[:25] + "..."
+		}
+
+		// Format data
+		dataStr := string(data)
+		if len(dataStr) > 48 {
+			dataStr = dataStr[:45] + "..."
+		}
+
+		fmt.Printf("%-8d %-20s %-30s %-50s %-15s\n",
+			position, eventType, tagsStr, dataStr, createdAt.Format("2006-01-02 15:04:05"))
 	}
 }
