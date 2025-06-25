@@ -1,4 +1,4 @@
-.PHONY: help build run test clean k6-test setup-db start-db stop-db run-server kill-server quick-test full-scan concurrency-test ensure-server cleanup-db full
+.PHONY: help build run test clean k6-test setup-db start-db stop-db run-server kill-server quick-test full-scan concurrency-test ensure-server cleanup-db full append-quick append-full
 
 # Default target
 help:
@@ -19,6 +19,8 @@ help:
 	@echo "  full - Full scenario k6 test (5m, up to 100 VUs)"
 	@echo "  full-scan    - Full scan k6 test (resource-intensive)"
 	@echo "  concurrency-test - Concurrency test (4m)"
+	@echo "  append-quick - Quick append benchmark (30s)"
+	@echo "  append-full  - Full append benchmark (6m, up to 200 VUs)"
 
 # Build the Go binary
 build:
@@ -193,4 +195,22 @@ concurrency-test:
 	@make cleanup-db
 	@echo "Running k6 concurrency test..."
 	k6 run k6-concurrency-test.js
-	@echo "Concurrency test completed." 
+	@echo "Concurrency test completed."
+
+# Quick append benchmark (30s)
+append-quick:
+	@echo "Running quick append benchmark (30s)..."
+	@make ensure-server
+	@make cleanup-db
+	@echo "Running k6 append quick benchmark..."
+	k6 run append-quick.js
+	@echo "Quick append benchmark completed."
+
+# Full append benchmark (6m, up to 200 VUs)
+append-full:
+	@echo "Running full append benchmark (6m, up to 200 VUs)..."
+	@make ensure-server
+	@make cleanup-db
+	@echo "Running k6 append full benchmark..."
+	k6 run append-benchmark.js
+	@echo "Full append benchmark completed." 

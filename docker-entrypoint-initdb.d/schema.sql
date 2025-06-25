@@ -6,11 +6,12 @@ SELECT 'CREATE DATABASE dcb_app' WHERE NOT EXISTS (SELECT FROM pg_database WHERE
 \c dcb_app;
 
 -- Agnostic event store for DCB, storing events of any type with TEXT[] tags and data.
-CREATE TABLE events (type TEXT NOT NULL,
+CREATE TABLE events (type VARCHAR(64) NOT NULL,
                      tags TEXT[] NOT NULL,
                      data JSON NOT NULL,
                      position BIGSERIAL NOT NULL,
-                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);
+                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                     CONSTRAINT chk_event_type_length CHECK (LENGTH(type) <= 64));
 
 -- Core indexes for essential operations (based on actual usage analysis)
 CREATE INDEX idx_events_position ON events (position);
