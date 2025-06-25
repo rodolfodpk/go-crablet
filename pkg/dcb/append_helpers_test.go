@@ -170,11 +170,8 @@ var _ = Describe("Append Helpers", func() {
 			events2 := []InputEvent{
 				NewInputEvent("UserUpdated", NewTags("user_id", "123"), toJSON(map[string]string{"name": "Jane"})),
 			}
-			condition := NewAppendCondition(&Query{
-				Items: []QueryItem{
-					{EventTypes: []string{"UserCreated"}, Tags: []Tag{{Key: "user_id", Value: "123"}}},
-				},
-			})
+			query := NewQuery(NewTags("user_id", "123"), "UserCreated")
+			condition := NewAppendCondition(&query)
 			err = store.Append(ctx, events2, condition)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("matching events found"))
@@ -185,11 +182,8 @@ var _ = Describe("Append Helpers", func() {
 			events := []InputEvent{
 				NewInputEvent("UserCreated", NewTags("user_id", "123"), toJSON(map[string]string{"name": "John"})),
 			}
-			condition := NewAppendCondition(&Query{
-				Items: []QueryItem{
-					{EventTypes: []string{"UserUpdated"}, Tags: []Tag{{Key: "user_id", Value: "123"}}},
-				},
-			})
+			query := NewQuery(NewTags("user_id", "123"), "UserUpdated")
+			condition := NewAppendCondition(&query)
 			err := store.Append(ctx, events, condition)
 			Expect(err).NotTo(HaveOccurred())
 		})

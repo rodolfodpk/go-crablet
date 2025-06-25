@@ -89,4 +89,6 @@ go run main.go    # Run performance benchmarks
 
 ## Next Steps
 
-For more detailed examples and documentation, see the [Examples](examples.md) guide. 
+For more detailed examples and documentation, see the [Examples](examples.md) guide.
+
+`Query` and `QueryItem` must be constructed using helper functions such as `NewQuery`, `NewQueryItem`, and `NewQueryFromItems`. You cannot use struct literals or access fields directly. This ensures DCB compliance and improves type safety. 

@@ -341,12 +341,10 @@ func benchmarkComplexQueries(ctx context.Context, store dcb.EventStore) {
 
 	// OR query with specific tags (DCB-focused: targeted cross-entity query)
 	start := time.Now()
-	query := dcb.Query{
-		Items: []dcb.QueryItem{
-			{EventTypes: []string{"CourseDefined"}, Tags: dcb.NewTags("course_id", "course-1")},
-			{EventTypes: []string{"StudentRegistered"}, Tags: dcb.NewTags("student_id", "student-1")},
-		},
-	}
+	query := dcb.NewQueryFromItems(
+		dcb.NewQueryItem([]string{"CourseDefined"}, dcb.NewTags("course_id", "course-1")),
+		dcb.NewQueryItem([]string{"StudentRegistered"}, dcb.NewTags("student_id", "student-1")),
+	)
 	result, err := store.Read(ctx, query, nil)
 	duration := time.Since(start)
 

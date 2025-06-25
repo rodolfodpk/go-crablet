@@ -74,7 +74,7 @@ func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCou
         }},
     }
 
-    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors, nil)
+    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors)
     
     // Command-specific business rule: course must not already exist
     if states["courseExists"].(bool) {
@@ -108,7 +108,7 @@ func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd Regist
         }},
     }
 
-    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors, nil)
+    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors)
     
     // Command-specific business rule: student must not already exist
     if states["studentExists"].(bool) {
@@ -158,7 +158,7 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollSt
         }},
     }
 
-    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors, nil)
+    states, appendCondition, _ := store.ProjectDecisionModel(ctx, projectors)
     
     course := states["courseState"].(*CourseState)
     enrollmentCount := states["studentEnrollmentCount"].(int)
@@ -215,70 +215,5 @@ func mustJSON(v any) []byte {
     data, _ := json.Marshal(v)
     return data
 }
-```
 
-## Key Features Demonstrated
-
-### 1. **Command Pattern**
-Each business operation is encapsulated in a command handler:
-- `handleCreateCourse`: Creates a new course with validation
-- `handleRegisterStudent`: Registers a new student with duplicate checking
-- `handleEnrollStudent`: Enrolls a student with capacity and duplicate enrollment checks
-
-### 2. **DCB Pattern Implementation**
-- **Batch Projectors**: Each command defines its own projectors to read relevant state
-- **Optimistic Concurrency**: Uses `appendCondition` to ensure atomic operations
-- **Business Rules**: Validates business constraints before appending events
-
-### 3. **State Projection**
-- **Course State**: Tracks course capacity and current enrollment count
-- **Student Enrollment Count**: Prevents duplicate enrollments
-- **Existence Checks**: Validates that entities exist before operations
-
-### 4. **Event Sourcing Benefits**
-- **Audit Trail**: Complete history of all operations
-- **Concurrency Safety**: Optimistic locking prevents race conditions
-- **Business Rule Enforcement**: Rules are enforced at the event level
-
-## Resulting Events
-
-After running the example, the events table will contain:
-
-```sql
-SELECT type, tags, data, position 
-FROM events 
-ORDER BY position;
-```
-
-| type | tags | data | position |
-|------|------|------|----------|
-| CourseDefined | `{"course_id": "course-1234567890"}` | `{"Title": "Introduction to Event Sourcing", "Capacity": 2}` | 1 |
-| StudentRegistered | `{"student_id": "student-1234567891"}` | `{"Name": "Alice", "Email": "alice@example.com"}` | 2 |
-| StudentEnrolled | `{"student_id": "student-1234567891", "course_id": "course-1234567890"}` | `{"StudentID": "student-1234567891", "CourseID": "course-1234567890"}` | 3 |
-
-## Business Rules Enforced
-
-1. **Course Creation**: Cannot create a course that already exists
-2. **Student Registration**: Cannot register a student that already exists
-3. **Course Enrollment**: 
-   - Cannot enroll in a course that's at capacity
-   - Cannot enroll the same student twice in the same course
-   - Course must exist before enrollment
-
-## Benefits of This Approach
-
-- **Separation of Concerns**: Each command handler is focused on its specific business logic
-- **Reusability**: Command handlers can be called independently
-- **Testability**: Each handler can be tested in isolation
-- **Maintainability**: Business rules are clearly defined and easy to modify
-- **Scalability**: Commands can be processed in parallel with proper concurrency control
-
-## Running the Example
-
-To run this complete course enrollment example:
-
-```bash
-go run internal/examples/enrollment/main.go
-```
-
-This will execute the full course enrollment workflow with all business rules and optimistic concurrency controls. 
+Queries must be constructed using helper functions (e.g., `NewQuery`, `NewQueryItem`). Direct struct access is not supported.

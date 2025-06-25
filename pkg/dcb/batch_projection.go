@@ -23,126 +23,135 @@ func convertRowToEvent(row rowEvent) Event {
 	}
 }
 
-// combineProjectorQueries combines multiple projector queries into a single OR query
+// buildReadQuerySQL builds the SQL query for reading events
+func (es *eventStore) buildReadQuerySQL(query Query, options *ReadOptions) (string, []interface{}, error) {
+	// Pre-allocate slices with reasonable capacity
+	conditions := make([]string, 0, 4) // Usually 1-4 conditions
+	args := make([]interface{}, 0, 8)  // Usually 2-8 args
+	argIndex := 1
+
+	// Add query conditions
+	if len(query.getItems()) > 0 {
+		orConditions := make([]string, 0, len(query.getItems()))
+
+		for _, item := range query.getItems() {
+			andConditions := make([]string, 0, 2) // Usually 1-2 conditions per item
+
+			// Add event type conditions
+			if len(item.getEventTypes()) > 0 {
+				andConditions = append(andConditions, fmt.Sprintf("type = ANY($%d::text[])", argIndex))
+				args = append(args, item.getEventTypes())
+				argIndex++
+			}
+
+			// Add tag conditions - use contains operator for DCB semantics
+			if len(item.getTags()) > 0 {
+				tagsArray := TagsToArray(item.getTags())
+				andConditions = append(andConditions, fmt.Sprintf("tags @> $%d::text[]", argIndex))
+				args = append(args, tagsArray)
+				argIndex++
+			}
+
+			// Combine AND conditions for this item
+			if len(andConditions) > 0 {
+				orConditions = append(orConditions, "("+strings.Join(andConditions, " AND ")+")")
+			}
+		}
+
+		// Combine OR conditions for all items
+		if len(orConditions) > 0 {
+			conditions = append(conditions, "("+strings.Join(orConditions, " OR ")+")")
+		}
+	}
+
+	// Add position conditions
+	if options != nil && options.FromPosition != nil {
+		conditions = append(conditions, fmt.Sprintf("position > $%d", argIndex))
+		args = append(args, *options.FromPosition)
+		argIndex++
+	}
+
+	// Build final query efficiently
+	var sqlQuery strings.Builder
+	sqlQuery.WriteString("SELECT type, tags, data, position FROM events")
+
+	if len(conditions) > 0 {
+		sqlQuery.WriteString(" WHERE ")
+		sqlQuery.WriteString(strings.Join(conditions, " AND "))
+	}
+
+	sqlQuery.WriteString(" ORDER BY position ASC")
+
+	// Add limit if specified
+	if options != nil && options.Limit != nil {
+		sqlQuery.WriteString(fmt.Sprintf(" LIMIT %d", *options.Limit))
+	}
+
+	return sqlQuery.String(), args, nil
+}
+
+// combineProjectorQueries combines queries from multiple projectors
 func (es *eventStore) combineProjectorQueries(projectors []BatchProjector) Query {
-	var combinedItems []QueryItem
+	// Collect all query items from all projectors
+	var allItems []QueryItem
 
 	for _, bp := range projectors {
 		// Add all items from this projector's query
-		for _, item := range bp.StateProjector.Query.Items {
-			combinedItems = append(combinedItems, item)
-		}
+		allItems = append(allItems, bp.StateProjector.Query.getItems()...)
 	}
 
-	return Query{Items: combinedItems}
+	// Create a new query with all combined items
+	return &query{Items: allItems}
 }
 
-// buildCombinedQuerySQL builds the SQL query for the combined projector queries
-func (es *eventStore) buildCombinedQuerySQL(query Query, maxPosition int64) (string, []interface{}, error) {
-	if len(query.Items) == 0 {
-		// Empty query matches all events
-		sqlQuery := "SELECT type, tags, data, position FROM events"
-		args := []interface{}{}
-
-		if maxPosition >= 0 {
-			sqlQuery += " WHERE position <= $1"
-			args = append(args, maxPosition)
-		}
-
-		sqlQuery += " ORDER BY position ASC"
-		return sqlQuery, args, nil
-	}
-
-	// Build OR conditions for each query item
-	var orConditions []string
-	var args []interface{}
-
-	for _, item := range query.Items {
-		var andConditions []string
-		argIndex := len(args) + 1
-
-		// Add event type filtering if specified
-		if len(item.EventTypes) > 0 {
-			andConditions = append(andConditions, fmt.Sprintf("type = ANY($%d)", argIndex))
-			args = append(args, item.EventTypes)
-			argIndex++
-		}
-
-		// Add tag conditions - use contains operator for DCB semantics
-		if len(item.Tags) > 0 {
-			tagsArray := TagsToArray(item.Tags)
-			andConditions = append(andConditions, fmt.Sprintf("tags @> $%d::text[]", argIndex))
-			args = append(args, tagsArray)
-			argIndex++
-		}
-
-		// Combine AND conditions for this item
-		if len(andConditions) > 0 {
-			orConditions = append(orConditions, "("+strings.Join(andConditions, " AND ")+")")
-		}
-	}
-
-	// Combine OR conditions for all items
-	sqlQuery := fmt.Sprintf("SELECT type, tags, data, position FROM events WHERE (%s)", strings.Join(orConditions, " OR "))
-
-	// Add position filtering if specified
-	if maxPosition >= 0 {
-		argIndex := len(args) + 1
-		sqlQuery += fmt.Sprintf(" AND position <= $%d", argIndex)
-		args = append(args, maxPosition)
-	}
-
-	sqlQuery += " ORDER BY position ASC"
-	return sqlQuery, args, nil
-}
-
-// eventMatchesProjector checks if an event matches a projector's query criteria
+// eventMatchesProjector checks if an event matches a projector's query
 func (es *eventStore) eventMatchesProjector(event Event, projector StateProjector) bool {
-	if len(projector.Query.Items) == 0 {
-		return true // Empty query matches all events
+	// If projector has no query items, it matches all events
+	if len(projector.Query.getItems()) == 0 {
+		return true
 	}
 
-	// Check if event matches any of the query items (OR logic)
-	for _, item := range projector.Query.Items {
-		if es.eventMatchesQueryItem(event, item) {
-			return true
+	// Check if event matches any of the projector's query items
+	for _, item := range projector.Query.getItems() {
+		// Check event types if specified
+		if len(item.getEventTypes()) > 0 {
+			eventTypeMatches := false
+			for _, eventType := range item.getEventTypes() {
+				if event.Type == eventType {
+					eventTypeMatches = true
+					break
+				}
+			}
+			if !eventTypeMatches {
+				continue // Event type doesn't match, try next item
+			}
 		}
+
+		// Check tags if specified
+		if len(item.getTags()) > 0 {
+			// Check if event has all required tags
+			eventTags := make(map[string]string)
+			for _, tag := range event.Tags {
+				eventTags[tag.Key] = tag.Value
+			}
+
+			allTagsMatch := true
+			for _, requiredTag := range item.getTags() {
+				if eventTags[requiredTag.Key] != requiredTag.Value {
+					allTagsMatch = false
+					break
+				}
+			}
+
+			if !allTagsMatch {
+				continue // Tags don't match, try next item
+			}
+		}
+
+		// If we get here, this item matches
+		return true
 	}
 
+	// No items matched
 	return false
-}
-
-// eventMatchesQueryItem checks if an event matches a specific query item
-func (es *eventStore) eventMatchesQueryItem(event Event, item QueryItem) bool {
-	// Check event type filtering
-	if len(item.EventTypes) > 0 {
-		typeMatches := false
-		for _, eventType := range item.EventTypes {
-			if event.Type == eventType {
-				typeMatches = true
-				break
-			}
-		}
-		if !typeMatches {
-			return false
-		}
-	}
-
-	// Check tag filtering
-	if len(item.Tags) > 0 {
-		// Convert event tags to map for efficient lookup
-		eventTagMap := make(map[string]string)
-		for _, tag := range event.Tags {
-			eventTagMap[tag.Key] = tag.Value
-		}
-
-		// Check if all required tags are present
-		for _, requiredTag := range item.Tags {
-			if eventTagMap[requiredTag.Key] != requiredTag.Value {
-				return false
-			}
-		}
-	}
-
-	return true
 }

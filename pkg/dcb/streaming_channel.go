@@ -6,12 +6,12 @@ import (
 	"log"
 )
 
-// ReadStreamChannel creates a channel-based stream of events matching a query.
-// This method is part of the ChannelEventStore interface.
-// It's optimized for small to medium datasets (< 500 events).
+// ReadStreamChannel creates a channel-based stream of events matching a query
+// This is optimized for small to medium datasets (< 500 events) and provides
+// a more Go-idiomatic interface using channels
 func (es *eventStore) ReadStreamChannel(ctx context.Context, query Query) (<-chan Event, error) {
 	// Validate that the query is not empty (same validation as Read method)
-	if len(query.Items) == 0 {
+	if len(query.getItems()) == 0 {
 		return nil, &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  "ReadStreamChannel",
@@ -110,7 +110,7 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 	query := es.combineProjectorQueries(projectors)
 
 	// Validate that the combined query is not empty (same validation as Read method)
-	if len(query.Items) == 0 {
+	if len(query.getItems()) == 0 {
 		return nil, &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  "ProjectDecisionModelChannel",

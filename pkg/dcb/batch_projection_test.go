@@ -44,17 +44,17 @@ var _ = Describe("Batch Projection", func() {
 			es := store.(*eventStore)
 			combinedQuery := es.combineProjectorQueries(projectors)
 
-			Expect(combinedQuery.Items).To(HaveLen(3))
-			Expect(combinedQuery.Items[0].EventTypes).To(Equal([]string{"CourseDefined"}))
-			Expect(combinedQuery.Items[1].EventTypes).To(Equal([]string{"StudentRegistered"}))
-			Expect(combinedQuery.Items[2].EventTypes).To(Equal([]string{"StudentEnrolled"}))
+			Expect(combinedQuery.getItems()).To(HaveLen(3))
+			Expect(combinedQuery.getItems()[0].getEventTypes()).To(Equal([]string{"CourseDefined"}))
+			Expect(combinedQuery.getItems()[1].getEventTypes()).To(Equal([]string{"StudentRegistered"}))
+			Expect(combinedQuery.getItems()[2].getEventTypes()).To(Equal([]string{"StudentEnrolled"}))
 		})
 
 		It("should handle empty projectors list", func() {
 			es := store.(*eventStore)
 			combinedQuery := es.combineProjectorQueries([]BatchProjector{})
 
-			Expect(combinedQuery.Items).To(BeEmpty())
+			Expect(combinedQuery.getItems()).To(BeEmpty())
 		})
 
 		It("should handle single projector", func() {
@@ -67,8 +67,8 @@ var _ = Describe("Batch Projection", func() {
 			es := store.(*eventStore)
 			combinedQuery := es.combineProjectorQueries(projectors)
 
-			Expect(combinedQuery.Items).To(HaveLen(1))
-			Expect(combinedQuery.Items[0].EventTypes).To(Equal([]string{"TestEvent"}))
+			Expect(combinedQuery.getItems()).To(HaveLen(1))
+			Expect(combinedQuery.getItems()[0].getEventTypes()).To(Equal([]string{"TestEvent"}))
 		})
 	})
 
@@ -195,12 +195,10 @@ var _ = Describe("Batch Projection", func() {
 			es := store.(*eventStore)
 
 			// DCB-compliant approach: use specific query from Decision Model
-			query := Query{
-				Items: []QueryItem{
-					{EventTypes: []string{"CourseDefined"}, Tags: []Tag{{Key: "course_id", Value: "c1"}}},
-					{EventTypes: []string{"StudentEnrolled"}, Tags: []Tag{{Key: "course_id", Value: "c1"}, {Key: "student_id", Value: "s1"}}},
-				},
-			}
+			query := NewQueryFromItems(
+				NewQueryItem([]string{"CourseDefined"}, []Tag{{Key: "course_id", Value: "c1"}}),
+				NewQueryItem([]string{"StudentEnrolled"}, []Tag{{Key: "course_id", Value: "c1"}, {Key: "student_id", Value: "s1"}}),
+			)
 			appendCondition := es.buildAppendConditionFromQuery(query)
 
 			// Should use the exact query from Decision Model

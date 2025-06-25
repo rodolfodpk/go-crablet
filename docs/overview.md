@@ -27,9 +27,9 @@ type EventStore interface {
 }
 ```
 
-### CrabletEventStore Extension Interface
+### ChannelEventStore Extension Interface
 ```go
-type CrabletEventStore interface {
+type ChannelEventStore interface {
     EventStore  // Inherits all core methods
     
     ReadStreamChannel(ctx context.Context, query Query) (<-chan Event, error)
@@ -54,7 +54,7 @@ projectors := []dcb.BatchProjector{
     {ID: "courseExists", StateProjector: dcb.StateProjector{...}},
     {ID: "numSubscriptions", StateProjector: dcb.StateProjector{...}},
 }
-states, appendCond, _ := store.ProjectDecisionModel(ctx, projectors, nil)
+states, appendCond, _ := store.ProjectDecisionModel(ctx, projectors)
 if !states["courseExists"].(bool) { /* append CourseDefined */ }
 if states["numSubscriptions"].(int) < 2 { /* append StudentSubscribed */ }
 ```
@@ -65,7 +65,7 @@ if states["numSubscriptions"].(int) < 2 { /* append StudentSubscribed */ }
 channelStore := store.(dcb.ChannelEventStore)
 
 // Immediate projection with feedback
-resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors, nil)
+resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
 
 // Process results with immediate feedback
 for result := range resultChan {
@@ -98,3 +98,5 @@ for result := range resultChan {
 - **Flexible**: Choose the right streaming approach for your dataset size
 
 See the [README](../README.md) and [examples](examples.md) for more.
+
+The `Query` and `QueryItem` types are opaque. They can only be constructed using the provided helper functions (e.g., `NewQuery`, `NewQueryItem`, `NewQueryFromItems`, etc.). Direct struct access or field manipulation is not possible. This enforces DCB compliance and improves type safety for all consumers of the library.

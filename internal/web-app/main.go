@@ -234,18 +234,19 @@ func parseTag(tag string) (string, string) {
 }
 
 func convertQuery(query Query) dcb.Query {
-	items := make([]dcb.QueryItem, len(query.Items))
-	for i, item := range query.Items {
-		eventTypes := make([]string, len(item.Types))
-		for j, eventType := range item.Types {
-			eventTypes[j] = string(eventType)
-		}
-		items[i] = dcb.QueryItem{
-			EventTypes: eventTypes,
-			Tags:       convertTags(item.Tags),
-		}
+	if len(query.Items) == 0 {
+		return dcb.NewQueryEmpty()
 	}
-	return dcb.Query{Items: items}
+	items := make([]dcb.QueryItem, 0, len(query.Items))
+	for _, item := range query.Items {
+		// Convert EventTypes ([]EventType) to []string
+		types := make([]string, len(item.Types))
+		for i, eventType := range item.Types {
+			types[i] = string(eventType)
+		}
+		items = append(items, dcb.NewQueryItem(types, convertTags(item.Tags)))
+	}
+	return dcb.NewQueryFromItems(items...)
 }
 
 func convertReadOptions(options *ReadOptions) *dcb.ReadOptions {
@@ -278,14 +279,17 @@ func convertAppendCondition(condition *AppendCondition) dcb.AppendCondition {
 		after = &pos
 	}
 
-	query := convertQuery(condition.FailIfEventsMatch)
-	queryPtr := &query
-	isQueryEmpty := len(query.Items) == 0
+	// Check if the original query is empty before converting
+	isQueryEmpty := len(condition.FailIfEventsMatch.Items) == 0
 
 	switch {
 	case !isQueryEmpty && after != nil:
+		query := convertQuery(condition.FailIfEventsMatch)
+		queryPtr := &query
 		return dcb.NewAppendConditionWithAfter(queryPtr, after)
 	case !isQueryEmpty:
+		query := convertQuery(condition.FailIfEventsMatch)
+		queryPtr := &query
 		return dcb.NewAppendCondition(queryPtr)
 	case after != nil:
 		return dcb.NewAppendConditionAfter(after)

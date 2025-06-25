@@ -115,7 +115,7 @@ func BenchmarkAppendSingle(b *testing.B, benchCtx *BenchmarkContext) {
 			dcb.NewTags("test", "single", "iteration", fmt.Sprintf("%d", i)),
 			[]byte(`{"value": "test"}`))
 
-		_, err := benchCtx.Store.Append(ctx, []dcb.InputEvent{event}, nil)
+		err := benchCtx.Store.Append(ctx, []dcb.InputEvent{event}, nil)
 		if err != nil {
 			b.Fatalf("Append failed: %v", err)
 		}
@@ -137,7 +137,7 @@ func BenchmarkAppendBatch(b *testing.B, benchCtx *BenchmarkContext, batchSize in
 				[]byte(`{"value": "test"}`))
 		}
 
-		_, err := benchCtx.Store.Append(ctx, events, nil)
+		err := benchCtx.Store.Append(ctx, events, nil)
 		if err != nil {
 			b.Fatalf("Batch append failed: %v", err)
 		}

@@ -6,7 +6,7 @@ import (
 )
 
 // ProjectDecisionModel projects multiple states using projectors and returns final states and append condition
-// This is the primary DCB API for building decision models in command handlers
+// This is a go-crablet feature for building decision models in command handlers
 // The function internally computes the combined query from all projectors for the append condition
 func (es *eventStore) ProjectDecisionModel(ctx context.Context, projectors []BatchProjector) (map[string]any, AppendCondition, error) {
 	// Validate projectors
@@ -31,7 +31,7 @@ func (es *eventStore) ProjectDecisionModel(ctx context.Context, projectors []Bat
 				Value: "nil",
 			}
 		}
-		if len(bp.StateProjector.Query.Items) == 0 {
+		if len(bp.StateProjector.Query.getItems()) == 0 {
 			return nil, nil, &ValidationError{
 				EventStoreError: EventStoreError{
 					Op:  "ProjectDecisionModel",

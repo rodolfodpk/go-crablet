@@ -118,7 +118,7 @@ func TestDecisionModelExample(t *testing.T) {
 			{ID: "transactions", StateProjector: transactionProjector},
 		}
 
-		states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
+		states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
 		require.NoError(t, err)
 
 		// Verify account state

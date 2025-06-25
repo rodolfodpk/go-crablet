@@ -261,3 +261,5 @@ events, err := store.Read(ctx, query, nil)
 - **`internal/examples/extension_interface/`** - Extension interface pattern demonstration
 - **`internal/examples/transfer/`** - Event sourcing with semantic event names
 - **`internal/examples/enrollment/`** - Course enrollment with business rules
+
+All `Query` and `QueryItem` usage must go through the provided helper functions. Direct struct access is not possible. This enforces DCB compliance and improves type safety.

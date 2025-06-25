@@ -10,39 +10,35 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// eventStore implements EventStore.
+// eventStore implements the EventStore interface
 type eventStore struct {
 	pool         *pgxpool.Pool // Database connection pool
 	maxBatchSize int           // Maximum number of events in a single batch operation
 }
 
-// NewEventStore creates a new EventStore using the provided PostgreSQL connection pool.
-// It uses a default maximum batch size of 1000 events.
+// NewEventStore creates a new event store instance
 func NewEventStore(ctx context.Context, pool *pgxpool.Pool) (EventStore, error) {
-	// Test the connection with context timeout
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	if err := pool.Ping(ctx); err != nil {
-		return nil, &ResourceError{
+	if pool == nil {
+		return nil, &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  "NewEventStore",
-				Err: fmt.Errorf("unable to connect to database: %w", err),
+				Err: fmt.Errorf("pool cannot be nil"),
 			},
-			Resource: "database",
+			Field: "pool",
+			Value: "nil",
 		}
 	}
 
 	return &eventStore{
 		pool:         pool,
-		maxBatchSize: 1000, // Default maximum batch size
+		maxBatchSize: 1000, // Default batch size
 	}, nil
 }
 
 // Read reads events matching a query, optionally starting from a specified sequence position
 // This matches the DCB specification exactly
 func (es *eventStore) Read(ctx context.Context, query Query, options *ReadOptions) (SequencedEvents, error) {
-	if len(query.Items) == 0 {
+	if len(query.getItems()) == 0 {
 		return SequencedEvents{}, &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  "read",
@@ -265,73 +261,6 @@ func (es *eventStore) appendEventsWithCondition(ctx context.Context, events []In
 	}
 
 	return nil
-}
-
-// buildReadQuerySQL builds the SQL query for reading events
-func (es *eventStore) buildReadQuerySQL(query Query, options *ReadOptions) (string, []interface{}, error) {
-	// Pre-allocate slices with reasonable capacity
-	conditions := make([]string, 0, 4) // Usually 1-4 conditions
-	args := make([]interface{}, 0, 8)  // Usually 2-8 args
-	argIndex := 1
-
-	// Add query conditions
-	if len(query.Items) > 0 {
-		orConditions := make([]string, 0, len(query.Items))
-
-		for _, item := range query.Items {
-			andConditions := make([]string, 0, 2) // Usually 1-2 conditions per item
-
-			// Add event type conditions
-			if len(item.EventTypes) > 0 {
-				andConditions = append(andConditions, fmt.Sprintf("type = ANY($%d::text[])", argIndex))
-				args = append(args, item.EventTypes)
-				argIndex++
-			}
-
-			// Add tag conditions - use contains operator for DCB semantics
-			if len(item.Tags) > 0 {
-				tagsArray := TagsToArray(item.Tags)
-				andConditions = append(andConditions, fmt.Sprintf("tags @> $%d::text[]", argIndex))
-				args = append(args, tagsArray)
-				argIndex++
-			}
-
-			// Combine AND conditions for this item
-			if len(andConditions) > 0 {
-				orConditions = append(orConditions, "("+strings.Join(andConditions, " AND ")+")")
-			}
-		}
-
-		// Combine OR conditions for all items
-		if len(orConditions) > 0 {
-			conditions = append(conditions, "("+strings.Join(orConditions, " OR ")+")")
-		}
-	}
-
-	// Add position conditions
-	if options != nil && options.FromPosition != nil {
-		conditions = append(conditions, fmt.Sprintf("position > $%d", argIndex))
-		args = append(args, *options.FromPosition)
-		argIndex++
-	}
-
-	// Build final query efficiently
-	var sqlQuery strings.Builder
-	sqlQuery.WriteString("SELECT type, tags, data, position FROM events")
-
-	if len(conditions) > 0 {
-		sqlQuery.WriteString(" WHERE ")
-		sqlQuery.WriteString(strings.Join(conditions, " AND "))
-	}
-
-	sqlQuery.WriteString(" ORDER BY position ASC")
-
-	// Add limit if specified
-	if options != nil && options.Limit != nil {
-		sqlQuery.WriteString(fmt.Sprintf(" LIMIT %d", *options.Limit))
-	}
-
-	return sqlQuery.String(), args, nil
 }
 
 // Add helper function to encode tags as Postgres array literal

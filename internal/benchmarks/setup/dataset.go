@@ -494,13 +494,11 @@ func GenerateRandomQueries(dataset *Dataset, count int) []dcb.Query {
 			queries[i] = dcb.NewQuery(dcb.NewTags("grade", grade), "StudentEnrolledInCourse")
 		case 7:
 			// Complex OR query across multiple types
-			queries[i] = dcb.Query{
-				Items: []dcb.QueryItem{
-					{EventTypes: []string{"CourseDefined"}, Tags: dcb.NewTags("category", "Computer Science")},
-					{EventTypes: []string{"StudentRegistered"}, Tags: dcb.NewTags("major", "Computer Science")},
-					{EventTypes: []string{"StudentEnrolledInCourse"}, Tags: dcb.NewTags("grade", "A")},
-				},
-			}
+			queries[i] = dcb.NewQueryFromItems(
+				dcb.NewQueryItem([]string{"CourseDefined"}, dcb.NewTags("category", "Computer Science")),
+				dcb.NewQueryItem([]string{"StudentRegistered"}, dcb.NewTags("major", "Computer Science")),
+				dcb.NewQueryItem([]string{"StudentEnrolledInCourse"}, dcb.NewTags("grade", "A")),
+			)
 		}
 	}
 

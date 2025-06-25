@@ -183,18 +183,10 @@ var _ = Describe("Validation", func() {
 
 	Describe("validateQueryTags", func() {
 		It("should validate valid query", func() {
-			query := Query{
-				Items: []QueryItem{
-					{
-						EventTypes: []string{"Event1", "Event2"},
-						Tags:       NewTags("key1", "value1"),
-					},
-					{
-						EventTypes: []string{"Event3"},
-						Tags:       NewTags("key2", "value2"),
-					},
-				},
-			}
+			query := NewQueryFromItems(
+				NewQueryItem([]string{"Event1", "Event2"}, NewTags("key1", "value1")),
+				NewQueryItem([]string{"Event3"}, NewTags("key2", "value2")),
+			)
 
 			err := validateQueryTags(query)
 			Expect(err).NotTo(HaveOccurred())
@@ -207,14 +199,9 @@ var _ = Describe("Validation", func() {
 		})
 
 		It("should validate query with empty event types", func() {
-			query := Query{
-				Items: []QueryItem{
-					{
-						EventTypes: []string{""}, // Empty event type
-						Tags:       NewTags("key", "value"),
-					},
-				},
-			}
+			query := NewQueryFromItems(
+				NewQueryItem([]string{""}, NewTags("key", "value")), // Empty event type
+			)
 
 			err := validateQueryTags(query)
 			Expect(err).To(HaveOccurred())
@@ -222,14 +209,9 @@ var _ = Describe("Validation", func() {
 		})
 
 		It("should validate query with empty tag keys", func() {
-			query := Query{
-				Items: []QueryItem{
-					{
-						EventTypes: []string{"Event1"},
-						Tags:       []Tag{{Key: "", Value: "value"}}, // Empty key
-					},
-				},
-			}
+			query := NewQueryFromItems(
+				NewQueryItem([]string{"Event1"}, []Tag{{Key: "", Value: "value"}}), // Empty key
+			)
 
 			err := validateQueryTags(query)
 			Expect(err).To(HaveOccurred())
@@ -237,14 +219,9 @@ var _ = Describe("Validation", func() {
 		})
 
 		It("should validate query with empty tag values", func() {
-			query := Query{
-				Items: []QueryItem{
-					{
-						EventTypes: []string{"Event1"},
-						Tags:       []Tag{{Key: "key", Value: ""}}, // Empty value
-					},
-				},
-			}
+			query := NewQueryFromItems(
+				NewQueryItem([]string{"Event1"}, []Tag{{Key: "key", Value: ""}}), // Empty value
+			)
 
 			err := validateQueryTags(query)
 			Expect(err).To(HaveOccurred())
@@ -252,32 +229,19 @@ var _ = Describe("Validation", func() {
 		})
 
 		It("should validate query with empty event types and tags", func() {
-			query := Query{
-				Items: []QueryItem{
-					{
-						EventTypes: []string{},
-						Tags:       []Tag{},
-					},
-				},
-			}
+			query := NewQueryFromItems(
+				NewQueryItem([]string{}, []Tag{}),
+			)
 
 			err := validateQueryTags(query)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("should validate query with multiple items", func() {
-			query := Query{
-				Items: []QueryItem{
-					{
-						EventTypes: []string{"Event1"},
-						Tags:       NewTags("key1", "value1"),
-					},
-					{
-						EventTypes: []string{"Event2"},
-						Tags:       NewTags("key2", "value2"),
-					},
-				},
-			}
+			query := NewQueryFromItems(
+				NewQueryItem([]string{"Event1"}, NewTags("key1", "value1")),
+				NewQueryItem([]string{"Event2"}, NewTags("key2", "value2")),
+			)
 
 			err := validateQueryTags(query)
 			Expect(err).NotTo(HaveOccurred())

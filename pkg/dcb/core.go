@@ -14,7 +14,7 @@ type EventStore interface {
 	Read(ctx context.Context, query Query, options *ReadOptions) (SequencedEvents, error)
 
 	// ProjectDecisionModel projects multiple states using projectors and returns final states and append condition
-	// This is the primary DCB API for building decision models in command handlers
+	// This is a go-crablet feature for building decision models in command handlers
 	ProjectDecisionModel(ctx context.Context, projectors []BatchProjector) (map[string]any, AppendCondition, error)
 }
 
@@ -74,14 +74,55 @@ type Tag struct {
 }
 
 // Query represents a composite query with multiple conditions combined with OR logic
-type Query struct {
-	Items []QueryItem `json:"items"`
+// This is opaque to consumers - they can only construct it via helper functions
+type Query interface {
+	// isQuery is a marker method to make this interface unexported
+	isQuery()
+	// getItems returns the internal query items (used by event store)
+	getItems() []QueryItem
 }
 
 // QueryItem represents a single atomic query condition
-type QueryItem struct {
+// This is opaque to consumers - they can only construct it via helper functions
+type QueryItem interface {
+	// isQueryItem is a marker method to make this interface unexported
+	isQueryItem()
+	// getEventTypes returns the internal event types (used by event store)
+	getEventTypes() []string
+	// getTags returns the internal tags (used by event store)
+	getTags() []Tag
+}
+
+// query is the internal implementation
+type query struct {
+	Items []QueryItem `json:"items"`
+}
+
+// isQuery implements Query
+func (q *query) isQuery() {}
+
+// getItems returns the internal query items (used by event store)
+func (q *query) getItems() []QueryItem {
+	return q.Items
+}
+
+// queryItem is the internal implementation
+type queryItem struct {
 	EventTypes []string `json:"event_types"`
 	Tags       []Tag    `json:"tags"`
+}
+
+// isQueryItem implements QueryItem
+func (qi *queryItem) isQueryItem() {}
+
+// getEventTypes returns the internal event types (used by event store)
+func (qi *queryItem) getEventTypes() []string {
+	return qi.EventTypes
+}
+
+// getTags returns the internal tags (used by event store)
+func (qi *queryItem) getTags() []Tag {
+	return qi.Tags
 }
 
 // ReadOptions provides options for reading events

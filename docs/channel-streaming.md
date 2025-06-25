@@ -22,9 +22,9 @@ type EventStore interface {
 }
 ```
 
-### CrabletEventStore Extension Interface
+### ChannelEventStore Extension Interface
 ```go
-type CrabletEventStore interface {
+type ChannelEventStore interface {
     EventStore  // Inherits all core methods
     
     ReadStreamChannel(ctx context.Context, query Query) (<-chan Event, error)
@@ -243,7 +243,7 @@ See the following examples for complete implementations:
 ### Before (Cursor-Based)
 ```go
 // Traditional approach
-states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors, nil)
+states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
 if err != nil {
     return err
 }

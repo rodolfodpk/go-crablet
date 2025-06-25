@@ -101,18 +101,14 @@ func (s *server) Append(ctx context.Context, req *pb.AppendRequest) (*pb.AppendR
 
 // Conversion functions
 func convertProtoQuery(query *pb.Query) dcb.Query {
-	if query == nil {
-		return dcb.Query{Items: []dcb.QueryItem{}}
+	if query == nil || len(query.Items) == 0 {
+		return dcb.NewQueryEmpty()
 	}
-
-	items := make([]dcb.QueryItem, len(query.Items))
-	for i, item := range query.Items {
-		items[i] = dcb.QueryItem{
-			EventTypes: item.Types,
-			Tags:       convertProtoTags(item.Tags),
-		}
+	items := make([]dcb.QueryItem, 0, len(query.Items))
+	for _, item := range query.Items {
+		items = append(items, dcb.NewQueryItem(item.Types, convertProtoTags(item.Tags)))
 	}
-	return dcb.Query{Items: items}
+	return dcb.NewQueryFromItems(items...)
 }
 
 func convertProtoReadOptions(options *pb.ReadOptions) *dcb.ReadOptions {

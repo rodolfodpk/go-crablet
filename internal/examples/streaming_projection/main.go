@@ -156,11 +156,11 @@ func main() {
 
 	// Append events
 	fmt.Println("Appending events...")
-	position, err := store.Append(ctx, events, nil)
+	err = store.Append(ctx, events, nil)
 	if err != nil {
 		log.Fatalf("Failed to append events: %v", err)
 	}
-	fmt.Printf("Appended events up to position: %d\n", position)
+	fmt.Printf("Appended events successfully\n")
 
 	// Use ProjectDecisionModel to build decision model
 	fmt.Println("\n=== Using ProjectDecisionModel API ===")
@@ -195,11 +195,11 @@ func main() {
 	newEvents := dcb.NewEventBatch(newTransactionEvent)
 
 	fmt.Println("\n=== Appending New Events with Optimistic Locking ===")
-	newPosition, err := store.Append(ctx, newEvents, appendCondition)
+	err = store.Append(ctx, newEvents, appendCondition)
 	if err != nil {
 		log.Fatalf("Failed to append new events: %v", err)
 	}
-	fmt.Printf("Successfully appended new events up to position: %d\n", newPosition)
+	fmt.Printf("Successfully appended new events\n")
 
 	// Dump all events to show what was created
 	fmt.Println("\n=== Events in Database ===")

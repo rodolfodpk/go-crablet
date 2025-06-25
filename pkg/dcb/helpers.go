@@ -67,12 +67,9 @@ func ParseTagsArray(arr []string) []Tag {
 // NewQuery creates a new Query with the given tags and event types.
 // This is a backward-compatible function that creates a single QueryItem.
 func NewQuery(tags []Tag, eventTypes ...string) Query {
-	return Query{
+	return &query{
 		Items: []QueryItem{
-			{
-				EventTypes: eventTypes,
-				Tags:       tags,
-			},
+			NewQueryItem(eventTypes, tags),
 		},
 	}
 }
@@ -93,29 +90,26 @@ func NewQuerySimpleUnsafe(tags []Tag, eventTypes ...string) Query {
 
 // NewQueryEmpty creates a new empty query
 func NewQueryEmpty() Query {
-	return Query{Items: []QueryItem{}}
+	return &query{Items: []QueryItem{}}
 }
 
 // NewQueryFromItems creates a new query from a list of query items
 func NewQueryFromItems(items ...QueryItem) Query {
-	return Query{Items: items}
+	return &query{Items: items}
 }
 
 // NewQueryAll creates a query that matches all events.
 func NewQueryAll() Query {
-	return Query{
+	return &query{
 		Items: []QueryItem{
-			{
-				EventTypes: []string{},
-				Tags:       []Tag{},
-			},
+			NewQueryItem([]string{}, []Tag{}),
 		},
 	}
 }
 
 // NewQueryItem creates a new QueryItem with the given types and tags.
 func NewQueryItem(types []string, tags []Tag) QueryItem {
-	return QueryItem{
+	return &queryItem{
 		EventTypes: types,
 		Tags:       tags,
 	}
@@ -151,19 +145,13 @@ func NewEventBatch(events ...InputEvent) []InputEvent {
 // NewQItem creates a new QueryItem with a single event type and tags.
 // This simplifies the common case of querying for one event type.
 func NewQItem(eventType string, tags []Tag) QueryItem {
-	return QueryItem{
-		EventTypes: []string{eventType},
-		Tags:       tags,
-	}
+	return NewQueryItem([]string{eventType}, tags)
 }
 
 // NewQItemKV creates a new QueryItem with a single event type and key-value tags.
 // This is the most concise way to create a QueryItem for a single event type.
 func NewQItemKV(eventType string, kv ...string) QueryItem {
-	return QueryItem{
-		EventTypes: []string{eventType},
-		Tags:       NewTags(kv...),
-	}
+	return NewQueryItem([]string{eventType}, NewTags(kv...))
 }
 
 // ConnectionPoolHealth represents the health status of a connection pool
