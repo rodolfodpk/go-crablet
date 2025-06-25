@@ -23,38 +23,37 @@ func TestTransferExample(t *testing.T) {
 	store, err := dcb.NewEventStore(ctx, pool)
 	require.NoError(t, err)
 
-	// Test Command 1: Create first account
+	// Cast to ChannelEventStore for extended functionality
+	channelStore := store.(dcb.ChannelEventStore)
+
+	// Test Command 1: Create Account 1
 	t.Run("Create Account 1", func(t *testing.T) {
 		createAccount1Cmd := CreateAccountCommand{
 			AccountID:      "test_acc1",
-			Owner:          "Alice",
 			InitialBalance: 1000,
 		}
-		err := handleCreateAccount(ctx, store, createAccount1Cmd)
+		err := handleCreateAccount(ctx, channelStore, createAccount1Cmd)
 		assert.NoError(t, err)
 	})
 
-	// Test Command 2: Create second account
+	// Test Command 2: Create Account 2
 	t.Run("Create Account 2", func(t *testing.T) {
 		createAccount2Cmd := CreateAccountCommand{
 			AccountID:      "test_acc2",
-			Owner:          "Bob",
 			InitialBalance: 500,
 		}
-		err := handleCreateAccount(ctx, store, createAccount2Cmd)
+		err := handleCreateAccount(ctx, channelStore, createAccount2Cmd)
 		assert.NoError(t, err)
 	})
 
-	// Test Command 3: Transfer money between accounts
+	// Test Command 3: Transfer Money
 	t.Run("Transfer Money", func(t *testing.T) {
 		transferCmd := TransferMoneyCommand{
-			TransferID:    "test_transfer_123",
 			FromAccountID: "test_acc1",
 			ToAccountID:   "test_acc2",
-			Amount:        150,
-			Description:   "Test payment",
+			Amount:        300,
 		}
-		err := handleTransferMoney(ctx, store, transferCmd)
+		err := handleTransferMoney(ctx, channelStore, transferCmd)
 		assert.NoError(t, err)
 	})
 
@@ -64,90 +63,82 @@ func TestTransferExample(t *testing.T) {
 		t.Run("Cannot Create Duplicate Account", func(t *testing.T) {
 			duplicateCmd := CreateAccountCommand{
 				AccountID:      "test_acc1", // Same ID as existing account
-				Owner:          "Charlie",
 				InitialBalance: 2000,
 			}
-			err := handleCreateAccount(ctx, store, duplicateCmd)
+			err := handleCreateAccount(ctx, channelStore, duplicateCmd)
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), "already exists")
 		})
 
 		// Test: Cannot transfer more than available balance
-		t.Run("Cannot Transfer Insufficient Funds", func(t *testing.T) {
-			insufficientCmd := TransferMoneyCommand{
-				TransferID:    "test_transfer_456",
+		t.Run("Cannot Transfer More Than Available Balance", func(t *testing.T) {
+			insufficientFundsCmd := TransferMoneyCommand{
 				FromAccountID: "test_acc1",
 				ToAccountID:   "test_acc2",
-				Amount:        2000, // More than available balance
-				Description:   "Should fail",
+				Amount:        1000, // More than available balance
 			}
-			err := handleTransferMoney(ctx, store, insufficientCmd)
+			err := handleTransferMoney(ctx, channelStore, insufficientFundsCmd)
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), "insufficient funds")
 		})
 
-		// Test: Cannot transfer to same account
-		t.Run("Cannot Transfer to Same Account", func(t *testing.T) {
-			sameAccountCmd := TransferMoneyCommand{
-				TransferID:    "test_transfer_789",
-				FromAccountID: "test_acc1",
-				ToAccountID:   "test_acc1", // Same account
+		// Test: Cannot transfer from non-existent account
+		t.Run("Cannot Transfer From Non-existent Account", func(t *testing.T) {
+			nonExistentFromCmd := TransferMoneyCommand{
+				FromAccountID: "non_existent_account",
+				ToAccountID:   "test_acc2",
 				Amount:        100,
-				Description:   "Should fail",
 			}
-			err := handleTransferMoney(ctx, store, sameAccountCmd)
+			err := handleTransferMoney(ctx, channelStore, nonExistentFromCmd)
 			assert.Error(t, err)
-			assert.Contains(t, err.Error(), "same account")
+			assert.Contains(t, err.Error(), "does not exist")
 		})
 
 		// Test: Cannot transfer to non-existent account
-		t.Run("Cannot Transfer to Non-existent Account", func(t *testing.T) {
-			nonExistentCmd := TransferMoneyCommand{
-				TransferID:    "test_transfer_999",
+		t.Run("Cannot Transfer To Non-existent Account", func(t *testing.T) {
+			nonExistentToCmd := TransferMoneyCommand{
 				FromAccountID: "test_acc1",
 				ToAccountID:   "non_existent_account",
 				Amount:        100,
-				Description:   "Should fail",
 			}
-			err := handleTransferMoney(ctx, store, nonExistentCmd)
+			err := handleTransferMoney(ctx, channelStore, nonExistentToCmd)
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), "does not exist")
 		})
 	})
 
-	// Test optimistic locking
-	t.Run("Optimistic Locking", func(t *testing.T) {
-		// Create a new account for concurrent access testing
-		concurrentAccountCmd := CreateAccountCommand{
-			AccountID:      "concurrent_acc",
-			Owner:          "David",
-			InitialBalance: 1000,
+	// Test concurrent transfers
+	t.Run("Concurrent Transfers", func(t *testing.T) {
+		// Create additional accounts for concurrent testing
+		createAccount3Cmd := CreateAccountCommand{
+			AccountID:      "test_acc3",
+			InitialBalance: 2000,
 		}
-		err := handleCreateAccount(ctx, store, concurrentAccountCmd)
-		require.NoError(t, err)
+		err := handleCreateAccount(ctx, channelStore, createAccount3Cmd)
+		assert.NoError(t, err)
 
-		// Simulate concurrent transfers
+		// Test concurrent transfers - one should succeed, one should fail due to insufficient funds
 		transfer1Cmd := TransferMoneyCommand{
-			TransferID:    "concurrent_transfer_1",
-			FromAccountID: "concurrent_acc",
+			FromAccountID: "test_acc3",
 			ToAccountID:   "test_acc2",
-			Amount:        100,
-			Description:   "Concurrent transfer 1",
+			Amount:        1500,
 		}
-
 		transfer2Cmd := TransferMoneyCommand{
-			TransferID:    "concurrent_transfer_2",
-			FromAccountID: "concurrent_acc",
-			ToAccountID:   "test_acc2",
-			Amount:        200,
-			Description:   "Concurrent transfer 2",
+			FromAccountID: "test_acc3",
+			ToAccountID:   "test_acc1",
+			Amount:        1000,
 		}
 
-		// Both should succeed due to optimistic locking
-		err1 := handleTransferMoney(ctx, store, transfer1Cmd)
-		err2 := handleTransferMoney(ctx, store, transfer2Cmd)
+		err1 := handleTransferMoney(ctx, channelStore, transfer1Cmd)
+		err2 := handleTransferMoney(ctx, channelStore, transfer2Cmd)
 
-		assert.NoError(t, err1)
-		assert.NoError(t, err2)
+		// One should succeed, one should fail due to insufficient funds
+		assert.True(t, (err1 == nil && err2 != nil) || (err1 != nil && err2 == nil))
+		if err1 != nil {
+			assert.Contains(t, err1.Error(), "insufficient funds")
+		}
+		if err2 != nil {
+			assert.Contains(t, err2.Error(), "insufficient funds")
+		}
 	})
 }
