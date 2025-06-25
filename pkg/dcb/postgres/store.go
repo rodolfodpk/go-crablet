@@ -188,8 +188,10 @@ func (es *eventStore) Append(ctx context.Context, events []dcb.InputEvent, condi
 		}
 	}
 
-	// Begin transaction
-	tx, err := es.pool.Begin(ctx)
+	// Begin transaction with SERIALIZABLE isolation level
+	tx, err := es.pool.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: pgx.Serializable,
+	})
 	if err != nil {
 		return &dcb.EventStoreError{
 			Op:  "append",
