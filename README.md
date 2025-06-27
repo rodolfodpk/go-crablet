@@ -19,7 +19,6 @@ A Go library for event sourcing, exploring and learning about concepts inspired 
 - [Overview](docs/overview.md): DCB pattern exploration, batch projection, and streaming
 - [Quick Start](docs/quick-start.md): Get started using go-crablet in your project
 - [Getting Started](docs/getting-started.md): Development setup
-- [Minimal Example](docs/minimal-example.md): Detailed walkthrough of the course subscription example
 - [Code Coverage](docs/code-coverage.md): Test coverage analysis and improvement guidelines
 
 ## Performance Benchmarks
