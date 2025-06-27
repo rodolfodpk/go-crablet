@@ -6,20 +6,39 @@ go-crablet is a Go library for event sourcing, exploring and learning about conc
 - Use tag-based, OR-combined queries for cross-entity consistency
 - Enforce optimistic concurrency with combined append conditions
 - Stream events efficiently for large datasets
-- Use channel-based streaming for Go-idiomatic event processing
+
+## Event Store Structure
+
+Our implementation stores events in PostgreSQL with this structure:
+```sql
+CREATE TABLE events (
+    type VARCHAR(64) NOT NULL,
+    tags TEXT[] NOT NULL,
+    data JSON NOT NULL,
+    position BIGSERIAL NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+## Append Procedure
+
+We use PostgreSQL functions for atomic append operations:
+- `append_events_with_condition()`: Checks conditions and appends events atomically
+- `check_append_condition()`: Validates that no conflicting events exist
+- `append_events_batch()`: Efficiently inserts multiple events using UNNEST
+
+The append procedure ensures optimistic concurrency by checking that no events matching the append condition exist before inserting new events.
 
 ## Key Concepts We're Learning About
 
 - **Batch Projection**: Project multiple states (decision model) in one database query
 - **Combined Append Condition**: Use a single, OR-combined query for optimistic locking
 - **Streaming**: Process events row-by-row, suitable for millions of events
-- **Channel-based Streaming**: Go-idiomatic streaming using channels for small-medium datasets
 - **Tag-based Queries**: Flexible, cross-entity queries using tags
-- **Extension Interface Pattern**: Clean separation between core and extended functionality
 
 ## Interface Hierarchy
 
-### Core EventStore Interface
+### Core EventStore Interface (DCB-inspired)
 ```go
 type EventStore interface {
     Read(ctx context.Context, query Query, options *ReadOptions) (SequencedEvents, error)
@@ -27,7 +46,7 @@ type EventStore interface {
 }
 ```
 
-### ChannelEventStore Extension Interface
+### ChannelEventStore Extension Interface (Our Implementation)
 ```go
 type ChannelEventStore interface {
     EventStore  // Inherits all core methods
@@ -48,7 +67,7 @@ We're exploring how a Dynamic Consistency Boundary decision model might be built
 
 ## Example: Course Subscription
 
-### Traditional Cursor-Based Approach
+### DCB Decision Model Approach
 ```go
 projectors := []dcb.BatchProjector{
     {ID: "courseExists", StateProjector: dcb.StateProjector{...}},
@@ -59,9 +78,9 @@ if !states["courseExists"].(bool) { /* append CourseDefined */ }
 if states["numSubscriptions"].(int) < 2 { /* append StudentSubscribed */ }
 ```
 
-### Channel-Based Approach (New!)
+### Our Channel-Based Extension
 ```go
-// Get channel-based store
+// Get channel-based store (our implementation extension)
 channelStore := store.(dcb.ChannelEventStore)
 
 // Immediate projection with feedback
@@ -73,7 +92,7 @@ for result := range resultChan {
 }
 ```
 
-## Streaming & Memory Efficiency
+## Streaming Options
 
 ### Performance Characteristics
 | Approach | Best For | Memory Usage | Immediate Feedback | Scalability |
@@ -87,14 +106,13 @@ for result := range resultChan {
 ### Streaming Options
 - **ProjectDecisionModel**: Projects all states in one query, streams events row-by-row (cursor-based)
 - **ReadStream**: Streams events for custom processing (cursor-based)
-- **ReadStreamChannel**: Channel-based streaming for Go-idiomatic processing
-- **ProjectDecisionModelChannel**: Immediate projection results via channels
+- **ReadStreamChannel**: Channel-based streaming for Go-idiomatic processing (our extension)
+- **ProjectDecisionModelChannel**: Immediate projection results via channels (our extension)
 
 ## Why Explore Dynamic Consistency Boundaries?
 - **Single-query consistency**: All invariants checked atomically
 - **No aggregates required**: Consistency boundaries are defined by your queries
 - **Efficient**: One database round trip for all business rules
-- **Go-idiomatic**: Channel-based streaming for immediate processing
 - **Flexible**: Choose the right streaming approach for your dataset size
 
 See the [README](../README.md) and [examples](examples.md) for more.
