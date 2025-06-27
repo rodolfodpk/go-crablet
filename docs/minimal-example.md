@@ -23,16 +23,13 @@ func main() {
 	pool, _ := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")
 	store, _ := dcb.NewEventStore(ctx, pool)
 
-	// Cast to ChannelEventStore for extended functionality
-	channelStore := store.(dcb.ChannelEventStore)
-
 	// Command 1: Create Course
 	createCourseCmd := CreateCourseCommand{
 		CourseID: generateUniqueID("course"),
 		Title:    "Introduction to Event Sourcing",
 		Capacity: 2,
 	}
-	err := handleCreateCourse(ctx, channelStore, createCourseCmd)
+	err := handleCreateCourse(ctx, store, createCourseCmd)
 	if err != nil {
 		log.Fatalf("Create course failed: %v", err)
 	}
@@ -43,7 +40,7 @@ func main() {
 		Name:      "Alice",
 		Email:     "alice@example.com",
 	}
-	err = handleRegisterStudent(ctx, channelStore, registerStudentCmd)
+	err = handleRegisterStudent(ctx, store, registerStudentCmd)
 	if err != nil {
 		log.Fatalf("Register student failed: %v", err)
 	}
@@ -53,7 +50,7 @@ func main() {
 		StudentID: registerStudentCmd.StudentID,
 		CourseID:  createCourseCmd.CourseID,
 	}
-	err = handleEnrollStudent(ctx, channelStore, enrollCmd)
+	err = handleEnrollStudent(ctx, store, enrollCmd)
 	if err != nil {
 		log.Fatalf("Enroll student failed: %v", err)
 	}
@@ -68,7 +65,7 @@ func generateUniqueID(prefix string) string {
 
 // Command handlers with their own business rules
 
-func handleCreateCourse(ctx context.Context, store dcb.ChannelEventStore, cmd CreateCourseCommand) error {
+func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCourseCommand) error {
 	// Command-specific projectors
 	projectors := []dcb.BatchProjector{
 		{ID: "courseExists", StateProjector: dcb.StateProjector{
@@ -102,7 +99,7 @@ func handleCreateCourse(ctx context.Context, store dcb.ChannelEventStore, cmd Cr
 	return nil
 }
 
-func handleRegisterStudent(ctx context.Context, store dcb.ChannelEventStore, cmd RegisterStudentCommand) error {
+func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd RegisterStudentCommand) error {
 	// Command-specific projectors
 	projectors := []dcb.BatchProjector{
 		{ID: "studentExists", StateProjector: dcb.StateProjector{
@@ -136,7 +133,7 @@ func handleRegisterStudent(ctx context.Context, store dcb.ChannelEventStore, cmd
 	return nil
 }
 
-func handleEnrollStudent(ctx context.Context, store dcb.ChannelEventStore, cmd EnrollStudentCommand) error {
+func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollStudentCommand) error {
 	// Command-specific projectors
 	projectors := []dcb.BatchProjector{
 		{ID: "courseState", StateProjector: dcb.StateProjector{
