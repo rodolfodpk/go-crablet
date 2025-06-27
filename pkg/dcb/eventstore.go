@@ -10,28 +10,22 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// eventStore implements the EventStore interface
+// eventStore implements the EventStore interface using PostgreSQL
 type eventStore struct {
-	pool         *pgxpool.Pool // Database connection pool
-	maxBatchSize int           // Maximum number of events in a single batch operation
+	pool         *pgxpool.Pool
+	maxBatchSize int
 }
 
-// NewEventStore creates a new event store instance
-func NewEventStore(ctx context.Context, pool *pgxpool.Pool) (EventStore, error) {
-	if pool == nil {
-		return nil, &ValidationError{
-			EventStoreError: EventStoreError{
-				Op:  "NewEventStore",
-				Err: fmt.Errorf("pool cannot be nil"),
-			},
-			Field: "pool",
-			Value: "nil",
-		}
+// newEventStore creates a new eventStore instance
+func newEventStore(ctx context.Context, pool *pgxpool.Pool) (*eventStore, error) {
+	// Test the connection
+	if err := pool.Ping(ctx); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
 	return &eventStore{
 		pool:         pool,
-		maxBatchSize: 1000, // Default batch size
+		maxBatchSize: 1000, // Default maximum batch size
 	}, nil
 }
 

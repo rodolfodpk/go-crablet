@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -14,6 +16,53 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
+
+// Test globals
+var (
+	ctx       context.Context
+	pool      *pgxpool.Pool
+	store     EventStore
+	container testcontainers.Container
+)
+
+// Test setup and teardown
+var _ = BeforeSuite(func() {
+	ctx = context.Background()
+
+	// Initialize test database using testcontainers
+	var err error
+	pool, container, err = setupPostgresContainer(ctx)
+	Expect(err).NotTo(HaveOccurred())
+
+	// Read and execute schema.sql (path from pkg/dcb to root)
+	schemaSQL, err := os.ReadFile("../../docker-entrypoint-initdb.d/schema.sql")
+	Expect(err).NotTo(HaveOccurred())
+
+	// Filter out psql meta-commands that don't work with Go's database driver
+	filteredSQL := filterPsqlCommands(string(schemaSQL))
+
+	// Debug: print the filtered SQL
+	fmt.Printf("Filtered SQL:\n%s\n", filteredSQL)
+
+	// Execute schema
+	_, err = pool.Exec(ctx, filteredSQL)
+	Expect(err).NotTo(HaveOccurred())
+
+	// Create event store
+	store, err = NewEventStore(ctx, pool)
+	Expect(err).NotTo(HaveOccurred())
+})
+
+var _ = AfterSuite(func() {
+	if pool != nil {
+		pool.Close()
+	}
+	if container != nil {
+		container.Terminate(ctx)
+	}
+})
+
+// Helper functions
 
 // toJSON marshals a struct to JSON bytes, panicking on error (for test convenience)
 func toJSON(v any) []byte {
@@ -141,30 +190,32 @@ func dumpEvents(pool *pgxpool.Pool) {
 	fmt.Println("------------------------------------")
 }
 
-// NewEventStoreFromPool creates a new EventStore from an existing pool without connection testing
-// This is used for tests that share a PostgreSQL container
-func NewEventStoreFromPool(pool *pgxpool.Pool) EventStore {
-	return &eventStore{
-		pool:         pool,
-		maxBatchSize: 1000, // Default maximum batch size
-	}
-}
+// filterPsqlCommands removes psql meta-commands and psql-only SQL from schema.sql
+func filterPsqlCommands(sql string) string {
+	lines := strings.Split(sql, "\n")
+	var filteredLines []string
 
-// TruncateEvents truncates the events table and resets the position sequence
-// This is intended for testing and benchmarking purposes only
-func TruncateEvents(ctx context.Context, store EventStore) error {
-	// Type assert to get access to the underlying pool
-	// This is safe because we control the implementation
-	es, ok := store.(*eventStore)
-	if !ok {
-		return fmt.Errorf("store is not the expected implementation type")
+	for _, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+
+		// Remove lines that are psql meta-commands or psql-only SQL
+		if strings.HasPrefix(trimmedLine, "\\") {
+			continue
+		}
+		if strings.Contains(trimmedLine, "\\gexec") {
+			continue
+		}
+		if strings.Contains(trimmedLine, "SELECT 'CREATE DATABASE") {
+			continue
+		}
+
+		// Skip empty lines after filtering
+		if trimmedLine == "" {
+			continue
+		}
+
+		filteredLines = append(filteredLines, trimmedLine)
 	}
 
-	// Truncate the events table and reset the sequence
-	_, err := es.pool.Exec(ctx, "TRUNCATE TABLE events RESTART IDENTITY CASCADE")
-	if err != nil {
-		return fmt.Errorf("failed to truncate events table: %w", err)
-	}
-
-	return nil
+	return strings.Join(filteredLines, "\n")
 }

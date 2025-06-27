@@ -1,5 +1,5 @@
-// This example demonstrates how the postgres package would work as an alternative
-// to the core package, showing the separation of concerns.
+// This example demonstrates how the consolidated dcb package works,
+// showing the unified approach with PostgreSQL implementation.
 package main
 
 import (
@@ -8,7 +8,6 @@ import (
 	"log"
 
 	"go-crablet/pkg/dcb"
-	postgres "go-crablet/pkg/dcb/postgres"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -23,22 +22,22 @@ func main() {
 	}
 	defer pool.Close()
 
-	fmt.Println("=== PostgreSQL Package Example ===")
+	fmt.Println("=== Consolidated DCB Package Example ===")
 
-	// Method 1: Using the core package (current approach)
-	fmt.Println("\n1. Core Package Approach:")
-	demonstrateCorePackage(ctx, pool)
+	// Demonstrate the consolidated package approach
+	fmt.Println("\n1. Consolidated Package Approach:")
+	demonstrateConsolidatedPackage(ctx, pool)
 
-	// Method 2: Using the postgres package (proposed approach)
-	fmt.Println("\n2. PostgreSQL Package Approach:")
-	demonstratePostgresPackage(ctx, pool)
+	// Demonstrate channel streaming
+	fmt.Println("\n2. Channel Streaming:")
+	demonstrateChannelStreaming(ctx, pool)
 }
 
-// demonstrateCorePackage shows usage of the current core package approach
-func demonstrateCorePackage(ctx context.Context, pool *pgxpool.Pool) {
-	fmt.Println("   Using core package (current):")
+// demonstrateConsolidatedPackage shows usage of the consolidated dcb package
+func demonstrateConsolidatedPackage(ctx context.Context, pool *pgxpool.Pool) {
+	fmt.Println("   Using consolidated dcb package:")
 
-	// Create event store using core package
+	// Create event store using consolidated package
 	store, err := dcb.NewEventStore(ctx, pool)
 	if err != nil {
 		log.Printf("Failed to create event store: %v", err)
@@ -66,22 +65,22 @@ func demonstrateCorePackage(ctx context.Context, pool *pgxpool.Pool) {
 		return
 	}
 
-	fmt.Printf("   - Core package: Loaded %d events\n", len(sequencedEvents.Events))
-	fmt.Println("   - Note: Core package includes PostgreSQL dependencies")
+	fmt.Printf("   - Consolidated package: Loaded %d events\n", len(sequencedEvents.Events))
+	fmt.Println("   - Note: Consolidated package includes PostgreSQL implementation")
 }
 
-// demonstratePostgresPackage shows usage of the proposed postgres package approach
-func demonstratePostgresPackage(ctx context.Context, pool *pgxpool.Pool) {
-	fmt.Println("   Using postgres package (proposed):")
+// demonstrateChannelStreaming shows channel streaming capabilities
+func demonstrateChannelStreaming(ctx context.Context, pool *pgxpool.Pool) {
+	fmt.Println("   Using channel streaming:")
 
-	// Create event store using postgres package
-	store, err := postgres.NewEventStore(ctx, pool)
+	// Create event store using consolidated package
+	store, err := dcb.NewEventStore(ctx, pool)
 	if err != nil {
-		log.Printf("Failed to create postgres event store: %v", err)
+		log.Printf("Failed to create event store: %v", err)
 		return
 	}
 
-	// Create some test events
+	// Create some test events for streaming
 	events := []dcb.InputEvent{
 		dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", "user-3"), []byte(`{"name": "Charlie"}`)),
 		dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", "user-4"), []byte(`{"name": "Diana"}`)),
@@ -94,20 +93,10 @@ func demonstratePostgresPackage(ctx context.Context, pool *pgxpool.Pool) {
 		return
 	}
 
-	// Read events
-	query := dcb.NewQuerySimple(dcb.NewTags(), "UserCreated")
-	sequencedEvents, err := store.Read(ctx, query, nil)
-	if err != nil {
-		log.Printf("Failed to read events: %v", err)
-		return
-	}
-
-	fmt.Printf("   - Postgres package: Loaded %d events\n", len(sequencedEvents.Events))
-	fmt.Println("   - Note: Postgres package separates PostgreSQL dependencies")
-
 	// Demonstrate channel streaming
 	if channelStore, ok := store.(dcb.ChannelEventStore); ok {
 		fmt.Println("   - Channel streaming available")
+		query := dcb.NewQuerySimple(dcb.NewTags(), "UserCreated")
 		eventChan, err := channelStore.ReadStreamChannel(ctx, query)
 		if err != nil {
 			log.Printf("Failed to create event stream: %v", err)
@@ -126,12 +115,12 @@ func demonstratePostgresPackage(ctx context.Context, pool *pgxpool.Pool) {
 	}
 }
 
-// demonstrateDependencySeparation shows the key benefit of the postgres package
-func demonstrateDependencySeparation() {
-	fmt.Println("\n3. Dependency Separation Benefits:")
-	fmt.Println("   - Core package (pkg/dcb): Only interfaces and types")
-	fmt.Println("   - Postgres package (pkg/dcb/postgres): PostgreSQL-specific implementation")
-	fmt.Println("   - SQLite package (pkg/dcb/sqlite): SQLite-specific implementation (future)")
-	fmt.Println("   - Consumers only import what they need")
-	fmt.Println("   - No unused dependencies pulled in")
+// demonstrateConsolidationBenefits shows the benefits of the consolidated approach
+func demonstrateConsolidationBenefits() {
+	fmt.Println("\n3. Consolidation Benefits:")
+	fmt.Println("   - Single package (pkg/dcb): Interfaces, types, and PostgreSQL implementation")
+	fmt.Println("   - Simplified import structure")
+	fmt.Println("   - All functionality in one place")
+	fmt.Println("   - Easier maintenance and testing")
+	fmt.Println("   - No package fragmentation")
 }

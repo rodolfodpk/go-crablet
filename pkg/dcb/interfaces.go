@@ -190,33 +190,6 @@ func (ac *appendCondition) getAfter() *int64 {
 	return ac.After
 }
 
-// NewAppendCondition creates a new AppendCondition with the specified query
-// This is the DCB-compliant way to construct append conditions
-func NewAppendCondition(failIfEventsMatch *Query) AppendCondition {
-	return &appendCondition{
-		FailIfEventsMatch: failIfEventsMatch,
-		After:             nil, // Will be set during processing
-	}
-}
-
-// NewAppendConditionWithAfter creates a new AppendCondition with both query and after position
-// This is used internally by the event store for optimistic locking
-func NewAppendConditionWithAfter(failIfEventsMatch *Query, after *int64) AppendCondition {
-	return &appendCondition{
-		FailIfEventsMatch: failIfEventsMatch,
-		After:             after,
-	}
-}
-
-// NewAppendConditionAfter creates a new AppendCondition with only after position
-// This is used for optimistic locking based on position
-func NewAppendConditionAfter(after *int64) AppendCondition {
-	return &appendCondition{
-		FailIfEventsMatch: nil,
-		After:             after,
-	}
-}
-
 // StateProjector defines how to project a state from events
 type StateProjector struct {
 	Query        Query                            `json:"query"`
