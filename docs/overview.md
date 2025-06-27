@@ -5,7 +5,10 @@ go-crablet is a Go library for event sourcing, exploring and learning about conc
 - Project multiple states and check business invariants in a single query
 - Use tag-based, OR-combined queries for cross-entity consistency
 - Enforce optimistic concurrency with combined append conditions
+
+Our implementation also provides:
 - Stream events efficiently for large datasets
+- Channel-based streaming for Go-idiomatic processing
 
 ## Event Store Structure
 
@@ -20,12 +23,14 @@ CREATE TABLE events (
 );
 ```
 
+See the complete table definition in [schema.sql](../docker-entrypoint-initdb.d/schema.sql#L8-L13).
+
 ## Append Procedure
 
 We use PostgreSQL functions for atomic append operations:
-- `append_events_with_condition()`: Checks conditions and appends events atomically
-- `check_append_condition()`: Validates that no conflicting events exist
-- `append_events_batch()`: Efficiently inserts multiple events using UNNEST
+- [`append_events_with_condition()`](../docker-entrypoint-initdb.d/schema.sql#L75-L95): Checks conditions and appends events atomically
+- [`check_append_condition()`](../docker-entrypoint-initdb.d/schema.sql#L25-L65): Validates that no conflicting events exist
+- [`append_events_batch()`](../docker-entrypoint-initdb.d/schema.sql#L67-L73): Efficiently inserts multiple events using UNNEST
 
 The append procedure ensures optimistic concurrency by checking that no events matching the append condition exist before inserting new events.
 
