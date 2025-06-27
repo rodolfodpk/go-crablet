@@ -1,0 +1,154 @@
+// This example demonstrates different streaming approaches in go-crablet
+// Run with: go run internal/examples/streaming/main.go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+
+	"go-crablet/pkg/dcb"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+func main() {
+	ctx := context.Background()
+
+	// Connect to database
+	pool, err := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer pool.Close()
+
+	// Create event store
+	store, err := dcb.NewEventStore(ctx, pool)
+	if err != nil {
+		log.Fatalf("Failed to create event store: %v", err)
+	}
+
+	// Create test events
+	events := []dcb.InputEvent{
+		dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", "user-1"), []byte(`{"name": "Alice"}`)),
+		dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", "user-2"), []byte(`{"name": "Bob"}`)),
+		dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", "user-3"), []byte(`{"name": "Charlie"}`)),
+		dcb.NewInputEvent("UserUpdated", dcb.NewTags("user_id", "user-1"), []byte(`{"name": "Alice Smith"}`)),
+		dcb.NewInputEvent("UserUpdated", dcb.NewTags("user_id", "user-2"), []byte(`{"name": "Bob Johnson"}`)),
+	}
+
+	// Append events
+	err = store.Append(ctx, events, nil)
+	if err != nil {
+		log.Fatalf("Failed to append events: %v", err)
+	}
+
+	fmt.Println("=== Streaming Examples ===")
+
+	// 1. Core EventStore - Read into memory
+	fmt.Println("\n1. Core EventStore - Read into memory:")
+	demonstrateCoreRead(ctx, store)
+
+	// 2. ChannelEventStore - Channel-based streaming
+	fmt.Println("\n2. ChannelEventStore - Channel-based streaming:")
+	demonstrateChannelStreaming(ctx, store)
+
+	// 3. ChannelEventStore - Channel-based projection
+	fmt.Println("\n3. ChannelEventStore - Channel-based projection:")
+	demonstrateChannelProjection(ctx, store)
+}
+
+// demonstrateCoreRead shows traditional Read into memory
+func demonstrateCoreRead(ctx context.Context, store dcb.EventStore) {
+	query := dcb.NewQuerySimple(dcb.NewTags(), "UserCreated", "UserUpdated")
+
+	// Read all events into memory
+	sequencedEvents, err := store.Read(ctx, query, nil)
+	if err != nil {
+		log.Printf("Read failed: %v", err)
+		return
+	}
+
+	fmt.Printf("   - Read(): Loaded %d events into memory\n", len(sequencedEvents.Events))
+	for i, event := range sequencedEvents.Events {
+		fmt.Printf("     Event %d: Position=%d, Type=%s\n", i+1, event.Position, event.Type)
+	}
+}
+
+// demonstrateChannelStreaming shows channel-based event streaming
+func demonstrateChannelStreaming(ctx context.Context, store dcb.EventStore) {
+	// Check if store implements ChannelEventStore
+	channelStore, ok := store.(dcb.ChannelEventStore)
+	if !ok {
+		fmt.Println("   - Store does not implement ChannelEventStore interface")
+		return
+	}
+
+	query := dcb.NewQuerySimple(dcb.NewTags(), "UserCreated", "UserUpdated")
+
+	// Stream events through channel
+	eventChan, err := channelStore.ReadStreamChannel(ctx, query)
+	if err != nil {
+		log.Printf("ReadStreamChannel failed: %v", err)
+		return
+	}
+
+	count := 0
+	for event := range eventChan {
+		fmt.Printf("   - ReadStreamChannel(): Event %d: Position=%d, Type=%s\n",
+			count+1, event.Position, event.Type)
+		count++
+	}
+	fmt.Printf("   - ReadStreamChannel(): Processed %d events using channels\n", count)
+}
+
+// demonstrateChannelProjection shows channel-based state projection
+func demonstrateChannelProjection(ctx context.Context, store dcb.EventStore) {
+	// Check if store implements ChannelEventStore
+	channelStore, ok := store.(dcb.ChannelEventStore)
+	if !ok {
+		fmt.Println("   - Store does not implement ChannelEventStore interface")
+		return
+	}
+
+	// Define projectors for state projection
+	projectors := []dcb.BatchProjector{
+		{
+			ID: "userCount",
+			StateProjector: dcb.StateProjector{
+				Query:        dcb.NewQuerySimple(dcb.NewTags(), "UserCreated"),
+				InitialState: 0,
+				TransitionFn: func(state any, event dcb.Event) any {
+					return state.(int) + 1
+				},
+			},
+		},
+		{
+			ID: "updateCount",
+			StateProjector: dcb.StateProjector{
+				Query:        dcb.NewQuerySimple(dcb.NewTags(), "UserUpdated"),
+				InitialState: 0,
+				TransitionFn: func(state any, event dcb.Event) any {
+					return state.(int) + 1
+				},
+			},
+		},
+	}
+
+	// Stream projection results through channel
+	resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
+	if err != nil {
+		log.Printf("ProjectDecisionModelChannel failed: %v", err)
+		return
+	}
+
+	fmt.Println("   - ProjectDecisionModelChannel(): Streaming projection results:")
+	for result := range resultChan {
+		if result.Error != nil {
+			fmt.Printf("     Error in projector %s: %v\n", result.ProjectorID, result.Error)
+		} else {
+			fmt.Printf("     Projector %s: State=%v, Event=%s, Position=%d\n",
+				result.ProjectorID, result.State, result.Event.Type, result.Position)
+		}
+	}
+}

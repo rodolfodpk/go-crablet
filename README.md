@@ -33,16 +33,11 @@ Comprehensive performance testing and analysis for different API protocols:
 
 Ready-to-run examples demonstrating different aspects of the DCB pattern:
 
-- **[Transfer Example](internal/examples/transfer/main.go)**: **Batch append demonstration** - Money transfer between accounts with account creation and transfer in a single atomic batch operation
-- **[Course Enrollment](internal/examples/enrollment/main.go)**: Student course enrollment with capacity limits and business rules
-- **[Streaming Projections](internal/examples/streaming_projection/main.go)**: Memory-efficient event processing with multiple projections
-- **[Decision Model](internal/examples/decision_model/main.go)**: Exploring Dynamic Consistency Boundary concepts with multiple projectors
-- **[Cursor Streaming](internal/examples/cursor_streaming/main.go)**: Large dataset processing with batching and streaming
-- **[ReadStream](internal/examples/readstream/main.go)**: Event streaming with projections and optimistic locking
-- **[Batch Operations](internal/examples/batch/main.go)**: Batch event processing and atomic operations
-- **[Channel Projection](internal/examples/channel_projection/main.go)**: Channel-based state projections
-- **[Channel Streaming](internal/examples/channel_streaming/main.go)**: Channel-based event streaming
-- **[Extension Interface](internal/examples/extension_interface/main.go)**: Extending the event store interface
+- **[Transfer Example](internal/examples/transfer/main.go)**: **Account transfer demonstration** - Money transfer between accounts with account creation and transfer in a single atomic batch operation
+- **[Course Enrollment](internal/examples/enrollment/main.go)**: **Course subscription demonstration** - Student course enrollment with capacity limits and business rules
+- **[Streaming](internal/examples/streaming/main.go)**: **Streaming approaches** - Demonstrates core EventStore reading, channel-based streaming, and channel-based projection
+- **[Decision Model](internal/examples/decision_model/main.go)**: **DCB decision model** - Exploring Dynamic Consistency Boundary concepts with multiple projectors
+- **[Batch Operations](internal/examples/batch/main.go)**: **Batch processing** - Batch event processing and atomic operations
 
 Run any example with: `go run internal/examples/[example-name]/main.go`
 

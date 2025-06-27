@@ -69,16 +69,13 @@ func main() {
 		log.Fatalf("failed to create event store: %v", err)
 	}
 
-	// Cast to ChannelEventStore for extended functionality
-	channelStore := store.(dcb.ChannelEventStore)
-
 	// Command 1: Create first account
 	createAccount1Cmd := CreateAccountCommand{
 		AccountID:      "acc1",
 		Owner:          "Alice",
 		InitialBalance: 1000,
 	}
-	err = handleCreateAccount(ctx, channelStore, createAccount1Cmd)
+	err = handleCreateAccount(ctx, store, createAccount1Cmd)
 	if err != nil {
 		log.Fatalf("Create account 1 failed: %v", err)
 	}
@@ -88,7 +85,7 @@ func main() {
 		AccountID:      "acc456",
 		InitialBalance: 500,
 	}
-	err = handleCreateAccount(ctx, channelStore, createAccount2Cmd)
+	err = handleCreateAccount(ctx, store, createAccount2Cmd)
 	if err != nil {
 		log.Fatalf("Create account 2 failed: %v", err)
 	}
@@ -99,7 +96,7 @@ func main() {
 		ToAccountID:   "acc456",
 		Amount:        300,
 	}
-	err = handleTransferMoney(ctx, channelStore, transferCmd)
+	err = handleTransferMoney(ctx, store, transferCmd)
 	if err != nil {
 		log.Fatalf("Transfer failed: %v", err)
 	}
@@ -113,7 +110,7 @@ func main() {
 
 // Command handlers with their own business rules
 
-func handleCreateAccount(ctx context.Context, store dcb.ChannelEventStore, cmd CreateAccountCommand) error {
+func handleCreateAccount(ctx context.Context, store dcb.EventStore, cmd CreateAccountCommand) error {
 	// Command-specific projectors
 	projectors := []dcb.BatchProjector{
 		{ID: "accountExists", StateProjector: dcb.StateProjector{
@@ -162,7 +159,7 @@ func handleCreateAccount(ctx context.Context, store dcb.ChannelEventStore, cmd C
 	return nil
 }
 
-func handleTransferMoney(ctx context.Context, store dcb.ChannelEventStore, cmd TransferMoneyCommand) error {
+func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd TransferMoneyCommand) error {
 	// Command-specific projectors
 	fromProjector := dcb.StateProjector{
 		Query: dcb.NewQuery(
