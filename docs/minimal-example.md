@@ -2,8 +2,6 @@
 
 This document provides a detailed walkthrough of a comprehensive course enrollment example, demonstrating the Dynamic Consistency Boundary (DCB) pattern with proper command handlers, business logic separation, and optimistic concurrency.
 
-## Complete Example
-
 ```go
 package main
 
