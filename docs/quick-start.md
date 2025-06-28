@@ -72,16 +72,19 @@ func main() {
         log.Fatal(err)
     }
 
-    for _, event := range events.Events {
+    for _, event := range events {
         log.Printf("Event: %s, Position: %d", event.Type, event.Position)
     }
 
     // Conditional append with optimistic concurrency
-    condition := dcb.NewAppendConditionAfter(&events.Position)
-    newEvent := dcb.NewInputEvent("UserUpdated", dcb.NewTags("user_id", "123"), []byte(`{"name": "John Smith"}`))
-    err = store.AppendIf(context.Background(), []dcb.InputEvent{newEvent}, condition)
-    if err != nil {
-        log.Printf("Conditional append failed: %v", err)
+    if len(events) > 0 {
+        lastPosition := events[len(events)-1].Position
+        condition := dcb.NewAppendConditionAfter(&lastPosition)
+        newEvent := dcb.NewInputEvent("UserUpdated", dcb.NewTags("user_id", "123"), []byte(`{"name": "John Smith"}`))
+        err = store.AppendIf(context.Background(), []dcb.InputEvent{newEvent}, condition)
+        if err != nil {
+            log.Printf("Conditional append failed: %v", err)
+        }
     }
 }
 ```
