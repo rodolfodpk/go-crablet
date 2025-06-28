@@ -22,7 +22,9 @@ var _ = Describe("Channel-Based Streaming", func() {
 		var ok bool
 		channelStore, ok = store.(ChannelEventStore)
 		Expect(ok).To(BeTrue(), "Store should implement ChannelEventStore")
-		ctx = context.Background()
+
+		// Create context with timeout for each test
+		ctx, _ = context.WithTimeout(context.Background(), 30*time.Second)
 
 		// Truncate events table before each test
 		err := truncateEventsTable(ctx, pool)

@@ -36,21 +36,26 @@ package main
 import (
     "context"
     "log"
+    "time"
 
     "github.com/jackc/pgx/v5/pgxpool"
     "github.com/rodolfodpk/go-crablet/pkg/dcb"
 )
 
 func main() {
+    // Create context with timeout for the entire application
+    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+    defer cancel()
+
     // Connect to PostgreSQL
-    pool, err := pgxpool.New(context.Background(), "postgres://user:pass@localhost:5432/dbname")
+    pool, err := pgxpool.New(ctx, "postgres://user:pass@localhost:5432/dbname")
     if err != nil {
         log.Fatal(err)
     }
     defer pool.Close()
 
     // Create event store
-    store, err := dcb.NewEventStore(pool)
+    store, err := dcb.NewEventStore(ctx, pool)
     if err != nil {
         log.Fatal(err)
     }
@@ -59,7 +64,7 @@ func main() {
     event := dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", "123"), []byte(`{"name": "John Doe", "email": "john@example.com"}`))
 
     // Append event (simple, no conditions)
-    err = store.Append(context.Background(), []dcb.InputEvent{event})
+    err = store.Append(ctx, []dcb.InputEvent{event})
     if err != nil {
         log.Fatal(err)
     }
@@ -67,7 +72,7 @@ func main() {
 
     // Read events
     query := dcb.NewQuery(dcb.NewTags("user_id", "123"), "UserCreated")
-    events, err := store.Read(context.Background(), query)
+    events, err := store.Read(ctx, query)
     if err != nil {
         log.Fatal(err)
     }
@@ -81,7 +86,7 @@ func main() {
         lastPosition := events[len(events)-1].Position
         condition := dcb.NewAppendConditionAfter(&lastPosition)
         newEvent := dcb.NewInputEvent("UserUpdated", dcb.NewTags("user_id", "123"), []byte(`{"name": "John Smith"}`))
-        err = store.AppendIf(context.Background(), []dcb.InputEvent{newEvent}, condition)
+        err = store.AppendIf(ctx, []dcb.InputEvent{newEvent}, condition)
         if err != nil {
             log.Printf("Conditional append failed: %v", err)
         }

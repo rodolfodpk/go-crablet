@@ -429,7 +429,9 @@ var _ = Describe("Course Subscription Domain", func() {
 		// Use shared PostgreSQL container and truncate events between tests
 		store = NewEventStoreFromPool(pool)
 		channelStore = store.(ChannelEventStore)
-		ctx = context.Background()
+
+		// Create context with timeout for each test
+		ctx, _ = context.WithTimeout(context.Background(), 30*time.Second)
 
 		// Truncate events table before each test
 		err := truncateEventsTable(ctx, pool)

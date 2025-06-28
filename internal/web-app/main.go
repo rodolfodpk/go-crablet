@@ -27,36 +27,57 @@ type Server struct {
 }
 
 func main() {
-	// Get database connection string from environment
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		dbURL = "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable"
+	// Create context with timeout for the entire application
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Get database configuration from environment
+	dbHost := os.Getenv("DB_HOST")
+	if dbHost == "" {
+		dbHost = "localhost"
+	}
+	dbPort := os.Getenv("DB_PORT")
+	if dbPort == "" {
+		dbPort = "5432"
+	}
+	dbUser := os.Getenv("DB_USER")
+	if dbUser == "" {
+		dbUser = "postgres"
+	}
+	dbPassword := os.Getenv("DB_PASSWORD")
+	if dbPassword == "" {
+		dbPassword = "postgres"
+	}
+	dbName := os.Getenv("DB_NAME")
+	if dbName == "" {
+		dbName = "dcb_app"
 	}
 
-	// Configure connection pool for performance
-	config, err := pgxpool.ParseConfig(dbURL)
-	if err != nil {
-		log.Fatalf("Failed to parse database URL: %v", err)
-	}
-
-	// Optimize connection pool for high throughput with adaptive sizing
-	// Base configuration on available system resources
-	maxConns := 50 // Reduced from 300 to prevent exhaustion
-	minConns := 10 // Reduced from 100 to prevent exhaustion
-
-	// Adaptive sizing based on environment or system resources
-	if maxConnsEnv := os.Getenv("DB_MAX_CONNS"); maxConnsEnv != "" {
-		if parsed, err := strconv.Atoi(maxConnsEnv); err == nil && parsed > 0 {
+	// Get connection pool configuration from environment
+	maxConns := 20
+	if maxConnsStr := os.Getenv("DB_MAX_CONNS"); maxConnsStr != "" {
+		if parsed, err := strconv.Atoi(maxConnsStr); err == nil {
 			maxConns = parsed
 		}
 	}
 
-	if minConnsEnv := os.Getenv("DB_MIN_CONNS"); minConnsEnv != "" {
-		if parsed, err := strconv.Atoi(minConnsEnv); err == nil && parsed > 0 && parsed <= maxConns {
+	minConns := 5
+	if minConnsStr := os.Getenv("DB_MIN_CONNS"); minConnsStr != "" {
+		if parsed, err := strconv.Atoi(minConnsStr); err == nil {
 			minConns = parsed
 		}
 	}
 
+	// Build connection string
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", dbUser, dbPassword, dbHost, dbPort, dbName)
+
+	// Parse connection string and configure pool
+	config, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		log.Fatalf("Failed to parse database config: %v", err)
+	}
+
+	// Configure connection pool settings
 	config.MaxConns = int32(maxConns)
 	config.MinConns = int32(minConns)
 	config.MaxConnLifetime = 10 * time.Minute // Reduced from 15 minutes
@@ -70,7 +91,7 @@ func main() {
 
 	for i := 0; i < maxRetries; i++ {
 		// Only log on error, not on success
-		pool, err = pgxpool.NewWithConfig(context.Background(), config)
+		pool, err = pgxpool.NewWithConfig(ctx, config)
 		if err == nil {
 			break
 		}
@@ -89,7 +110,7 @@ func main() {
 	defer pool.Close()
 
 	// Create event store
-	store, err := dcb.NewEventStore(context.Background(), pool)
+	store, err := dcb.NewEventStore(ctx, pool)
 	if err != nil {
 		log.Fatalf("Failed to create event store: %v", err)
 	}
@@ -110,7 +131,7 @@ func main() {
 		}
 
 		// Truncate the events table and reset the position sequence
-		_, err := pool.Exec(context.Background(), `
+		_, err := pool.Exec(r.Context(), `
 			TRUNCATE TABLE events RESTART IDENTITY CASCADE;
 		`)
 
@@ -417,7 +438,7 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
 	options := convertReadOptions(req.Options)
 
 	// Execute read
-	ctx := context.Background()
+	ctx := r.Context()
 	result, err := s.store.ReadWithOptions(ctx, query, options)
 
 	duration := time.Since(start)
@@ -487,7 +508,7 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 	condition := convertAppendCondition(req.Condition)
 
 	// Execute append
-	ctx := context.Background()
+	ctx := r.Context()
 	err := s.store.AppendIf(ctx, inputEvents, condition)
 
 	duration := time.Since(start)

@@ -1,12 +1,18 @@
 package dcb
 
 import (
+	"context"
+	"time"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Coverage Improvement Tests", func() {
 	BeforeEach(func() {
+		// Create context with timeout for each test
+		ctx, _ = context.WithTimeout(context.Background(), 30*time.Second)
+
 		// Clean up the events table before each test
 		err := truncateEventsTable(ctx, pool)
 		Expect(err).NotTo(HaveOccurred())

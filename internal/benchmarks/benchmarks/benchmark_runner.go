@@ -26,7 +26,9 @@ type BenchmarkContext struct {
 
 // SetupBenchmarkContext creates a benchmark context with test data
 func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
-	ctx := context.Background()
+	// Create context with timeout for benchmark setup
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
 
 	// Use the existing docker-compose setup
 	// The docker-compose.yaml file should be running with the schema.sql already applied
@@ -104,7 +106,9 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
 
 // BenchmarkAppendSingle benchmarks single event append
 func BenchmarkAppendSingle(b *testing.B, benchCtx *BenchmarkContext) {
-	ctx := context.Background()
+	// Create context with timeout for each benchmark iteration
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -124,7 +128,9 @@ func BenchmarkAppendSingle(b *testing.B, benchCtx *BenchmarkContext) {
 
 // BenchmarkAppendBatch benchmarks batch event append
 func BenchmarkAppendBatch(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
-	ctx := context.Background()
+	// Create context with timeout for each benchmark iteration
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -146,7 +152,9 @@ func BenchmarkAppendBatch(b *testing.B, benchCtx *BenchmarkContext, batchSize in
 
 // BenchmarkRead benchmarks event reading
 func BenchmarkRead(b *testing.B, benchCtx *BenchmarkContext, queryIndex int) {
-	ctx := context.Background()
+	// Create context with timeout for each benchmark iteration
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	if queryIndex >= len(benchCtx.Queries) {
 		b.Fatalf("Query index out of range: %d", queryIndex)
@@ -174,7 +182,9 @@ func BenchmarkReadStreamChannel(b *testing.B, benchCtx *BenchmarkContext, queryI
 		b.Skip("Channel streaming not available")
 	}
 
-	ctx := context.Background()
+	// Create context with timeout for each benchmark iteration
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	if queryIndex >= len(benchCtx.Queries) {
 		b.Fatalf("Query index out of range: %d", queryIndex)
@@ -208,7 +218,9 @@ func BenchmarkProjectDecisionModel(b *testing.B, benchCtx *BenchmarkContext, pro
 		b.Skip("Channel streaming not available")
 	}
 
-	ctx := context.Background()
+	// Create context with timeout for each benchmark iteration
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	if projectorCount > len(benchCtx.Projectors) {
 		b.Fatalf("Projector count out of range: %d", projectorCount)
@@ -220,7 +232,7 @@ func BenchmarkProjectDecisionModel(b *testing.B, benchCtx *BenchmarkContext, pro
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		_, _, err := benchCtx.ChannelStore.ProjectDecisionModel(ctx, projectors)
+		_, _, err := benchCtx.Store.ProjectDecisionModel(ctx, projectors)
 		if err != nil {
 			b.Fatalf("ProjectDecisionModel failed: %v", err)
 		}
@@ -233,7 +245,9 @@ func BenchmarkProjectDecisionModelChannel(b *testing.B, benchCtx *BenchmarkConte
 		b.Skip("Channel streaming not available")
 	}
 
-	ctx := context.Background()
+	// Create context with timeout for each benchmark iteration
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	if projectorCount > len(benchCtx.Projectors) {
 		b.Fatalf("Projector count out of range: %d", projectorCount)
@@ -263,7 +277,9 @@ func BenchmarkProjectDecisionModelChannel(b *testing.B, benchCtx *BenchmarkConte
 
 // BenchmarkMemoryUsage benchmarks memory usage for different operations
 func BenchmarkMemoryUsage(b *testing.B, benchCtx *BenchmarkContext, operation string) {
-	ctx := context.Background()
+	// Create context with timeout for each benchmark iteration
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	var m1, m2 runtime.MemStats
 	runtime.GC()

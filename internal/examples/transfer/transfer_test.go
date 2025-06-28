@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"testing"
+	"time"
 
 	"go-crablet/pkg/dcb"
 
@@ -13,13 +14,17 @@ import (
 
 // cleanupEvents truncates the events table to ensure test isolation
 func cleanupEvents(t *testing.T, pool *pgxpool.Pool) {
-	ctx := context.Background()
+	// Create context with timeout for cleanup
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	_, err := pool.Exec(ctx, "TRUNCATE TABLE events RESTART IDENTITY CASCADE")
 	require.NoError(t, err)
 }
 
 func TestTransferExample(t *testing.T) {
-	ctx := context.Background()
+	// Create context with timeout for the entire test
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
 
 	// Connect to test database
 	pool, err := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")
@@ -183,7 +188,9 @@ func TestTransferExample(t *testing.T) {
 // TestSequentialTransfers tests that multiple transfers on the same account work correctly
 // and that insufficient funds are properly detected
 func TestSequentialTransfers(t *testing.T) {
-	ctx := context.Background()
+	// Create context with timeout for the entire test
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
 
 	// Connect to test database
 	pool, err := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")

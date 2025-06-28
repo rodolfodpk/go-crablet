@@ -18,6 +18,7 @@ import (
     "encoding/json"
     "github.com/rodolfodpk/go-crablet/pkg/dcb"
     "github.com/jackc/pgx/v5/pgxpool"
+    "time"
 )
 
 type CourseDefined struct {
@@ -31,7 +32,8 @@ type StudentSubscribed struct {
 }
 
 func main() {
-    ctx := context.Background()
+    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+    defer cancel()
     pool, _ := pgxpool.New(ctx, "postgres://user:pass@localhost/db")
     store, _ := dcb.NewEventStore(ctx, pool)
 
@@ -83,7 +85,8 @@ func main() {
 
 ```go
 func channelBasedExample() {
-    ctx := context.Background()
+    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+    defer cancel()
     pool, _ := pgxpool.New(ctx, "postgres://user:pass@localhost/db")
     store, _ := dcb.NewEventStore(ctx, pool)
     
@@ -146,7 +149,8 @@ func channelBasedExample() {
 
 ```go
 func channelStreamingExample() {
-    ctx := context.Background()
+    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+    defer cancel()
     pool, _ := pgxpool.New(ctx, "postgres://user:pass@localhost/db")
     store, _ := dcb.NewEventStore(ctx, pool)
     

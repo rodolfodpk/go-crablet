@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -27,7 +28,9 @@ var (
 
 // Test setup and teardown
 var _ = BeforeSuite(func() {
-	ctx = context.Background()
+	// Create context with timeout for test setup
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 
 	// Initialize test database using testcontainers
 	var err error

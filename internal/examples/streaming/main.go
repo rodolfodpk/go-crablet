@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"go-crablet/pkg/dcb"
 
@@ -13,7 +14,9 @@ import (
 )
 
 func main() {
-	ctx := context.Background()
+	// Create context with timeout for the entire application
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	// Connect to database
 	pool, err := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")

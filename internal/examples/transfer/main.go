@@ -59,7 +59,10 @@ type TransferMoneyCommand struct {
 }
 
 func main() {
-	ctx := context.Background()
+	// Create context with timeout for the entire application
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	pool, err := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")
 	if err != nil {
 		log.Fatalf("failed to connect to db: %v", err)

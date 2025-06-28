@@ -12,7 +12,9 @@ import (
 )
 
 func main() {
-	ctx := context.Background()
+	// Create context with timeout for the entire benchmark application
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
 
 	// Use the existing docker-compose setup
 	// The docker-compose.yaml file should be running with the schema.sql already applied
