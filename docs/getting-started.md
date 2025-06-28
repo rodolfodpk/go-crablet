@@ -60,14 +60,6 @@ make test         # Run k6 performance benchmarks
 make run          # Start server locally
 ```
 
-### gRPC Application (`internal/grpc-app`)
-```bash
-cd internal/grpc-app
-go build ./...    # Build gRPC server
-make test         # Run k6 performance benchmarks
-make run          # Start server locally
-```
-
 ### Benchmarks (`internal/benchmarks`)
 ```bash
 cd internal/benchmarks
@@ -91,4 +83,4 @@ go run main.go    # Run performance benchmarks
 
 For more detailed examples and documentation, see the [Examples](examples.md) guide.
 
-`Query` and `QueryItem` must be constructed using helper functions such as `NewQuery`, `NewQueryItem`, and `NewQueryFromItems`. You cannot use struct literals or access fields directly. This ensures DCB compliance and improves type safety. 
+`Query` and `QueryItem` must be constructed using helper functions such as `NewQuery`, `NewQueryItem`, and `NewQueryFromItems`. You cannot use struct literals or access fields directly. This ensures DCB compliance and improves type safety.

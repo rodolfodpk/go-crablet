@@ -1,5 +1,5 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/rodolfodpk/go-crablet)](https://goreportcard.com/report/github.com/rodolfodpk/go-crablet)
-[![Code Coverage](https://img.shields.io/badge/code%20coverage-83.2%25-green?logo=go)](https://github.com/rodolfodpk/go-crablet/actions/workflows/coverage.yml)
+[![Code Coverage](https://img.shields.io/badge/code%20coverage-82.1%25-green?logo=go)](https://github.com/rodolfodpk/go-crablet/actions/workflows/coverage.yml)
 [![GoDoc](https://godoc.org/github.com/rodolfodpk/go-crablet?status.svg)](https://godoc.org/github.com/rodolfodpk/go-crablet)
 [![License](https://img.shields.io/github/license/rodolfodpk/go-crablet)](https://github.com/rodolfodpk/go-crablet/blob/main/LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/rodolfodpk/go-crablet)](https://github.com/rodolfodpk/go-crablet/blob/main/go.mod)
@@ -26,7 +26,6 @@ A Go library for event sourcing, exploring and learning about concepts inspired 
 Comprehensive performance testing and analysis for different API protocols:
 
 - **[Web-App Benchmarks](internal/web-app/BENCHMARK.md)**: HTTP/REST API performance testing with k6
-- **[gRPC App Benchmarks](internal/grpc-app/BENCHMARK.md)**: gRPC API performance testing with k6
 - **[Go Benchmarks](internal/benchmarks/README.md)**: Core library performance testing and analysis
 
 ## Examples

@@ -8,7 +8,6 @@ go-crablet includes comprehensive performance testing across multiple components
 
 - **Core Library Performance**: Go-level benchmarks for the DCB pattern implementation
 - **HTTP/REST API Performance**: Web application performance under load with **zero errors**
-- **gRPC API Performance**: High-performance gRPC service testing
 
 ## 🚀 **Latest Performance Results**
 
@@ -42,21 +41,7 @@ go-crablet includes comprehensive performance testing across multiple components
 
 **Use Case**: When you need to test HTTP API performance for web applications or REST clients.
 
-### 2. 🔌 gRPC App Benchmarks  
-**Location**: [`internal/grpc-app/BENCHMARK.md`](../internal/grpc-app/BENCHMARK.md)
-
-**What it tests**: gRPC API performance using k6 with gRPC extension
-
-**Key Features**:
-- Quick test (10 seconds, 1 VU) for rapid validation
-- Full benchmark (8 minutes, up to 50 VUs) for comprehensive testing
-- gRPC-specific metrics and performance analysis
-- Higher throughput than HTTP due to binary protocol
-- **Expected performance**: Optimized for high-performance, low-latency communication
-
-**Use Case**: When you need high-performance, low-latency communication between services.
-
-### 3. ⚡ Go Benchmarks
+### 2. ⚡ Go Benchmarks
 **Location**: [`internal/benchmarks/README.md`](../internal/benchmarks/README.md)
 
 **What it tests**: Core library performance using Go's built-in benchmarking
@@ -75,8 +60,7 @@ go-crablet includes comprehensive performance testing across multiple components
 ### Prerequisites
 - **Docker**: For PostgreSQL database
 - **Go**: For running servers and benchmarks
-- **k6**: For HTTP/gRPC load testing (`brew install k6` on macOS)
-- **k6-grpc**: For gRPC testing (`k6 install xk6-grpc`)
+- **k6**: For HTTP load testing (`brew install k6` on macOS)
 
 ### Running All Benchmarks
 
@@ -91,13 +75,7 @@ go-crablet includes comprehensive performance testing across multiple components
    make benchmark
    ```
 
-3. **Run gRPC Benchmarks**:
-   ```bash
-   cd internal/grpc-app
-   make benchmark
-   ```
-
-4. **Run Go Benchmarks**:
+3. **Run Go Benchmarks**:
    ```bash
    cd internal/benchmarks
    go run main.go
@@ -110,12 +88,6 @@ go-crablet includes comprehensive performance testing across multiple components
 - **Full Benchmark**: ~66,137 requests, 137 req/s, 28ms avg, 460ms p99
 - **Success Rate**: 100% HTTP success, 98.24% performance threshold compliance
 - **Zero Errors**: 0 HTTP failures, 0% custom error rate
-
-### gRPC App
-- **Quick Test**: Optimized for rapid validation with 1 VU
-- **Full Benchmark**: Optimized for high-concurrency testing with 50 VUs
-- **Success Rate**: 100% gRPC success, high performance threshold compliance
-- **Performance**: Optimized for high-throughput, low-latency communication
 
 ### Go Benchmarks
 - **Append Performance**: Optimized for batch operations
@@ -147,7 +119,7 @@ The system has been optimized for production performance with:
 ## Benchmark Results Interpretation
 
 ### k6 Metrics to Watch
-- **Success Rate**: Should be 100% for HTTP/gRPC requests
+- **Success Rate**: Should be 100% for HTTP requests
 - **Response Times**: p95 should be under thresholds (200ms for most operations)
 - **Throughput**: Requests per second under expected load
 - **Error Rate**: Should be 0% for successful tests
@@ -160,10 +132,9 @@ The system has been optimized for production performance with:
 ## Troubleshooting
 
 ### Common Issues
-- **Port conflicts**: Use `lsof -i :8080` or `lsof -i :9090` to find and kill processes
+- **Port conflicts**: Use `lsof -i :8080` to find and kill processes
 - **Database connection**: Ensure PostgreSQL is running with `docker ps`
 - **k6 not found**: Install from https://k6.io/docs/getting-started/installation/
-- **gRPC extension missing**: Install with `k6 install xk6-grpc`
 
 ### Performance Issues
 - **High response times**: Check database performance and connection pooling
@@ -203,15 +174,3 @@ For benchmark-related issues:
 ---
 
 **Next Steps**: Choose a specific benchmark type above to get detailed instructions and run your own performance tests.
-
-# Benchmarks
-
-## gRPC Benchmarks
-
-The latest gRPC benchmark results are available in [internal/grpc-app/BENCHMARK.md](../internal/grpc-app/BENCHMARK.md). Each test is run with a clean database using the HTTP `/cleanup` endpoint before the benchmark. Only the k6 screen output is shown for each scenario (quick, full, full-scan, concurrency).
-
-Older reports have been removed to keep the documentation concise and up to date.
-
----
-
-See the BENCHMARK.md for the latest results and details. 
