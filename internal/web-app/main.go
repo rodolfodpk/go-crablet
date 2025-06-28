@@ -490,7 +490,7 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 
 	// Execute append
 	ctx := context.Background()
-	err := s.store.Append(ctx, inputEvents, condition)
+	err := s.store.AppendIf(ctx, inputEvents, condition)
 
 	duration := time.Since(start)
 	durationMicroseconds := duration.Microseconds()

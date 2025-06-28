@@ -2,16 +2,27 @@ package dcb
 
 import (
 	"context"
+	"encoding/json"
 )
 
 // EventStore is the core interface for appending and reading events
-// Append now returns only error
 type EventStore interface {
-	// Append appends events to the store with optional append condition
-	Append(ctx context.Context, events []InputEvent, condition AppendCondition) error
+	// Append appends events to the store (always succeeds if no validation errors)
+	Append(ctx context.Context, events []InputEvent) error
 
-	// Read reads events matching the query with optional read options
-	Read(ctx context.Context, query Query, options *ReadOptions) (SequencedEvents, error)
+	// AppendIf appends events to the store only if the condition is met
+	// Uses READ COMMITTED isolation level by default
+	AppendIf(ctx context.Context, events []InputEvent, condition AppendCondition) error
+
+	// AppendIfSerializable appends events to the store only if the condition is met
+	// with SERIALIZABLE isolation level for maximum consistency
+	AppendIfSerializable(ctx context.Context, events []InputEvent, condition AppendCondition) error
+
+	// Read reads events matching the query (no options)
+	Read(ctx context.Context, query Query) ([]Event, error)
+
+	// ReadWithOptions reads events matching the query with additional options
+	ReadWithOptions(ctx context.Context, query Query, options *ReadOptions) ([]Event, error)
 
 	// ProjectDecisionModel projects multiple states using projectors and returns final states and append condition
 	// This is a go-crablet feature for building decision models in command handlers
@@ -83,9 +94,32 @@ func (e *inputEvent) GetTags() []Tag  { return e.tags }
 func (e *inputEvent) GetData() []byte { return e.data }
 
 // Tag represents a key-value pair for event categorization
-type Tag struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
+// This is now an opaque type: construct only via NewTag
+// and access fields only via methods
+type Tag interface {
+	isTag()
+	GetKey() string
+	GetValue() string
+}
+
+type tag struct {
+	key   string
+	value string
+}
+
+func (t *tag) isTag()           {}
+func (t *tag) GetKey() string   { return t.key }
+func (t *tag) GetValue() string { return t.value }
+
+// MarshalJSON ensures Tag is marshaled as {"key":..., "value":...}
+func (t *tag) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	}{
+		Key:   t.key,
+		Value: t.value,
+	})
 }
 
 // Query represents a composite query with multiple conditions combined with OR logic
@@ -147,12 +181,6 @@ type ReadOptions struct {
 	BatchSize    *int   `json:"batch_size"` // Batch size for cursor-based streaming
 }
 
-// SequencedEvents represents a collection of events with their final position
-type SequencedEvents struct {
-	Events   []Event `json:"events"`
-	Position int64   `json:"position"`
-}
-
 // AppendCondition represents conditions for optimistic locking during append operations
 // This is opaque to consumers - they can only construct it via helper functions
 type AppendCondition interface {
@@ -168,7 +196,7 @@ type AppendCondition interface {
 
 // appendCondition is the internal implementation
 type appendCondition struct {
-	FailIfEventsMatch *Query `json:"fail_if_events_match"`
+	FailIfEventsMatch *query `json:"fail_if_events_match"`
 	After             *int64 `json:"after"`
 }
 
@@ -182,7 +210,11 @@ func (ac *appendCondition) setAfterPosition(after *int64) {
 
 // getFailIfEventsMatch returns the internal query (used by event store)
 func (ac *appendCondition) getFailIfEventsMatch() *Query {
-	return ac.FailIfEventsMatch
+	if ac.FailIfEventsMatch == nil {
+		return nil
+	}
+	var q Query = ac.FailIfEventsMatch
+	return &q
 }
 
 // getAfter returns the internal after position (used by event store)

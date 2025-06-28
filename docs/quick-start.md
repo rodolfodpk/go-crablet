@@ -56,28 +56,32 @@ func main() {
     }
 
     // Define a simple event
-    event := dcb.InputEvent{
-        Type: "UserCreated",
-        Tags: []string{"user", "user:123"},
-        Data: map[string]any{"name": "John Doe", "email": "john@example.com"},
-    }
+    event := dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", "123"), []byte(`{"name": "John Doe", "email": "john@example.com"}`))
 
-    // Append event
-    position, err := store.Append(context.Background(), []dcb.InputEvent{event}, nil)
+    // Append event (simple, no conditions)
+    err = store.Append(context.Background(), []dcb.InputEvent{event})
     if err != nil {
         log.Fatal(err)
     }
-    log.Printf("Event appended at position: %d", position)
+    log.Printf("Event appended successfully")
 
     // Read events
-    query := dcb.NewQuery(dcb.NewQueryItem("user", "user:123"))
+    query := dcb.NewQuery(dcb.NewTags("user_id", "123"), "UserCreated")
     events, err := store.Read(context.Background(), query, nil)
     if err != nil {
         log.Fatal(err)
     }
 
     for _, event := range events.Events {
-        log.Printf("Event: %s, Data: %v", event.Type, event.Data)
+        log.Printf("Event: %s, Position: %d", event.Type, event.Position)
+    }
+
+    // Conditional append with optimistic concurrency
+    condition := dcb.NewAppendConditionAfter(&events.Position)
+    newEvent := dcb.NewInputEvent("UserUpdated", dcb.NewTags("user_id", "123"), []byte(`{"name": "John Smith"}`))
+    err = store.AppendIf(context.Background(), []dcb.InputEvent{newEvent}, condition)
+    if err != nil {
+        log.Printf("Conditional append failed: %v", err)
     }
 }
 ```

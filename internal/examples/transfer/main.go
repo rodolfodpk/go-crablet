@@ -92,6 +92,7 @@ func main() {
 
 	// Command 3: Transfer money
 	transferCmd := TransferMoneyCommand{
+		TransferID:    fmt.Sprintf("tx-%d", time.Now().UnixNano()),
 		FromAccountID: "acc1",
 		ToAccountID:   "acc456",
 		Amount:        300,
@@ -150,7 +151,7 @@ func handleCreateAccount(ctx context.Context, store dcb.EventStore, cmd CreateAc
 	}
 
 	// Append events atomically for this command
-	err = store.Append(ctx, events, appendCondition)
+	err = store.AppendIfSerializable(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to create account: %w", err)
 	}
@@ -277,8 +278,8 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 	}
 
 	// Use the append condition from the decision model for optimistic locking
-	// All events are appended atomically for this command
-	err = store.Append(ctx, events, appendCondition)
+	// All events are appended atomically for this command with serializable isolation
+	err = store.AppendIfSerializable(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("append failed: %w", err)
 	}

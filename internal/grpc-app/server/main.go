@@ -81,7 +81,7 @@ func (s *server) Append(ctx context.Context, req *pb.AppendRequest) (*pb.AppendR
 	}
 
 	// Execute append
-	err := s.store.Append(ctx, events, condition)
+	err := s.store.AppendIf(ctx, events, condition)
 	if err != nil {
 		// Check if it's a concurrency error
 		if _, ok := err.(*dcb.ConcurrencyError); ok {

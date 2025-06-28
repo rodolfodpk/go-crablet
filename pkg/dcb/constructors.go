@@ -60,6 +60,14 @@ func NewEventBatch(events ...InputEvent) []InputEvent {
 // Tag Constructors
 // =============================================================================
 
+// NewTag creates a single tag from key-value pair.
+func NewTag(key, value string) Tag {
+	return &tag{
+		key:   key,
+		value: value,
+	}
+}
+
 // NewTags creates a slice of tags from key-value pairs.
 // Validation is performed when the tags are used in EventStore operations.
 func NewTags(kv ...string) []Tag {
@@ -69,7 +77,7 @@ func NewTags(kv ...string) []Tag {
 	}
 	tags := make([]Tag, len(kv)/2)
 	for i := 0; i < len(kv); i += 2 {
-		tags[i/2] = Tag{Key: kv[i], Value: kv[i+1]}
+		tags[i/2] = NewTag(kv[i], kv[i+1])
 	}
 	return tags
 }
@@ -146,16 +154,24 @@ func NewQItemKV(eventType string, kv ...string) QueryItem {
 // =============================================================================
 
 // NewAppendCondition creates a new AppendCondition with the given fail condition.
-func NewAppendCondition(failIfEventsMatch *Query) AppendCondition {
+func NewAppendCondition(failIfEventsMatch Query) AppendCondition {
+	var q *query
+	if failIfEventsMatch != nil {
+		q = failIfEventsMatch.(*query)
+	}
 	return &appendCondition{
-		FailIfEventsMatch: failIfEventsMatch,
+		FailIfEventsMatch: q,
 	}
 }
 
 // NewAppendConditionWithAfter creates a new AppendCondition with both fail condition and after position.
-func NewAppendConditionWithAfter(failIfEventsMatch *Query, after *int64) AppendCondition {
+func NewAppendConditionWithAfter(failIfEventsMatch Query, after *int64) AppendCondition {
+	var q *query
+	if failIfEventsMatch != nil {
+		q = failIfEventsMatch.(*query)
+	}
 	return &appendCondition{
-		FailIfEventsMatch: failIfEventsMatch,
+		FailIfEventsMatch: q,
 		After:             after,
 	}
 }

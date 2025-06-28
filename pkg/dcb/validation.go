@@ -16,24 +16,23 @@ func validateQueryTags(query Query) error {
 	for itemIndex, item := range query.getItems() {
 		// Validate individual tags if present
 		for i, t := range item.getTags() {
-			if t.Key == "" {
+			if t.GetKey() == "" {
 				return &ValidationError{
 					EventStoreError: EventStoreError{
 						Op:  "validateQueryTags",
-						Err: fmt.Errorf("empty key in tag %d of item %d", i, itemIndex),
+						Err: fmt.Errorf("empty tag key in item %d", itemIndex),
 					},
 					Field: fmt.Sprintf("item[%d].tag[%d].key", itemIndex, i),
-					Value: fmt.Sprintf("tag[%d]", i),
 				}
 			}
-			if t.Value == "" {
+			if t.GetValue() == "" {
 				return &ValidationError{
 					EventStoreError: EventStoreError{
 						Op:  "validateQueryTags",
-						Err: fmt.Errorf("empty value for key %s in tag %d of item %d", t.Key, i, itemIndex),
+						Err: fmt.Errorf("empty value for key %s in tag %d of item %d", t.GetKey(), i, itemIndex),
 					},
 					Field: fmt.Sprintf("item[%d].tag[%d].value", itemIndex, i),
-					Value: t.Key,
+					Value: t.GetKey(),
 				}
 			}
 		}
@@ -83,24 +82,23 @@ func validateEvent(e InputEvent, index int) error {
 
 	// Validate tags efficiently
 	for j, t := range e.GetTags() {
-		if t.Key == "" {
+		if t.GetKey() == "" {
 			return &ValidationError{
 				EventStoreError: EventStoreError{
 					Op:  "validateEvent",
-					Err: fmt.Errorf("empty key in tag %d of event %d", j, index),
+					Err: fmt.Errorf("empty tag key in event %d", index),
 				},
 				Field: fmt.Sprintf("event[%d].tag[%d].key", index, j),
-				Value: fmt.Sprintf("tag[%d]", j),
 			}
 		}
-		if t.Value == "" {
+		if t.GetValue() == "" {
 			return &ValidationError{
 				EventStoreError: EventStoreError{
 					Op:  "validateEvent",
-					Err: fmt.Errorf("empty value for key %s in tag %d of event %d", t.Key, j, index),
+					Err: fmt.Errorf("empty value for key %s in tag %d of event %d", t.GetKey(), j, index),
 				},
 				Field: fmt.Sprintf("event[%d].tag[%d].value", index, j),
-				Value: t.Key,
+				Value: t.GetKey(),
 			}
 		}
 	}

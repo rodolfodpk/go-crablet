@@ -19,10 +19,7 @@ func prepareEventBatch(events []InputEvent) ([]string, [][]string, [][]byte, err
 		data[i] = e.GetData()
 
 		// Convert tags to TEXT[] format
-		tagStrings := make([]string, len(e.GetTags()))
-		for j, tag := range e.GetTags() {
-			tagStrings[j] = tag.Key + ":" + tag.Value
-		}
+		tagStrings := TagsToString(e.GetTags())
 		tags[i] = tagStrings
 
 		// Log event details
@@ -177,3 +174,4 @@ func checkForMatchingEvents(ctx context.Context, tx pgx.Tx, condition AppendCond
 
 	return nil
 }
+

@@ -162,7 +162,7 @@ func benchmarkSingleAppend(ctx context.Context, store dcb.EventStore) {
 
 	start := time.Now()
 	// Use batch append with a single event to demonstrate the pattern
-	err := store.Append(ctx, []dcb.InputEvent{event}, nil)
+	err := store.Append(ctx, []dcb.InputEvent{event})
 	duration := time.Since(start)
 
 	if err != nil {
@@ -186,7 +186,7 @@ func benchmarkBatchAppend(ctx context.Context, store dcb.EventStore) {
 		}
 
 		start := time.Now()
-		err := store.Append(ctx, events, nil)
+		err := store.Append(ctx, events)
 		duration := time.Since(start)
 
 		if err != nil {
@@ -215,7 +215,7 @@ func benchmarkConcurrentAppend(ctx context.Context, store dcb.EventStore) {
 				for j := 0; j < eventsPerGoroutine; j++ {
 					events[j] = dcb.NewInputEvent("TestEvent", dcb.NewTags("test", "concurrent", "goroutine", fmt.Sprintf("%d", id), "index", fmt.Sprintf("%d", j)), []byte(`{"value": "test"}`))
 				}
-				err := store.Append(ctx, events, nil)
+				err := store.Append(ctx, events)
 				if err != nil {
 					fmt.Printf("    Goroutine %d error: %v\n", id, err)
 				}
@@ -257,7 +257,7 @@ func setupTestData(ctx context.Context, store dcb.EventStore) {
 			courseEvents[j] = dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", courseID), []byte(fmt.Sprintf(`{"courseId": "%s", "name": "Course %d", "capacity": 100, "instructor": "Instructor %d"}`, courseID, i+j, i+j)))
 		}
 
-		err := store.Append(ctx, courseEvents, nil)
+		err := store.Append(ctx, courseEvents)
 		if err != nil {
 			fmt.Printf("Error creating courses batch %d-%d: %v\n", i, end-1, err)
 			return
@@ -277,7 +277,7 @@ func setupTestData(ctx context.Context, store dcb.EventStore) {
 			studentEvents[j] = dcb.NewInputEvent("StudentRegistered", dcb.NewTags("student_id", studentID), []byte(fmt.Sprintf(`{"studentId": "%s", "name": "Student %d", "email": "student%d@example.com"}`, studentID, i+j, i+j)))
 		}
 
-		err := store.Append(ctx, studentEvents, nil)
+		err := store.Append(ctx, studentEvents)
 		if err != nil {
 			fmt.Printf("Error creating students batch %d-%d: %v\n", i, end-1, err)
 			return
@@ -298,7 +298,7 @@ func setupTestData(ctx context.Context, store dcb.EventStore) {
 			enrollmentEvents[j] = dcb.NewInputEvent("StudentEnrolledInCourse", dcb.NewTags("student_id", studentID, "course_id", courseID), []byte(fmt.Sprintf(`{"studentId": "%s", "courseId": "%s", "enrolledAt": "2024-01-01"}`, studentID, courseID)))
 		}
 
-		err := store.Append(ctx, enrollmentEvents, nil)
+		err := store.Append(ctx, enrollmentEvents)
 		if err != nil {
 			fmt.Printf("Error creating enrollments batch %d-%d: %v\n", i, end-1, err)
 			return

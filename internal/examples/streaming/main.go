@@ -38,7 +38,7 @@ func main() {
 	}
 
 	// Append events
-	err = store.Append(ctx, events, nil)
+	err = store.Append(ctx, events)
 	if err != nil {
 		log.Fatalf("Failed to append events: %v", err)
 	}
@@ -63,14 +63,14 @@ func demonstrateCoreRead(ctx context.Context, store dcb.EventStore) {
 	query := dcb.NewQuerySimple(dcb.NewTags(), "UserCreated", "UserUpdated")
 
 	// Read all events into memory
-	sequencedEvents, err := store.Read(ctx, query, nil)
+	events, err := store.Read(ctx, query)
 	if err != nil {
 		log.Printf("Read failed: %v", err)
 		return
 	}
 
-	fmt.Printf("   - Read(): Loaded %d events into memory\n", len(sequencedEvents.Events))
-	for i, event := range sequencedEvents.Events {
+	fmt.Printf("   - Read(): Loaded %d events into memory\n", len(events))
+	for i, event := range events {
 		fmt.Printf("     Event %d: Position=%d, Type=%s\n", i+1, event.Position, event.Type)
 	}
 }

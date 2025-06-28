@@ -25,19 +25,19 @@ var _ = Describe("Validation", func() {
 		})
 
 		It("should validate event with empty tag key", func() {
-			event := NewInputEvent("TestEvent", []Tag{{Key: "", Value: "value"}}, toJSON(map[string]string{"data": "test"}))
+			event := NewInputEvent("TestEvent", []Tag{NewTag("", "value")}, toJSON(map[string]string{"data": "test"}))
 
 			err := validateEvent(event, 0)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("empty key"))
+			Expect(err.Error()).To(ContainSubstring("empty tag key"))
 		})
 
 		It("should validate event with empty tag value", func() {
-			event := NewInputEvent("TestEvent", []Tag{{Key: "key", Value: ""}}, toJSON(map[string]string{"data": "test"}))
+			event := NewInputEvent("TestEvent", []Tag{NewTag("key", "")}, toJSON(map[string]string{"data": "test"}))
 
 			err := validateEvent(event, 0)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("empty value"))
+			Expect(err.Error()).To(ContainSubstring("empty value for key"))
 		})
 
 		It("should validate event with invalid JSON data", func() {
@@ -74,8 +74,8 @@ var _ = Describe("Validation", func() {
 
 		It("should validate event with multiple tags", func() {
 			event := NewInputEvent("TestEvent", []Tag{
-				{Key: "key1", Value: "value1"},
-				{Key: "key2", Value: "value2"},
+				NewTag("key1", "value1"),
+				NewTag("key2", "value2"),
 			}, toJSON(map[string]string{"data": "test"}))
 
 			err := validateEvent(event, 0)
@@ -88,6 +88,19 @@ var _ = Describe("Validation", func() {
 			err := validateEvent(event, 5)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("event 5"))
+		})
+
+		It("should validate event with valid data", func() {
+			event := NewInputEvent("TestEvent", []Tag{NewTag("key", "value")}, toJSON(map[string]string{"data": "test"}))
+			err := validateEvent(event, 0)
+			Expect(err).To(BeNil())
+		})
+
+		It("should validate event with empty type", func() {
+			event := NewInputEvent("", []Tag{NewTag("key", "value")}, toJSON(map[string]string{"data": "test"}))
+			err := validateEvent(event, 0)
+			Expect(err).NotTo(BeNil())
+			Expect(err.Error()).To(ContainSubstring("empty type"))
 		})
 	})
 
@@ -111,7 +124,7 @@ var _ = Describe("Validation", func() {
 			events := []InputEvent{
 				NewInputEvent("Event1", NewTags("key1", "value1"), toJSON(map[string]string{"data": "value1"})),
 				NewInputEvent("", NewTags("key2", "value2"), toJSON(map[string]string{"data": "value2"})),
-				NewInputEvent("Event3", []Tag{{Key: "", Value: "value3"}}, toJSON(map[string]string{"data": "value3"})),
+				NewInputEvent("Event3", []Tag{NewTag("", "value3")}, toJSON(map[string]string{"data": "value3"})),
 			}
 
 			err := validateEvents(events)
@@ -142,8 +155,8 @@ var _ = Describe("Validation", func() {
 		It("should validate individual events in batch (with error)", func() {
 			events := make([]InputEvent, 3)
 			events[0] = NewInputEvent("Event1", NewTags("key1", "value1"), toJSON(map[string]string{"data": "value1"}))
-			events[1] = NewInputEvent("", NewTags("key2", "value2"), toJSON(map[string]string{"data": "value2"}))               // Empty type
-			events[2] = NewInputEvent("Event3", []Tag{{Key: "", Value: "value3"}}, toJSON(map[string]string{"data": "value3"})) // Empty key
+			events[1] = NewInputEvent("", NewTags("key2", "value2"), toJSON(map[string]string{"data": "value2"}))         // Empty type
+			events[2] = NewInputEvent("Event3", []Tag{NewTag("", "value3")}, toJSON(map[string]string{"data": "value3"})) // Empty key
 			err := validateEvents(events)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("event 1"))
@@ -180,17 +193,17 @@ var _ = Describe("Validation", func() {
 
 		It("should validate query with empty tag keys", func() {
 			query := NewQueryFromItems(
-				NewQueryItem([]string{"Event1"}, []Tag{{Key: "", Value: "value"}}), // Empty key
+				NewQueryItem([]string{"Event1"}, []Tag{NewTag("", "value")}), // Empty key
 			)
 
 			err := validateQueryTags(query)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("empty key"))
+			Expect(err.Error()).To(ContainSubstring("empty tag key"))
 		})
 
 		It("should validate query with empty tag values", func() {
 			query := NewQueryFromItems(
-				NewQueryItem([]string{"Event1"}, []Tag{{Key: "key", Value: ""}}), // Empty value
+				NewQueryItem([]string{"Event1"}, []Tag{NewTag("key", "")}), // Empty value
 			)
 
 			err := validateQueryTags(query)

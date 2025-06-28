@@ -184,7 +184,7 @@ func handleOpenAccount(ctx context.Context, store dcb.ChannelEventStore, cmd Ope
 	}
 
 	// Append events atomically for this command
-	err = store.Append(ctx, events, appendCondition)
+	err = store.AppendIf(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to open account: %w", err)
 	}
@@ -241,7 +241,7 @@ func handleProcessTransaction(ctx context.Context, store dcb.ChannelEventStore, 
 	}
 
 	// Append events atomically for this command
-	err = store.Append(ctx, events, appendCondition)
+	err = store.AppendIf(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to process transaction: %w", err)
 	}
@@ -298,7 +298,7 @@ func handleProcessTransactionWithCondition(ctx context.Context, store dcb.Channe
 	}
 
 	// Append events atomically for this command with optimistic locking
-	err = store.Append(ctx, events, condition)
+	err = store.AppendIf(ctx, events, condition)
 	if err != nil {
 		return fmt.Errorf("failed to process transaction with optimistic locking: %w", err)
 	}

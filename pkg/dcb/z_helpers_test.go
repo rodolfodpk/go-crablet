@@ -4,12 +4,11 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
-
 var _ = Describe("Helper Functions", func() {
 	Describe("NewQueryFromItems", func() {
 		It("should create query from multiple items", func() {
-			item1 := NewQueryItem([]string{"Event1"}, []Tag{{Key: "key1", Value: "value1"}})
-			item2 := NewQueryItem([]string{"Event2"}, []Tag{{Key: "key2", Value: "value2"}})
+			item1 := NewQueryItem([]string{"Event1"}, []Tag{NewTag("key1", "value1")})
+			item2 := NewQueryItem([]string{"Event2"}, []Tag{NewTag("key2", "value2")})
 			query := NewQueryFromItems(item1, item2)
 
 			Expect(query.getItems()).To(HaveLen(2))
@@ -33,7 +32,7 @@ var _ = Describe("Helper Functions", func() {
 	Describe("NewQueryItem", func() {
 		It("should create query item with types and tags", func() {
 			types := []string{"Event1", "Event2"}
-			tags := []Tag{{Key: "key1", Value: "value1"}}
+			tags := []Tag{NewTag("key1", "value1")}
 			item := NewQueryItem(types, tags)
 
 			Expect(item.getEventTypes()).To(Equal(types))
@@ -49,8 +48,8 @@ var _ = Describe("Helper Functions", func() {
 
 	Describe("NewEventBatch", func() {
 		It("should create event batch", func() {
-			event1 := NewInputEvent("Event1", []Tag{{Key: "key1", Value: "value1"}}, []byte(`{"data": "value1"}`))
-			event2 := NewInputEvent("Event2", []Tag{{Key: "key2", Value: "value2"}}, []byte(`{"data": "value2"}`))
+			event1 := NewInputEvent("Event1", []Tag{NewTag("key1", "value1")}, []byte(`{"data": "value1"}`))
+			event2 := NewInputEvent("Event2", []Tag{NewTag("key2", "value2")}, []byte(`{"data": "value2"}`))
 
 			batch := NewEventBatch(event1, event2)
 
@@ -60,3 +59,11 @@ var _ = Describe("Helper Functions", func() {
 		})
 	})
 })
+
+func createTestEvent(eventType string, key, value string) InputEvent {
+	return NewInputEvent(eventType, []Tag{NewTag(key, value)}, toJSON(map[string]string{"data": "test"}))
+}
+
+func createTestEventWithMultipleTags(eventType string, tags []Tag) InputEvent {
+	return NewInputEvent(eventType, tags, toJSON(map[string]string{"data": "test"}))
+}

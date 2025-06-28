@@ -13,7 +13,7 @@ func TagsToArray(tags []Tag) []string {
 
 	result := make([]string, len(tags))
 	for i, tag := range tags {
-		result[i] = tag.Key + ":" + tag.Value
+		result[i] = tag.GetKey() + ":" + tag.GetValue()
 	}
 
 	// Sort for consistent ordering
@@ -39,9 +39,17 @@ func ParseTagsArray(arr []string) []Tag {
 			key := strings.TrimSpace(parts[0])
 			value := parts[1] // Keep original value (including colons)
 			if key != "" {
-				tags = append(tags, Tag{Key: key, Value: value})
+				tags = append(tags, NewTag(key, value))
 			}
 		}
 	}
 	return tags
+}
+
+func TagsToString(tags []Tag) []string {
+	result := make([]string, len(tags))
+	for i, tag := range tags {
+		result[i] = tag.GetKey() + ":" + tag.GetValue()
+	}
+	return result
 }

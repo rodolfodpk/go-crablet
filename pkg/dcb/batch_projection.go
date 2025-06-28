@@ -129,20 +129,20 @@ func (es *eventStore) eventMatchesProjector(event Event, projector StateProjecto
 
 		// Check tags if specified
 		if len(item.getTags()) > 0 {
-			// Check if event has all required tags
+			// Convert tags to map for easy lookup
 			eventTags := make(map[string]string)
 			for _, tag := range event.Tags {
-				eventTags[tag.Key] = tag.Value
+				eventTags[tag.GetKey()] = tag.GetValue()
 			}
 
+			// Check if ALL required tags match
 			allTagsMatch := true
 			for _, requiredTag := range item.getTags() {
-				if eventTags[requiredTag.Key] != requiredTag.Value {
+				if eventTags[requiredTag.GetKey()] != requiredTag.GetValue() {
 					allTagsMatch = false
 					break
 				}
 			}
-
 			if !allTagsMatch {
 				continue // Tags don't match, try next item
 			}

@@ -72,7 +72,7 @@ var _ = Describe("Coverage Improvement Tests", func() {
 
 		It("should create query with event types and tags using unsafe constructor", func() {
 			eventTypes := []string{"Event1", "Event2"}
-			tags := []Tag{{Key: "key1", Value: "value1"}}
+			tags := []Tag{NewTag("key1", "value1")}
 
 			query := NewQuerySimpleUnsafe(tags, eventTypes...)
 
@@ -103,10 +103,10 @@ var _ = Describe("Coverage Improvement Tests", func() {
 
 			Expect(item.getEventTypes()).To(Equal([]string{eventType}))
 			Expect(item.getTags()).To(HaveLen(2))
-			Expect(item.getTags()[0].Key).To(Equal("user_id"))
-			Expect(item.getTags()[0].Value).To(Equal("123"))
-			Expect(item.getTags()[1].Key).To(Equal("tenant"))
-			Expect(item.getTags()[1].Value).To(Equal("test"))
+			Expect(item.getTags()[0].GetKey()).To(Equal("user_id"))
+			Expect(item.getTags()[0].GetValue()).To(Equal("123"))
+			Expect(item.getTags()[1].GetKey()).To(Equal("tenant"))
+			Expect(item.getTags()[1].GetValue()).To(Equal("test"))
 		})
 	})
 
@@ -141,7 +141,7 @@ var _ = Describe("Coverage Improvement Tests", func() {
 	Describe("checkForMatchingEvents", func() {
 		It("should return nil for empty condition", func() {
 			emptyQuery := NewQueryEmpty()
-			condition := NewAppendCondition(&emptyQuery)
+			condition := NewAppendCondition(emptyQuery)
 
 			err := checkForMatchingEvents(ctx, nil, condition)
 
@@ -150,7 +150,7 @@ var _ = Describe("Coverage Improvement Tests", func() {
 
 		It("should handle condition with items (will panic due to nil transaction)", func() {
 			query := NewQuery(NewTags("user_id", "123"), "UserCreated")
-			condition := NewAppendCondition(&query)
+			condition := NewAppendCondition(query)
 
 			// Use recover to catch the expected panic
 			defer func() {
@@ -192,7 +192,7 @@ var _ = Describe("Coverage Improvement Tests", func() {
 			event2 := NewInputEvent("UserUpdated", NewTags("user_id", "123"), []byte(`{"name": "Jane"}`))
 			events := NewEventBatch(event1, event2)
 
-			err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Now dump events - this should not panic
@@ -207,9 +207,7 @@ var _ = Describe("Coverage Improvement Tests", func() {
 			events := []InputEvent{
 				NewInputEvent("TestEvent", NewTags("key", "value"), toJSON(map[string]string{"data": "test"})),
 			}
-			emptyQuery := NewQueryEmpty()
-			condition := NewAppendCondition(&emptyQuery)
-			err := store.Append(ctx, events, condition)
+			err := store.Append(ctx, events)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -218,7 +216,7 @@ var _ = Describe("Coverage Improvement Tests", func() {
 			events1 := []InputEvent{
 				NewInputEvent("TestEvent", NewTags("key", "value1"), toJSON(map[string]string{"data": "value1"})),
 			}
-			err := store.Append(ctx, events1, nil)
+			err := store.Append(ctx, events1)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Second append with condition
@@ -226,17 +224,26 @@ var _ = Describe("Coverage Improvement Tests", func() {
 				NewInputEvent("TestEvent", NewTags("key", "value2"), toJSON(map[string]string{"data": "value2"})),
 			}
 			query := NewQuery(NewTags("key", "value1"), "TestEvent")
-			condition := NewAppendCondition(&query)
-			err = store.Append(ctx, events2, condition)
+			condition := NewAppendCondition(query)
+			err = store.AppendIf(ctx, events2, condition)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("matching events found"))
+		})
+
+		It("should handle empty query condition", func() {
+			event1 := NewInputEvent("TestEvent", NewTags("key", "value1"), toJSON(map[string]string{"data": "value1"}))
+			event2 := NewInputEvent("TestEvent", NewTags("key", "value2"), toJSON(map[string]string{"data": "value2"}))
+			events := NewEventBatch(event1, event2)
+
+			err := store.Append(ctx, events)
+			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Describe("NewQuery", func() {
 		It("should create query with event types and tags", func() {
 			eventTypes := []string{"Event1", "Event2"}
-			tags := []Tag{{Key: "key1", Value: "value1"}}
+			tags := []Tag{NewTag("key1", "value1")}
 			query := NewQuery(tags, eventTypes...)
 
 			Expect(query.getItems()).To(HaveLen(1))
@@ -246,7 +253,7 @@ var _ = Describe("Coverage Improvement Tests", func() {
 
 		It("should create query item with single event type", func() {
 			eventType := "TestEvent"
-			tags := []Tag{{Key: "key1", Value: "value1"}}
+			tags := []Tag{NewTag("key1", "value1")}
 			item := NewQItem(eventType, tags)
 
 			Expect(item.getEventTypes()).To(Equal([]string{eventType}))
@@ -259,10 +266,26 @@ var _ = Describe("Coverage Improvement Tests", func() {
 
 			Expect(item.getEventTypes()).To(Equal([]string{eventType}))
 			Expect(item.getTags()).To(HaveLen(2))
-			Expect(item.getTags()[0].Key).To(Equal("user_id"))
-			Expect(item.getTags()[0].Value).To(Equal("123"))
-			Expect(item.getTags()[1].Key).To(Equal("tenant"))
-			Expect(item.getTags()[1].Value).To(Equal("test"))
+			Expect(item.getTags()[0].GetKey()).To(Equal("user_id"))
+			Expect(item.getTags()[0].GetValue()).To(Equal("123"))
+			Expect(item.getTags()[1].GetKey()).To(Equal("tenant"))
+			Expect(item.getTags()[1].GetValue()).To(Equal("test"))
+		})
+
+		It("should handle query with multiple tags", func() {
+			query := NewQuery(NewTags("user_id", "123", "tenant", "test"), "UserCreated")
+			Expect(query).NotTo(BeNil())
+
+			// Test internal structure
+			items := query.getItems()
+			Expect(items).To(HaveLen(1))
+			item := items[0]
+			Expect(item.getEventTypes()).To(Equal([]string{"UserCreated"}))
+			Expect(item.getTags()).To(HaveLen(2))
+			Expect(item.getTags()[0].GetKey()).To(Equal("user_id"))
+			Expect(item.getTags()[0].GetValue()).To(Equal("123"))
+			Expect(item.getTags()[1].GetKey()).To(Equal("tenant"))
+			Expect(item.getTags()[1].GetValue()).To(Equal("test"))
 		})
 	})
 })

@@ -63,9 +63,8 @@ func main() {
     if !states["courseExists"].(bool) {
         // Append CourseDefined event
         data, _ := json.Marshal(CourseDefined{courseID, 2})
-        store.Append(ctx, []dcb.InputEvent{
-            dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", courseID), data),
-        }, &appendCond)
+        event := dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", courseID), data)
+        store.Append(ctx, []dcb.InputEvent{event})
     }
     if states["alreadySubscribed"].(bool) {
         panic("student already subscribed")
@@ -75,9 +74,8 @@ func main() {
     }
     // Subscribe student
     data, _ := json.Marshal(StudentSubscribed{studentID, courseID})
-    store.Append(ctx, []dcb.InputEvent{
-        dcb.NewInputEvent("StudentSubscribed", dcb.NewTags("student_id", studentID, "course_id", courseID), data),
-    }, &appendCond)
+    event := dcb.NewInputEvent("StudentSubscribed", dcb.NewTags("student_id", studentID, "course_id", courseID), data)
+    store.AppendIf(ctx, []dcb.InputEvent{event}, appendCond)
 }
 ```
 
@@ -191,6 +189,33 @@ func channelStreamingExample() {
 - **No aggregates or legacy event sourcing patterns required**
 - **Channel-based streaming provides immediate processing feedback**
 - **Choose the right streaming approach for your dataset size**
+
+## Transaction Isolation Levels
+
+go-crablet supports different transaction isolation levels for append operations:
+
+```go
+// Simple append (no conditions)
+store.Append(ctx, events)
+
+// Conditional append with READ COMMITTED (default)
+store.AppendIf(ctx, events, condition)
+
+// Conditional append with SERIALIZABLE isolation
+store.AppendIfSerializable(ctx, events, condition)
+
+// Conditional append with REPEATABLE READ isolation
+store.AppendIfIsolated(ctx, events, condition, dcb.RepeatableRead)
+
+// Conditional append with READ UNCOMMITTED isolation
+store.AppendIfIsolated(ctx, events, condition, dcb.ReadUncommitted)
+```
+
+**When to use different isolation levels:**
+- **READ COMMITTED** (default): Good for most use cases, prevents dirty reads
+- **SERIALIZABLE**: Use when you need the strongest consistency guarantees
+- **REPEATABLE READ**: Use when you need to prevent phantom reads
+- **READ UNCOMMITTED**: Use only when you can tolerate dirty reads (rarely needed)
 
 ## Query Building with Helper Functions
 

@@ -265,7 +265,7 @@ func handleCreateCourse(ctx context.Context, store ChannelEventStore, cmd Create
 		return fmt.Errorf("course with id \"%s\" already exists", cmd.CourseID)
 	}
 
-	err = store.Append(ctx, []InputEvent{
+	err = store.AppendIf(ctx, []InputEvent{
 		NewCourseDefinedEvent(cmd.CourseID, cmd.Name, cmd.Instructor, cmd.Capacity),
 	}, appendCondition)
 	if err != nil {
@@ -289,7 +289,7 @@ func handleRegisterStudent(ctx context.Context, store ChannelEventStore, cmd Reg
 		return fmt.Errorf("student with id \"%s\" already exists", cmd.StudentID)
 	}
 
-	err = store.Append(ctx, []InputEvent{
+	err = store.AppendIf(ctx, []InputEvent{
 		NewStudentRegisteredEvent(cmd.StudentID, cmd.Name, cmd.Email),
 	}, appendCondition)
 	if err != nil {
@@ -344,9 +344,9 @@ func handleEnrollStudent(ctx context.Context, store ChannelEventStore, cmd Enrol
 	// DCB-compliant approach: use specific query for enrollment append condition
 	// Only check for duplicate enrollment events, not all projector queries
 	enrollmentQuery := NewQuerySimple(NewTags("student_id", cmd.StudentID, "course_id", cmd.CourseID), "StudentEnrolledInCourse")
-	appendCondition := NewAppendCondition(&enrollmentQuery)
+	appendCondition := NewAppendCondition(enrollmentQuery)
 
-	err = store.Append(ctx, []InputEvent{
+	err = store.AppendIf(ctx, []InputEvent{
 		NewStudentEnrolledEvent(cmd.StudentID, cmd.CourseID, time.Now().Format(time.RFC3339)),
 	}, appendCondition)
 	if err != nil {
@@ -377,7 +377,7 @@ func handleDropStudent(ctx context.Context, store ChannelEventStore, cmd DropStu
 	// We only need optimistic locking to ensure no concurrent changes
 	appendCondition := NewAppendCondition(nil) // No need to check for existing events
 
-	err = store.Append(ctx, []InputEvent{
+	err = store.AppendIf(ctx, []InputEvent{
 		NewStudentDroppedEvent(cmd.StudentID, cmd.CourseID, time.Now().Format(time.RFC3339)),
 	}, appendCondition)
 	if err != nil {
@@ -407,7 +407,7 @@ func handleChangeCourseCapacity(ctx context.Context, store ChannelEventStore, cm
 		return fmt.Errorf("cannot reduce capacity to %d when %d students are already enrolled", cmd.NewCapacity, currentEnrollmentCount)
 	}
 
-	err = store.Append(ctx, []InputEvent{
+	err = store.AppendIf(ctx, []InputEvent{
 		NewCourseCapacityChangedEvent(cmd.CourseID, cmd.NewCapacity),
 	}, appendCondition)
 	if err != nil {
@@ -451,10 +451,10 @@ var _ = Describe("Course Subscription Domain", func() {
 
 			// Read events
 			query := NewQuerySimple(NewTags("course_id", "course-1"), "CourseDefined")
-			sequencedEvents, err := store.Read(ctx, query, nil)
+			events, err := store.Read(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(sequencedEvents.Events).To(HaveLen(1))
-			Expect(sequencedEvents.Events[0].Type).To(Equal("CourseDefined"))
+			Expect(events).To(HaveLen(1))
+			Expect(events[0].Type).To(Equal("CourseDefined"))
 		})
 
 		It("should use ReadStreamChannel for large datasets", func() {
@@ -499,9 +499,9 @@ var _ = Describe("Course Subscription Domain", func() {
 
 			// Verify course was created
 			query := NewQuerySimple(NewTags("course_id", "math-101"), "CourseDefined")
-			events, err := store.Read(ctx, query, nil)
+			events, err := store.Read(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(events.Events).To(HaveLen(1))
+			Expect(events).To(HaveLen(1))
 		})
 
 		It("should prevent duplicate course creation", func() {
@@ -536,9 +536,9 @@ var _ = Describe("Course Subscription Domain", func() {
 
 			// Verify student was registered
 			query := NewQuerySimple(NewTags("student_id", "student-123"), "StudentRegistered")
-			events, err := store.Read(ctx, query, nil)
+			events, err := store.Read(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(events.Events).To(HaveLen(1))
+			Expect(events).To(HaveLen(1))
 		})
 
 		It("should prevent duplicate student registration", func() {
@@ -590,9 +590,9 @@ var _ = Describe("Course Subscription Domain", func() {
 
 			// Verify enrollment
 			query := NewQuerySimple(NewTags("student_id", "student-123", "course_id", "math-101"), "StudentEnrolledInCourse")
-			events, err := store.Read(ctx, query, nil)
+			events, err := store.Read(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(events.Events).To(HaveLen(1))
+			Expect(events).To(HaveLen(1))
 		})
 
 		It("should prevent enrollment in non-existent course", func() {
@@ -751,9 +751,9 @@ var _ = Describe("Course Subscription Domain", func() {
 
 			// Verify drop event
 			query := NewQuerySimple(NewTags("student_id", "student-123", "course_id", "math-101"), "StudentDroppedFromCourse")
-			events, err := store.Read(ctx, query, nil)
+			events, err := store.Read(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(events.Events).To(HaveLen(1))
+			Expect(events).To(HaveLen(1))
 		})
 
 		It("should prevent dropping non-enrolled student", func() {
@@ -807,9 +807,9 @@ var _ = Describe("Course Subscription Domain", func() {
 
 			// Verify capacity change event
 			query := NewQuerySimple(NewTags("course_id", "math-101"), "CourseCapacityChanged")
-			events, err := store.Read(ctx, query, nil)
+			events, err := store.Read(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(events.Events).To(HaveLen(1))
+			Expect(events).To(HaveLen(1))
 		})
 
 		It("should prevent capacity reduction below enrollment count", func() {
