@@ -268,7 +268,7 @@ query := dcb.NewQueryFromItems(
 )
 
 // Read events with the combined query
-events, err := store.Read(ctx, query, nil)
+events, err := store.Read(ctx, query)
 ```
 
 ## Performance Comparison

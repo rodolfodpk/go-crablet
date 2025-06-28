@@ -158,7 +158,7 @@ func BenchmarkRead(b *testing.B, benchCtx *BenchmarkContext, queryIndex int) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		_, err := benchCtx.Store.Read(ctx, query, nil)
+		_, err := benchCtx.Store.Read(ctx, query)
 		if err != nil {
 			b.Fatalf("Read failed: %v", err)
 		}
@@ -276,7 +276,7 @@ func BenchmarkMemoryUsage(b *testing.B, benchCtx *BenchmarkContext, operation st
 		switch operation {
 		case "read":
 			query := dcb.NewQuery(dcb.NewTags(), "StudentEnrolledInCourse")
-			_, err := benchCtx.Store.Read(ctx, query, nil)
+			_, err := benchCtx.Store.Read(ctx, query)
 			if err != nil {
 				b.Fatalf("Read failed: %v", err)
 			}

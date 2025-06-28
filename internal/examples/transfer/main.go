@@ -182,6 +182,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 			case "MoneyTransferred":
 				var data MoneyTransferred
 				if err := json.Unmarshal(event.Data, &data); err == nil {
+					// Check if this event affects the from account
 					if data.FromAccountID == cmd.FromAccountID {
 						acc.Balance = data.FromBalance
 						acc.UpdatedAt = data.TransferredAt
@@ -215,6 +216,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 			case "MoneyTransferred":
 				var data MoneyTransferred
 				if err := json.Unmarshal(event.Data, &data); err == nil {
+					// Check if this event affects the to account
 					if data.FromAccountID == cmd.ToAccountID {
 						acc.Balance = data.FromBalance
 						acc.UpdatedAt = data.TransferredAt
@@ -263,6 +265,26 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 				"transfer_id", cmd.TransferID,
 				"from_account_id", cmd.FromAccountID,
 				"to_account_id", cmd.ToAccountID,
+				"account_id", cmd.FromAccountID, // Tag for from account
+			),
+			mustJSON(MoneyTransferred{
+				TransferID:    cmd.TransferID,
+				FromAccountID: cmd.FromAccountID,
+				ToAccountID:   cmd.ToAccountID,
+				Amount:        cmd.Amount,
+				FromBalance:   newFromBalance,
+				ToBalance:     newToBalance,
+				TransferredAt: time.Now(),
+				Description:   cmd.Description,
+			}),
+		),
+		dcb.NewInputEvent(
+			"MoneyTransferred",
+			dcb.NewTags(
+				"transfer_id", cmd.TransferID,
+				"from_account_id", cmd.FromAccountID,
+				"to_account_id", cmd.ToAccountID,
+				"account_id", cmd.ToAccountID, // Tag for to account
 			),
 			mustJSON(MoneyTransferred{
 				TransferID:    cmd.TransferID,
@@ -284,6 +306,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 		return fmt.Errorf("append failed: %w", err)
 	}
 
+	// Display the transfer results using the calculated new balances
 	fmt.Printf("Account %s: %d -> %d\n", cmd.FromAccountID, from.Balance, newFromBalance)
 	fmt.Printf("Account %s: %d -> %d\n", cmd.ToAccountID, to.Balance, newToBalance)
 

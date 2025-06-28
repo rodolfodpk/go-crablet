@@ -314,25 +314,25 @@ func benchmarkSimpleQueries(ctx context.Context, store dcb.EventStore) {
 	// Query courses by category (DCB-focused: specific category instead of all courses)
 	start := time.Now()
 	query := dcb.NewQuery(dcb.NewTags("category", "Computer Science"), "CourseDefined")
-	result, err := store.Read(ctx, query, nil)
+	result, err := store.Read(ctx, query)
 	duration := time.Since(start)
 
 	if err != nil {
 		fmt.Printf("  Courses by category: Error: %v\n", err)
 	} else {
-		fmt.Printf("  Courses by category: %v (%d events)\n", duration, len(result.Events))
+		fmt.Printf("  Courses by category: %v (%d events)\n", duration, len(result))
 	}
 
 	// Query by specific course ID (DCB-focused: targeted query)
 	start = time.Now()
 	query = dcb.NewQuery(dcb.NewTags("course_id", "course-1"), "CourseDefined")
-	result, err = store.Read(ctx, query, nil)
+	result, err = store.Read(ctx, query)
 	duration = time.Since(start)
 
 	if err != nil {
 		fmt.Printf("  Course by ID: Error: %v\n", err)
 	} else {
-		fmt.Printf("  Course by ID: %v (%d events)\n", duration, len(result.Events))
+		fmt.Printf("  Course by ID: %v (%d events)\n", duration, len(result))
 	}
 }
 
@@ -345,13 +345,13 @@ func benchmarkComplexQueries(ctx context.Context, store dcb.EventStore) {
 		dcb.NewQueryItem([]string{"CourseDefined"}, dcb.NewTags("course_id", "course-1")),
 		dcb.NewQueryItem([]string{"StudentRegistered"}, dcb.NewTags("student_id", "student-1")),
 	)
-	result, err := store.Read(ctx, query, nil)
+	result, err := store.Read(ctx, query)
 	duration := time.Since(start)
 
 	if err != nil {
 		fmt.Printf("  OR query: Error: %v\n", err)
 	} else {
-		fmt.Printf("  OR query: %v (%d events)\n", duration, len(result.Events))
+		fmt.Printf("  OR query: %v (%d events)\n", duration, len(result))
 	}
 
 	// Query enrollments by grade (DCB-focused: specific grade instead of all enrollments)
@@ -359,13 +359,13 @@ func benchmarkComplexQueries(ctx context.Context, store dcb.EventStore) {
 	limit := 100
 	options := &dcb.ReadOptions{Limit: &limit}
 	query = dcb.NewQuery(dcb.NewTags("grade", "A"), "StudentEnrolledInCourse")
-	result, err = store.Read(ctx, query, options)
+	result, err = store.ReadWithOptions(ctx, query, options)
 	duration = time.Since(start)
 
 	if err != nil {
 		fmt.Printf("  Enrollments by grade: Error: %v\n", err)
 	} else {
-		fmt.Printf("  Enrollments by grade: %v (%d events)\n", duration, len(result.Events))
+		fmt.Printf("  Enrollments by grade: %v (%d events)\n", duration, len(result))
 	}
 }
 

@@ -71,7 +71,7 @@ func main() {
     pool, _ := pgxpool.New(ctx, "postgres://...")
     store, _ := dcb.NewEventStore(ctx, pool)  // PostgreSQL dependency included
     
-    events, _ := store.Read(ctx, query, nil)
+    events, _ := store.Read(ctx, query)
 }
 ```
 
@@ -87,7 +87,7 @@ func main() {
     pool, _ := pgxpool.New(ctx, "postgres://...")
     store, _ := postgres.NewEventStore(ctx, pool)  // Explicit PostgreSQL choice
     
-    events, _ := store.Read(ctx, query, nil)
+    events, _ := store.Read(ctx, query)
 }
 ```
 

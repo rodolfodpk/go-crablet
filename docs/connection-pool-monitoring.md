@@ -178,7 +178,7 @@ ORDER BY query_start;
 ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 defer cancel()
 
-result, err := store.Read(ctx, query, options)
+result, err := store.ReadWithOptions(ctx, query, options)
 ```
 
 ### 2. Properly Handle Channel Streaming

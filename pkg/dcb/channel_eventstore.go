@@ -199,8 +199,6 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 					case resultChan <- ProjectionResult{
 						ProjectorID: projector.ID,
 						State:       newState,
-						Event:       event,
-						Position:    event.Position,
 					}:
 						// Result sent successfully
 					case <-ctx.Done():

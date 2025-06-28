@@ -224,7 +224,7 @@ func convertTags(tags Tags) []dcb.Tag {
 	for i, tag := range tags {
 		// Parse tag in format "key:value"
 		key, value := parseTag(string(tag))
-		result[i] = dcb.Tag{Key: key, Value: value}
+		result[i] = dcb.NewTag(key, value)
 	}
 	return result
 }
@@ -291,12 +291,10 @@ func convertAppendCondition(condition *AppendCondition) dcb.AppendCondition {
 	switch {
 	case !isQueryEmpty && after != nil:
 		query := convertQuery(condition.FailIfEventsMatch)
-		queryPtr := &query
-		return dcb.NewAppendConditionWithAfter(queryPtr, after)
+		return dcb.NewAppendConditionWithAfter(query, after)
 	case !isQueryEmpty:
 		query := convertQuery(condition.FailIfEventsMatch)
-		queryPtr := &query
-		return dcb.NewAppendCondition(queryPtr)
+		return dcb.NewAppendCondition(query)
 	case after != nil:
 		return dcb.NewAppendConditionAfter(after)
 	default:
@@ -420,7 +418,7 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
 
 	// Execute read
 	ctx := context.Background()
-	result, err := s.store.Read(ctx, query, options)
+	result, err := s.store.ReadWithOptions(ctx, query, options)
 
 	duration := time.Since(start)
 	durationMicroseconds := duration.Microseconds()
@@ -439,12 +437,12 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
 
 	response := ReadResponse{
 		DurationInMicroseconds: durationMicroseconds,
-		NumberOfMatchingEvents: len(result.Events),
+		NumberOfMatchingEvents: len(result),
 	}
 
 	// Only set checkpoint if we have events
-	if len(result.Events) > 0 {
-		lastPosition := result.Events[len(result.Events)-1].Position
+	if len(result) > 0 {
+		lastPosition := result[len(result)-1].Position
 		lastEventID := EventId(fmt.Sprintf("%d", lastPosition))
 		response.CheckpointEventId = &lastEventID
 	}

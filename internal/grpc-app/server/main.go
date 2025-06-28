@@ -39,7 +39,7 @@ func (s *server) Read(ctx context.Context, req *pb.ReadRequest) (*pb.ReadRespons
 	options := convertProtoReadOptions(req.Options)
 
 	// Execute read
-	result, err := s.store.Read(ctx, query, options)
+	result, err := s.store.ReadWithOptions(ctx, query, options)
 	if err != nil {
 		return nil, err
 	}
@@ -47,8 +47,8 @@ func (s *server) Read(ctx context.Context, req *pb.ReadRequest) (*pb.ReadRespons
 	duration := time.Since(start)
 
 	// Convert DCB events to proto events
-	events := make([]*pb.Event, len(result.Events))
-	for i, event := range result.Events {
+	events := make([]*pb.Event, len(result))
+	for i, event := range result {
 		events[i] = convertDCBEvent(event)
 	}
 
@@ -61,7 +61,7 @@ func (s *server) Read(ctx context.Context, req *pb.ReadRequest) (*pb.ReadRespons
 		Events:                 events,
 		CheckpointEventId:      checkpointEventID,
 		DurationInMicroseconds: duration.Microseconds(),
-		NumberOfMatchingEvents: int32(len(result.Events)),
+		NumberOfMatchingEvents: int32(len(result)),
 	}, nil
 }
 
@@ -137,16 +137,10 @@ func convertProtoTags(tags []string) []dcb.Tag {
 		// Parse "key:value" format
 		parts := strings.SplitN(tag, ":", 2)
 		if len(parts) == 2 {
-			result[i] = dcb.Tag{
-				Key:   parts[0],
-				Value: parts[1],
-			}
+			result[i] = dcb.NewTag(parts[0], parts[1])
 		} else {
 			// Fallback: treat as key with empty value
-			result[i] = dcb.Tag{
-				Key:   tag,
-				Value: "",
-			}
+			result[i] = dcb.NewTag(tag, "")
 		}
 	}
 	return result
@@ -155,10 +149,10 @@ func convertProtoTags(tags []string) []dcb.Tag {
 func convertDCBEvent(event dcb.Event) *pb.Event {
 	tags := make([]string, len(event.Tags))
 	for i, tag := range event.Tags {
-		if tag.Value != "" {
-			tags[i] = fmt.Sprintf("%s:%s", tag.Key, tag.Value)
+		if tag.GetValue() != "" {
+			tags[i] = fmt.Sprintf("%s:%s", tag.GetKey(), tag.GetValue())
 		} else {
-			tags[i] = tag.Key
+			tags[i] = tag.GetKey()
 		}
 	}
 
@@ -179,10 +173,9 @@ func convertProtoAppendCondition(condition *pb.AppendCondition) dcb.AppendCondit
 		return nil
 	}
 
-	var failIfEventsMatch *dcb.Query
+	var failIfEventsMatch dcb.Query
 	if condition.FailIfEventsMatch != nil {
-		query := convertProtoQuery(condition.FailIfEventsMatch)
-		failIfEventsMatch = &query
+		failIfEventsMatch = convertProtoQuery(condition.FailIfEventsMatch)
 	}
 
 	var after *int64
@@ -192,7 +185,7 @@ func convertProtoAppendCondition(condition *pb.AppendCondition) dcb.AppendCondit
 		}
 	}
 
-	if failIfEventsMatch != nil || after != nil {
+	if condition.FailIfEventsMatch != nil || after != nil {
 		return dcb.NewAppendConditionWithAfter(failIfEventsMatch, after)
 	}
 	return nil

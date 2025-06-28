@@ -37,13 +37,7 @@ type ProjectionResult struct {
 	// State is the projected state for this projector
 	State interface{}
 
-	// Event is the event that was processed to produce this state
-	Event Event
-
-	// Position is the sequence position of the event
-	Position int64
-
-	// Error is set if there was an error processing this event
+	// Error is set if there was an error processing events
 	Error error
 }
 

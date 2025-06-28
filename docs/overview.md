@@ -27,7 +27,8 @@ type EventStore interface {
     AppendIfSerializable(ctx context.Context, events []InputEvent, condition AppendCondition) error
     
     // Read events matching a query
-    Read(ctx context.Context, query Query, options *ReadOptions) (SequencedEvents, error)
+    Read(ctx context.Context, query Query) ([]Event, error)
+    ReadWithOptions(ctx context.Context, query Query, options *ReadOptions) ([]Event, error)
     
     // Project multiple states using projectors
     ProjectDecisionModel(ctx context.Context, projectors []BatchProjector) (map[string]any, AppendCondition, error)

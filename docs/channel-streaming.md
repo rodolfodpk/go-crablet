@@ -16,7 +16,8 @@ Channel-based streaming is optimized for **small to medium datasets** (< 500 eve
 ### Core EventStore Interface
 ```go
 type EventStore interface {
-    Read(ctx context.Context, query Query, options *ReadOptions) (SequencedEvents, error)
+    Read(ctx context.Context, query Query) ([]Event, error)
+    ReadWithOptions(ctx context.Context, query Query, options *ReadOptions) ([]Event, error)
     Append(ctx context.Context, events []InputEvent, condition *AppendCondition) (int64, error)
     ProjectDecisionModel(ctx context.Context, projectors []BatchProjector) (map[string]any, AppendCondition, error)
 }
@@ -143,7 +144,7 @@ if stream.err != nil {
 
 | Method | Best For | Memory Usage | Immediate Feedback | Scalability |
 |--------|----------|--------------|-------------------|-------------|
-| `Read()` | < 100 events | High | ❌ No | Limited |
+| `Read()` | < 100 events | High | ❌ No | Limited (returns []Event) |
 | `ReadStream()` | > 1000 events | Low | ❌ No | Excellent |
 | `ReadStreamChannel()` | 100-500 events | Moderate | ✅ Yes | Good |
 | `ProjectDecisionModel()` | > 1000 events | Low | ❌ No | Excellent |

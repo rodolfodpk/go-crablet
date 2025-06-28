@@ -67,7 +67,7 @@ func main() {
 
     // Read events
     query := dcb.NewQuery(dcb.NewTags("user_id", "123"), "UserCreated")
-    events, err := store.Read(context.Background(), query, nil)
+    events, err := store.Read(context.Background(), query)
     if err != nil {
         log.Fatal(err)
     }

@@ -147,8 +147,8 @@ func demonstrateChannelProjection(ctx context.Context, store dcb.EventStore) {
 		if result.Error != nil {
 			fmt.Printf("     Error in projector %s: %v\n", result.ProjectorID, result.Error)
 		} else {
-			fmt.Printf("     Projector %s: State=%v, Event=%s, Position=%d\n",
-				result.ProjectorID, result.State, result.Event.Type, result.Position)
+			fmt.Printf("     Projector %s: State=%v\n",
+				result.ProjectorID, result.State)
 		}
 	}
 }

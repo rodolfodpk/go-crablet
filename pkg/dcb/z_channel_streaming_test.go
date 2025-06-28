@@ -170,9 +170,6 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 				projectionCount++
 				finalStates[result.ProjectorID] = result.State
-
-				Expect(result.Event.Type).To(BeElementOf("AccountOpened", "MoneyTransferred"))
-				Expect(result.Position).To(BeNumerically(">", 0))
 			}
 
 			Expect(projectionCount).To(Equal(3)) // 1 AccountOpened + 2 MoneyTransferred
@@ -320,9 +317,6 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 				projectionCount++
 				finalStates[result.ProjectorID] = result.State
-
-				Expect(result.Event.Type).To(BeElementOf("AccountOpened", "MoneyTransferred", "AccountClosed"))
-				Expect(result.Position).To(BeNumerically(">", 0))
 			}
 
 			Expect(projectionCount).To(Equal(3)) // 1 of each event type
