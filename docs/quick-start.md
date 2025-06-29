@@ -96,9 +96,10 @@ func main() {
 
 ## Next Steps
 
+After completing this quick start:
+
 - Read the [Overview](overview.md) to understand DCB concepts
-- Check out the [Minimal Example](minimal-example.md) for a complete walkthrough
-- Explore the [examples](../internal/examples/) for more advanced usage patterns
+- Explore the [Examples](../internal/examples/) directory for complete working examples
 
 ## Configuration
 

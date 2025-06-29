@@ -8,15 +8,16 @@ import (
 // EventStore is the core interface for appending and reading events
 type EventStore interface {
 	// Append appends events to the store (always succeeds if no validation errors)
+	// Uses PostgreSQL Read Committed isolation level (pgx.ReadCommitted)
 	Append(ctx context.Context, events []InputEvent) error
 
 	// AppendIf appends events to the store only if the condition is met
-	// Uses READ COMMITTED isolation level by default
+	// Uses PostgreSQL Repeatable Read isolation level (pgx.RepeatableRead)
 	AppendIf(ctx context.Context, events []InputEvent, condition AppendCondition) error
 
-	// AppendIfSerializable appends events to the store only if the condition is met
-	// with SERIALIZABLE isolation level for maximum consistency
-	AppendIfSerializable(ctx context.Context, events []InputEvent, condition AppendCondition) error
+	// AppendIfIsolated appends events to the store only if the condition is met
+	// Uses PostgreSQL Serializable isolation level (pgx.Serializable)
+	AppendIfIsolated(ctx context.Context, events []InputEvent, condition AppendCondition) error
 
 	// Read reads events matching the query (no options)
 	Read(ctx context.Context, query Query) ([]Event, error)
@@ -236,3 +237,7 @@ type StreamingProjectionResult struct {
 	Position        int64           `json:"position"`
 	ProcessedCount  int             `json:"processed_count"`
 }
+
+// IsolationLevel is a public alias for isolation levels
+// Valid values: "READ UNCOMMITTED", "READ COMMITTED", "REPEATABLE READ", "SERIALIZABLE"
+type IsolationLevel string

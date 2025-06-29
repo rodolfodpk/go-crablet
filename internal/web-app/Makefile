@@ -1,4 +1,4 @@
-.PHONY: help build run test clean k6-test setup-db start-db stop-db run-server kill-server quick-test full-scan concurrency-test ensure-server cleanup-db full append-quick append-full
+.PHONY: help build run test clean k6-test setup-db start-db stop-db run-server kill-server quick-test full-scan concurrency-test ensure-server cleanup-db full append-quick append-full append-if-quick append-if-full append-if-isolated-quick append-if-isolated-full
 
 # Default target
 help:
@@ -21,6 +21,10 @@ help:
 	@echo "  concurrency-test - Concurrency test (4m)"
 	@echo "  append-quick - Quick append benchmark (30s)"
 	@echo "  append-full  - Full append benchmark (6m, up to 200 VUs)"
+	@echo "  append-if-quick - Quick appendIf benchmark (30s)"
+	@echo "  append-if-full  - Full appendIf benchmark (6m, up to 200 VUs)"
+	@echo "  append-if-isolated-quick - Quick appendIfIsolated benchmark (30s)"
+	@echo "  append-if-isolated-full  - Full appendIfIsolated benchmark (6m, up to 100 VUs)"
 
 # Build the Go binary
 build:
@@ -213,4 +217,40 @@ append-full:
 	@make cleanup-db
 	@echo "Running k6 append full benchmark..."
 	k6 run append-benchmark.js
-	@echo "Full append benchmark completed." 
+	@echo "Full append benchmark completed."
+
+# Quick appendIf benchmark (30s)
+append-if-quick:
+	@echo "Running quick appendIf benchmark (30s)..."
+	@make ensure-server
+	@make cleanup-db
+	@echo "Running k6 appendIf quick benchmark..."
+	k6 run append-if-quick.js
+	@echo "Quick appendIf benchmark completed."
+
+# Full appendIf benchmark (6m, up to 200 VUs)
+append-if-full:
+	@echo "Running full appendIf benchmark (6m, up to 200 VUs)..."
+	@make ensure-server
+	@make cleanup-db
+	@echo "Running k6 appendIf full benchmark..."
+	k6 run append-if-benchmark.js
+	@echo "Full appendIf benchmark completed."
+
+# Quick appendIfIsolated benchmark (30s)
+append-if-isolated-quick:
+	@echo "Running quick appendIfIsolated benchmark (30s)..."
+	@make ensure-server
+	@make cleanup-db
+	@echo "Running k6 appendIfIsolated quick benchmark..."
+	k6 run append-if-isolated-quick.js
+	@echo "Quick appendIfIsolated benchmark completed."
+
+# Full appendIfIsolated benchmark (6m, up to 100 VUs)
+append-if-isolated-full:
+	@echo "Running full appendIfIsolated benchmark (6m, up to 100 VUs)..."
+	@make ensure-server
+	@make cleanup-db
+	@echo "Running k6 appendIfIsolated full benchmark..."
+	k6 run append-if-isolated-benchmark.js
+	@echo "Full appendIfIsolated benchmark completed." 

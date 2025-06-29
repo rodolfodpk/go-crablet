@@ -25,7 +25,7 @@ A Go library for event sourcing, exploring and learning about concepts inspired 
 
 Comprehensive performance testing and analysis for different API protocols:
 
-- **[Web-App](internal/web-app/README.md)**: HTTP/REST API with comprehensive benchmarking and isolation level testing
+- **[Web-App](internal/web-app/README.md)**: HTTP/REST API with comprehensive benchmarking, isolation level testing, and detailed performance results
 - **[Go Benchmarks](internal/benchmarks/README.md)**: Core library performance testing and analysis
 
 ## Examples

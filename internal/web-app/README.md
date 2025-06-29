@@ -204,6 +204,7 @@ make append-if-quick
 
 - **[OpenAPI Specification](openapi.yaml)**: Complete API specification
 - **[Main Project README](../../README.md)**: Core library documentation
+- **[Latest Benchmark Results](BENCHMARK.md)**: Detailed benchmark results and performance analysis
 
 ## 🎯 Key Features
 

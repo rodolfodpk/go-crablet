@@ -11,20 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Internal types for isolation levels and append options
-type isolationLevel string
-
-const (
-	readUncommitted isolationLevel = "READ UNCOMMITTED"
-	readCommitted   isolationLevel = "READ COMMITTED"
-	repeatableRead  isolationLevel = "REPEATABLE READ"
-	serializable    isolationLevel = "SERIALIZABLE"
-)
-
-type appendOptions struct {
-	IsolationLevel *isolationLevel `json:"isolation_level,omitempty"`
-}
-
 // eventStore implements the EventStore interface using PostgreSQL
 type eventStore struct {
 	pool         *pgxpool.Pool
@@ -140,22 +126,19 @@ func (es *eventStore) Append(ctx context.Context, events []InputEvent) error {
 }
 
 // AppendIf appends events to the store only if the condition is met
-// Uses READ COMMITTED isolation level by default
+// Uses REPEATABLE READ isolation level for better consistency
 func (es *eventStore) AppendIf(ctx context.Context, events []InputEvent, condition AppendCondition) error {
-	return es.appendEventsWithCondition(ctx, events, condition, &appendOptions{})
+	return es.appendEventsWithCondition(ctx, events, condition, pgx.RepeatableRead)
 }
 
-// AppendIfSerializable appends events to the store only if the condition is met
-// with SERIALIZABLE isolation level for maximum consistency
-func (es *eventStore) AppendIfSerializable(ctx context.Context, events []InputEvent, condition AppendCondition) error {
-	ser := serializable
-	return es.appendEventsWithCondition(ctx, events, condition, &appendOptions{
-		IsolationLevel: &ser,
-	})
+// AppendIfIsolated appends events to the store only if the condition is met
+// Uses SERIALIZABLE isolation level for strongest consistency
+func (es *eventStore) AppendIfIsolated(ctx context.Context, events []InputEvent, condition AppendCondition) error {
+	return es.appendEventsWithCondition(ctx, events, condition, pgx.Serializable)
 }
 
 // appendEventsWithCondition uses PostgreSQL functions for atomic append with condition checking
-func (es *eventStore) appendEventsWithCondition(ctx context.Context, events []InputEvent, condition AppendCondition, options *appendOptions) error {
+func (es *eventStore) appendEventsWithCondition(ctx context.Context, events []InputEvent, condition AppendCondition, isolationLevel pgx.TxIsoLevel) error {
 	// Validate events
 	if len(events) == 0 {
 		return &ValidationError{
@@ -256,25 +239,6 @@ func (es *eventStore) appendEventsWithCondition(ctx context.Context, events []In
 		}
 	}
 
-	// Determine isolation level
-	var isoLevel pgx.TxIsoLevel
-	if options != nil && options.IsolationLevel != nil {
-		switch *options.IsolationLevel {
-		case readUncommitted:
-			isoLevel = pgx.ReadUncommitted
-		case readCommitted:
-			isoLevel = pgx.ReadCommitted
-		case repeatableRead:
-			isoLevel = pgx.RepeatableRead
-		case serializable:
-			isoLevel = pgx.Serializable
-		default:
-			isoLevel = pgx.ReadCommitted // fallback to default
-		}
-	} else {
-		isoLevel = pgx.ReadCommitted // default
-	}
-
 	// Execute PostgreSQL function for atomic append
 	for i, tagLiteral := range tags {
 		if len(tagLiteral) < 2 || tagLiteral[0] != '{' || tagLiteral[len(tagLiteral)-1] != '}' {
@@ -284,7 +248,7 @@ func (es *eventStore) appendEventsWithCondition(ctx context.Context, events []In
 
 	// Start transaction with specified isolation level
 	tx, err := es.pool.BeginTx(ctx, pgx.TxOptions{
-		IsoLevel: isoLevel,
+		IsoLevel: isolationLevel,
 	})
 	if err != nil {
 		return &ResourceError{

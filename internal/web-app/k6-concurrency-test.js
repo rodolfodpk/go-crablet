@@ -5,6 +5,9 @@ import { Rate } from 'k6/metrics';
 // Custom metrics
 const errorRate = new Rate('errors');
 const conflictRate = new Rate('conflicts');
+const appendSuccessRate = new Rate('append_success');
+const appendIfSuccessRate = new Rate('append_if_success');
+const appendIfIsolatedSuccessRate = new Rate('append_if_isolated_success');
 
 // Test configuration - designed to create contention
 export const options = {
@@ -19,6 +22,9 @@ export const options = {
     http_req_duration: ['p(95)<2000'], // 95% of requests should be below 2000ms
     errors: ['rate<0.30'],             // Error rate should be below 30% (expecting some conflicts)
     conflicts: ['rate>0.05'],          // Should see some conflicts (optimistic locking working)
+    append_success: ['rate>0.70'],     // Append should succeed most of the time
+    append_if_success: ['rate>0.50'],  // AppendIf should succeed about half the time due to conditions
+    append_if_isolated_success: ['rate>0.30'], // AppendIfIsolated should succeed less due to Serializable
   },
 };
 
@@ -59,77 +65,151 @@ function generateContentionQuery(eventTypes, tagKeys) {
 }
 
 export default function () {
-  const params = {
+  const baseParams = {
     headers: {
       'Content-Type': 'application/json',
     },
     timeout: '30s',
   };
 
-  // Test 1: Append single event with contention
-  const singleEvent = generateContentionEvent('ContentionEvent', ['course', 'user']);
-  const appendSinglePayload = {
+  // Test 1: Simple Append (Read Committed) - should succeed most of the time
+  const singleEvent = generateContentionEvent('SimpleAppendEvent', ['course', 'user']);
+  const appendPayload = {
     events: singleEvent,
   };
 
-  const appendSingleRes = http.post(
+  const appendRes = http.post(
     `${BASE_URL}/append`,
-    JSON.stringify(appendSinglePayload),
-    params
+    JSON.stringify(appendPayload),
+    baseParams
   );
 
-  check(appendSingleRes, {
-    'append single event status is 200 or 409': (r) => r.status === 200 || r.status === 409,
-    'append single event duration < 500ms': (r) => r.timings.duration < 500,
+  check(appendRes, {
+    'simple append status is 200': (r) => r.status === 200,
+    'simple append duration < 500ms': (r) => r.timings.duration < 500,
   });
 
-  if (appendSingleRes.status === 409) {
-    conflictRate.add(1);
-  } else if (appendSingleRes.status !== 200) {
+  if (appendRes.status === 200) {
+    appendSuccessRate.add(1);
+  } else {
     errorRate.add(1);
   }
 
-  sleep(0.05);  // Reduced from 0.1s for better performance
+  sleep(0.05);
 
-  // Test 2: Append multiple events with contention
-  const multipleEvents = [
-    generateContentionEvent('StudentEnrolled', ['course', 'student']),
-    generateContentionEvent('AssignmentCreated', ['course', 'assignment']),
-    generateContentionEvent('GradeSubmitted', ['course', 'student', 'assignment']),
-  ];
-
-  const appendMultiplePayload = {
-    events: multipleEvents,
+  // Test 2: AppendIf (Repeatable Read) - with condition, should have some conflicts
+  const appendIfEvent = generateContentionEvent('AppendIfEvent', ['course', 'student']);
+  const appendIfPayload = {
+    events: appendIfEvent,
+    condition: {
+      failIfEventsMatch: generateContentionQuery(['AppendIfEvent'], ['course']),
+    },
   };
 
-  const appendMultipleRes = http.post(
+  const appendIfRes = http.post(
     `${BASE_URL}/append`,
-    JSON.stringify(appendMultiplePayload),
-    params
+    JSON.stringify(appendIfPayload),
+    baseParams
   );
 
-  check(appendMultipleRes, {
-    'append multiple events status is 200 or 409': (r) => r.status === 200 || r.status === 409,
-    'append multiple events duration < 1000ms': (r) => r.timings.duration < 1000,
+  check(appendIfRes, {
+    'appendIf status is 200 or condition failed': (r) => r.status === 200,
+    'appendIf duration < 500ms': (r) => r.timings.duration < 500,
   });
 
-  if (appendMultipleRes.status === 409) {
-    conflictRate.add(1);
-  } else if (appendMultipleRes.status !== 200) {
+  if (appendIfRes.status === 200) {
+    const response = JSON.parse(appendIfRes.body);
+    if (response.appendConditionFailed) {
+      conflictRate.add(1);
+    } else {
+      appendIfSuccessRate.add(1);
+    }
+  } else {
     errorRate.add(1);
   }
 
-  sleep(0.05);  // Reduced from 0.1s for better performance
+  sleep(0.05);
 
-  // Test 3: Read events by type (should succeed)
+  // Test 3: AppendIfIsolated (Serializable) - with condition and header, should have more conflicts
+  const appendIfIsolatedEvent = generateContentionEvent('AppendIfIsolatedEvent', ['course', 'assignment']);
+  const appendIfIsolatedPayload = {
+    events: appendIfIsolatedEvent,
+    condition: {
+      failIfEventsMatch: generateContentionQuery(['AppendIfIsolatedEvent'], ['course']),
+    },
+  };
+
+  const isolatedParams = {
+    ...baseParams,
+    headers: {
+      ...baseParams.headers,
+      'X-Append-If-Isolation': 'SERIALIZABLE',
+    },
+  };
+
+  const appendIfIsolatedRes = http.post(
+    `${BASE_URL}/append`,
+    JSON.stringify(appendIfIsolatedPayload),
+    isolatedParams
+  );
+
+  check(appendIfIsolatedRes, {
+    'appendIfIsolated status is 200 or condition failed': (r) => r.status === 200,
+    'appendIfIsolated duration < 1000ms': (r) => r.timings.duration < 1000,
+  });
+
+  if (appendIfIsolatedRes.status === 200) {
+    const response = JSON.parse(appendIfIsolatedRes.body);
+    if (response.appendConditionFailed) {
+      conflictRate.add(1);
+    } else {
+      appendIfIsolatedSuccessRate.add(1);
+    }
+  } else {
+    errorRate.add(1);
+  }
+
+  sleep(0.05);
+
+  // Test 4: Batch Append (Read Committed) - multiple events
+  const batchEvents = [
+    generateContentionEvent('BatchEvent1', ['course', 'student']),
+    generateContentionEvent('BatchEvent2', ['course', 'assignment']),
+    generateContentionEvent('BatchEvent3', ['course', 'user']),
+  ];
+
+  const batchPayload = {
+    events: batchEvents,
+  };
+
+  const batchRes = http.post(
+    `${BASE_URL}/append`,
+    JSON.stringify(batchPayload),
+    baseParams
+  );
+
+  check(batchRes, {
+    'batch append status is 200': (r) => r.status === 200,
+    'batch append duration < 1000ms': (r) => r.timings.duration < 1000,
+  });
+
+  if (batchRes.status === 200) {
+    appendSuccessRate.add(1);
+  } else {
+    errorRate.add(1);
+  }
+
+  sleep(0.05);
+
+  // Test 5: Read events by type (should succeed)
   const readByTypePayload = {
-    query: generateContentionQuery(['ContentionEvent', 'StudentEnrolled'], []),
+    query: generateContentionQuery(['SimpleAppendEvent', 'AppendIfEvent', 'AppendIfIsolatedEvent'], []),
   };
 
   const readByTypeRes = http.post(
     `${BASE_URL}/read`,
     JSON.stringify(readByTypePayload),
-    params
+    baseParams
   );
 
   check(readByTypeRes, {
@@ -141,9 +221,9 @@ export default function () {
     errorRate.add(1);
   }
 
-  sleep(0.05);  // Reduced from 0.1s for better performance
+  sleep(0.05);
 
-  // Test 4: Read events by tags (should succeed)
+  // Test 6: Read events by tags (should succeed)
   const readByTagsPayload = {
     query: generateContentionQuery([], ['course']),
   };
@@ -151,7 +231,7 @@ export default function () {
   const readByTagsRes = http.post(
     `${BASE_URL}/read`,
     JSON.stringify(readByTagsPayload),
-    params
+    baseParams
   );
 
   check(readByTagsRes, {
@@ -163,67 +243,7 @@ export default function () {
     errorRate.add(1);
   }
 
-  sleep(0.05);  // Reduced from 0.1s for better performance
-
-  // Test 5: Append with condition (should create more contention)
-  const appendWithConditionPayload = {
-    events: generateContentionEvent('ConditionalContentionEvent', ['course']),
-    condition: {
-      failIfEventsMatch: generateContentionQuery(['ConditionalContentionEvent'], ['course']),
-    },
-  };
-
-  const appendWithConditionRes = http.post(
-    `${BASE_URL}/append`,
-    JSON.stringify(appendWithConditionPayload),
-    params
-  );
-
-  check(appendWithConditionRes, {
-    'append with condition status is 200 or 409': (r) => r.status === 200 || r.status === 409,
-    'append with condition duration < 500ms': (r) => r.timings.duration < 500,
-  });
-
-  if (appendWithConditionRes.status === 409) {
-    conflictRate.add(1);
-  } else if (appendWithConditionRes.status !== 200) {
-    errorRate.add(1);
-  }
-
-  sleep(0.05);  // Reduced from 0.1s for better performance
-
-  // Test 6: Complex query (should succeed)
-  const complexQueryPayload = {
-    query: {
-      items: [
-        {
-          types: ['ContentionEvent'],
-          tags: [`course:${CONTENTION_TAGS.course}`],
-        },
-        {
-          types: ['StudentEnrolled'],
-          tags: [`student:${CONTENTION_TAGS.student}`],
-        },
-      ],
-    },
-  };
-
-  const complexQueryRes = http.post(
-    `${BASE_URL}/read`,
-    JSON.stringify(complexQueryPayload),
-    params
-  );
-
-  check(complexQueryRes, {
-    'complex query status is 200': (r) => r.status === 200,
-    'complex query duration < 400ms': (r) => r.timings.duration < 400,
-  });
-
-  if (complexQueryRes.status !== 200) {
-    errorRate.add(1);
-  }
-
-  sleep(0.05);  // Reduced from 0.1s for better performance
+  sleep(0.05);
 }
 
 // Setup function to initialize test data

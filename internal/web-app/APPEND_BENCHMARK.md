@@ -121,7 +121,7 @@ k6 run append-benchmark.js
 ## Expected Results
 
 ### Quick Benchmark (30s)
-- **Throughput**: ~50-100 req/s
+- **Throughput**: ~100-200 req/s
 - **Response Time**: < 500ms (95th percentile)
 - **Error Rate**: < 5%
 
@@ -130,6 +130,19 @@ k6 run append-benchmark.js
 - **Response Time**: < 1000ms (95th percentile)
 - **Error Rate**: < 10%
 - **Total Events**: ~50,000-100,000 events appended
+
+## Isolation Level Context
+
+The append benchmarks test the standard `Append` method which uses **ReadCommitted** isolation:
+
+- **Isolation Level**: ReadCommitted (fastest available)
+- **Use Case**: Simple appends where basic consistency is sufficient
+- **Performance**: Highest throughput among all append methods
+- **Consistency**: Basic consistency, may see phantom reads
+
+For conditional appends with stronger consistency, see:
+- **AppendIf benchmarks**: RepeatableRead isolation
+- **AppendIf with Serializable**: Serializable isolation (via HTTP header)
 
 ## Troubleshooting
 

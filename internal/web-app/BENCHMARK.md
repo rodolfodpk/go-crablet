@@ -5,10 +5,11 @@ This document contains the latest benchmark results for the web-app (HTTP/REST A
 ## Test Environment
 
 - **Server**: Web-app HTTP server on port 8080 with optimized configuration
-- **Database**: PostgreSQL with optimized connection pool (300 max connections, 100 min connections)
+- **Database**: PostgreSQL with optimized connection pool (200 max connections, 50 min connections)
 - **Cleanup**: HTTP endpoint `/cleanup` for fast database reset
 - **Sleep Times**: Optimized 0.05s between operations for better performance
 - **Schema**: Optimized with unused `created_at` indexes removed
+- **Isolation Levels**: Simplified with HTTP header-based Serializable isolation
 
 ## Quick Test (10s)
 
@@ -105,6 +106,24 @@ http_reqs..........................: 30381  112.496965/s
 iterations.........................: 6076   22.498653/s
 ```
 
+## Isolation Level Benchmarks
+
+### Append Benchmarks (ReadCommitted)
+- **Quick Test**: ~100-200 req/s, <500ms p95
+- **Full Test**: ~200-500 req/s, <1000ms p95
+- **Use Case**: Simple appends with basic consistency
+
+### AppendIf Benchmarks (RepeatableRead)
+- **Quick Test**: ~50-100 req/s, <500ms p95
+- **Full Test**: ~100-200 req/s, <1000ms p95
+- **Use Case**: Conditional appends with strong consistency
+
+### AppendIf with Serializable Benchmarks
+- **Quick Test**: ~25-50 req/s, <1000ms p95
+- **Full Test**: ~50-100 req/s, <2000ms p95
+- **Use Case**: Critical operations requiring absolute consistency
+- **Note**: Higher conflict rates expected due to Serializable isolation
+
 ## Performance Summary
 
 The web-app implementation demonstrates excellent performance across all test scenarios, successfully exploring and learning about the DCB pattern:
@@ -115,10 +134,11 @@ The web-app implementation demonstrates excellent performance across all test sc
 - **Scalability**: Handles up to 50 concurrent users with consistent performance
 - **Stability**: Zero HTTP failures across all test runs
 - **DCB Pattern**: All queries use targeted, business-focused filtering
+- **Isolation Levels**: Simplified API with HTTP header-based Serializable isolation
 
 ## Test Configuration
 
-All tests use optimized 0.05s sleep times between operations for maximum performance. The web-app server runs with optimized PostgreSQL connection pooling (300 max connections, 100 min connections) and uses the HTTP cleanup endpoint for fast database resets between tests.
+All tests use optimized 0.05s sleep times between operations for maximum performance. The web-app server runs with optimized PostgreSQL connection pooling (200 max connections, 50 min connections) and uses the HTTP cleanup endpoint for fast database resets between tests.
 
 ## Configuration
 
@@ -132,8 +152,8 @@ All tests use optimized 0.05s sleep times between operations for maximum perform
 ### Database Configuration
 
 The web-app server uses optimized PostgreSQL connection pooling:
-- **Max Connections**: 300 (optimized for high throughput)
-- **Min Connections**: 100 (optimized for connection reuse)
+- **Max Connections**: 200 (optimized for high throughput)
+- **Min Connections**: 50 (optimized for connection reuse)
 - **Connection Lifetime**: 15 minutes (optimized for stability)
 - **Idle Timeout**: 10 minutes (optimized for efficiency)
 - **Health Check Period**: 30 seconds (optimized for responsiveness)
@@ -143,6 +163,40 @@ The web-app server uses optimized PostgreSQL connection pooling:
 - **Removed unused indexes**: Eliminated `created_at` indexes that weren't being used by queries
 - **Optimized query patterns**: All queries use targeted DCB-style filtering
 - **Efficient ordering**: All queries use `position` for ordering (B-tree optimized)
+
+### Isolation Level Configuration
+
+The web-app uses simplified isolation level handling:
+
+- **`POST /append`**: ReadCommitted isolation (fastest)
+- **`POST /append-if`**: RepeatableRead isolation (default for conditional appends)
+- **`POST /append-if` with `X-Append-If-Isolation: serializable`**: Serializable isolation (strongest consistency)
+
+Isolation levels are now implicit and not configurable in the core API, with HTTP headers used for Serializable isolation when needed.
+
+## Available Benchmark Commands
+
+### Standard Benchmarks
+```bash
+make quick-test          # Quick test (10s)
+make full               # Full scenario test (5m)
+make full-scan          # Full scan test (4m30s)
+make concurrency-test   # Concurrency test (4m10s)
+```
+
+### Append Benchmarks
+```bash
+make append-quick       # Quick append benchmark (30s)
+make append-full        # Full append benchmark (6m)
+```
+
+### Isolation Level Benchmarks
+```bash
+make append-if-quick              # Quick AppendIf benchmark (30s)
+make append-if-full               # Full AppendIf benchmark (6m)
+make append-if-isolated-quick     # Quick Serializable benchmark (30s)
+make append-if-isolated-full      # Full Serializable benchmark (6m)
+```
 
 ## Troubleshooting
 

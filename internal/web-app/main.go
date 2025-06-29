@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"go-crablet/pkg/dcb"
@@ -478,65 +479,52 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	start := time.Now()
 	var req AppendRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	// Robustly decode events with better error handling
-	var inputEvents []dcb.InputEvent
-	{
-		var single Event
-		if singleErr := json.Unmarshal(req.Events, &single); singleErr == nil && single.Type != "" {
-			inputEvents = []dcb.InputEvent{convertInputEvent(single)}
-		} else {
-			var many Events
-			if manyErr := json.Unmarshal(req.Events, &many); manyErr == nil && len(many) > 0 {
-				inputEvents = make([]dcb.InputEvent, len(many))
-				for i, ev := range many {
-					inputEvents[i] = convertInputEvent(ev)
-				}
-			} else {
-				http.Error(w, "Invalid events: must be a single event or array of events", http.StatusBadRequest)
-				return
-			}
-		}
+	inputEvents, err := convertInputEvents(req.Events)
+	if err != nil {
+		http.Error(w, "Invalid events", http.StatusBadRequest)
+		return
 	}
-
-	start := time.Now()
 	condition := convertAppendCondition(req.Condition)
 
-	// Execute append
-	ctx := r.Context()
-	err := s.store.AppendIf(ctx, inputEvents, condition)
-
-	duration := time.Since(start)
-	durationMicroseconds := duration.Microseconds()
-
-	// Check if it was a concurrency error
-	appendConditionFailed := false
-	if err != nil {
-		if _, ok := err.(*dcb.ConcurrencyError); ok {
-			appendConditionFailed = true
+	// Determine append method based on headers
+	var appendErr error
+	if condition != nil {
+		// Check for isolation level header for conditional appends
+		isoHeader := r.Header.Get("X-Append-If-Isolation")
+		if strings.ToLower(isoHeader) == "serializable" {
+			appendErr = s.store.AppendIfIsolated(r.Context(), inputEvents, condition)
 		} else {
-			// Provide more specific error responses
-			if _, ok := err.(*dcb.ValidationError); ok {
-				http.Error(w, fmt.Sprintf("Validation error: %v", err), http.StatusBadRequest)
-			} else if _, ok := err.(*dcb.ResourceError); ok {
-				http.Error(w, fmt.Sprintf("Resource error: %v", err), http.StatusInternalServerError)
-			} else {
-				http.Error(w, fmt.Sprintf("Append failed: %v", err), http.StatusInternalServerError)
-			}
-			return
+			appendErr = s.store.AppendIf(r.Context(), inputEvents, condition)
 		}
+	} else {
+		// Simple append without conditions
+		appendErr = s.store.Append(r.Context(), inputEvents)
+	}
+	duration := time.Since(start)
+
+	resp := AppendResponse{
+		DurationInMicroseconds: duration.Microseconds(),
+		AppendConditionFailed:  false,
 	}
 
-	response := AppendResponse{
-		DurationInMicroseconds: durationMicroseconds,
-		AppendConditionFailed:  appendConditionFailed,
+	if appendErr != nil {
+		if _, ok := appendErr.(*dcb.ConcurrencyError); ok {
+			resp.AppendConditionFailed = true
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(resp)
+			return
+		}
+		http.Error(w, appendErr.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(resp)
 }
