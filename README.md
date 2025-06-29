@@ -49,7 +49,3 @@ Run any example with: `go run internal/examples/[example-name]/main.go`
 ## License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
-
-## Transaction Isolation Levels
-
-See [docs/overview.md#transaction-isolation-levels](docs/overview.md#transaction-isolation-levels) for details on the isolation levels used by each append method.
