@@ -277,13 +277,13 @@ var _ = Describe("Append Helpers", func() {
 		})
 	})
 
-	Describe("AppendIfSerializable", func() {
+	Describe("AppendIfIsolated", func() {
 		It("should append events with serializable isolation", func() {
 			events := []InputEvent{
 				NewInputEvent("TestEvent", NewTags("test", "serializable"), []byte(`{"value": "test"}`)),
 			}
 
-			err := store.AppendIfSerializable(ctx, events, nil)
+			err := store.AppendIfIsolated(ctx, events, nil)
 			Expect(err).To(BeNil())
 
 			// Verify the event was appended
@@ -297,7 +297,7 @@ var _ = Describe("Append Helpers", func() {
 			events1 := []InputEvent{
 				NewInputEvent("TestEvent", NewTags("test", "serializable"), []byte(`{"value": "test"}`)),
 			}
-			err := store.AppendIfSerializable(ctx, events1, nil)
+			err := store.AppendIfIsolated(ctx, events1, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Second append with condition that should fail (looking for the event we just created)
@@ -306,7 +306,7 @@ var _ = Describe("Append Helpers", func() {
 			}
 			query := NewQuery(NewTags("test", "serializable"), "TestEvent")
 			condition := NewAppendCondition(query)
-			err = store.AppendIfSerializable(ctx, events2, condition)
+			err = store.AppendIfIsolated(ctx, events2, condition)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("append condition violated"))
 		})
