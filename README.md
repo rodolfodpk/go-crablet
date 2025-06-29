@@ -25,7 +25,7 @@ A Go library for event sourcing, exploring and learning about concepts inspired 
 
 Comprehensive performance testing and analysis for different API protocols:
 
-- **[Web-App Benchmarks](internal/web-app/BENCHMARK.md)**: HTTP/REST API performance testing with k6
+- **[Web-App](internal/web-app/README.md)**: HTTP/REST API with comprehensive benchmarking and isolation level testing
 - **[Go Benchmarks](internal/benchmarks/README.md)**: Core library performance testing and analysis
 
 ## Examples
@@ -49,3 +49,7 @@ Run any example with: `go run internal/examples/[example-name]/main.go`
 ## License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+
+## Transaction Isolation Levels
+
+See [docs/overview.md#transaction-isolation-levels](docs/overview.md#transaction-isolation-levels) for details on the isolation levels used by each append method.
