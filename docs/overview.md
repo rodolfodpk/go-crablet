@@ -17,14 +17,14 @@ go-crablet is a Go library for event sourcing, exploring and learning about conc
 
 ```go
 type EventStore interface {
-    // Simple append without conditions
+    // Simple append without conditions (Read Committed)
     Append(ctx context.Context, events []InputEvent) error
     
-    // Conditional append with READ COMMITTED isolation
+    // Conditional append (Repeatable Read)
     AppendIf(ctx context.Context, events []InputEvent, condition AppendCondition) error
     
-    // Conditional append with explicit isolation level control
-    AppendIfSerializable(ctx context.Context, events []InputEvent, condition AppendCondition) error
+    // Conditional append with strongest consistency (Serializable)
+    AppendIfIsolated(ctx context.Context, events []InputEvent, condition AppendCondition) error
     
     // Read events matching a query
     Read(ctx context.Context, query Query) ([]Event, error)
@@ -65,6 +65,16 @@ if states["numSubscriptions"].(int) < 2 {
 - **Database**: PostgreSQL with events table and append functions
 - **Streaming**: Multiple approaches for different dataset sizes
 - **Extensions**: Channel-based streaming for Go-idiomatic processing
-- **Isolation Levels**: Support for READ COMMITTED, REPEATABLE READ, and SERIALIZABLE
+- **Isolation Levels**: Append uses Read Committed, AppendIf uses Repeatable Read, AppendIfIsolated uses Serializable. These are implicit and not configurable.
 
 See [examples](examples.md) for complete working examples and [getting-started](getting-started.md) for setup instructions.
+
+## Transaction Isolation Levels
+
+go-crablet automatically chooses the optimal PostgreSQL transaction isolation level for each append method:
+
+- **Append**: Uses **Read Committed** (fastest, safe for simple appends)
+- **AppendIf**: Uses **Repeatable Read** (strong consistency for conditional appends)
+- **AppendIfIsolated**: Uses **Serializable** (strongest consistency for critical operations)
+
+Isolation levels are **implicit and not configurable** in the API. This ensures the best balance of safety and performance for each operation.

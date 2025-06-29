@@ -196,30 +196,23 @@ func channelStreamingExample() {
 
 ## Transaction Isolation Levels
 
-go-crablet supports different transaction isolation levels for append operations:
+go-crablet uses the following PostgreSQL transaction isolation levels for append operations:
 
 ```go
-// Simple append (no conditions)
+// Simple append (no conditions) - Read Committed
 store.Append(ctx, events)
 
-// Conditional append with READ COMMITTED (default)
+// Conditional append - Repeatable Read
 store.AppendIf(ctx, events, condition)
 
-// Conditional append with SERIALIZABLE isolation
-store.AppendIfSerializable(ctx, events, condition)
-
-// Conditional append with REPEATABLE READ isolation
-store.AppendIfIsolated(ctx, events, condition, dcb.RepeatableRead)
-
-// Conditional append with READ UNCOMMITTED isolation
-store.AppendIfIsolated(ctx, events, condition, dcb.ReadUncommitted)
+// Conditional append with strongest consistency - Serializable
+store.AppendIfIsolated(ctx, events, condition)
 ```
 
 **When to use different isolation levels:**
-- **READ COMMITTED** (default): Good for most use cases, prevents dirty reads
-- **SERIALIZABLE**: Use when you need the strongest consistency guarantees
-- **REPEATABLE READ**: Use when you need to prevent phantom reads
-- **READ UNCOMMITTED**: Use only when you can tolerate dirty reads (rarely needed)
+- **Read Committed** (`Append`): Fastest, safe for simple appends
+- **Repeatable Read** (`AppendIf`): Good for most conditional appends, prevents phantom reads
+- **Serializable** (`AppendIfIsolated`): Use for the strongest consistency guarantees
 
 ## Query Building with Helper Functions
 
