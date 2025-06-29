@@ -1,6 +1,7 @@
 # This is a Docker Compose file for setting up a PostgreSQL database service.
 # This is just a utility file to help you get started quickly with PostgreSQL in a Docker environment
 # when trying any code using this library.
+
 services:
   postgres:
     image: postgres:17.5
@@ -11,6 +12,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-dcb_app}
       # Authentication settings for benchmarks
       POSTGRES_HOST_AUTH_METHOD: trust
+      # Suppress application-level exceptions from being logged
+      POSTGRES_LOG_MIN_MESSAGES: "fatal"
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:

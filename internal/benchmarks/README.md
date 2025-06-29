@@ -8,7 +8,51 @@ This directory contains comprehensive performance benchmarks for the go-crablet 
 
 ---
 
+## 🚀 **Quick Start with Dataset Caching**
+
+The benchmarks now use **dataset caching** for much faster execution. Datasets are pre-generated and stored in SQLite for instant loading.
+
+### **First Time Setup (One-time)**
+
+```bash
+# Pre-generate and cache all datasets (tiny and small)
+cd internal/benchmarks
+go run tools/prepare_datasets_main.go
+```
+
+This will create cached datasets that make subsequent benchmark runs **much faster**.
+
+**Note**: The cache directory (`internal/benchmarks/cache/`) is gitignored, so each developer needs to run this setup once on their machine.
+
+### **Running Benchmarks**
+
+```bash
+# Run all benchmarks with cached datasets
+go run main.go
+
+# Or use the convenient script
+./run_benchmarks.sh quick
+
+# Run specific benchmark category
+./run_benchmarks.sh append small
+
+# Run with specific dataset size
+./run_benchmarks.sh all tiny -t 30s
+```
+
+---
+
 ## 📊 **Benchmark Overview**
+
+### **Current API Methods**
+
+The benchmarks currently test the core `Append` method. The library also supports conditional append operations with different isolation levels:
+
+- **`Append`**: Basic append with ReadCommitted isolation
+- **`AppendIf`**: Conditional append with RepeatableRead isolation  
+- **`AppendIfIsolated`**: Conditional append with Serializable isolation
+
+*Note: Future benchmark updates may include comprehensive testing of all append methods and their isolation level performance characteristics.*
 
 ### **What's Being Tested**
 
@@ -41,9 +85,10 @@ This directory contains comprehensive performance benchmarks for the go-crablet 
 
 ### **Dataset Sizes & Realistic Distribution**
 
-| Size   | Courses | Students | Enrollments | Total Events | Distribution |
-|--------|---------|----------|-------------|--------------|--------------|
-| Small  | 1,000   | 10,000   | 50,000      | 61,000       | Realistic course popularity, student behavior patterns |
+| Size   | Courses | Students | Enrollments | Total Events | Use Case |
+|--------|---------|----------|-------------|--------------|----------|
+| Tiny   | 5       | 10       | 20          | 35           | Quick validation, smoke tests |
+| Small  | 1,000   | 10,000   | 50,000      | 61,000       | Performance testing, realistic scenarios |
 
 **Realistic Data Features:**
 - **Course Popularity**: Computer Science courses are more popular (30% of enrollments)
@@ -51,6 +96,13 @@ This directory contains comprehensive performance benchmarks for the go-crablet 
 - **Temporal Patterns**: Fall semester has 60% of enrollments, Spring 40%
 - **Grade Distribution**: A (25%), B (35%), C (25%), D/F (15%)
 - **Major Distribution**: CS (30%), Engineering (25%), Business (20%), Arts (15%), Other (10%)
+
+### **Dataset Caching Benefits**
+
+- **First run**: Datasets are generated and cached (one-time cost)
+- **Subsequent runs**: Instant loading from SQLite cache
+- **Consistent data**: Same dataset across all benchmark runs
+- **Faster iteration**: No need to regenerate data for each test
 
 ## 🚀 **Running Benchmarks**
 

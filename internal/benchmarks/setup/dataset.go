@@ -19,28 +19,16 @@ type DatasetConfig struct {
 
 // DatasetSizes provides predefined dataset configurations
 var DatasetSizes = map[string]DatasetConfig{
+	"tiny": {
+		Courses:     5,
+		Students:    10,
+		Enrollments: 20,
+		Capacity:    50,
+	},
 	"small": {
 		Courses:     1_000,
 		Students:    10_000,
 		Enrollments: 50_000,
-		Capacity:    100,
-	},
-	"medium": {
-		Courses:     5_000,
-		Students:    50_000,
-		Enrollments: 250_000,
-		Capacity:    100,
-	},
-	"large": {
-		Courses:     10_000,
-		Students:    100_000,
-		Enrollments: 500_000,
-		Capacity:    100,
-	},
-	"xlarge": {
-		Courses:     20_000,
-		Students:    200_000,
-		Enrollments: 1_000_000,
 		Capacity:    100,
 	},
 }

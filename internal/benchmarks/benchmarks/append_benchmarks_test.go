@@ -6,16 +6,8 @@ func BenchmarkAppend_Small(b *testing.B) {
 	RunAllBenchmarks(b, "small")
 }
 
-func BenchmarkAppend_Medium(b *testing.B) {
-	RunAllBenchmarks(b, "medium")
-}
-
-func BenchmarkAppend_Large(b *testing.B) {
-	RunAllBenchmarks(b, "large")
-}
-
-func BenchmarkAppend_XLarge(b *testing.B) {
-	RunAllBenchmarks(b, "xlarge")
+func BenchmarkAppend_Tiny(b *testing.B) {
+	RunAllBenchmarks(b, "tiny")
 }
 
 // Individual append benchmarks for detailed analysis
@@ -24,13 +16,8 @@ func BenchmarkAppendSingle_Small(b *testing.B) {
 	BenchmarkAppendSingle(b, benchCtx)
 }
 
-func BenchmarkAppendSingle_Medium(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "medium")
-	BenchmarkAppendSingle(b, benchCtx)
-}
-
-func BenchmarkAppendSingle_Large(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "large")
+func BenchmarkAppendSingle_Tiny(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "tiny")
 	BenchmarkAppendSingle(b, benchCtx)
 }
 
@@ -39,13 +26,8 @@ func BenchmarkAppendBatch10_Small(b *testing.B) {
 	BenchmarkAppendBatch(b, benchCtx, 10)
 }
 
-func BenchmarkAppendBatch10_Medium(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "medium")
-	BenchmarkAppendBatch(b, benchCtx, 10)
-}
-
-func BenchmarkAppendBatch10_Large(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "large")
+func BenchmarkAppendBatch10_Tiny(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "tiny")
 	BenchmarkAppendBatch(b, benchCtx, 10)
 }
 
@@ -54,13 +36,8 @@ func BenchmarkAppendBatch100_Small(b *testing.B) {
 	BenchmarkAppendBatch(b, benchCtx, 100)
 }
 
-func BenchmarkAppendBatch100_Medium(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "medium")
-	BenchmarkAppendBatch(b, benchCtx, 100)
-}
-
-func BenchmarkAppendBatch100_Large(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "large")
+func BenchmarkAppendBatch100_Tiny(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "tiny")
 	BenchmarkAppendBatch(b, benchCtx, 100)
 }
 
@@ -69,12 +46,90 @@ func BenchmarkAppendBatch1000_Small(b *testing.B) {
 	BenchmarkAppendBatch(b, benchCtx, 1000)
 }
 
-func BenchmarkAppendBatch1000_Medium(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "medium")
+func BenchmarkAppendBatch1000_Tiny(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "tiny")
 	BenchmarkAppendBatch(b, benchCtx, 1000)
 }
 
-func BenchmarkAppendBatch1000_Large(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "large")
-	BenchmarkAppendBatch(b, benchCtx, 1000)
+// AppendIf benchmarks (RepeatableRead isolation)
+func BenchmarkAppendIf_Small(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "small")
+	BenchmarkAppendIf(b, benchCtx, 1)
+}
+
+func BenchmarkAppendIf_Tiny(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "tiny")
+	BenchmarkAppendIf(b, benchCtx, 1)
+}
+
+func BenchmarkAppendIfBatch10_Small(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "small")
+	BenchmarkAppendIf(b, benchCtx, 10)
+}
+
+func BenchmarkAppendIfBatch10_Tiny(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "tiny")
+	BenchmarkAppendIf(b, benchCtx, 10)
+}
+
+func BenchmarkAppendIfBatch100_Small(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "small")
+	BenchmarkAppendIf(b, benchCtx, 100)
+}
+
+func BenchmarkAppendIfBatch100_Tiny(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "tiny")
+	BenchmarkAppendIf(b, benchCtx, 100)
+}
+
+// AppendIfIsolated benchmarks (Serializable isolation)
+func BenchmarkAppendIfIsolated_Small(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "small")
+	BenchmarkAppendIfIsolated(b, benchCtx, 1)
+}
+
+func BenchmarkAppendIfIsolated_Tiny(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "tiny")
+	BenchmarkAppendIfIsolated(b, benchCtx, 1)
+}
+
+func BenchmarkAppendIfIsolatedBatch10_Small(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "small")
+	BenchmarkAppendIfIsolated(b, benchCtx, 10)
+}
+
+func BenchmarkAppendIfIsolatedBatch10_Tiny(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "tiny")
+	BenchmarkAppendIfIsolated(b, benchCtx, 10)
+}
+
+func BenchmarkAppendIfIsolatedBatch100_Small(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "small")
+	BenchmarkAppendIfIsolated(b, benchCtx, 100)
+}
+
+func BenchmarkAppendIfIsolatedBatch100_Tiny(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "tiny")
+	BenchmarkAppendIfIsolated(b, benchCtx, 100)
+}
+
+// Conflict scenario benchmarks
+func BenchmarkAppendIfWithConflict_Small(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "small")
+	BenchmarkAppendIfWithConflict(b, benchCtx, 1)
+}
+
+func BenchmarkAppendIfWithConflict_Tiny(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "tiny")
+	BenchmarkAppendIfWithConflict(b, benchCtx, 1)
+}
+
+func BenchmarkAppendIfIsolatedWithConflict_Small(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "small")
+	BenchmarkAppendIfIsolatedWithConflict(b, benchCtx, 1)
+}
+
+func BenchmarkAppendIfIsolatedWithConflict_Tiny(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "tiny")
+	BenchmarkAppendIfIsolatedWithConflict(b, benchCtx, 1)
 }

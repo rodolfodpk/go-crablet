@@ -20,26 +20,8 @@ func BenchmarkRead_Small(b *testing.B) {
 	}
 }
 
-func BenchmarkRead_Medium(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "medium")
-
-	b.Run("ReadSimple", func(b *testing.B) {
-		BenchmarkRead(b, benchCtx, 0)
-	})
-
-	b.Run("ReadComplex", func(b *testing.B) {
-		BenchmarkRead(b, benchCtx, 1)
-	})
-
-	if benchCtx.HasChannel {
-		b.Run("ReadStreamChannel", func(b *testing.B) {
-			BenchmarkReadStreamChannel(b, benchCtx, 0)
-		})
-	}
-}
-
-func BenchmarkRead_Large(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "large")
+func BenchmarkRead_Tiny(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "tiny")
 
 	b.Run("ReadSimple", func(b *testing.B) {
 		BenchmarkRead(b, benchCtx, 0)
@@ -62,13 +44,8 @@ func BenchmarkReadSimple_Small(b *testing.B) {
 	BenchmarkRead(b, benchCtx, 0)
 }
 
-func BenchmarkReadSimple_Medium(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "medium")
-	BenchmarkRead(b, benchCtx, 0)
-}
-
-func BenchmarkReadSimple_Large(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "large")
+func BenchmarkReadSimple_Tiny(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "tiny")
 	BenchmarkRead(b, benchCtx, 0)
 }
 
@@ -77,13 +54,8 @@ func BenchmarkReadComplex_Small(b *testing.B) {
 	BenchmarkRead(b, benchCtx, 1)
 }
 
-func BenchmarkReadComplex_Medium(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "medium")
-	BenchmarkRead(b, benchCtx, 1)
-}
-
-func BenchmarkReadComplex_Large(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "large")
+func BenchmarkReadComplex_Tiny(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "tiny")
 	BenchmarkRead(b, benchCtx, 1)
 }
 
@@ -92,13 +64,8 @@ func BenchmarkReadStreamChannel_Small(b *testing.B) {
 	BenchmarkReadStreamChannel(b, benchCtx, 0)
 }
 
-func BenchmarkReadStreamChannel_Medium(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "medium")
-	BenchmarkReadStreamChannel(b, benchCtx, 0)
-}
-
-func BenchmarkReadStreamChannel_Large(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "large")
+func BenchmarkReadStreamChannel_Tiny(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "tiny")
 	BenchmarkReadStreamChannel(b, benchCtx, 0)
 }
 
@@ -108,13 +75,8 @@ func BenchmarkMemoryRead_Small(b *testing.B) {
 	BenchmarkMemoryUsage(b, benchCtx, "read")
 }
 
-func BenchmarkMemoryRead_Medium(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "medium")
-	BenchmarkMemoryUsage(b, benchCtx, "read")
-}
-
-func BenchmarkMemoryRead_Large(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "large")
+func BenchmarkMemoryRead_Tiny(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "tiny")
 	BenchmarkMemoryUsage(b, benchCtx, "read")
 }
 
@@ -123,12 +85,7 @@ func BenchmarkMemoryStream_Small(b *testing.B) {
 	BenchmarkMemoryUsage(b, benchCtx, "stream")
 }
 
-func BenchmarkMemoryStream_Medium(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "medium")
-	BenchmarkMemoryUsage(b, benchCtx, "stream")
-}
-
-func BenchmarkMemoryStream_Large(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "large")
+func BenchmarkMemoryStream_Tiny(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "tiny")
 	BenchmarkMemoryUsage(b, benchCtx, "stream")
 }

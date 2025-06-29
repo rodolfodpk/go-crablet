@@ -156,15 +156,15 @@ run_all_benchmarks() {
 
 # Function to run quick benchmarks
 run_quick_benchmarks() {
-    print_status "Running quick benchmarks (small dataset, 5s each)"
-    run_all_benchmarks "Small" "5s"
+    print_status "Running quick benchmarks (tiny dataset, 5s each)"
+    run_all_benchmarks "Tiny" "5s"
 }
 
 # Function to run comprehensive benchmarks
 run_comprehensive_benchmarks() {
-    print_status "Running comprehensive benchmarks (all datasets, 30s each)"
+    print_status "Running comprehensive benchmarks (tiny and small datasets, 30s each)"
     
-    for size in "Small" "Medium" "Large"; do
+    for size in "Tiny" "Small"; do
         print_status "Running $size dataset benchmarks..."
         run_all_benchmarks "$size" "30s"
     done
@@ -213,7 +213,8 @@ show_help() {
     echo "Usage: $0 [COMMAND] [OPTIONS]"
     echo
     echo "Commands:"
-    echo "  quick                    Run quick benchmarks (small dataset, 5s each)"
+    echo "  prepare                  Prepare and cache datasets (run once per machine)"
+    echo "  quick                    Run quick benchmarks (tiny dataset, 5s each)"
     echo "  comprehensive           Run comprehensive benchmarks (all datasets, 30s each)"
     echo "  append [SIZE]           Run append benchmarks"
     echo "  read [SIZE]             Run read benchmarks"
@@ -224,10 +225,8 @@ show_help() {
     echo "  help                    Show this help message"
     echo
     echo "Dataset Sizes:"
-    echo "  Small                  1,000 courses, 10,000 students, 50,000 enrollments"
-    echo "  Medium                 5,000 courses, 50,000 students, 250,000 enrollments"
-    echo "  Large                  10,000 courses, 100,000 students, 500,000 enrollments"
-    echo "  XLarge                 20,000 courses, 200,000 students, 1,000,000 enrollments"
+    echo "  Tiny                   5 courses, 10 students, 20 enrollments (quick validation)"
+    echo "  Small                  1,000 courses, 10,000 students, 50,000 enrollments (performance testing)"
     echo
     echo "Options:"
     echo "  -t, --time TIME         Benchmark time (default: 10s)"
@@ -235,11 +234,24 @@ show_help() {
     echo "  -v, --verbose           Verbose output"
     echo
     echo "Examples:"
+    echo "  $0 prepare                                 # Prepare datasets (run once)"
     echo "  $0 quick                                    # Quick benchmarks"
     echo "  $0 append Small                             # Append benchmarks with small dataset"
     echo "  $0 all Large -t 30s                         # All benchmarks with large dataset, 30s each"
     echo "  $0 profile BenchmarkAppendSingle_Small Small # Profile specific benchmark"
     echo
+}
+
+# Function to prepare datasets
+prepare_datasets() {
+    print_status "Preparing and caching datasets..."
+    
+    if go run tools/prepare_datasets_main.go; then
+        print_success "Datasets prepared and cached successfully"
+    else
+        print_error "Failed to prepare datasets"
+        exit 1
+    fi
 }
 
 # Parse command line arguments
@@ -263,6 +275,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         help)
             show_help
+            exit 0
+            ;;
+        prepare)
+            check_prerequisites
+            prepare_datasets
             exit 0
             ;;
         quick)

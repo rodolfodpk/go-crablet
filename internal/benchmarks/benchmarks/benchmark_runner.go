@@ -70,13 +70,17 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
 	// Check if ChannelEventStore is available
 	channelStore, hasChannel := store.(dcb.ChannelEventStore)
 
-	// Generate dataset
+	// Get dataset configuration
 	config, exists := setup.DatasetSizes[datasetSize]
 	if !exists {
 		b.Fatalf("Unknown dataset size: %s", datasetSize)
 	}
 
-	dataset := setup.GenerateDataset(config)
+	// Get dataset from cache (or generate and cache it)
+	dataset, err := setup.GetCachedDataset(config)
+	if err != nil {
+		b.Fatalf("Failed to get cached dataset: %v", err)
+	}
 
 	// Load dataset into store
 	if err := setup.LoadDatasetIntoStore(ctx, store, dataset); err != nil {
@@ -107,17 +111,18 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
 // BenchmarkAppendSingle benchmarks single event append
 func BenchmarkAppendSingle(b *testing.B, benchCtx *BenchmarkContext) {
 	// Create context with timeout for each benchmark iteration
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		// Create a batch with a single event to demonstrate batch append
+		// Use unique data to avoid collisions
+		uniqueID := fmt.Sprintf("single_%d_%d", time.Now().UnixNano(), i)
 		event := dcb.NewInputEvent("TestEvent",
-			dcb.NewTags("test", "single", "iteration", fmt.Sprintf("%d", i)),
-			[]byte(`{"value": "test"}`))
+			dcb.NewTags("test", "single", "unique_id", uniqueID),
+			[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, uniqueID)))
 
 		err := benchCtx.Store.Append(ctx, []dcb.InputEvent{event})
 		if err != nil {
@@ -129,7 +134,7 @@ func BenchmarkAppendSingle(b *testing.B, benchCtx *BenchmarkContext) {
 // BenchmarkAppendBatch benchmarks batch event append
 func BenchmarkAppendBatch(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
 	// Create context with timeout for each benchmark iteration
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
 	b.ResetTimer()
@@ -137,15 +142,170 @@ func BenchmarkAppendBatch(b *testing.B, benchCtx *BenchmarkContext, batchSize in
 
 	for i := 0; i < b.N; i++ {
 		events := make([]dcb.InputEvent, batchSize)
+		uniqueID := fmt.Sprintf("batch_%d_%d", time.Now().UnixNano(), i)
+
 		for j := 0; j < batchSize; j++ {
+			eventID := fmt.Sprintf("%s_%d", uniqueID, j)
 			events[j] = dcb.NewInputEvent("TestEvent",
-				dcb.NewTags("test", "batch", "iteration", fmt.Sprintf("%d", i), "index", fmt.Sprintf("%d", j)),
-				[]byte(`{"value": "test"}`))
+				dcb.NewTags("test", "batch", "unique_id", eventID),
+				[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, eventID)))
 		}
 
 		err := benchCtx.Store.Append(ctx, events)
 		if err != nil {
 			b.Fatalf("Batch append failed: %v", err)
+		}
+	}
+}
+
+// BenchmarkAppendIf benchmarks conditional append with RepeatableRead isolation
+func BenchmarkAppendIf(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
+	// Create context with timeout for each benchmark iteration
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		events := make([]dcb.InputEvent, batchSize)
+		uniqueID := fmt.Sprintf("appendif_%d_%d", time.Now().UnixNano(), i)
+
+		for j := 0; j < batchSize; j++ {
+			eventID := fmt.Sprintf("%s_%d", uniqueID, j)
+			events[j] = dcb.NewInputEvent("TestEvent",
+				dcb.NewTags("test", "appendif", "unique_id", eventID),
+				[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, eventID)))
+		}
+
+		// Create a simple condition that should pass (no conflicting events)
+		condition := dcb.NewAppendCondition(
+			dcb.NewQuery(dcb.NewTags("test", "conflict"), "ConflictingEvent"),
+		)
+
+		err := benchCtx.Store.AppendIf(ctx, events, condition)
+		if err != nil {
+			b.Fatalf("AppendIf failed: %v", err)
+		}
+	}
+}
+
+// BenchmarkAppendIfIsolated benchmarks conditional append with Serializable isolation
+func BenchmarkAppendIfIsolated(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
+	// Create context with timeout for each benchmark iteration
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		events := make([]dcb.InputEvent, batchSize)
+		uniqueID := fmt.Sprintf("appendifisolated_%d_%d", time.Now().UnixNano(), i)
+
+		for j := 0; j < batchSize; j++ {
+			eventID := fmt.Sprintf("%s_%d", uniqueID, j)
+			events[j] = dcb.NewInputEvent("TestEvent",
+				dcb.NewTags("test", "appendifisolated", "unique_id", eventID),
+				[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, eventID)))
+		}
+
+		// Create a simple condition that should pass (no conflicting events)
+		condition := dcb.NewAppendCondition(
+			dcb.NewQuery(dcb.NewTags("test", "conflict"), "ConflictingEvent"),
+		)
+
+		err := benchCtx.Store.AppendIfIsolated(ctx, events, condition)
+		if err != nil {
+			b.Fatalf("AppendIfIsolated failed: %v", err)
+		}
+	}
+}
+
+// BenchmarkAppendIfWithConflict benchmarks AppendIf with a condition that should fail
+func BenchmarkAppendIfWithConflict(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
+	// Create context with timeout for each benchmark iteration
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	// First, create a conflicting event with unique ID
+	uniqueID := fmt.Sprintf("conflict_%d", time.Now().UnixNano())
+	conflictEvent := dcb.NewInputEvent("ConflictingEvent",
+		dcb.NewTags("test", "conflict", "unique_id", uniqueID),
+		[]byte(fmt.Sprintf(`{"value": "conflict", "unique_id": "%s"}`, uniqueID)))
+
+	err := benchCtx.Store.Append(ctx, []dcb.InputEvent{conflictEvent})
+	if err != nil {
+		b.Fatalf("Failed to create conflict event: %v", err)
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		events := make([]dcb.InputEvent, batchSize)
+		uniqueID := fmt.Sprintf("appendifconflict_%d_%d", time.Now().UnixNano(), i)
+
+		for j := 0; j < batchSize; j++ {
+			eventID := fmt.Sprintf("%s_%d", uniqueID, j)
+			events[j] = dcb.NewInputEvent("TestEvent",
+				dcb.NewTags("test", "appendifconflict", "unique_id", eventID),
+				[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, eventID)))
+		}
+
+		// Create a condition that should fail (conflicting event exists)
+		condition := dcb.NewAppendCondition(
+			dcb.NewQuery(dcb.NewTags("test", "conflict", "unique_id", uniqueID), "ConflictingEvent"),
+		)
+
+		// This should fail due to the conflicting event
+		err := benchCtx.Store.AppendIf(ctx, events, condition)
+		if err == nil {
+			b.Fatalf("AppendIf should have failed due to conflict")
+		}
+	}
+}
+
+// BenchmarkAppendIfIsolatedWithConflict benchmarks AppendIfIsolated with a condition that should fail
+func BenchmarkAppendIfIsolatedWithConflict(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
+	// Create context with timeout for each benchmark iteration
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	// First, create a conflicting event with unique ID
+	uniqueID := fmt.Sprintf("conflict_%d", time.Now().UnixNano())
+	conflictEvent := dcb.NewInputEvent("ConflictingEvent",
+		dcb.NewTags("test", "conflict", "unique_id", uniqueID),
+		[]byte(fmt.Sprintf(`{"value": "conflict", "unique_id": "%s"}`, uniqueID)))
+
+	err := benchCtx.Store.Append(ctx, []dcb.InputEvent{conflictEvent})
+	if err != nil {
+		b.Fatalf("Failed to create conflict event: %v", err)
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		events := make([]dcb.InputEvent, batchSize)
+		uniqueID := fmt.Sprintf("appendifisolatedconflict_%d_%d", time.Now().UnixNano(), i)
+
+		for j := 0; j < batchSize; j++ {
+			eventID := fmt.Sprintf("%s_%d", uniqueID, j)
+			events[j] = dcb.NewInputEvent("TestEvent",
+				dcb.NewTags("test", "appendifisolatedconflict", "unique_id", eventID),
+				[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, eventID)))
+		}
+
+		// Create a condition that should fail (conflicting event exists)
+		condition := dcb.NewAppendCondition(
+			dcb.NewQuery(dcb.NewTags("test", "conflict", "unique_id", uniqueID), "ConflictingEvent"),
+		)
+
+		// This should fail due to the conflicting event
+		err := benchCtx.Store.AppendIfIsolated(ctx, events, condition)
+		if err == nil {
+			b.Fatalf("AppendIfIsolated should have failed due to conflict")
 		}
 	}
 }

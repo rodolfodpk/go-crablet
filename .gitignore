@@ -26,6 +26,12 @@ k6-results/
 benchmark-results/
 test-results/
 
+# Benchmark cache and SQLite databases
+internal/benchmarks/cache/
+*.db
+*.sqlite
+*.sqlite3
+
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
