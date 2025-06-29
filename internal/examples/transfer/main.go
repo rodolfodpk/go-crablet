@@ -154,7 +154,7 @@ func handleCreateAccount(ctx context.Context, store dcb.EventStore, cmd CreateAc
 	}
 
 	// Append events atomically for this command
-	err = store.AppendIfSerializable(ctx, events, appendCondition)
+	err = store.AppendIfIsolated(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to create account: %w", err)
 	}
@@ -304,7 +304,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 
 	// Use the append condition from the decision model for optimistic locking
 	// All events are appended atomically for this command with serializable isolation
-	err = store.AppendIfSerializable(ctx, events, appendCondition)
+	err = store.AppendIfIsolated(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("append failed: %w", err)
 	}
