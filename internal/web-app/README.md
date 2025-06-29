@@ -29,6 +29,8 @@ curl http://localhost:8080/health
 - **AppendIf (RepeatableRead)**: ~100-200 req/s, <1000ms p95  
 - **AppendIf with Serializable**: ~50-100 req/s, <2000ms p95
 
+**[📊 View Detailed Benchmark Results](BENCHMARK.md)** - Complete performance analysis with k6 output and comprehensive test results
+
 ### Recent Benchmark Results
 - **Zero HTTP Failures**: All tests achieve 100% HTTP success rate
 - **Sub-500ms p95**: 95th percentile response times under 500ms for most operations
@@ -202,9 +204,9 @@ make append-if-quick
 
 ## 📚 Documentation
 
+- **[Latest Benchmark Results](BENCHMARK.md)**: Detailed benchmark results and performance analysis from our comprehensive testing
 - **[OpenAPI Specification](openapi.yaml)**: Complete API specification
 - **[Main Project README](../../README.md)**: Core library documentation
-- **[Latest Benchmark Results](BENCHMARK.md)**: Detailed benchmark results and performance analysis
 
 ## 🎯 Key Features
 
