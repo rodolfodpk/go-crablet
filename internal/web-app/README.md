@@ -18,18 +18,7 @@ curl http://localhost:8080/health
 
 ## 📊 Performance Results
 
-| Test Type | Throughput | Response Time | Success Rate |
-|-----------|------------|---------------|--------------|
-| **Quick Test** | ~1,070 req/s | 1.73ms avg | 100% |
-| **Full Benchmark** | ~284 req/s | 45.64ms avg | 100% |
-| **Concurrency Test** | ~146 req/s | 54.06ms avg | 98.50% |
-
-### Isolation Level Performance
-- **Append (ReadCommitted)**: ~200-500 req/s, <1000ms p95
-- **AppendIf (RepeatableRead)**: ~100-200 req/s, <1000ms p95  
-- **AppendIf with Serializable**: ~50-100 req/s, <2000ms p95
-
-**[📊 View Detailed Benchmark Results](BENCHMARK.md)** - Complete performance analysis with k6 output and comprehensive test results
+See [BENCHMARK.md](BENCHMARK.md) for the latest concise benchmark results and performance insights from all major tests and isolation levels.
 
 ### Recent Benchmark Results
 - **Zero HTTP Failures**: All tests achieve 100% HTTP success rate
@@ -204,7 +193,6 @@ make append-if-quick
 
 ## 📚 Documentation
 
-- **[Latest Benchmark Results](BENCHMARK.md)**: Detailed benchmark results and performance analysis from our comprehensive testing
 - **[OpenAPI Specification](openapi.yaml)**: Complete API specification
 - **[Main Project README](../../README.md)**: Core library documentation
 
