@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"go-crablet/pkg/dcb"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,6 +31,9 @@ func TestDumpEvents(t *testing.T) {
 	require.NoError(t, err)
 	defer pool.Close()
 
+	// Create event store
+	store := dcb.NewEventStoreFromPool(pool)
+
 	t.Run("Empty Database", func(t *testing.T) {
 		cleanupEvents(t, pool)
 
@@ -41,11 +46,9 @@ func TestDumpEvents(t *testing.T) {
 	t.Run("Single Event", func(t *testing.T) {
 		cleanupEvents(t, pool)
 
-		// Insert a test event
-		_, err := pool.Exec(ctx, `
-			INSERT INTO events (type, tags, data) 
-			VALUES ($1, $2, $3)
-		`, "UserCreated", []string{"user_id:123"}, `{"name": "John Doe"}`)
+		// Insert a test event using EventStore API
+		event := dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", "123"), []byte(`{"name": "John Doe"}`))
+		err := store.Append(ctx, []dcb.InputEvent{event})
 		require.NoError(t, err)
 
 		// DumpEvents should not panic with single event
@@ -57,24 +60,15 @@ func TestDumpEvents(t *testing.T) {
 	t.Run("Multiple Events", func(t *testing.T) {
 		cleanupEvents(t, pool)
 
-		// Insert multiple test events
-		events := []struct {
-			eventType string
-			tags      []string
-			data      string
-		}{
-			{"UserCreated", []string{"user_id:123"}, `{"name": "John Doe"}`},
-			{"UserUpdated", []string{"user_id:123"}, `{"name": "John Smith"}`},
-			{"OrderCreated", []string{"order_id:456", "user_id:123"}, `{"total": 100.50}`},
+		// Insert multiple test events using EventStore API
+		events := []dcb.InputEvent{
+			dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", "123"), []byte(`{"name": "John Doe"}`)),
+			dcb.NewInputEvent("UserUpdated", dcb.NewTags("user_id", "123"), []byte(`{"name": "John Smith"}`)),
+			dcb.NewInputEvent("OrderCreated", dcb.NewTags("order_id", "456", "user_id", "123"), []byte(`{"total": 100.50}`)),
 		}
 
-		for _, event := range events {
-			_, err := pool.Exec(ctx, `
-				INSERT INTO events (type, tags, data) 
-				VALUES ($1, $2, $3)
-			`, event.eventType, event.tags, event.data)
-			require.NoError(t, err)
-		}
+		err := store.Append(ctx, events)
+		require.NoError(t, err)
 
 		// DumpEvents should not panic with multiple events
 		assert.NotPanics(t, func() {
@@ -85,14 +79,11 @@ func TestDumpEvents(t *testing.T) {
 	t.Run("Long Tags and Data", func(t *testing.T) {
 		cleanupEvents(t, pool)
 
-		// Insert event with long tags and data
-		longTags := []string{"very_long_tag_key_that_exceeds_limit", "another_long_tag_value_here"}
+		// Insert event with long tags and data using EventStore API
 		longData := `{"very_long_field_name": "This is a very long data value that should be truncated when displayed in the output"}`
+		event := dcb.NewInputEvent("TestEvent", dcb.NewTags("very_long_tag_key_that_exceeds_limit", "another_long_tag_value_here"), []byte(longData))
 
-		_, err := pool.Exec(ctx, `
-			INSERT INTO events (type, tags, data) 
-			VALUES ($1, $2, $3)
-		`, "TestEvent", longTags, longData)
+		err := store.Append(ctx, []dcb.InputEvent{event})
 		require.NoError(t, err)
 
 		// DumpEvents should not panic with long content
@@ -104,13 +95,11 @@ func TestDumpEvents(t *testing.T) {
 	t.Run("Special Characters in Data", func(t *testing.T) {
 		cleanupEvents(t, pool)
 
-		// Insert event with special characters
+		// Insert event with special characters using EventStore API
 		specialData := `{"message": "Hello\nWorld\twith\"quotes\"and'single'quotes"}`
+		event := dcb.NewInputEvent("SpecialEvent", dcb.NewTags("test", "value"), []byte(specialData))
 
-		_, err := pool.Exec(ctx, `
-			INSERT INTO events (type, tags, data) 
-			VALUES ($1, $2, $3)
-		`, "SpecialEvent", []string{"test:value"}, specialData)
+		err := store.Append(ctx, []dcb.InputEvent{event})
 		require.NoError(t, err)
 
 		// DumpEvents should not panic with special characters

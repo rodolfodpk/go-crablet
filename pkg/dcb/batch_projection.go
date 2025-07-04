@@ -3,23 +3,28 @@ package dcb
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 // rowEvent is a helper struct for scanning database rows.
 type rowEvent struct {
-	Type     string
-	Tags     []string
-	Data     []byte
-	Position int64
+	Type          string
+	Tags          []string
+	Data          []byte
+	Position      int64
+	TransactionID uint64
+	CreatedAt     time.Time
 }
 
 // convertRowToEvent converts a database row to an Event
 func convertRowToEvent(row rowEvent) Event {
 	return Event{
-		Type:     row.Type,
-		Tags:     ParseTagsArray(row.Tags),
-		Data:     row.Data,
-		Position: row.Position,
+		Type:          row.Type,
+		Tags:          ParseTagsArray(row.Tags),
+		Data:          row.Data,
+		Position:      row.Position,
+		TransactionID: row.TransactionID,
+		CreatedAt:     row.CreatedAt,
 	}
 }
 
@@ -64,23 +69,26 @@ func (es *eventStore) buildReadQuerySQL(query Query, options *ReadOptions) (stri
 		}
 	}
 
-	// Add position conditions
-	if options != nil && options.FromPosition != nil {
-		conditions = append(conditions, fmt.Sprintf("position > $%d", argIndex))
-		args = append(args, *options.FromPosition)
-		argIndex++
+	// Add cursor conditions (replaces FromPosition logic)
+	if options != nil && options.Cursor != nil {
+		// Use the correct cursor logic from Oskar's article:
+		// (transaction_id = cursor.TransactionID AND position > cursor.Position) OR (transaction_id > cursor.TransactionID)
+		conditions = append(conditions, fmt.Sprintf("( (transaction_id = $%d AND position > $%d) OR (transaction_id > $%d) )", argIndex, argIndex+1, argIndex+2))
+		args = append(args, options.Cursor.TransactionID, options.Cursor.Position, options.Cursor.TransactionID)
+		argIndex += 3
 	}
 
 	// Build final query efficiently
 	var sqlQuery strings.Builder
-	sqlQuery.WriteString("SELECT type, tags, data, position FROM events")
+	sqlQuery.WriteString("SELECT type, tags, data, position, transaction_id, created_at FROM events")
 
 	if len(conditions) > 0 {
 		sqlQuery.WriteString(" WHERE ")
 		sqlQuery.WriteString(strings.Join(conditions, " AND "))
 	}
 
-	sqlQuery.WriteString(" ORDER BY position ASC")
+	// Use transaction_id ordering for proper event ordering guarantees
+	sqlQuery.WriteString(" ORDER BY transaction_id ASC, position ASC")
 
 	// Add limit if specified
 	if options != nil && options.Limit != nil {

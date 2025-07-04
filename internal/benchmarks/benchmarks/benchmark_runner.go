@@ -228,24 +228,22 @@ func BenchmarkAppendIfWithConflict(b *testing.B, benchCtx *BenchmarkContext, bat
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	// First, create a conflicting event with unique ID
-	uniqueID := fmt.Sprintf("conflict_%d", time.Now().UnixNano())
-	conflictEvent := dcb.NewInputEvent("ConflictingEvent",
-		dcb.NewTags("test", "conflict", "unique_id", uniqueID),
-		[]byte(fmt.Sprintf(`{"value": "conflict", "unique_id": "%s"}`, uniqueID)))
-
-	err := benchCtx.Store.Append(ctx, []dcb.InputEvent{conflictEvent})
-	if err != nil {
-		b.Fatalf("Failed to create conflict event: %v", err)
-	}
-
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		events := make([]dcb.InputEvent, batchSize)
-		uniqueID := fmt.Sprintf("appendifconflict_%d_%d", time.Now().UnixNano(), i)
+		// Create a conflicting event with unique ID for this iteration
+		uniqueID := fmt.Sprintf("conflict_%d_%d", time.Now().UnixNano(), i)
+		conflictEvent := dcb.NewInputEvent("ConflictingEvent",
+			dcb.NewTags("test", "conflict", "unique_id", uniqueID),
+			[]byte(fmt.Sprintf(`{"value": "conflict", "unique_id": "%s"}`, uniqueID)))
 
+		err := benchCtx.Store.Append(ctx, []dcb.InputEvent{conflictEvent})
+		if err != nil {
+			b.Fatalf("Failed to create conflict event: %v", err)
+		}
+
+		events := make([]dcb.InputEvent, batchSize)
 		for j := 0; j < batchSize; j++ {
 			eventID := fmt.Sprintf("%s_%d", uniqueID, j)
 			events[j] = dcb.NewInputEvent("TestEvent",
@@ -259,7 +257,7 @@ func BenchmarkAppendIfWithConflict(b *testing.B, benchCtx *BenchmarkContext, bat
 		)
 
 		// This should fail due to the conflicting event
-		err := benchCtx.Store.AppendIf(ctx, events, condition)
+		err = benchCtx.Store.AppendIf(ctx, events, condition)
 		if err == nil {
 			b.Fatalf("AppendIf should have failed due to conflict")
 		}
@@ -272,24 +270,22 @@ func BenchmarkAppendIfIsolatedWithConflict(b *testing.B, benchCtx *BenchmarkCont
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	// First, create a conflicting event with unique ID
-	uniqueID := fmt.Sprintf("conflict_%d", time.Now().UnixNano())
-	conflictEvent := dcb.NewInputEvent("ConflictingEvent",
-		dcb.NewTags("test", "conflict", "unique_id", uniqueID),
-		[]byte(fmt.Sprintf(`{"value": "conflict", "unique_id": "%s"}`, uniqueID)))
-
-	err := benchCtx.Store.Append(ctx, []dcb.InputEvent{conflictEvent})
-	if err != nil {
-		b.Fatalf("Failed to create conflict event: %v", err)
-	}
-
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		events := make([]dcb.InputEvent, batchSize)
-		uniqueID := fmt.Sprintf("appendifisolatedconflict_%d_%d", time.Now().UnixNano(), i)
+		// Create a conflicting event with unique ID for this iteration
+		uniqueID := fmt.Sprintf("conflict_%d_%d", time.Now().UnixNano(), i)
+		conflictEvent := dcb.NewInputEvent("ConflictingEvent",
+			dcb.NewTags("test", "conflict", "unique_id", uniqueID),
+			[]byte(fmt.Sprintf(`{"value": "conflict", "unique_id": "%s"}`, uniqueID)))
 
+		err := benchCtx.Store.Append(ctx, []dcb.InputEvent{conflictEvent})
+		if err != nil {
+			b.Fatalf("Failed to create conflict event: %v", err)
+		}
+
+		events := make([]dcb.InputEvent, batchSize)
 		for j := 0; j < batchSize; j++ {
 			eventID := fmt.Sprintf("%s_%d", uniqueID, j)
 			events[j] = dcb.NewInputEvent("TestEvent",
@@ -303,7 +299,7 @@ func BenchmarkAppendIfIsolatedWithConflict(b *testing.B, benchCtx *BenchmarkCont
 		)
 
 		// This should fail due to the conflicting event
-		err := benchCtx.Store.AppendIfIsolated(ctx, events, condition)
+		err = benchCtx.Store.AppendIfIsolated(ctx, events, condition)
 		if err == nil {
 			b.Fatalf("AppendIfIsolated should have failed due to conflict")
 		}
@@ -356,7 +352,7 @@ func BenchmarkReadStreamChannel(b *testing.B, benchCtx *BenchmarkContext, queryI
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		eventChan, err := benchCtx.ChannelStore.ReadStreamChannel(ctx, query)
+		eventChan, _, err := benchCtx.ChannelStore.ReadStreamChannel(ctx, query)
 		if err != nil {
 			b.Fatalf("ReadStreamChannel failed: %v", err)
 		}
@@ -419,7 +415,7 @@ func BenchmarkProjectDecisionModelChannel(b *testing.B, benchCtx *BenchmarkConte
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		resultChan, err := benchCtx.ChannelStore.ProjectDecisionModelChannel(ctx, projectors)
+		resultChan, _, err := benchCtx.ChannelStore.ProjectDecisionModelChannel(ctx, projectors)
 		if err != nil {
 			b.Fatalf("ProjectDecisionModelChannel failed: %v", err)
 		}
@@ -458,7 +454,7 @@ func BenchmarkMemoryUsage(b *testing.B, benchCtx *BenchmarkContext, operation st
 			}
 		case "stream":
 			query := dcb.NewQuery(dcb.NewTags(), "StudentEnrolledInCourse")
-			eventChan, err := benchCtx.ChannelStore.ReadStreamChannel(ctx, query)
+			eventChan, _, err := benchCtx.ChannelStore.ReadStreamChannel(ctx, query)
 			if err != nil {
 				b.Fatalf("ReadStreamChannel failed: %v", err)
 			}

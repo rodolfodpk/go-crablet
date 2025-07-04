@@ -83,8 +83,7 @@ func main() {
 
     // Conditional append with optimistic concurrency
     if len(events) > 0 {
-        lastPosition := events[len(events)-1].Position
-        condition := dcb.NewAppendConditionAfter(&lastPosition)
+        condition := dcb.NewAppendCondition(query)
         newEvent := dcb.NewInputEvent("UserUpdated", dcb.NewTags("user_id", "123"), []byte(`{"name": "John Smith"}`))
         err = store.AppendIf(ctx, []dcb.InputEvent{newEvent}, condition)
         if err != nil {
@@ -98,8 +97,8 @@ func main() {
 
 After completing this quick start:
 
-- Read the [Overview](overview.md) to understand DCB concepts
-- Explore the [Examples](../internal/examples/) directory for complete working examples
+- Read the [Overview](overview.md) to understand DCB concepts and transaction ID ordering
+- Explore the [Examples](../internal/examples/) directory for complete working examples including money transfers
 
 ## Configuration
 

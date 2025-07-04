@@ -23,6 +23,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
+	// Truncate events table before running the example
+	_, err = pool.Exec(ctx, "TRUNCATE TABLE events RESTART IDENTITY CASCADE")
+	if err != nil {
+		log.Fatalf("Failed to truncate events table: %v", err)
+	}
 	defer pool.Close()
 
 	// Create event store
@@ -90,7 +95,7 @@ func demonstrateChannelStreaming(ctx context.Context, store dcb.EventStore) {
 	query := dcb.NewQuerySimple(dcb.NewTags(), "UserCreated", "UserUpdated")
 
 	// Stream events through channel
-	eventChan, err := channelStore.ReadStreamChannel(ctx, query)
+	eventChan, _, err := channelStore.ReadStreamChannel(ctx, query)
 	if err != nil {
 		log.Printf("ReadStreamChannel failed: %v", err)
 		return
@@ -139,7 +144,7 @@ func demonstrateChannelProjection(ctx context.Context, store dcb.EventStore) {
 	}
 
 	// Stream projection results through channel
-	resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
+	resultChan, _, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
 	if err != nil {
 		log.Printf("ProjectDecisionModelChannel failed: %v", err)
 		return

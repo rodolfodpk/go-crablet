@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 
 	"go-crablet/internal/examples/utils"
 	"go-crablet/pkg/dcb"
@@ -42,9 +43,12 @@ func main() {
 	// Cast to ChannelEventStore for extended functionality
 	channelStore := store.(dcb.ChannelEventStore)
 
+	runID := fmt.Sprintf("run_id_%d", rand.Int63())
+	accountID := "acc_decision_" + runID
+
 	// Command 1: Open Account
 	openAccountCmd := OpenAccountCommand{
-		AccountID:      "acc123",
+		AccountID:      accountID,
 		InitialBalance: 1000,
 	}
 	err = handleOpenAccount(ctx, channelStore, openAccountCmd)
@@ -54,12 +58,51 @@ func main() {
 
 	// Command 2: Process Transaction
 	processTransactionCmd := ProcessTransactionCommand{
-		AccountID: "acc123",
+		AccountID: accountID,
 		Amount:    500,
 	}
 	err = handleProcessTransaction(ctx, channelStore, processTransactionCmd)
 	if err != nil {
 		log.Fatalf("Process transaction failed: %v", err)
+	}
+
+	// Re-project state and get a fresh append condition for optimistic locking
+	projectors := []dcb.BatchProjector{
+		{ID: "account", StateProjector: dcb.StateProjector{
+			Query: dcb.NewQuery(
+				dcb.NewTags("account_id", accountID),
+				"AccountOpened", "AccountBalanceChanged",
+			),
+			InitialState: &AccountState{ID: accountID, Balance: 0},
+			TransitionFn: func(state any, event dcb.Event) any {
+				account := state.(*AccountState)
+				switch event.Type {
+				case "AccountOpened":
+					var data AccountOpenedData
+					json.Unmarshal(event.Data, &data)
+					account.Balance = data.InitialBalance
+				case "AccountBalanceChanged":
+					var data AccountBalanceChangedData
+					json.Unmarshal(event.Data, &data)
+					account.Balance = data.NewBalance
+				}
+				return account
+			},
+		}},
+	}
+	_, appendCondition, err := channelStore.ProjectDecisionModel(ctx, projectors)
+	if err != nil {
+		log.Fatalf("Failed to project state for optimistic locking: %v", err)
+	}
+
+	// Command 3: Process another transaction with optimistic locking
+	processTransaction2Cmd := ProcessTransactionCommand{
+		AccountID: accountID,
+		Amount:    200,
+	}
+	err = handleProcessTransactionWithCondition(ctx, channelStore, processTransaction2Cmd, appendCondition)
+	if err != nil {
+		log.Fatalf("Process transaction 2 failed: %v", err)
 	}
 
 	// Use ProjectDecisionModel to build decision model
@@ -68,10 +111,10 @@ func main() {
 	// Define projectors for decision model
 	accountProjector := dcb.StateProjector{
 		Query: dcb.NewQuery(
-			dcb.NewTags("account_id", "acc123"),
+			dcb.NewTags("account_id", accountID),
 			"AccountOpened", "AccountBalanceChanged",
 		),
-		InitialState: &AccountState{ID: "acc123", Balance: 0},
+		InitialState: &AccountState{ID: accountID, Balance: 0},
 		TransitionFn: func(state any, event dcb.Event) any {
 			account := state.(*AccountState)
 			switch event.Type {
@@ -90,7 +133,7 @@ func main() {
 
 	transactionProjector := dcb.StateProjector{
 		Query: dcb.NewQuery(
-			dcb.NewTags("account_id", "acc123"),
+			dcb.NewTags("account_id", accountID),
 			"TransactionProcessed",
 		),
 		InitialState: &TransactionState{Count: 0, TotalAmount: 0},
@@ -107,7 +150,7 @@ func main() {
 	}
 
 	// Create batch projectors
-	projectors := []dcb.BatchProjector{
+	projectors = []dcb.BatchProjector{
 		{ID: "account", StateProjector: accountProjector},
 		{ID: "transactions", StateProjector: transactionProjector},
 	}
@@ -132,16 +175,6 @@ func main() {
 	fmt.Printf("\n=== Append Condition for Optimistic Locking ===\n")
 	fmt.Printf("Using append condition for optimistic locking\n")
 
-	// Command 3: Process another transaction with optimistic locking
-	processTransaction2Cmd := ProcessTransactionCommand{
-		AccountID: "acc123",
-		Amount:    200,
-	}
-	err = handleProcessTransactionWithCondition(ctx, channelStore, processTransaction2Cmd, appendCondition)
-	if err != nil {
-		log.Fatalf("Process transaction 2 failed: %v", err)
-	}
-
 	// Dump all events to show what was created
 	fmt.Println("\n=== Events in Database ===")
 	utils.DumpEvents(ctx, pool)
@@ -150,7 +183,6 @@ func main() {
 // Command handlers with their own business rules
 
 func handleOpenAccount(ctx context.Context, store dcb.ChannelEventStore, cmd OpenAccountCommand) error {
-	// Command-specific projectors
 	projectors := []dcb.BatchProjector{
 		{ID: "accountExists", StateProjector: dcb.StateProjector{
 			Query: dcb.NewQuery(
@@ -158,23 +190,16 @@ func handleOpenAccount(ctx context.Context, store dcb.ChannelEventStore, cmd Ope
 				"AccountOpened",
 			),
 			InitialState: false,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return true // If we see an AccountOpened event, account exists
-			},
+			TransitionFn: func(state any, event dcb.Event) any { return true },
 		}},
 	}
-
 	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to check account existence: %w", err)
 	}
-
-	// Command-specific business rule: account must not already exist
 	if states["accountExists"].(bool) {
 		return fmt.Errorf("account %s already exists", cmd.AccountID)
 	}
-
-	// Create events for this command
 	events := []dcb.InputEvent{
 		dcb.NewInputEvent(
 			"AccountOpened",
@@ -182,19 +207,15 @@ func handleOpenAccount(ctx context.Context, store dcb.ChannelEventStore, cmd Ope
 			toJSON(AccountOpenedData{InitialBalance: cmd.InitialBalance}),
 		),
 	}
-
-	// Append events atomically for this command
 	err = store.AppendIf(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to open account: %w", err)
 	}
-
 	fmt.Printf("Opened account %s with balance %d\n", cmd.AccountID, cmd.InitialBalance)
 	return nil
 }
 
 func handleProcessTransaction(ctx context.Context, store dcb.ChannelEventStore, cmd ProcessTransactionCommand) error {
-	// Command-specific projectors
 	accountProjector := dcb.StateProjector{
 		Query: dcb.NewQuery(
 			dcb.NewTags("account_id", cmd.AccountID),
@@ -216,22 +237,14 @@ func handleProcessTransaction(ctx context.Context, store dcb.ChannelEventStore, 
 			return account
 		},
 	}
-
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, []dcb.BatchProjector{
-		{ID: "account", StateProjector: accountProjector},
-	})
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, []dcb.BatchProjector{{ID: "account", StateProjector: accountProjector}})
 	if err != nil {
 		return fmt.Errorf("failed to project account state: %w", err)
 	}
-
 	account := states["account"].(*AccountState)
-
-	// Command-specific business rule: account must exist
 	if account.Balance == 0 {
 		return fmt.Errorf("account %s does not exist", cmd.AccountID)
 	}
-
-	// Create events for this command
 	events := []dcb.InputEvent{
 		dcb.NewInputEvent(
 			"TransactionProcessed",
@@ -239,19 +252,15 @@ func handleProcessTransaction(ctx context.Context, store dcb.ChannelEventStore, 
 			toJSON(TransactionProcessedData{Amount: cmd.Amount}),
 		),
 	}
-
-	// Append events atomically for this command
 	err = store.AppendIf(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to process transaction: %w", err)
 	}
-
 	fmt.Printf("Processed transaction of %d for account %s\n", cmd.Amount, cmd.AccountID)
 	return nil
 }
 
 func handleProcessTransactionWithCondition(ctx context.Context, store dcb.ChannelEventStore, cmd ProcessTransactionCommand, condition dcb.AppendCondition) error {
-	// Command-specific projectors
 	accountProjector := dcb.StateProjector{
 		Query: dcb.NewQuery(
 			dcb.NewTags("account_id", cmd.AccountID),
@@ -273,22 +282,14 @@ func handleProcessTransactionWithCondition(ctx context.Context, store dcb.Channe
 			return account
 		},
 	}
-
-	states, _, err := store.ProjectDecisionModel(ctx, []dcb.BatchProjector{
-		{ID: "account", StateProjector: accountProjector},
-	})
+	states, _, err := store.ProjectDecisionModel(ctx, []dcb.BatchProjector{{ID: "account", StateProjector: accountProjector}})
 	if err != nil {
 		return fmt.Errorf("failed to project account state: %w", err)
 	}
-
 	account := states["account"].(*AccountState)
-
-	// Command-specific business rule: account must exist
 	if account.Balance == 0 {
 		return fmt.Errorf("account %s does not exist", cmd.AccountID)
 	}
-
-	// Create events for this command
 	events := []dcb.InputEvent{
 		dcb.NewInputEvent(
 			"TransactionProcessed",
@@ -296,13 +297,10 @@ func handleProcessTransactionWithCondition(ctx context.Context, store dcb.Channe
 			toJSON(TransactionProcessedData{Amount: cmd.Amount}),
 		),
 	}
-
-	// Append events atomically for this command with optimistic locking
 	err = store.AppendIf(ctx, events, condition)
 	if err != nil {
 		return fmt.Errorf("failed to process transaction with optimistic locking: %w", err)
 	}
-
 	fmt.Printf("Successfully processed transaction of %d for account %s\n", cmd.Amount, cmd.AccountID)
 	return nil
 }

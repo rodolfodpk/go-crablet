@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"go-crablet/internal/examples/utils"
@@ -67,6 +68,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to connect to db: %v", err)
 	}
+	// Truncate events table before running the example
+	_, err = pool.Exec(ctx, "TRUNCATE TABLE events RESTART IDENTITY CASCADE")
+	if err != nil {
+		log.Fatalf("failed to truncate events table: %v", err)
+	}
 	store, err := dcb.NewEventStore(ctx, pool)
 	if err != nil {
 		log.Fatalf("failed to create event store: %v", err)
@@ -102,14 +108,89 @@ func main() {
 	}
 	err = handleTransferMoney(ctx, store, transferCmd)
 	if err != nil {
-		log.Fatalf("Transfer failed: %v", err)
+		fmt.Printf("Transfer failed: %v\n", err)
+		fmt.Println("\n=== Events in Database (after transfer failure) ===")
+		utils.DumpEvents(ctx, pool)
+	} else {
+		fmt.Printf("Transfer successful! Transfer ID: %s\n", transferCmd.TransferID)
 	}
 
-	fmt.Printf("Transfer successful! Transfer ID: %s\n", transferCmd.TransferID)
+	// Second transfer (should fail due to optimistic locking or insufficient funds)
+	fmt.Println("\n--- Attempting second transfer (should fail if locking works) ---")
+	secondTransferCmd := TransferMoneyCommand{
+		TransferID:    fmt.Sprintf("tx-%d", time.Now().UnixNano()),
+		FromAccountID: createAccount1Cmd.AccountID,
+		ToAccountID:   createAccount2Cmd.AccountID,
+		Amount:        300, // Try to transfer again
+	}
+	err = handleTransferMoney(ctx, store, secondTransferCmd)
+	if err != nil {
+		fmt.Printf("Second transfer failed (expected): %v\n", err)
+		fmt.Println("\n=== Events in Database (after second transfer failure) ===")
+		utils.DumpEvents(ctx, pool)
+	} else {
+		fmt.Printf("Second transfer succeeded (unexpected)! Transfer ID: %s\n", secondTransferCmd.TransferID)
+	}
+
+	// Third transfer (should succeed, balance will be 100)
+	fmt.Println("\n--- Attempting third transfer (should succeed, balance will be 100) ---")
+	thirdTransferCmd := TransferMoneyCommand{
+		TransferID:    fmt.Sprintf("tx-%d", time.Now().UnixNano()),
+		FromAccountID: createAccount1Cmd.AccountID,
+		ToAccountID:   createAccount2Cmd.AccountID,
+		Amount:        300, // Try to transfer again
+	}
+	err = handleTransferMoney(ctx, store, thirdTransferCmd)
+	if err != nil {
+		fmt.Printf("Third transfer failed (unexpected): %v\n", err)
+		fmt.Println("\n=== Events in Database (after third transfer failure) ===")
+		utils.DumpEvents(ctx, pool)
+	} else {
+		fmt.Printf("Third transfer succeeded (expected)! Transfer ID: %s\n", thirdTransferCmd.TransferID)
+	}
+
+	// Fourth transfer (should fail due to insufficient funds)
+	fmt.Println("\n--- Attempting fourth transfer (should fail due to insufficient funds) ---")
+	fourthTransferCmd := TransferMoneyCommand{
+		TransferID:    fmt.Sprintf("tx-%d", time.Now().UnixNano()),
+		FromAccountID: createAccount1Cmd.AccountID,
+		ToAccountID:   createAccount2Cmd.AccountID,
+		Amount:        300, // Try to transfer again
+	}
+	err = handleTransferMoney(ctx, store, fourthTransferCmd)
+	if err != nil {
+		fmt.Printf("Fourth transfer failed (expected): %v\n", err)
+		fmt.Println("\n=== Events in Database (after fourth transfer failure) ===")
+		utils.DumpEvents(ctx, pool)
+	} else {
+		fmt.Printf("Fourth transfer succeeded (unexpected)! Transfer ID: %s\n", fourthTransferCmd.TransferID)
+	}
 
 	// Dump all events to show what was created
 	fmt.Println("\n=== Events in Database ===")
 	utils.DumpEvents(ctx, pool)
+
+	// TODO: This example must fail with a concurrency exception (optimistic locking) when working correctly.
+	// Simulate concurrent/conflicting transfers (should trigger optimistic locking)
+	fmt.Println("\n--- Simulating concurrent/conflicting transfers (should trigger optimistic locking) ---")
+
+	// First, let's set up a scenario where account has exactly 100 balance
+	// so concurrent transfers of 100 should cause conflicts
+	fmt.Println("\n--- Setting up concurrent transfer scenario ---")
+	setupTransferCmd := TransferMoneyCommand{
+		TransferID:    fmt.Sprintf("tx-setup-%d", time.Now().UnixNano()),
+		FromAccountID: createAccount1Cmd.AccountID,
+		ToAccountID:   createAccount2Cmd.AccountID,
+		Amount:        900, // This will leave exactly 100 balance
+	}
+	err = handleTransferMoney(ctx, store, setupTransferCmd)
+	if err != nil {
+		fmt.Printf("Setup transfer failed: %v\n", err)
+	} else {
+		fmt.Printf("Setup transfer successful! Balance should now be exactly 100\n")
+	}
+
+	simulateConcurrentTransfers(ctx, store, createAccount1Cmd.AccountID, createAccount2Cmd.AccountID, pool)
 }
 
 // Command handlers with their own business rules
@@ -233,17 +314,24 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 		},
 	}
 
-	// Project both accounts using the DCB decision model pattern
+	// Project state and get append condition
+	// Project only the 'from' account for the append condition
 	states, appendCondition, err := store.ProjectDecisionModel(ctx, []dcb.BatchProjector{
 		{ID: "from", StateProjector: fromProjector},
-		{ID: "to", StateProjector: toProjector},
 	})
 	if err != nil {
 		return fmt.Errorf("projection failed: %w", err)
 	}
-
 	from := states["from"].(*AccountState)
-	to := states["to"].(*AccountState)
+
+	// Project the 'to' account separately for business logic
+	statesTo, _, err := store.ProjectDecisionModel(ctx, []dcb.BatchProjector{
+		{ID: "to", StateProjector: toProjector},
+	})
+	if err != nil {
+		return fmt.Errorf("projection failed for to account: %w", err)
+	}
+	to := statesTo["to"].(*AccountState)
 
 	// Command-specific business rules
 	if from.Balance < cmd.Amount {
@@ -302,8 +390,13 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 		),
 	}
 
-	// Use the append condition from the decision model for optimistic locking
-	// All events are appended atomically for this command with serializable isolation
+	// Use the original append condition which has the correct AfterCursor
+	// This ensures optimistic locking by checking for new events on the account after the cursor
+
+	// Debug: print the exact JSON being sent to SQL function
+	conditionJSON, _ := json.Marshal(appendCondition)
+	fmt.Printf("[DEBUG Transfer %s] Condition JSON: %s\n", cmd.TransferID, string(conditionJSON))
+
 	err = store.AppendIfIsolated(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("append failed: %w", err)
@@ -316,10 +409,198 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 	return nil
 }
 
+// Debug: print append condition details before transfer append
+func debugAppendCondition(cond any) {
+	ac, ok := cond.(*struct {
+		FailIfEventsMatch any
+		AfterCursor       any
+	})
+	if !ok {
+		fmt.Printf("[DEBUG] Could not type assert to appendCondition struct\n")
+		return
+	}
+	fmt.Printf("[DEBUG] appendCondition: %+v\n", ac)
+	if ac.FailIfEventsMatch != nil {
+		fmt.Printf("[DEBUG] FailIfEventsMatch: %+v\n", ac.FailIfEventsMatch)
+		if q, ok := ac.FailIfEventsMatch.(*struct{ Items []any }); ok {
+			for i, item := range q.Items {
+				fmt.Printf("[DEBUG] QueryItem %d: %+v\n", i, item)
+			}
+		}
+	}
+	if ac.AfterCursor != nil {
+		fmt.Printf("[DEBUG] AfterCursor: %+v\n", ac.AfterCursor)
+	}
+}
+
 func mustJSON(v any) []byte {
 	b, err := json.Marshal(v)
 	if err != nil {
 		panic(err)
 	}
 	return b
+}
+
+func simulateConcurrentTransfers(ctx context.Context, store dcb.EventStore, fromID, toID string, pool *pgxpool.Pool) {
+	fmt.Println("\n--- Simulating concurrent/conflicting transfers (should trigger optimistic locking) ---")
+
+	// First, get the current balance to transfer exactly that amount
+	projectors := []dcb.BatchProjector{
+		{ID: "from", StateProjector: dcb.StateProjector{
+			Query: dcb.NewQuery(
+				dcb.NewTags("account_id", fromID),
+				"AccountOpened", "MoneyTransferred",
+			),
+			InitialState: &AccountState{AccountID: fromID},
+			TransitionFn: func(state any, event dcb.Event) any {
+				acc := state.(*AccountState)
+				switch event.Type {
+				case "AccountOpened":
+					var data AccountOpened
+					if err := json.Unmarshal(event.Data, &data); err == nil {
+						acc.Owner = data.Owner
+						acc.Balance = data.InitialBalance
+						acc.CreatedAt = data.OpenedAt
+						acc.UpdatedAt = data.OpenedAt
+					}
+				case "MoneyTransferred":
+					var data MoneyTransferred
+					if err := json.Unmarshal(event.Data, &data); err == nil {
+						if data.FromAccountID == fromID {
+							acc.Balance = data.FromBalance
+							acc.UpdatedAt = data.TransferredAt
+						} else if data.ToAccountID == fromID {
+							acc.Balance = data.ToBalance
+							acc.UpdatedAt = data.TransferredAt
+						}
+					}
+				}
+				return acc
+			},
+		}},
+	}
+	states, _, err := store.ProjectDecisionModel(ctx, projectors)
+	if err != nil {
+		fmt.Printf("Failed to get current balance: %v\n", err)
+		return
+	}
+	from := states["from"].(*AccountState)
+	exactAmount := from.Balance
+	fmt.Printf("Current balance: %d, will attempt concurrent transfers of exactly %d\n", exactAmount, exactAmount)
+
+	if exactAmount <= 0 {
+		fmt.Println("No balance to transfer")
+		return
+	}
+
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	results := make(chan string, 5) // Increased buffer for 5 goroutines
+
+	transferFn := func(name string) {
+		defer wg.Done()
+		// Project state and get append condition
+		projectors := []dcb.BatchProjector{
+			{ID: "from", StateProjector: dcb.StateProjector{
+				Query: dcb.NewQuery(
+					dcb.NewTags("account_id", fromID),
+					"AccountOpened", "MoneyTransferred", // Include both for state projection
+				),
+				InitialState: &AccountState{AccountID: fromID},
+				TransitionFn: func(state any, event dcb.Event) any {
+					acc := state.(*AccountState)
+					switch event.Type {
+					case "AccountOpened":
+						var data AccountOpened
+						if err := json.Unmarshal(event.Data, &data); err == nil {
+							acc.Owner = data.Owner
+							acc.Balance = data.InitialBalance
+							acc.CreatedAt = data.OpenedAt
+							acc.UpdatedAt = data.OpenedAt
+						}
+					case "MoneyTransferred":
+						var data MoneyTransferred
+						if err := json.Unmarshal(event.Data, &data); err == nil {
+							if data.FromAccountID == fromID {
+								acc.Balance = data.FromBalance
+								acc.UpdatedAt = data.TransferredAt
+							} else if data.ToAccountID == fromID {
+								acc.Balance = data.ToBalance
+								acc.UpdatedAt = data.TransferredAt
+							}
+						}
+					}
+					return acc
+				},
+			}},
+		}
+		states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
+		if err != nil {
+			results <- fmt.Sprintf("%s: projection failed: %v", name, err)
+			return
+		}
+		from := states["from"].(*AccountState)
+		if from.Balance < exactAmount {
+			results <- fmt.Sprintf("%s: insufficient funds: %d", name, from.Balance)
+			return
+		}
+
+		// Debug: print the exact JSON being sent to SQL function
+		conditionJSON, _ := json.Marshal(appendCondition)
+		fmt.Printf("[DEBUG %s] Condition JSON: %s\n", name, string(conditionJSON))
+
+		// Wait for all goroutines to be ready - BETTER SYNCHRONIZATION
+		<-start
+
+		// Attempt the transfer
+		transferID := fmt.Sprintf("concurrent-tx-%d", time.Now().UnixNano())
+		events := []dcb.InputEvent{
+			dcb.NewInputEvent(
+				"MoneyTransferred",
+				dcb.NewTags(
+					"transfer_id", transferID,
+					"from_account_id", fromID,
+					"to_account_id", toID,
+					"account_id", fromID,
+				),
+				mustJSON(MoneyTransferred{
+					TransferID:    transferID,
+					FromAccountID: fromID,
+					ToAccountID:   toID,
+					Amount:        exactAmount,
+					FromBalance:   from.Balance - exactAmount,
+					ToBalance:     0, // Not used here
+					TransferredAt: time.Now(),
+				}),
+			),
+		}
+
+		// Use the original append condition which has the correct AfterCursor
+		// This ensures optimistic locking by checking for new events on the account after the cursor
+		err = store.AppendIfIsolated(ctx, events, appendCondition)
+		if err != nil {
+			results <- fmt.Sprintf("%s: transfer failed (expected optimistic locking): %v", name, err)
+		} else {
+			results <- fmt.Sprintf("%s: transfer succeeded", name)
+		}
+	}
+
+	wg.Add(5) // Increased to 5 goroutines
+	go transferFn("Goroutine 1")
+	go transferFn("Goroutine 2")
+	go transferFn("Goroutine 3")
+	go transferFn("Goroutine 4")
+	go transferFn("Goroutine 5")
+
+	// BETTER SYNCHRONIZATION: Let all goroutines reach the barrier and be ready
+	time.Sleep(100 * time.Millisecond) // Give goroutines time to reach the barrier
+	close(start)                       // Start all goroutines simultaneously
+
+	wg.Wait()
+	close(results)
+	for res := range results {
+		fmt.Println(res)
+	}
+	fmt.Println("\n=== Events in Database (after concurrent transfers) ===")
+	utils.DumpEvents(ctx, pool)
 }

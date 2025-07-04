@@ -148,7 +148,10 @@ func CourseExistsProjector(courseID string) StateProjector {
 
 func CourseStateProjector(courseID string) StateProjector {
 	return StateProjector{
-		Query:        NewQuerySimple(NewTags("course_id", courseID), "CourseDefined", "CourseCapacityChanged"),
+		Query: NewQuerySimple(
+			NewTags("course_id", courseID),
+			"CourseDefined", "CourseCapacityChanged", "StudentEnrolledInCourse", "StudentDroppedFromCourse",
+		),
 		InitialState: &CourseState{CourseID: courseID, Exists: false},
 		TransitionFn: func(state any, event Event) any {
 			course := state.(*CourseState)
@@ -164,6 +167,10 @@ func CourseStateProjector(courseID string) StateProjector {
 				var data CourseCapacityChanged
 				json.Unmarshal(event.Data, &data)
 				course.Capacity = data.NewCapacity
+			case "StudentEnrolledInCourse":
+				course.EnrolledCount++
+			case "StudentDroppedFromCourse":
+				course.EnrolledCount--
 			}
 			return course
 		},
@@ -256,7 +263,7 @@ func handleCreateCourse(ctx context.Context, store ChannelEventStore, cmd Create
 		{ID: "courseExists", StateProjector: CourseExistsProjector(cmd.CourseID)},
 	}
 
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
+	states, _, err := store.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to project course state: %w", err)
 	}
@@ -267,7 +274,7 @@ func handleCreateCourse(ctx context.Context, store ChannelEventStore, cmd Create
 
 	err = store.AppendIf(ctx, []InputEvent{
 		NewCourseDefinedEvent(cmd.CourseID, cmd.Name, cmd.Instructor, cmd.Capacity),
-	}, appendCondition)
+	}, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create course: %w", err)
 	}
@@ -280,7 +287,7 @@ func handleRegisterStudent(ctx context.Context, store ChannelEventStore, cmd Reg
 		{ID: "studentExists", StateProjector: StudentExistsProjector(cmd.StudentID)},
 	}
 
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
+	states, _, err := store.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to project student state: %w", err)
 	}
@@ -291,7 +298,7 @@ func handleRegisterStudent(ctx context.Context, store ChannelEventStore, cmd Reg
 
 	err = store.AppendIf(ctx, []InputEvent{
 		NewStudentRegisteredEvent(cmd.StudentID, cmd.Name, cmd.Email),
-	}, appendCondition)
+	}, nil)
 	if err != nil {
 		return fmt.Errorf("failed to register student: %w", err)
 	}
@@ -388,30 +395,37 @@ func handleDropStudent(ctx context.Context, store ChannelEventStore, cmd DropStu
 }
 
 func handleChangeCourseCapacity(ctx context.Context, store ChannelEventStore, cmd ChangeCourseCapacityCommand) error {
+	courseID := cmd.CourseID
+	newCapacity := cmd.NewCapacity
+
+	// Project course state
 	projectors := []BatchProjector{
-		{ID: "courseExists", StateProjector: CourseExistsProjector(cmd.CourseID)},
-		{ID: "courseEnrollmentCount", StateProjector: CourseEnrollmentCountProjector(cmd.CourseID)},
+		{ID: "courseState", StateProjector: CourseStateProjector(courseID)},
 	}
 
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
+	states, _, err := store.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
-		return fmt.Errorf("failed to project course state: %w", err)
+		return err
 	}
 
-	if !states["courseExists"].(bool) {
-		return fmt.Errorf("course \"%s\" does not exist", cmd.CourseID)
+	courseState := states["courseState"].(*CourseState)
+	if !courseState.Exists {
+		return fmt.Errorf("course %s does not exist", courseID)
 	}
 
-	currentEnrollmentCount := states["courseEnrollmentCount"].(int)
-	if cmd.NewCapacity < currentEnrollmentCount {
-		return fmt.Errorf("cannot reduce capacity to %d when %d students are already enrolled", cmd.NewCapacity, currentEnrollmentCount)
+	// Check if new capacity is less than current enrollment count
+	if newCapacity < courseState.EnrolledCount {
+		return fmt.Errorf("cannot reduce capacity to %d when %d students are enrolled", newCapacity, courseState.EnrolledCount)
 	}
 
-	err = store.AppendIf(ctx, []InputEvent{
-		NewCourseCapacityChangedEvent(cmd.CourseID, cmd.NewCapacity),
-	}, appendCondition)
+	// Create capacity change event
+	event := NewCourseCapacityChangedEvent(courseID, newCapacity)
+
+	// Append with optimistic locking using the same query
+	appendCondition := NewAppendCondition(NewQuerySimple(NewTags("course_id", courseID), "CourseCapacityChanged"))
+	err = store.AppendIf(ctx, []InputEvent{event}, appendCondition)
 	if err != nil {
-		return fmt.Errorf("failed to change course capacity: %w", err)
+		return err
 	}
 
 	return nil
@@ -475,7 +489,7 @@ var _ = Describe("Course Subscription Domain", func() {
 
 			// Use ReadStreamChannel instead of ReadStream
 			query := NewQuerySimple(NewTags(), "CourseDefined")
-			eventChan, err := channelStore.ReadStreamChannel(ctx, query)
+			eventChan, _, err := channelStore.ReadStreamChannel(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 
 			eventCount := 0

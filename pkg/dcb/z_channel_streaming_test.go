@@ -45,7 +45,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 			// Test channel-based streaming
 			query := NewQuerySimple(NewTags("test", "value"), "TestEvent")
-			eventChan, err := channelStore.ReadStreamChannel(ctx, query)
+			eventChan, _, err := channelStore.ReadStreamChannel(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 
 			count := 0
@@ -59,7 +59,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 		It("should handle empty result sets", func() {
 			query := NewQuerySimple(NewTags("non-existent", "value"), "TestEvent")
-			eventChan, err := channelStore.ReadStreamChannel(ctx, query)
+			eventChan, _, err := channelStore.ReadStreamChannel(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 
 			count := 0
@@ -85,7 +85,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 			defer cancel()
 
 			query := NewQuerySimple(NewTags("test", "value"), "TestEvent")
-			eventChan, err := channelStore.ReadStreamChannel(cancelCtx, query)
+			eventChan, _, err := channelStore.ReadStreamChannel(cancelCtx, query)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Cancel context after first event
@@ -114,7 +114,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 			// Test with small batch size
 			query := NewQuerySimple(NewTags("test", "value"), "TestEvent")
-			eventChan, err := channelStore.ReadStreamChannel(ctx, query)
+			eventChan, _, err := channelStore.ReadStreamChannel(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 
 			count := 0
@@ -158,7 +158,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 			}
 
 			// Use channel-based projection
-			resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
+			resultChan, _, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Process results
@@ -180,7 +180,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 		})
 
 		It("should handle empty projectors list", func() {
-			_, err := channelStore.ProjectDecisionModelChannel(ctx, []BatchProjector{})
+			_, _, err := channelStore.ProjectDecisionModelChannel(ctx, []BatchProjector{})
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("at least one projector is required"))
 		})
@@ -194,7 +194,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 				}},
 			}
 
-			_, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
+			_, _, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("nil transition function"))
 		})
@@ -223,7 +223,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 				}},
 			}
 
-			resultChan, err := channelStore.ProjectDecisionModelChannel(cancelCtx, projectors)
+			resultChan, _, err := channelStore.ProjectDecisionModelChannel(cancelCtx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Cancel context after first result
@@ -254,7 +254,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 				}},
 			}
 
-			resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
+			resultChan, _, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			count := 0
@@ -305,7 +305,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 			}
 
 			// Use channel-based projection
-			resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
+			resultChan, _, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Process results
@@ -350,7 +350,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 			}
 
 			// Use channel-based projection
-			resultChan, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
+			resultChan, _, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Process results
@@ -394,7 +394,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 			// Test channel-based streaming performance
 			start := time.Now()
 			query := NewQuerySimple(NewTags("test", "value"), "TestEvent")
-			eventChan, err := channelStore.ReadStreamChannel(ctx, query)
+			eventChan, _, err := channelStore.ReadStreamChannel(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 
 			count := 0

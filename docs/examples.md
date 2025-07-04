@@ -1,6 +1,6 @@
 # DCB-Inspired Example: Course Subscription with Invariants
 
-This example demonstrates our exploration of the Dynamic Consistency Boundary (DCB) pattern using go-crablet. It shows how we're learning to:
+This example demonstrates our exploration of the Dynamic Consistency Boundary (DCB) pattern using go-crablet. It shows how we're experimenting with:
 - Project multiple states (decision model) in a single query
 - Enforce business invariants (course exists, not full, student not already subscribed)
 - Use a combined append condition for optimistic concurrency
@@ -59,8 +59,8 @@ func main() {
         }},
     }
 
-    // Project all states in single query (traditional cursor-based approach)
-    states, appendCond, _ := store.ProjectDecisionModel(ctx, projectors)
+    // Project all states in single query (cursor-based approach)
+    states, appendCond, err := store.ProjectDecisionModel(ctx, projectors)
 
     if !states["courseExists"].(bool) {
         // Append CourseDefined event
@@ -116,7 +116,7 @@ func channelBasedExample() {
     }
 
     // Channel-based projection with immediate feedback
-    resultChan, _ := channelStore.ProjectDecisionModelChannel(ctx, projectors)
+    resultChan, _, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
     
     // Process results as they come in
     finalStates := make(map[string]interface{})
@@ -185,6 +185,56 @@ func channelStreamingExample() {
 }
 ```
 
+## Example: Money Transfer with Optimistic Locking
+
+This example demonstrates concurrent money transfers with optimistic locking to prevent double-spending:
+
+```go
+func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd TransferMoneyCommand) error {
+    // Project state for the "from" account
+    projectors := []dcb.BatchProjector{
+        {ID: "from", StateProjector: dcb.StateProjector{
+            Query: dcb.NewQuery(dcb.NewTags("account_id", cmd.FromAccountID), "AccountOpened", "MoneyTransferred"),
+            InitialState: &AccountState{AccountID: cmd.FromAccountID},
+            TransitionFn: func(state any, event dcb.Event) any {
+                acc := state.(*AccountState)
+                switch event.Type {
+                case "AccountOpened":
+                    // Initialize account
+                case "MoneyTransferred":
+                    // Update balance
+                }
+                return acc
+            },
+        }},
+    }
+    
+    states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
+    if err != nil {
+        return err
+    }
+    
+    from := states["from"].(*AccountState)
+    if from.Balance < cmd.Amount {
+        return fmt.Errorf("insufficient funds")
+    }
+    
+    // Create transfer events
+    events := []dcb.InputEvent{
+        dcb.NewInputEvent("MoneyTransferred", dcb.NewTags("account_id", cmd.FromAccountID), data),
+    }
+    
+    // Use optimistic locking to prevent double-spending
+    return store.AppendIfIsolated(ctx, events, appendCondition)
+}
+```
+
+**Key features:**
+- **Business logic validation**: Checks sufficient funds before transfer
+- **Optimistic locking**: Uses `AppendIfIsolated` with SERIALIZABLE isolation
+- **Concurrent safety**: Only one transfer can succeed when multiple try to spend the same balance
+- **Event sourcing**: All transfers are recorded as events for audit trail
+
 ## Key Points We're Exploring
 
 - **All invariants are checked in a single query** (batch projection)
@@ -193,6 +243,7 @@ func channelStreamingExample() {
 - **No aggregates or legacy event sourcing patterns required**
 - **Channel-based streaming provides immediate processing feedback**
 - **Choose the right streaming approach for your dataset size**
+- **Optimistic locking prevents double-spending** in concurrent scenarios
 
 ## Transaction Isolation Levels
 

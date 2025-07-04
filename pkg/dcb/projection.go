@@ -81,11 +81,11 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 	appendCondition := es.buildAppendConditionFromQuery(query)
 
 	// Process all events to build final states
-	var lastPosition int64
+	var latestCursor *Cursor
 	var hasEvents bool
 	for rows.Next() {
 		var row rowEvent
-		if err := rows.Scan(&row.Type, &row.Tags, &row.Data, &row.Position); err != nil {
+		if err := rows.Scan(&row.Type, &row.Tags, &row.Data, &row.Position, &row.TransactionID, &row.CreatedAt); err != nil {
 			return nil, nil, &ResourceError{
 				EventStoreError: EventStoreError{
 					Op:  "ProjectDecisionModel",
@@ -97,11 +97,13 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 
 		// Convert row to Event
 		event := convertRowToEvent(row)
-		lastPosition = row.Position
 		hasEvents = true
 
-		// Update AppendCondition.After field with current position
-		appendCondition.setAfterPosition(&lastPosition)
+		// Update latest cursor (events are ordered by transaction_id ASC, position ASC)
+		latestCursor = &Cursor{
+			TransactionID: row.TransactionID,
+			Position:      row.Position,
+		}
 
 		// Apply projectors
 		for _, bp := range projectors {
@@ -111,9 +113,12 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 		}
 	}
 
-	// Only set After field if we actually processed events
+	// Only set cursor if we actually processed events
 	if !hasEvents {
-		appendCondition.setAfterPosition(nil)
+		appendCondition.setAfterCursor(nil)
+	} else {
+		// Set the cursor in the append condition for proper optimistic locking
+		appendCondition.setAfterCursor(latestCursor)
 	}
 
 	// Check for iteration errors
@@ -134,5 +139,12 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 // This aligns with DCB specification: each append operation should use the same query
 // that was used when building the Decision Model
 func (es *eventStore) buildAppendConditionFromQuery(query Query) AppendCondition {
+	return NewAppendCondition(query)
+}
+
+// BuildAppendConditionFromQuery builds an AppendCondition from a specific query
+// This aligns with DCB specification: each append operation should use the same query
+// that was used when building the Decision Model
+func BuildAppendConditionFromQuery(query Query) AppendCondition {
 	return NewAppendCondition(query)
 }

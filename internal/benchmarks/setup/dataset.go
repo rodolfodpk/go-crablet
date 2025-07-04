@@ -494,12 +494,9 @@ func GenerateRandomQueries(dataset *Dataset, count int) []dcb.Query {
 }
 
 // TruncateDatabase truncates the events table and resets the position sequence
+// Note: This is a utility function for benchmarks, not part of the core DCB API
 func TruncateDatabase(ctx context.Context, store dcb.EventStore) error {
-	// Use the proper DCB API for truncating events
-	if err := dcb.TruncateEvents(ctx, store); err != nil {
-		return fmt.Errorf("failed to truncate events: %w", err)
-	}
-
-	fmt.Println("Database truncated successfully")
-	return nil
+	// For benchmarks, we should use direct SQL instead of going through the API
+	// This function is deprecated - use direct SQL: "TRUNCATE TABLE events RESTART IDENTITY CASCADE"
+	return fmt.Errorf("TruncateDatabase is deprecated - use direct SQL instead")
 }

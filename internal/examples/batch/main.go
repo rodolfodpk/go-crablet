@@ -136,7 +136,7 @@ func handleCreateUser(ctx context.Context, store dcb.ChannelEventStore, cmd Crea
 		}},
 	}
 
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
+	states, _, err := store.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to check user existence: %w", err)
 	}
@@ -163,7 +163,7 @@ func handleCreateUser(ctx context.Context, store dcb.ChannelEventStore, cmd Crea
 	}
 
 	// Append events atomically for this command
-	err = store.AppendIf(ctx, events, appendCondition)
+	err = store.Append(ctx, events)
 	if err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
@@ -197,7 +197,7 @@ func handleCreateOrder(ctx context.Context, store dcb.ChannelEventStore, cmd Cre
 		}},
 	}
 
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
+	states, _, err := store.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to check order and user existence: %w", err)
 	}
@@ -231,7 +231,7 @@ func handleCreateOrder(ctx context.Context, store dcb.ChannelEventStore, cmd Cre
 	}
 
 	// Append events atomically for this command
-	err = store.AppendIf(ctx, events, appendCondition)
+	err = store.Append(ctx, events)
 	if err != nil {
 		return fmt.Errorf("failed to create order: %w", err)
 	}
@@ -275,7 +275,7 @@ func handleBatchCreateUsers(ctx context.Context, store dcb.ChannelEventStore, co
 		})
 	}
 
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
+	states, _, err := store.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to check batch user existence: %w", err)
 	}
@@ -305,7 +305,7 @@ func handleBatchCreateUsers(ctx context.Context, store dcb.ChannelEventStore, co
 	}
 
 	// Append events atomically for this batch
-	err = store.AppendIf(ctx, events, appendCondition)
+	err = store.Append(ctx, events)
 	if err != nil {
 		return fmt.Errorf("failed to batch create users: %w", err)
 	}
@@ -349,7 +349,7 @@ func handleBatchCreateOrders(ctx context.Context, store dcb.ChannelEventStore, c
 		})
 	}
 
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
+	states, _, err := store.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to check batch order existence: %w", err)
 	}
@@ -386,7 +386,7 @@ func handleBatchCreateOrders(ctx context.Context, store dcb.ChannelEventStore, c
 	}
 
 	// Append events atomically for this batch
-	err = store.AppendIf(ctx, events, appendCondition)
+	err = store.Append(ctx, events)
 	if err != nil {
 		return fmt.Errorf("failed to batch create orders: %w", err)
 	}

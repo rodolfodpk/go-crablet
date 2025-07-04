@@ -4,6 +4,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
+
 var _ = Describe("Helper Functions", func() {
 	Describe("NewQueryFromItems", func() {
 		It("should create query from multiple items", func() {
@@ -57,6 +58,12 @@ var _ = Describe("Helper Functions", func() {
 			Expect(batch[0]).To(Equal(event1))
 			Expect(batch[1]).To(Equal(event2))
 		})
+	})
+
+	It("should cover TagsToString helper", func() {
+		tags := NewTags("foo", "bar")
+		strs := TagsToString(tags)
+		Expect(strs).To(ContainElement("foo:bar"))
 	})
 })
 

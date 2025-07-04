@@ -154,31 +154,12 @@ func NewQItemKV(eventType string, kv ...string) QueryItem {
 // =============================================================================
 
 // NewAppendCondition creates a new AppendCondition with the given fail condition.
+// This is the primary constructor for optimistic locking conditions.
 func NewAppendCondition(failIfEventsMatch Query) AppendCondition {
-	var q *query
-	if failIfEventsMatch != nil {
-		q = failIfEventsMatch.(*query)
+	if failIfEventsMatch == nil {
+		return &appendCondition{}
 	}
 	return &appendCondition{
-		FailIfEventsMatch: q,
-	}
-}
-
-// NewAppendConditionWithAfter creates a new AppendCondition with both fail condition and after position.
-func NewAppendConditionWithAfter(failIfEventsMatch Query, after *int64) AppendCondition {
-	var q *query
-	if failIfEventsMatch != nil {
-		q = failIfEventsMatch.(*query)
-	}
-	return &appendCondition{
-		FailIfEventsMatch: q,
-		After:             after,
-	}
-}
-
-// NewAppendConditionAfter creates a new AppendCondition with only the after position.
-func NewAppendConditionAfter(after *int64) AppendCondition {
-	return &appendCondition{
-		After: after,
+		FailIfEventsMatch: failIfEventsMatch.(*query),
 	}
 }

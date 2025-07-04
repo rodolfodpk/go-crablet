@@ -30,7 +30,7 @@ func TestDecisionModelExample(t *testing.T) {
 	// Test Command 1: Open Account
 	t.Run("Open Account", func(t *testing.T) {
 		openAccountCmd := OpenAccountCommand{
-			AccountID:      "test_acc123",
+			AccountID:      "test_acc_decision_123",
 			InitialBalance: 1000,
 		}
 		err := handleOpenAccount(ctx, channelStore, openAccountCmd)
@@ -40,7 +40,7 @@ func TestDecisionModelExample(t *testing.T) {
 	// Test Command 2: Process Transaction
 	t.Run("Process Transaction", func(t *testing.T) {
 		processTransactionCmd := ProcessTransactionCommand{
-			AccountID: "test_acc123",
+			AccountID: "test_acc_decision_123",
 			Amount:    500,
 		}
 		err := handleProcessTransaction(ctx, channelStore, processTransactionCmd)
@@ -52,7 +52,7 @@ func TestDecisionModelExample(t *testing.T) {
 		// Test: Cannot open account with same ID
 		t.Run("Cannot Open Duplicate Account", func(t *testing.T) {
 			duplicateCmd := OpenAccountCommand{
-				AccountID:      "test_acc123", // Same ID as existing account
+				AccountID:      "test_acc_decision_123", // Same ID as existing account
 				InitialBalance: 2000,
 			}
 			err := handleOpenAccount(ctx, channelStore, duplicateCmd)
@@ -77,10 +77,10 @@ func TestDecisionModelExample(t *testing.T) {
 		// Define projectors for decision model
 		accountProjector := dcb.StateProjector{
 			Query: dcb.NewQuery(
-				dcb.NewTags("account_id", "test_acc123"),
+				dcb.NewTags("account_id", "test_acc_decision_123"),
 				"AccountOpened", "AccountBalanceChanged",
 			),
-			InitialState: &AccountState{ID: "test_acc123", Balance: 0},
+			InitialState: &AccountState{ID: "test_acc_decision_123", Balance: 0},
 			TransitionFn: func(state any, event dcb.Event) any {
 				account := state.(*AccountState)
 				switch event.Type {
@@ -99,7 +99,7 @@ func TestDecisionModelExample(t *testing.T) {
 
 		transactionProjector := dcb.StateProjector{
 			Query: dcb.NewQuery(
-				dcb.NewTags("account_id", "test_acc123"),
+				dcb.NewTags("account_id", "test_acc_decision_123"),
 				"TransactionProcessed",
 			),
 			InitialState: &TransactionState{Count: 0, TotalAmount: 0},
@@ -126,7 +126,7 @@ func TestDecisionModelExample(t *testing.T) {
 
 		// Verify account state
 		if account, ok := states["account"].(*AccountState); ok {
-			assert.Equal(t, "test_acc123", account.ID)
+			assert.Equal(t, "test_acc_decision_123", account.ID)
 			assert.Equal(t, 1000, account.Balance) // Initial balance
 		}
 
@@ -141,10 +141,10 @@ func TestDecisionModelExample(t *testing.T) {
 			// Get current append condition for optimistic locking
 			accountProjector := dcb.StateProjector{
 				Query: dcb.NewQuery(
-					dcb.NewTags("account_id", "test_acc123"),
+					dcb.NewTags("account_id", "test_acc_decision_123"),
 					"AccountOpened", "AccountBalanceChanged",
 				),
-				InitialState: &AccountState{ID: "test_acc123", Balance: 0},
+				InitialState: &AccountState{ID: "test_acc_decision_123", Balance: 0},
 				TransitionFn: func(state any, event dcb.Event) any {
 					account := state.(*AccountState)
 					switch event.Type {
@@ -168,7 +168,7 @@ func TestDecisionModelExample(t *testing.T) {
 
 			// Test optimistic locking with append condition
 			optimisticCmd := ProcessTransactionCommand{
-				AccountID: "test_acc123",
+				AccountID: "test_acc_decision_123",
 				Amount:    200,
 			}
 			err = handleProcessTransactionWithCondition(ctx, channelStore, optimisticCmd, appendCondition)

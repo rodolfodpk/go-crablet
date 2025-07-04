@@ -498,4 +498,196 @@ var _ = Describe("Batch Projection", func() {
 			Expect(states["count"]).To(Equal(1000))
 		})
 	})
+
+	It("should handle multiple events for the same projector", func() {
+		// Append multiple events
+		events := []InputEvent{
+			NewInputEvent("EnrollmentStarted", NewTags("student_id", "123"), toJSON(map[string]string{"course": "math"})),
+			NewInputEvent("EnrollmentCompleted", NewTags("student_id", "123"), toJSON(map[string]string{"course": "math"})),
+		}
+		err := store.Append(ctx, events)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Create projector
+		projector := BatchProjector{
+			ID: "enrollment",
+			StateProjector: StateProjector{
+				Query:        NewQuery(NewTags("student_id", "123")),
+				InitialState: "not_enrolled",
+				TransitionFn: func(state any, event Event) any {
+					switch event.Type {
+					case "EnrollmentStarted":
+						return "enrolling"
+					case "EnrollmentCompleted":
+						return "enrolled"
+					default:
+						return state
+					}
+				},
+			},
+		}
+		projectors := []BatchProjector{projector}
+
+		// Test ProjectDecisionModel
+		channelStore := store.(ChannelEventStore)
+		states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(states).To(HaveKey("enrollment"))
+		Expect(states["enrollment"]).To(Equal("enrolled"))
+	})
+
+	It("should handle empty query results", func() {
+		// Create projector with query that won't match any events
+		projector := BatchProjector{
+			ID: "enrollment",
+			StateProjector: StateProjector{
+				Query:        NewQuery(NewTags("student_id", "999")), // Non-existent student
+				InitialState: "not_enrolled",
+				TransitionFn: func(state any, event Event) any {
+					return "enrolled"
+				},
+			},
+		}
+		projectors := []BatchProjector{projector}
+
+		// Test ProjectDecisionModel
+		channelStore := store.(ChannelEventStore)
+		states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(states).To(HaveKey("enrollment"))
+		Expect(states["enrollment"]).To(Equal("not_enrolled")) // Should remain initial state
+	})
+
+	It("should handle invalid projector configuration", func() {
+		// Create projector with empty ID
+		projector := BatchProjector{
+			ID: "", // Invalid: empty ID
+			StateProjector: StateProjector{
+				Query:        NewQuery(NewTags("student_id", "123")),
+				InitialState: "not_enrolled",
+				TransitionFn: func(state any, event Event) any {
+					return "enrolled"
+				},
+			},
+		}
+		projectors := []BatchProjector{projector}
+
+		// Test ProjectDecisionModel
+		channelStore := store.(ChannelEventStore)
+		_, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("empty"))
+	})
+
+	It("should handle nil transition function", func() {
+		// Create projector with nil transition function
+		projector := BatchProjector{
+			ID: "enrollment",
+			StateProjector: StateProjector{
+				Query:        NewQuery(NewTags("student_id", "123")),
+				InitialState: "not_enrolled",
+				TransitionFn: nil, // Invalid: nil function
+			},
+		}
+		projectors := []BatchProjector{projector}
+
+		// Test ProjectDecisionModel
+		channelStore := store.(ChannelEventStore)
+		_, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("nil"))
+	})
+
+	It("should handle multiple projectors with different queries", func() {
+		// Append events for different students
+		events := []InputEvent{
+			NewInputEvent("EnrollmentStarted", NewTags("student_id", "123"), toJSON(map[string]string{"course": "math"})),
+			NewInputEvent("EnrollmentStarted", NewTags("student_id", "456"), toJSON(map[string]string{"course": "science"})),
+		}
+		err := store.Append(ctx, events)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Create projectors for different students
+		projector1 := BatchProjector{
+			ID: "student_123",
+			StateProjector: StateProjector{
+				Query:        NewQuery(NewTags("student_id", "123")),
+				InitialState: "not_enrolled",
+				TransitionFn: func(state any, event Event) any {
+					if event.Type == "EnrollmentStarted" {
+						return "enrolling"
+					}
+					return state
+				},
+			},
+		}
+		projector2 := BatchProjector{
+			ID: "student_456",
+			StateProjector: StateProjector{
+				Query:        NewQuery(NewTags("student_id", "456")),
+				InitialState: "not_enrolled",
+				TransitionFn: func(state any, event Event) any {
+					if event.Type == "EnrollmentStarted" {
+						return "enrolling"
+					}
+					return state
+				},
+			},
+		}
+		projectors := []BatchProjector{projector1, projector2}
+
+		// Test ProjectDecisionModel
+		channelStore := store.(ChannelEventStore)
+		states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(states).To(HaveKey("student_123"))
+		Expect(states).To(HaveKey("student_456"))
+		Expect(states["student_123"]).To(Equal("enrolling"))
+		Expect(states["student_456"]).To(Equal("enrolling"))
+	})
+
+	It("should handle complex state transitions", func() {
+		// Append events with complex state transitions
+		events := []InputEvent{
+			NewInputEvent("EnrollmentStarted", NewTags("student_id", "123"), toJSON(map[string]string{"course": "math"})),
+			NewInputEvent("PaymentReceived", NewTags("student_id", "123"), toJSON(map[string]string{"amount": "100"})),
+			NewInputEvent("EnrollmentCompleted", NewTags("student_id", "123"), toJSON(map[string]string{"course": "math"})),
+		}
+		err := store.Append(ctx, events)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Create projector with complex state machine
+		projector := BatchProjector{
+			ID: "enrollment",
+			StateProjector: StateProjector{
+				Query:        NewQuery(NewTags("student_id", "123")),
+				InitialState: "not_enrolled",
+				TransitionFn: func(state any, event Event) any {
+					switch state {
+					case "not_enrolled":
+						if event.Type == "EnrollmentStarted" {
+							return "enrolling"
+						}
+					case "enrolling":
+						if event.Type == "PaymentReceived" {
+							return "paid"
+						}
+					case "paid":
+						if event.Type == "EnrollmentCompleted" {
+							return "enrolled"
+						}
+					}
+					return state
+				},
+			},
+		}
+		projectors := []BatchProjector{projector}
+
+		// Test ProjectDecisionModel
+		channelStore := store.(ChannelEventStore)
+		states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(states).To(HaveKey("enrollment"))
+		Expect(states["enrollment"]).To(Equal("enrolled"))
+	})
 })
