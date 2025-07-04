@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"go-crablet/pkg/dcb"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -249,4 +251,110 @@ func TestSequentialTransfers(t *testing.T) {
 	err2 := handleTransferMoney(ctx, channelStore, transfer2Cmd)
 	assert.Error(t, err2)
 	assert.Contains(t, err2.Error(), "insufficient funds")
+}
+
+func TestConcurrentTransfers_OptimisticLocking(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	pool, err := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")
+	g.Expect(err).To(BeNil())
+
+	defer pool.Close()
+
+	cleanupEvents(t, pool)
+
+	store, err := dcb.NewEventStore(ctx, pool)
+	g.Expect(err).To(BeNil())
+
+	channelStore := store.(dcb.ChannelEventStore)
+
+	// Create accounts
+	createAccount1Cmd := CreateAccountCommand{
+		AccountID:      "concurrent_acc1",
+		InitialBalance: 100,
+	}
+	err = handleCreateAccount(ctx, channelStore, createAccount1Cmd)
+	g.Expect(err).To(BeNil())
+
+	createAccount2Cmd := CreateAccountCommand{
+		AccountID:      "concurrent_acc2",
+		InitialBalance: 0,
+	}
+	err = handleCreateAccount(ctx, channelStore, createAccount2Cmd)
+	g.Expect(err).To(BeNil())
+
+	// Prepare concurrent transfer commands
+	transferCmd := func(id string) TransferMoneyCommand {
+		return TransferMoneyCommand{
+			TransferID:    id,
+			FromAccountID: "concurrent_acc1",
+			ToAccountID:   "concurrent_acc2",
+			Amount:        100,
+		}
+	}
+
+	numGoroutines := 5
+	results := make(chan error, numGoroutines)
+	start := make(chan struct{})
+
+	transferFn := func(id string) {
+		<-start
+
+		// Log the transfer attempt
+		t.Logf("Transfer %s: Starting transfer of %d from %s to %s", id, 100, "concurrent_acc1", "concurrent_acc2")
+
+		err := handleTransferMoney(ctx, channelStore, transferCmd(id))
+
+		if err != nil {
+			t.Logf("Transfer %s: FAILED - %v", id, err)
+		} else {
+			t.Logf("Transfer %s: SUCCESS", id)
+		}
+
+		results <- err
+	}
+
+	// Start multiple goroutines
+	for i := 0; i < numGoroutines; i++ {
+		go transferFn(fmt.Sprintf("tx%d", i+1))
+	}
+	close(start)
+
+	// Collect all results
+	errors := make([]error, numGoroutines)
+	for i := 0; i < numGoroutines; i++ {
+		errors[i] = <-results
+	}
+
+	// Count successes and failures
+	successes := 0
+	failures := 0
+	for _, err := range errors {
+		if err == nil {
+			successes++
+		} else {
+			failures++
+		}
+	}
+
+	t.Logf("Results: %d successes, %d failures", successes, failures)
+	for i, err := range errors {
+		if err == nil {
+			t.Logf("Transfer %d: SUCCESS", i+1)
+		} else {
+			t.Logf("Transfer %d: FAILED - %v", i+1, err)
+		}
+	}
+
+	// At most one should succeed, or all may fail with concurrency errors
+	g.Expect(successes).To(BeNumerically("<=", 1), "Expected at most one transfer to succeed due to optimistic locking")
+
+	if successes == 0 {
+		t.Logf("All transfers failed as expected due to concurrency/optimistic locking")
+	} else {
+		t.Logf("Exactly one transfer succeeded as expected")
+	}
 }

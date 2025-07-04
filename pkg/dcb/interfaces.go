@@ -3,6 +3,7 @@ package dcb
 import (
 	"context"
 	"encoding/json"
+	"time"
 )
 
 // EventStore is the core interface for appending and reading events
@@ -50,20 +51,22 @@ type ChannelEventStore interface {
 	// ReadStreamChannel creates a channel-based stream of events matching a query
 	// This is optimized for small to medium datasets (< 500 events) and provides
 	// a more Go-idiomatic interface using channels
-	ReadStreamChannel(ctx context.Context, query Query) (<-chan Event, error)
+	ReadStreamChannel(ctx context.Context, query Query) (<-chan Event, *Cursor, error)
 
 	// ProjectDecisionModelChannel projects multiple states using channel-based streaming
 	// This is optimized for small to medium datasets (< 500 events) and provides
 	// a more Go-idiomatic interface using channels for state projection
-	ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector) (<-chan ProjectionResult, error)
+	ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector) (<-chan ProjectionResult, *Cursor, error)
 }
 
-// Event represents a single event in the event store
+// Event represents a single event in the store
 type Event struct {
-	Type     string `json:"type"`
-	Tags     []Tag  `json:"tags"`
-	Data     []byte `json:"data"`
-	Position int64  `json:"position"`
+	Type          string    `json:"type"`
+	Tags          []Tag     `json:"tags"`
+	Data          []byte    `json:"data"`
+	Position      int64     `json:"position"`
+	TransactionID uint64    `json:"transaction_id"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 // InputEvent represents an event to be appended to the store
@@ -169,11 +172,17 @@ func (qi *queryItem) getTags() []Tag {
 	return qi.Tags
 }
 
+// Cursor represents a position in the event stream for resuming reads
+type Cursor struct {
+	TransactionID uint64 `json:"transaction_id"`
+	Position      int64  `json:"position"`
+}
+
 // ReadOptions provides options for reading events
 type ReadOptions struct {
-	FromPosition *int64 `json:"from_position"`
-	Limit        *int   `json:"limit"`
-	BatchSize    *int   `json:"batch_size"` // Batch size for cursor-based streaming
+	Cursor    *Cursor `json:"cursor"` // Proper (transaction_id, position) tracking
+	Limit     *int    `json:"limit"`
+	BatchSize *int    `json:"batch_size"` // Batch size for cursor-based streaming
 }
 
 // AppendCondition represents conditions for optimistic locking during append operations
@@ -181,26 +190,26 @@ type ReadOptions struct {
 type AppendCondition interface {
 	// isAppendCondition is a marker method to make this interface unexported
 	isAppendCondition()
-	// setAfterPosition sets the after position (used internally by event store)
-	setAfterPosition(after *int64)
+	// setAfterCursor sets the after cursor for proper (transaction_id, position) tracking
+	setAfterCursor(cursor *Cursor)
 	// getFailIfEventsMatch returns the internal query (used by event store)
 	getFailIfEventsMatch() *Query
-	// getAfter returns the internal after position (used by event store)
-	getAfter() *int64
+	// getAfterCursor returns the internal after cursor (used by event store)
+	getAfterCursor() *Cursor
 }
 
 // appendCondition is the internal implementation
 type appendCondition struct {
-	FailIfEventsMatch *query `json:"fail_if_events_match"`
-	After             *int64 `json:"after"`
+	FailIfEventsMatch *query  `json:"fail_if_events_match"`
+	AfterCursor       *Cursor `json:"after_cursor"`
 }
 
 // isAppendCondition implements AppendCondition
 func (ac *appendCondition) isAppendCondition() {}
 
-// setAfterPosition sets the after position (used internally by event store)
-func (ac *appendCondition) setAfterPosition(after *int64) {
-	ac.After = after
+// setAfterCursor sets the after cursor for proper (transaction_id, position) tracking
+func (ac *appendCondition) setAfterCursor(cursor *Cursor) {
+	ac.AfterCursor = cursor
 }
 
 // getFailIfEventsMatch returns the internal query (used by event store)
@@ -212,9 +221,9 @@ func (ac *appendCondition) getFailIfEventsMatch() *Query {
 	return &q
 }
 
-// getAfter returns the internal after position (used by event store)
-func (ac *appendCondition) getAfter() *int64 {
-	return ac.After
+// getAfterCursor returns the internal after cursor (used by event store)
+func (ac *appendCondition) getAfterCursor() *Cursor {
+	return ac.AfterCursor
 }
 
 // StateProjector defines how to project a state from events
@@ -228,14 +237,6 @@ type StateProjector struct {
 type BatchProjector struct {
 	ID             string         `json:"id"`
 	StateProjector StateProjector `json:"state_projector"`
-}
-
-// StreamingProjectionResult represents the result of streaming projection
-type StreamingProjectionResult struct {
-	States          map[string]any  `json:"states"`
-	AppendCondition AppendCondition `json:"append_condition"`
-	Position        int64           `json:"position"`
-	ProcessedCount  int             `json:"processed_count"`
 }
 
 // IsolationLevel is a public alias for isolation levels

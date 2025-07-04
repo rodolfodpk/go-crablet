@@ -282,7 +282,7 @@ events := []dcb.InputEvent{
     dcb.NewInputEvent("StudentRegistered", tags2, data2),
     dcb.NewInputEvent("StudentEnrolledInCourse", tags3, data3),
 }
-store.Append(ctx, events, &appendCondition) // All events processed atomically
+store.AppendIf(ctx, events, appendCondition) // All events processed atomically
 ```
 
 #### **4. DCB Pattern Exploration**

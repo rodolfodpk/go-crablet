@@ -1,6 +1,6 @@
 # Overview: Dynamic Consistency Boundary (DCB) in go-crablet
 
-go-crablet is a Go library for event sourcing, exploring and learning about concepts inspired by the [Dynamic Consistency Boundary (DCB)](https://dcb.events/) pattern. We're learning how DCB enables you to:
+go-crablet is a Go library for event sourcing, exploring concepts inspired by the [Dynamic Consistency Boundary (DCB)](https://dcb.events/) pattern. We're exploring how DCB might enable you to:
 
 - Project multiple states and check business invariants in a single query
 - Use tag-based, OR-combined queries for cross-entity consistency
@@ -12,6 +12,7 @@ go-crablet is a Go library for event sourcing, exploring and learning about conc
 - **Combined Append Condition**: Use a single, OR-combined query for optimistic locking
 - **Tag-based Queries**: Flexible, cross-entity queries using tags
 - **Streaming**: Process events efficiently for large datasets
+- **Transaction-based Ordering**: Uses PostgreSQL transaction IDs for true event ordering
 
 ## Core Interface
 
@@ -33,11 +34,30 @@ type EventStore interface {
     // Project multiple states using projectors
     ProjectDecisionModel(ctx context.Context, projectors []BatchProjector) (map[string]any, AppendCondition, error)
 }
+
+type ReadOptions struct {
+    Cursor    *Cursor `json:"cursor"` // (transaction_id, position) tracking
+    Limit     *int    `json:"limit"`
+    BatchSize *int    `json:"batch_size"`
+}
+
+type Cursor struct {
+    TransactionID uint64 `json:"transaction_id"`
+    Position      int64  `json:"position"`
+}
 ```
+
+## Transaction ID Ordering
+
+go-crablet uses PostgreSQL's `xid8` transaction IDs for event ordering and optimistic locking:
+
+- **True ordering**: No gaps or out-of-order events
+- **Optimistic locking**: Uses transaction IDs for conflict detection
+- **Cursor-based**: Combines `(transaction_id, position)` for precise positioning
 
 ## DCB Decision Model Pattern
 
-We're exploring how a Dynamic Consistency Boundary decision model works:
+We're exploring how a Dynamic Consistency Boundary decision model might work:
 
 1. Define projectors for each business rule or invariant
 2. Project all states in a single query
@@ -60,15 +80,6 @@ if states["numSubscriptions"].(int) < 2 {
 }
 ```
 
-## Implementation Details
-
-- **Database**: PostgreSQL with events table and append functions
-- **Streaming**: Multiple approaches for different dataset sizes
-- **Extensions**: Channel-based streaming for Go-idiomatic processing
-- **Isolation Levels**: Append uses Read Committed, AppendIf uses Repeatable Read, AppendIfIsolated uses Serializable. These are implicit and not configurable.
-
-See [examples](examples.md) for complete working examples and [getting-started](getting-started.md) for setup instructions.
-
 ## Transaction Isolation Levels
 
 go-crablet automatically chooses the optimal PostgreSQL transaction isolation level for each append method:
@@ -78,3 +89,11 @@ go-crablet automatically chooses the optimal PostgreSQL transaction isolation le
 - **AppendIfIsolated**: Uses **Serializable** (strongest consistency for critical operations)
 
 Isolation levels are **implicit and not configurable** in the API. This ensures the best balance of safety and performance for each operation.
+
+## Implementation Details
+
+- **Database**: PostgreSQL with events table and append functions
+- **Streaming**: Multiple approaches for different dataset sizes
+- **Extensions**: Channel-based streaming for Go-idiomatic processing
+
+See [examples](examples.md) for complete working examples including course subscriptions and money transfers, and [getting-started](getting-started.md) for setup instructions.

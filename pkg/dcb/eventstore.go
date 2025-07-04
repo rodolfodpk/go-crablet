@@ -73,15 +73,11 @@ func (es *eventStore) ReadWithOptions(ctx context.Context, query Query, options 
 
 	// Collect events
 	var events []Event
-	for rows.Next() {
-		var row struct {
-			Type     string
-			Tags     []string
-			Data     []byte
-			Position int64
-		}
 
-		if err := rows.Scan(&row.Type, &row.Tags, &row.Data, &row.Position); err != nil {
+	for rows.Next() {
+		var row rowEvent
+
+		if err := rows.Scan(&row.Type, &row.Tags, &row.Data, &row.Position, &row.TransactionID, &row.CreatedAt); err != nil {
 			return nil, &ResourceError{
 				EventStoreError: EventStoreError{
 					Op:  "read",
@@ -91,14 +87,8 @@ func (es *eventStore) ReadWithOptions(ctx context.Context, query Query, options 
 			}
 		}
 
-		// Convert row to Event
-		event := Event{
-			Type:     row.Type,
-			Tags:     ParseTagsArray(row.Tags),
-			Data:     row.Data,
-			Position: row.Position,
-		}
-
+		// Convert row to Event using the helper function
+		event := convertRowToEvent(row)
 		events = append(events, event)
 	}
 
@@ -236,13 +226,6 @@ func (es *eventStore) appendEventsWithCondition(ctx context.Context, events []In
 				},
 				Resource: "json",
 			}
-		}
-	}
-
-	// Execute PostgreSQL function for atomic append
-	for i, tagLiteral := range tags {
-		if len(tagLiteral) < 2 || tagLiteral[0] != '{' || tagLiteral[len(tagLiteral)-1] != '}' {
-			return fmt.Errorf("event %d: tag is not a valid Postgres array literal: %q", i, tagLiteral)
 		}
 	}
 

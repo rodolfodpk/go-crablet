@@ -282,16 +282,18 @@ func convertReadOptions(options *ReadOptions) *dcb.ReadOptions {
 		return nil
 	}
 
-	var fromPosition *int64
+	var cursor *dcb.Cursor
 	if options.From != nil {
-		// In a real implementation, you'd need to convert EventId to position
-		// For now, we'll use a simple approach
-		pos := int64(0) // This should be looked up from the EventId
-		fromPosition = &pos
+		// In a real implementation, you'd need to convert EventId to cursor
+		// For now, we'll use a default cursor
+		cursor = &dcb.Cursor{
+			TransactionID: 0,
+			Position:      0,
+		}
 	}
 
 	return &dcb.ReadOptions{
-		FromPosition: fromPosition,
+		Cursor: cursor,
 	}
 }
 
@@ -300,28 +302,15 @@ func convertAppendCondition(condition *AppendCondition) dcb.AppendCondition {
 		return nil
 	}
 
-	var after *int64
-	if condition.After != nil {
-		// In a real implementation, you'd need to convert EventId to position
-		pos := int64(0) // This should be looked up from the EventId
-		after = &pos
-	}
-
 	// Check if the original query is empty before converting
 	isQueryEmpty := len(condition.FailIfEventsMatch.Items) == 0
 
-	switch {
-	case !isQueryEmpty && after != nil:
-		query := convertQuery(condition.FailIfEventsMatch)
-		return dcb.NewAppendConditionWithAfter(query, after)
-	case !isQueryEmpty:
+	if !isQueryEmpty {
 		query := convertQuery(condition.FailIfEventsMatch)
 		return dcb.NewAppendCondition(query)
-	case after != nil:
-		return dcb.NewAppendConditionAfter(after)
-	default:
-		return nil
 	}
+
+	return nil
 }
 
 func convertInputEvent(event Event) dcb.InputEvent {

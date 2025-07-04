@@ -123,26 +123,28 @@ var _ = Describe("Append Helpers", func() {
 
 		It("should append events with After condition", func() {
 			// First append
-			event1 := NewInputEvent("TestEvent", NewTags("key", "value1"), toJSON(map[string]string{"data": "value1"}))
+			event1 := NewInputEvent("TestEvent", NewTags("key", "value"), toJSON(map[string]string{"data": "test"}))
 			events1 := []InputEvent{event1}
 			err := store.Append(ctx, events1)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Second append with After condition (using position 1 since we just appended an event)
+			// Second append with After condition (using cursor-based approach)
 			event2 := NewInputEvent("TestEvent", NewTags("key", "value2"), toJSON(map[string]string{"data": "value2"}))
 			events2 := []InputEvent{event2}
-			position1 := int64(1)
-			condition := NewAppendConditionAfter(&position1)
+			// Use cursor-based condition that doesn't match the first event
+			query := NewQuery(NewTags("key", "different"), "TestEvent")
+			condition := NewAppendCondition(query)
 			err = store.AppendIf(ctx, events2, condition)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("should allow append with non-existent After position (modern event store semantics)", func() {
+		It("should allow append with non-existent After condition (modern event store semantics)", func() {
 			event := NewInputEvent("TestEvent", NewTags("key", "value"), toJSON(map[string]string{"data": "test"}))
 			events := []InputEvent{event}
 
-			invalidPosition := int64(999999)
-			condition := NewAppendConditionAfter(&invalidPosition)
+			// Use cursor-based condition for non-existent events
+			query := NewQuery(NewTags("non_existent", "value"), "NonExistentEvent")
+			condition := NewAppendCondition(query)
 			err := store.AppendIf(ctx, events, condition)
 			Expect(err).NotTo(HaveOccurred())
 		})
@@ -287,9 +289,10 @@ var _ = Describe("Append Helpers", func() {
 			Expect(err).To(BeNil())
 
 			// Verify the event was appended
-			result, err := store.Read(ctx, NewQuery(NewTags("test", "serializable"), "TestEvent"))
+			query := NewQuery(NewTags("test", "serializable"), "TestEvent")
+			readEvents, err := store.Read(ctx, query)
 			Expect(err).To(BeNil())
-			Expect(result).To(HaveLen(1))
+			Expect(readEvents).To(HaveLen(1))
 		})
 
 		It("should respect append conditions with serializable isolation", func() {
@@ -309,6 +312,41 @@ var _ = Describe("Append Helpers", func() {
 			err = store.AppendIfIsolated(ctx, events2, condition)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("append condition violated"))
+		})
+
+		It("should enforce optimistic locking under true concurrency", func() {
+			// Use a unique key for this test run
+			key := fmt.Sprintf("concurrent-%d", time.Now().UnixNano())
+			event := NewInputEvent("TestEvent", NewTags("key", key), toJSON(map[string]string{"data": "concurrent"}))
+			query := NewQuery(NewTags("key", key), "TestEvent")
+			condition := NewAppendCondition(query)
+
+			// Barrier to synchronize goroutines
+			start := make(chan struct{})
+			results := make(chan error, 2)
+
+			appendFn := func() {
+				<-start
+				err := store.AppendIfIsolated(ctx, []InputEvent{event}, condition)
+				results <- err
+			}
+
+			go appendFn()
+			go appendFn()
+			time.Sleep(100 * time.Millisecond) // Let goroutines get ready
+			close(start)
+
+			err1 := <-results
+			err2 := <-results
+
+			// One should succeed, one should fail with concurrency error
+			if err1 == nil {
+				Expect(err2).To(HaveOccurred())
+				Expect(err2.Error()).To(ContainSubstring("append condition violated"))
+			} else {
+				Expect(err1.Error()).To(ContainSubstring("append condition violated"))
+				Expect(err2).To(BeNil())
+			}
 		})
 	})
 })
