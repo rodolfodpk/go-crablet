@@ -141,3 +141,10 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 func (es *eventStore) buildAppendConditionFromQuery(query Query) AppendCondition {
 	return NewAppendCondition(query)
 }
+
+// BuildAppendConditionFromQuery builds an AppendCondition from a specific query
+// This aligns with DCB specification: each append operation should use the same query
+// that was used when building the Decision Model
+func BuildAppendConditionFromQuery(query Query) AppendCondition {
+	return NewAppendCondition(query)
+}

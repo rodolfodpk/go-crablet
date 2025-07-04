@@ -67,7 +67,7 @@ BEGIN
         SELECT COUNT(*) INTO condition_count FROM event_matches;
         
         IF condition_count > 0 THEN
-            RAISE EXCEPTION 'append condition violated: % matching events found', condition_count;
+            RAISE EXCEPTION 'append condition violated: % matching events found', condition_count USING ERRCODE = 'DCB01', HINT = 'This is a concurrency violation - events matching the condition were found';
         END IF;
     END IF;
     

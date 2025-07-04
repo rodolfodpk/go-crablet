@@ -2,9 +2,12 @@ package dcb
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // checkForMatchingEvents checks if any events match the given condition
@@ -70,12 +73,13 @@ func buildConditionJSON(failIfEventsMatch *Query, afterCursor *Cursor) (interfac
 
 // isConcurrencyError checks if the error is a concurrency error raised by SQL
 func isConcurrencyError(err error) bool {
-	// PostgreSQL raises specific error messages for concurrency violations
-	// The SQL function raises: 'append condition violated: % matching events found'
-	return err != nil &&
-		(err.Error() == "append condition violated: 1 matching events found" ||
-			err.Error() == "append condition violated: 2 matching events found" ||
-			err.Error() == "append condition violated: 3 matching events found" ||
-			err.Error() == "append condition violated: 4 matching events found" ||
-			err.Error() == "append condition violated: 5 matching events found")
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		// Check for our custom error code DCB01 which indicates concurrency violations
+		return pgErr.Code == "DCB01"
+	}
+
+	// Fallback: check for the error message pattern (for backward compatibility)
+	// This can be removed once we're confident all deployments use the new error codes
+	return err != nil && strings.Contains(err.Error(), "append condition violated:")
 }

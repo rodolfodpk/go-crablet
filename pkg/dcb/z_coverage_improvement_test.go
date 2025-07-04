@@ -113,6 +113,19 @@ var _ = Describe("Coverage Improvement Tests", func() {
 			Expect(item.getTags()[1].GetValue()).To(Equal("test"))
 		})
 	})
+
+	It("should cover NewQuerySimpleUnsafe and NewQueryEmpty", func() {
+		q := NewQuerySimpleUnsafe(NewTags("foo", "bar"), "TypeA", "TypeB")
+		Expect(q).NotTo(BeNil())
+		q2 := NewQueryEmpty()
+		Expect(q2).NotTo(BeNil())
+	})
+
+	It("should cover buildAppendConditionFromQuery", func() {
+		q := NewQuery(NewTags("foo", "bar"), "TypeA")
+		cond := BuildAppendConditionFromQuery(q)
+		Expect(cond).NotTo(BeNil())
+	})
 })
 
 func TestCoverageImprovement(t *testing.T) {

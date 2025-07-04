@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -236,6 +237,33 @@ var _ = Describe("Append Helpers", func() {
 			// This test would require a way to simulate validation errors
 			// For now, just verify the event is valid
 			Expect(event.GetType()).To(Equal("TestEvent"))
+		})
+
+		It("should correctly identify concurrency errors", func() {
+			// Test with a proper PostgreSQL error
+			pgErr := &pgconn.PgError{
+				Code:    "DCB01",
+				Message: "append condition violated: 1 matching events found",
+			}
+			Expect(isConcurrencyError(pgErr)).To(BeTrue())
+
+			// Test with a different PostgreSQL error code
+			otherPgErr := &pgconn.PgError{
+				Code:    "23505", // unique_violation
+				Message: "duplicate key value violates unique constraint",
+			}
+			Expect(isConcurrencyError(otherPgErr)).To(BeFalse())
+
+			// Test with a regular error (should use fallback)
+			regularErr := fmt.Errorf("append condition violated: 2 matching events found")
+			Expect(isConcurrencyError(regularErr)).To(BeTrue())
+
+			// Test with a different error message
+			differentErr := fmt.Errorf("some other error")
+			Expect(isConcurrencyError(differentErr)).To(BeFalse())
+
+			// Test with nil error
+			Expect(isConcurrencyError(nil)).To(BeFalse())
 		})
 	})
 

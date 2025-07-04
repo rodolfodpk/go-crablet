@@ -393,10 +393,6 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 	// Use the original append condition which has the correct AfterCursor
 	// This ensures optimistic locking by checking for new events on the account after the cursor
 
-	// Debug: print append condition details
-	fmt.Printf("[DEBUG Transfer %s] Append condition: %+v\n", cmd.TransferID, appendCondition)
-	dcb.DebugPrintAppendCondition(appendCondition)
-
 	// Debug: print the exact JSON being sent to SQL function
 	conditionJSON, _ := json.Marshal(appendCondition)
 	fmt.Printf("[DEBUG Transfer %s] Condition JSON: %s\n", cmd.TransferID, string(conditionJSON))
@@ -548,10 +544,6 @@ func simulateConcurrentTransfers(ctx context.Context, store dcb.EventStore, from
 			results <- fmt.Sprintf("%s: insufficient funds: %d", name, from.Balance)
 			return
 		}
-
-		// Debug: print append condition details
-		fmt.Printf("[DEBUG %s] Append condition: %+v\n", name, appendCondition)
-		dcb.DebugPrintAppendCondition(appendCondition)
 
 		// Debug: print the exact JSON being sent to SQL function
 		conditionJSON, _ := json.Marshal(appendCondition)
