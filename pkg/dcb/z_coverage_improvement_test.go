@@ -1,8 +1,6 @@
 package dcb
 
 import (
-	"testing"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -127,8 +125,3 @@ var _ = Describe("Coverage Improvement Tests", func() {
 		Expect(cond).NotTo(BeNil())
 	})
 })
-
-func TestCoverageImprovement(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Coverage Improvement Tests")
-}
