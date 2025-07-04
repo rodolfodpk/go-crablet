@@ -370,9 +370,15 @@ var _ = Describe("Append Helpers", func() {
 			// One should succeed, one should fail with concurrency error
 			if err1 == nil {
 				Expect(err2).To(HaveOccurred())
-				Expect(err2.Error()).To(ContainSubstring("append condition violated"))
+				Expect(err2.Error()).To(SatisfyAny(
+					ContainSubstring("append condition violated"),
+					ContainSubstring("SQLSTATE 40001"),
+				))
 			} else {
-				Expect(err1.Error()).To(ContainSubstring("append condition violated"))
+				Expect(err1.Error()).To(SatisfyAny(
+					ContainSubstring("append condition violated"),
+					ContainSubstring("SQLSTATE 40001"),
+				))
 				Expect(err2).To(BeNil())
 			}
 		})

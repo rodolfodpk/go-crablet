@@ -73,7 +73,7 @@ func (es *eventStore) buildReadQuerySQL(query Query, options *ReadOptions) (stri
 	if options != nil && options.Cursor != nil {
 		// Use the correct cursor logic from Oskar's article:
 		// (transaction_id = cursor.TransactionID AND position > cursor.Position) OR (transaction_id > cursor.TransactionID)
-		conditions = append(conditions, fmt.Sprintf("( (transaction_id = $%d AND position > $%d) OR (transaction_id > $%d) )", argIndex, argIndex+1, argIndex))
+		conditions = append(conditions, fmt.Sprintf("( (transaction_id = $%d AND position > $%d) OR (transaction_id > $%d) )", argIndex, argIndex+1, argIndex+2))
 		args = append(args, options.Cursor.TransactionID, options.Cursor.Position, options.Cursor.TransactionID)
 		argIndex += 3
 	}
