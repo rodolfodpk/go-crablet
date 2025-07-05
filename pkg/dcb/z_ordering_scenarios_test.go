@@ -13,11 +13,18 @@ import (
 var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 	// This test reproduces the scenarios described in:
 	// https://event-driven.io/en/ordering_in_postgres_outbox/
+	//
+	// Key concepts:
+	// - Gaps in sequences are normal and expected (due to rollbacks)
+	// - "True ordering" refers to causal ordering, not sequential ordering
+	// - Transaction IDs preserve causality: if A started before B, then A's TX ID ≤ B's TX ID
+	// - BIGSERIAL can violate causality when fast transactions commit before slow ones
 
 	Describe("Sequence Ordering Problems", func() {
 
 		It("should demonstrate gaps in BIGSERIAL sequences due to rollbacks", func() {
 			// Scenario: Multiple transactions start, some rollback, creating gaps
+			// Note: Gaps are normal and expected - this is not a problem with BIGSERIAL
 
 			// Start multiple transactions that will create gaps
 			var wg sync.WaitGroup
@@ -98,12 +105,13 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			// Check for gaps in sequence
 			Expect(positions).To(HaveLen(2))
 			// There should be a gap between positions due to the rolled back transaction
-			// The exact gap depends on PostgreSQL's sequence behavior
-			fmt.Printf("Positions with potential gaps: %v\n", positions)
+			// This is normal and expected - gaps don't break ordering
+			fmt.Printf("Positions with gaps (normal): %v\n", positions)
 		})
 
-		It("should demonstrate out-of-order commits due to transaction timing", func() {
+		It("should demonstrate causality violations due to out-of-order commits", func() {
 			// Scenario: Fast transaction commits before slow transaction that started earlier
+			// This violates causality - the event that started later appears to happen first
 
 			var wg sync.WaitGroup
 			results := make(chan struct {
@@ -285,8 +293,8 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			fmt.Printf("Out of order detected: %v\n", outOfOrder)
 		})
 
-		It("should demonstrate how transaction IDs provide proper ordering", func() {
-			// Scenario: Show that transaction IDs maintain proper order regardless of commit timing
+		It("should demonstrate how transaction IDs provide causal ordering", func() {
+			// Scenario: Show that transaction IDs preserve causality regardless of commit timing
 
 			// Read events ordered by transaction_id, position
 			query := NewQuery(NewTags("test"), "TestEvent")
@@ -331,7 +339,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 
 		It("should demonstrate the polling condition from the article", func() {
 			// Scenario: Implement the polling condition described in the article
-			// to avoid "Usain Bolt" messages from faster transactions
+			// to ensure proper cursor-based event streaming with causal ordering
 
 			// Add some test events with unique tags to avoid conflicts with other tests
 			uniqueTag := fmt.Sprintf("poll-test-%d", time.Now().UnixNano())
@@ -372,6 +380,82 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 
 			fmt.Printf("Polling with cursor TX=%d, Pos=%d returned %d events\n",
 				cursor.TransactionID, cursor.Position, len(eventsAfterCursor))
+		})
+
+		It("should demonstrate ordering within a transaction with multiple events", func() {
+			// Scenario: A single transaction that appends multiple events
+			// This demonstrates how position ordering works within the same transaction_id
+
+			// Create multiple events in a single transaction
+			uniqueTag := fmt.Sprintf("multi-event-%d", time.Now().UnixNano())
+			events := []InputEvent{
+				NewInputEvent("MultiEvent", NewTags("unique", uniqueTag, "seq", "1"), []byte(`{"data": "first"}`)),
+				NewInputEvent("MultiEvent", NewTags("unique", uniqueTag, "seq", "2"), []byte(`{"data": "second"}`)),
+				NewInputEvent("MultiEvent", NewTags("unique", uniqueTag, "seq", "3"), []byte(`{"data": "third"}`)),
+				NewInputEvent("MultiEvent", NewTags("unique", uniqueTag, "seq", "4"), []byte(`{"data": "fourth"}`)),
+			}
+
+			// Append all events in a single transaction
+			err := store.Append(context.Background(), events)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Read the events back
+			query := NewQueryFromItems(NewQItemKV("MultiEvent", "unique", uniqueTag))
+			readEvents, err := store.Read(context.Background(), query)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(readEvents).To(HaveLen(4))
+
+			// All events should have the same transaction ID
+			firstTXID := readEvents[0].TransactionID
+			for _, event := range readEvents {
+				Expect(event.TransactionID).To(Equal(firstTXID))
+			}
+
+			// Positions should be sequential within the transaction
+			for i := 1; i < len(readEvents); i++ {
+				prev := readEvents[i-1]
+				curr := readEvents[i]
+				Expect(curr.Position).To(BeNumerically(">", prev.Position))
+			}
+
+			fmt.Printf("Multi-event transaction: TX=%d, Positions=%v\n",
+				firstTXID, []int64{readEvents[0].Position, readEvents[1].Position, readEvents[2].Position, readEvents[3].Position})
+
+			// Test cursor-based polling with multiple events in the same transaction
+			// Start cursor at the first event
+			cursor := Cursor{
+				TransactionID: readEvents[0].TransactionID,
+				Position:      readEvents[0].Position,
+			}
+
+			// Read events after the cursor
+			options := &ReadOptions{Cursor: &cursor}
+			eventsAfterCursor, err := store.ReadWithOptions(context.Background(), query, options)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Should get the remaining 3 events
+			Expect(eventsAfterCursor).To(HaveLen(3))
+			Expect(eventsAfterCursor[0].Position).To(Equal(readEvents[1].Position))
+			Expect(eventsAfterCursor[1].Position).To(Equal(readEvents[2].Position))
+			Expect(eventsAfterCursor[2].Position).To(Equal(readEvents[3].Position))
+
+			// Test cursor in the middle of the transaction
+			middleCursor := Cursor{
+				TransactionID: readEvents[1].TransactionID,
+				Position:      readEvents[1].Position,
+			}
+
+			options = &ReadOptions{Cursor: &middleCursor}
+			eventsAfterMiddle, err := store.ReadWithOptions(context.Background(), query, options)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Should get the remaining 2 events
+			Expect(eventsAfterMiddle).To(HaveLen(2))
+			Expect(eventsAfterMiddle[0].Position).To(Equal(readEvents[2].Position))
+			Expect(eventsAfterMiddle[1].Position).To(Equal(readEvents[3].Position))
+
+			fmt.Printf("Cursor polling: after first event=%d, after second event=%d\n",
+				len(eventsAfterCursor), len(eventsAfterMiddle))
 		})
 	})
 })

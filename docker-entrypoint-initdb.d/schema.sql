@@ -10,21 +10,20 @@ SELECT 'CREATE DATABASE dcb_app' WHERE NOT EXISTS (SELECT FROM pg_database WHERE
 CREATE TABLE events (type VARCHAR(64) NOT NULL,
                      tags TEXT[] NOT NULL,
                      data JSON NOT NULL,
-                     position BIGSERIAL NOT NULL,
+                     position BIGSERIAL NOT NULL PRIMARY KEY,
                      transaction_id xid8 NOT NULL,
                      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                      CONSTRAINT chk_event_type_length CHECK (LENGTH(type) <= 64));
 
 -- Core indexes for essential operations (based on actual usage analysis)
-CREATE INDEX idx_events_transaction_id ON events (transaction_id);
-CREATE INDEX idx_events_transaction_position ON events (transaction_id, position);
+-- BRIN index for efficient range queries on transaction_id and position (causal ordering)
+-- This handles all our cursor-based queries efficiently
+-- CREATE INDEX idx_events_transaction_position_brin ON events USING BRIN (transaction_id, position);
+CREATE INDEX idx_events_transaction_position_btree ON events (transaction_id, position);
 CREATE INDEX idx_events_tags ON events USING GIN (tags);
 
--- Performance optimization indexes
-CREATE INDEX idx_events_type_position ON events (type, position);
-
--- Additional indexes for better read performance
-CREATE INDEX idx_events_type ON events (type);
+-- Performance optimization indexes for filtering
+-- CREATE INDEX idx_events_type_tags ON events USING GIN (type, tags);
 
 -- Optimized function to check append conditions using transaction_id for proper ordering
 CREATE OR REPLACE FUNCTION check_append_condition(
