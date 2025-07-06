@@ -123,3 +123,11 @@ Benchmark results from web-app load testing (30-second tests, multiple VUs):
 - **Extensions**: Channel-based streaming for Go-idiomatic processing
 
 See [examples](examples.md) for complete working examples including course subscriptions and money transfers, and [getting-started](getting-started.md) for setup instructions.
+
+## Implementation Details
+
+- **Database**: PostgreSQL with events table and append functions
+- **Streaming**: Multiple approaches for different dataset sizes
+- **Extensions**: Channel-based streaming for Go-idiomatic processing
+
+See [examples](examples.md) for complete working examples including course subscriptions and money transfers, and [getting-started](getting-started.md) for setup instructions.
