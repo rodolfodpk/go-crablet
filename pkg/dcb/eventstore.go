@@ -3,7 +3,9 @@ package dcb
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/jackc/pgx/v5/pgconn"
 	"strings"
 	"time"
 
@@ -416,4 +418,17 @@ func encodeTagsArrayLiteral(tags []string) string {
 		tags[i] = `"` + strings.ReplaceAll(t, `"`, `\\"`) + `"`
 	}
 	return "{" + strings.Join(tags, ",") + "}"
+}
+
+// isConcurrencyError checks if the error is a concurrency error raised by SQL
+func isConcurrencyError(err error) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		// Check for our custom error code DCB01 which indicates concurrency violations
+		return pgErr.Code == "DCB01"
+	}
+
+	// Fallback: check for the error message pattern (for backward compatibility)
+	// This can be removed once we're confident all deployments use the new error codes
+	return err != nil && strings.Contains(err.Error(), "append condition violated:")
 }
