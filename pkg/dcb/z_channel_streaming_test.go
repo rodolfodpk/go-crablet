@@ -140,21 +140,21 @@ var _ = Describe("Channel-Based Streaming", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Define projectors
-			projectors := []BatchProjector{
-				{ID: "accountCount", StateProjector: StateProjector{
+			projectors := []StateProjector{
+				{ID: "accountCount",
 					Query:        NewQuerySimple(NewTags("account_id", "acc1"), "AccountOpened"),
 					InitialState: 0,
 					TransitionFn: func(state any, event Event) any {
 						return state.(int) + 1
 					},
-				}},
-				{ID: "transferCount", StateProjector: StateProjector{
+				},
+				{ID: "transferCount",
 					Query:        NewQuerySimple(NewTags("account_id", "acc1"), "MoneyTransferred"),
 					InitialState: 0,
 					TransitionFn: func(state any, event Event) any {
 						return state.(int) + 1
 					},
-				}},
+				},
 			}
 
 			// Use channel-based projection

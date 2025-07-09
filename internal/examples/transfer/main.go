@@ -197,7 +197,7 @@ func main() {
 
 func handleCreateAccount(ctx context.Context, store dcb.EventStore, cmd CreateAccountCommand) error {
 	// Command-specific projectors
-	projectors := []dcb.BatchProjector{
+	projectors := []dcb.StateProjector{
 		{ID: "accountExists", StateProjector: dcb.StateProjector{
 			Query: dcb.NewQuery(
 				dcb.NewTags("account_id", cmd.AccountID),
@@ -316,7 +316,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 
 	// Project state and get append condition
 	// Project only the 'from' account for the append condition
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, []dcb.BatchProjector{
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, []dcb.StateProjector{
 		{ID: "from", StateProjector: fromProjector},
 	})
 	if err != nil {
@@ -325,7 +325,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 	from := states["from"].(*AccountState)
 
 	// Project the 'to' account separately for business logic
-	statesTo, _, err := store.ProjectDecisionModel(ctx, []dcb.BatchProjector{
+	statesTo, _, err := store.ProjectDecisionModel(ctx, []dcb.StateProjector{
 		{ID: "to", StateProjector: toProjector},
 	})
 	if err != nil {
@@ -445,7 +445,7 @@ func simulateConcurrentTransfers(ctx context.Context, store dcb.EventStore, from
 	fmt.Println("\n--- Simulating concurrent/conflicting transfers (should trigger optimistic locking) ---")
 
 	// First, get the current balance to transfer exactly that amount
-	projectors := []dcb.BatchProjector{
+	projectors := []dcb.StateProjector{
 		{ID: "from", StateProjector: dcb.StateProjector{
 			Query: dcb.NewQuery(
 				dcb.NewTags("account_id", fromID),
@@ -500,7 +500,7 @@ func simulateConcurrentTransfers(ctx context.Context, store dcb.EventStore, from
 	transferFn := func(name string) {
 		defer wg.Done()
 		// Project state and get append condition
-		projectors := []dcb.BatchProjector{
+		projectors := []dcb.StateProjector{
 			{ID: "from", StateProjector: dcb.StateProjector{
 				Query: dcb.NewQuery(
 					dcb.NewTags("account_id", fromID),

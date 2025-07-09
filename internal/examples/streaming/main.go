@@ -120,25 +120,21 @@ func demonstrateChannelProjection(ctx context.Context, store dcb.EventStore) {
 	}
 
 	// Define projectors for state projection
-	projectors := []dcb.BatchProjector{
+	projectors := []dcb.StateProjector{
 		{
-			ID: "userCount",
-			StateProjector: dcb.StateProjector{
-				Query:        dcb.NewQuerySimple(dcb.NewTags(), "UserCreated"),
-				InitialState: 0,
-				TransitionFn: func(state any, event dcb.Event) any {
-					return state.(int) + 1
-				},
+			ID:           "userCount",
+			Query:        dcb.NewQuerySimple(dcb.NewTags(), "UserCreated"),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
 			},
 		},
 		{
-			ID: "updateCount",
-			StateProjector: dcb.StateProjector{
-				Query:        dcb.NewQuerySimple(dcb.NewTags(), "UserUpdated"),
-				InitialState: 0,
-				TransitionFn: func(state any, event dcb.Event) any {
-					return state.(int) + 1
-				},
+			ID:           "updateCount",
+			Query:        dcb.NewQuerySimple(dcb.NewTags(), "UserUpdated"),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
 			},
 		},
 	}
@@ -150,13 +146,9 @@ func demonstrateChannelProjection(ctx context.Context, store dcb.EventStore) {
 		return
 	}
 
-	fmt.Println("   - ProjectDecisionModelChannel(): Streaming projection results:")
-	for result := range resultChan {
-		if result.Error != nil {
-			fmt.Printf("     Error in projector %s: %v\n", result.ProjectorID, result.Error)
-		} else {
-			fmt.Printf("     Projector %s: State=%v\n",
-				result.ProjectorID, result.State)
-		}
+	fmt.Println("   - ProjectDecisionModelChannel(): Final aggregated states:")
+	finalStates := <-resultChan
+	for projectorID, state := range finalStates {
+		fmt.Printf("     Projector %s: State=%v\n", projectorID, state)
 	}
 }

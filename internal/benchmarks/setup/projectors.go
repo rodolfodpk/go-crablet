@@ -70,6 +70,7 @@ type CourseCapacityChanged struct {
 // CreateCourseExistsProjector creates a projector that tracks if a course exists
 func CreateCourseExistsProjector(courseID string) dcb.StateProjector {
 	return dcb.StateProjector{
+		ID:           "courseExists",
 		Query:        dcb.NewQuery(dcb.NewTags("course_id", courseID), "CourseDefined"),
 		InitialState: false,
 		TransitionFn: func(state any, event dcb.Event) any {
@@ -81,6 +82,7 @@ func CreateCourseExistsProjector(courseID string) dcb.StateProjector {
 // CreateCourseStateProjector creates a projector that tracks the complete state of a course
 func CreateCourseStateProjector(courseID string) dcb.StateProjector {
 	return dcb.StateProjector{
+		ID:           "courseState",
 		Query:        dcb.NewQuery(dcb.NewTags("course_id", courseID), "CourseDefined", "CourseCapacityChanged"),
 		InitialState: &CourseState{CourseID: courseID, Exists: false},
 		TransitionFn: func(state any, event dcb.Event) any {
@@ -106,6 +108,7 @@ func CreateCourseStateProjector(courseID string) dcb.StateProjector {
 // CreateCourseEnrollmentCountProjector creates a projector that counts enrollments for a course
 func CreateCourseEnrollmentCountProjector(courseID string) dcb.StateProjector {
 	return dcb.StateProjector{
+		ID:           "courseEnrollmentCount",
 		Query:        dcb.NewQuery(dcb.NewTags("course_id", courseID), "StudentEnrolledInCourse", "StudentDroppedFromCourse"),
 		InitialState: 0,
 		TransitionFn: func(state any, event dcb.Event) any {
@@ -124,6 +127,7 @@ func CreateCourseEnrollmentCountProjector(courseID string) dcb.StateProjector {
 // CreateStudentExistsProjector creates a projector that tracks if a student exists
 func CreateStudentExistsProjector(studentID string) dcb.StateProjector {
 	return dcb.StateProjector{
+		ID:           "studentExists",
 		Query:        dcb.NewQuery(dcb.NewTags("student_id", studentID), "StudentRegistered"),
 		InitialState: false,
 		TransitionFn: func(state any, event dcb.Event) any {
@@ -135,6 +139,7 @@ func CreateStudentExistsProjector(studentID string) dcb.StateProjector {
 // CreateStudentStateProjector creates a projector that tracks the complete state of a student
 func CreateStudentStateProjector(studentID string) dcb.StateProjector {
 	return dcb.StateProjector{
+		ID:           "studentState",
 		Query:        dcb.NewQuery(dcb.NewTags("student_id", studentID), "StudentRegistered"),
 		InitialState: &StudentState{StudentID: studentID, Exists: false},
 		TransitionFn: func(state any, event dcb.Event) any {
@@ -155,6 +160,7 @@ func CreateStudentStateProjector(studentID string) dcb.StateProjector {
 // CreateStudentEnrollmentCountProjector creates a projector that counts enrollments for a student
 func CreateStudentEnrollmentCountProjector(studentID string) dcb.StateProjector {
 	return dcb.StateProjector{
+		ID:           "studentEnrollmentCount",
 		Query:        dcb.NewQuery(dcb.NewTags("student_id", studentID), "StudentEnrolledInCourse", "StudentDroppedFromCourse"),
 		InitialState: 0,
 		TransitionFn: func(state any, event dcb.Event) any {
@@ -173,6 +179,7 @@ func CreateStudentEnrollmentCountProjector(studentID string) dcb.StateProjector 
 // CreateStudentEnrollmentStateProjector creates a projector that tracks enrollment state between a student and course
 func CreateStudentEnrollmentStateProjector(studentID, courseID string) dcb.StateProjector {
 	return dcb.StateProjector{
+		ID:           "studentEnrollmentState",
 		Query:        dcb.NewQuery(dcb.NewTags("student_id", studentID, "course_id", courseID), "StudentEnrolledInCourse", "StudentDroppedFromCourse"),
 		InitialState: &EnrollmentState{StudentID: studentID, CourseID: courseID, IsEnrolled: false},
 		TransitionFn: func(state any, event dcb.Event) any {
@@ -191,6 +198,7 @@ func CreateStudentEnrollmentStateProjector(studentID, courseID string) dcb.State
 // CreateSimpleCountProjector creates a simple count projector for any event type
 func CreateSimpleCountProjector(eventType string, tagKey, tagValue string) dcb.StateProjector {
 	return dcb.StateProjector{
+		ID:           "simpleCount",
 		Query:        dcb.NewQuery(dcb.NewTags(tagKey, tagValue), eventType),
 		InitialState: 0,
 		TransitionFn: func(state any, event dcb.Event) any {
@@ -202,6 +210,7 @@ func CreateSimpleCountProjector(eventType string, tagKey, tagValue string) dcb.S
 // CreateMultiTagCountProjector creates a count projector for events matching multiple tags
 func CreateMultiTagCountProjector(eventType string, tags []dcb.Tag) dcb.StateProjector {
 	return dcb.StateProjector{
+		ID:           "multiTagCount",
 		Query:        dcb.NewQuery(tags, eventType),
 		InitialState: 0,
 		TransitionFn: func(state any, event dcb.Event) any {
@@ -213,6 +222,7 @@ func CreateMultiTagCountProjector(eventType string, tags []dcb.Tag) dcb.StatePro
 // CreateValueProjector creates a projector that extracts a value from event data
 func CreateValueProjector(eventType string, tagKey, tagValue string, valueExtractor func(dcb.Event) any) dcb.StateProjector {
 	return dcb.StateProjector{
+		ID:           "valueProjector",
 		Query:        dcb.NewQuery(dcb.NewTags(tagKey, tagValue), eventType),
 		InitialState: nil,
 		TransitionFn: func(state any, event dcb.Event) any {
@@ -224,6 +234,7 @@ func CreateValueProjector(eventType string, tagKey, tagValue string, valueExtrac
 // CreateBooleanProjector creates a projector that tracks a boolean state
 func CreateBooleanProjector(eventType string, tagKey, tagValue string, setToTrue bool) dcb.StateProjector {
 	return dcb.StateProjector{
+		ID:           "booleanProjector",
 		Query:        dcb.NewQuery(dcb.NewTags(tagKey, tagValue), eventType),
 		InitialState: false,
 		TransitionFn: func(state any, event dcb.Event) any {
@@ -235,6 +246,7 @@ func CreateBooleanProjector(eventType string, tagKey, tagValue string, setToTrue
 // CreateMapProjector creates a projector that maintains a map of entities
 func CreateMapProjector(eventType string, tagKey, tagValue string, keyExtractor func(dcb.Event) string, valueExtractor func(dcb.Event) any) dcb.StateProjector {
 	return dcb.StateProjector{
+		ID:           "mapProjector",
 		Query:        dcb.NewQuery(dcb.NewTags(tagKey, tagValue), eventType),
 		InitialState: make(map[string]any),
 		TransitionFn: func(state any, event dcb.Event) any {
@@ -247,8 +259,8 @@ func CreateMapProjector(eventType string, tagKey, tagValue string, keyExtractor 
 }
 
 // CreateBenchmarkProjectors creates a set of projectors for benchmark testing
-func CreateBenchmarkProjectors(dataset *Dataset) []dcb.BatchProjector {
-	projectors := []dcb.BatchProjector{
+func CreateBenchmarkProjectors(dataset *Dataset) []dcb.StateProjector {
+	projectors := []dcb.StateProjector{
 		{
 			ID:             "courseCount",
 			StateProjector: CreateSimpleCountProjector("CourseDefined", "", ""),
@@ -270,11 +282,11 @@ func CreateBenchmarkProjectors(dataset *Dataset) []dcb.BatchProjector {
 	// Add a few specific course and student projectors
 	if len(dataset.Courses) > 0 {
 		courseID := dataset.Courses[0].ID
-		projectors = append(projectors, dcb.BatchProjector{
+		projectors = append(projectors, dcb.StateProjector{
 			ID:             "courseState",
 			StateProjector: CreateCourseStateProjector(courseID),
 		})
-		projectors = append(projectors, dcb.BatchProjector{
+		projectors = append(projectors, dcb.StateProjector{
 			ID:             "courseEnrollmentCount",
 			StateProjector: CreateCourseEnrollmentCountProjector(courseID),
 		})
@@ -282,11 +294,11 @@ func CreateBenchmarkProjectors(dataset *Dataset) []dcb.BatchProjector {
 
 	if len(dataset.Students) > 0 {
 		studentID := dataset.Students[0].ID
-		projectors = append(projectors, dcb.BatchProjector{
+		projectors = append(projectors, dcb.StateProjector{
 			ID:             "studentState",
 			StateProjector: CreateStudentStateProjector(studentID),
 		})
-		projectors = append(projectors, dcb.BatchProjector{
+		projectors = append(projectors, dcb.StateProjector{
 			ID:             "studentEnrollmentCount",
 			StateProjector: CreateStudentEnrollmentCountProjector(studentID),
 		})

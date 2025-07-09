@@ -41,7 +41,7 @@ func main() {
     studentID := "s1"
 
     // Define projectors for the decision model
-    projectors := []dcb.BatchProjector{
+    projectors := []dcb.StateProjector{
         {ID: "courseExists", StateProjector: dcb.StateProjector{
             Query: dcb.NewQuerySimple(dcb.NewTags("course_id", courseID), "CourseDefined"),
             InitialState: false,
@@ -97,7 +97,7 @@ func channelBasedExample() {
     studentID := "s1"
 
     // Define the same projectors
-    projectors := []dcb.BatchProjector{
+    projectors := []dcb.StateProjector{
         {ID: "courseExists", StateProjector: dcb.StateProjector{
             Query: dcb.NewQuerySimple(dcb.NewTags("course_id", courseID), "CourseDefined"),
             InitialState: false,
@@ -192,7 +192,7 @@ This example demonstrates concurrent money transfers with optimistic locking to 
 ```go
 func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd TransferMoneyCommand) error {
     // Project state for the "from" account
-    projectors := []dcb.BatchProjector{
+    projectors := []dcb.StateProjector{
         {ID: "from", StateProjector: dcb.StateProjector{
             Query: dcb.NewQuery(dcb.NewTags("account_id", cmd.FromAccountID), "AccountOpened", "MoneyTransferred"),
             InitialState: &AccountState{AccountID: cmd.FromAccountID},
@@ -282,7 +282,7 @@ Query: dcb.NewQueryFromItems(dcb.QItemKV("CourseDefined", "course_id", courseID)
 **Complete example with helpers:**
 ```go
 // Define projectors using the new helper functions
-projectors := []dcb.BatchProjector{
+projectors := []dcb.StateProjector{
     {ID: "courseExists", StateProjector: dcb.StateProjector{
         Query: dcb.NewQueryFromItems(dcb.QItemKV("CourseDefined", "course_id", courseID)),
         InitialState: false,

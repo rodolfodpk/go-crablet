@@ -101,13 +101,13 @@ func (es *eventStore) buildReadQuerySQL(query Query, cursor *Cursor, limit *int)
 }
 
 // combineProjectorQueries combines queries from multiple projectors
-func (es *eventStore) combineProjectorQueries(projectors []BatchProjector) Query {
+func (es *eventStore) combineProjectorQueries(projectors []StateProjector) Query {
 	// Collect all query items from all projectors
 	var allItems []QueryItem
 
 	for _, bp := range projectors {
 		// Add all items from this projector's query
-		allItems = append(allItems, bp.StateProjector.Query.getItems()...)
+		allItems = append(allItems, bp.Query.getItems()...)
 	}
 
 	// Create a new query with all combined items
@@ -169,7 +169,7 @@ func (es *eventStore) eventMatchesProjector(event Event, projector StateProjecto
 // ProjectDecisionModel projects multiple states using projectors and returns final states and append condition
 // This is a go-crablet feature for building decision models in command handlers
 // The function internally computes the combined query from all projectors for the append condition
-func (es *eventStore) ProjectDecisionModel(ctx context.Context, projectors []BatchProjector) (map[string]any, AppendCondition, error) {
+func (es *eventStore) ProjectDecisionModel(ctx context.Context, projectors []StateProjector) (map[string]any, AppendCondition, error) {
 	// Validate projectors
 	for _, bp := range projectors {
 		if bp.ID == "" {
@@ -182,7 +182,7 @@ func (es *eventStore) ProjectDecisionModel(ctx context.Context, projectors []Bat
 				Value: "empty",
 			}
 		}
-		if bp.StateProjector.TransitionFn == nil {
+		if bp.TransitionFn == nil {
 			return nil, nil, &ValidationError{
 				EventStoreError: EventStoreError{
 					Op:  "ProjectDecisionModel",
@@ -192,7 +192,7 @@ func (es *eventStore) ProjectDecisionModel(ctx context.Context, projectors []Bat
 				Value: "nil",
 			}
 		}
-		if len(bp.StateProjector.Query.getItems()) == 0 {
+		if len(bp.Query.getItems()) == 0 {
 			return nil, nil, &ValidationError{
 				EventStoreError: EventStoreError{
 					Op:  "ProjectDecisionModel",
@@ -212,7 +212,7 @@ func (es *eventStore) ProjectDecisionModel(ctx context.Context, projectors []Bat
 }
 
 // projectDecisionModelWithQuery uses query-based approach for all datasets
-func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Query, projectors []BatchProjector) (map[string]any, AppendCondition, error) {
+func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Query, projectors []StateProjector) (map[string]any, AppendCondition, error) {
 	// Build SQL query based on query items
 	sqlQuery, args, err := es.buildReadQuerySQL(query, nil, nil)
 	if err != nil {
@@ -235,7 +235,7 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 	// Initialize states for all projectors
 	states := make(map[string]any)
 	for _, bp := range projectors {
-		states[bp.ID] = bp.StateProjector.InitialState
+		states[bp.ID] = bp.InitialState
 	}
 
 	// Build AppendCondition from projector queries for optimistic locking
@@ -268,8 +268,8 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 
 		// Apply projectors
 		for _, bp := range projectors {
-			if es.eventMatchesProjector(event, bp.StateProjector) {
-				states[bp.ID] = bp.StateProjector.TransitionFn(states[bp.ID], event)
+			if es.eventMatchesProjector(event, bp) {
+				states[bp.ID] = bp.TransitionFn(states[bp.ID], event)
 			}
 		}
 	}
@@ -313,15 +313,16 @@ func BuildAppendConditionFromQuery(query Query) AppendCondition {
 // ProjectDecisionModelChannel projects multiple states using channel-based streaming
 // This is optimized for small to medium datasets (< 500 events) and provides
 // a more Go-idiomatic interface using channels for state projection
-func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector) (<-chan ProjectionResult, Cursor, error) {
+// Returns final aggregated states (same as batch version) via streaming
+func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projectors []StateProjector) (<-chan map[string]any, <-chan AppendCondition, error) {
 	if len(projectors) == 0 {
-		return nil, Cursor{}, fmt.Errorf("at least one projector is required")
+		return nil, nil, fmt.Errorf("at least one projector is required")
 	}
 
 	// Validate projectors
 	for _, bp := range projectors {
-		if bp.StateProjector.TransitionFn == nil {
-			return nil, Cursor{}, &ValidationError{
+		if bp.TransitionFn == nil {
+			return nil, nil, &ValidationError{
 				EventStoreError: EventStoreError{
 					Op:  "ProjectDecisionModelChannel",
 					Err: fmt.Errorf("projector %s has nil transition function", bp.ID),
@@ -337,7 +338,7 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 
 	// Validate that the combined query is not empty (same validation as Read method)
 	if len(query.getItems()) == 0 {
-		return nil, Cursor{}, &ValidationError{
+		return nil, nil, &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  "ProjectDecisionModelChannel",
 				Err: fmt.Errorf("query must contain at least one item"),
@@ -349,13 +350,13 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 
 	// Validate query items
 	if err := validateQueryTags(query); err != nil {
-		return nil, Cursor{}, err
+		return nil, nil, err
 	}
 
 	// Build the SQL query
 	sqlQuery, args, err := es.buildReadQuerySQL(query, nil, nil)
 	if err != nil {
-		return nil, Cursor{}, fmt.Errorf("failed to build query: %w", err)
+		return nil, nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
 	// Use the caller's context directly for streaming
@@ -364,7 +365,7 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 	// Execute the query with timeout (same as ReadWithOptions)
 	rows, err := es.pool.Query(queryCtx, sqlQuery, args...)
 	if err != nil {
-		return nil, Cursor{}, &ResourceError{
+		return nil, nil, &ResourceError{
 			EventStoreError: EventStoreError{
 				Op:  "ProjectDecisionModelChannel",
 				Err: fmt.Errorf("query failed: %w", err),
@@ -374,10 +375,10 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 	}
 
 	// Create result channel with configurable buffer
-	resultChan := make(chan ProjectionResult, es.config.StreamBuffer)
+	resultChan := make(chan map[string]any, es.config.StreamBuffer)
 
-	// Track latest cursor
-	var latestCursor Cursor
+	// Create channel for final AppendCondition
+	appendConditionChan := make(chan AppendCondition, 1)
 
 	// Start projection processing in a goroutine
 	go func() {
@@ -388,22 +389,27 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 			}
 			rows.Close()
 			close(resultChan)
+			close(appendConditionChan)
 		}()
 
 		// Initialize projector states
 		projectorStates := make(map[string]interface{})
 		for _, projector := range projectors {
-			projectorStates[projector.ID] = projector.StateProjector.InitialState
+			projectorStates[projector.ID] = projector.InitialState
 		}
+
+		// Build AppendCondition from projector queries for optimistic locking (same as ProjectDecisionModel)
+		appendCondition := es.buildAppendConditionFromQuery(query)
+
+		// Track latest cursor (same as ProjectDecisionModel)
+		var latestCursor *Cursor
+		var hasEvents bool
 
 		// Process events
 		for rows.Next() {
 			select {
 			case <-ctx.Done():
-				// Context cancelled - send error and exit cleanly
-				resultChan <- ProjectionResult{
-					Error: ctx.Err(),
-				}
+				// Context cancelled - exit cleanly
 				return
 			default:
 				var row rowEvent
@@ -416,30 +422,24 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 					&row.CreatedAt,
 				)
 				if err != nil {
-					// Log error and send error result
+					// Log error and exit
 					log.Printf("Error scanning row in ProjectDecisionModelChannel: %v", err)
-					select {
-					case resultChan <- ProjectionResult{
-						Error: fmt.Errorf("scan error: %w", err),
-					}:
-					case <-ctx.Done():
-						return
-					}
-					continue
+					return
 				}
 
-				// Update latest cursor (events are ordered by transaction_id ASC, position ASC)
-				latestCursor = Cursor{
+				// Update latest cursor (events are ordered by transaction_id ASC, position ASC) - same as ProjectDecisionModel
+				latestCursor = &Cursor{
 					TransactionID: row.TransactionID,
 					Position:      row.Position,
 				}
+				hasEvents = true
 
 				event := convertRowToEvent(row)
 
 				// Process event with each projector
 				for _, projector := range projectors {
 					// Check if projector should process this event
-					if !es.eventMatchesProjector(event, projector.StateProjector) {
+					if !es.eventMatchesProjector(event, projector) {
 						continue
 					}
 
@@ -447,22 +447,10 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 					currentState := projectorStates[projector.ID]
 
 					// Project the event using the transition function
-					newState := projector.StateProjector.TransitionFn(currentState, event)
+					newState := projector.TransitionFn(currentState, event)
 
 					// Update state
 					projectorStates[projector.ID] = newState
-
-					// Send result (non-blocking to avoid deadlocks)
-					select {
-					case resultChan <- ProjectionResult{
-						ProjectorID: projector.ID,
-						State:       newState,
-					}:
-						// Result sent successfully
-					case <-ctx.Done():
-						// Context cancelled while trying to send
-						return
-					}
 				}
 			}
 		}
@@ -470,15 +458,30 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 		// Check for row iteration errors
 		if err := rows.Err(); err != nil {
 			log.Printf("Row iteration error in ProjectDecisionModelChannel: %v", err)
-			select {
-			case resultChan <- ProjectionResult{
-				Error: fmt.Errorf("row iteration failed: %w", err),
-			}:
-			case <-ctx.Done():
-				// Context cancelled while trying to send error
-			}
+			return
+		}
+
+		// Set cursor in AppendCondition (same logic as ProjectDecisionModel)
+		if !hasEvents {
+			appendCondition.setAfterCursor(nil)
+		} else {
+			appendCondition.setAfterCursor(latestCursor)
+		}
+
+		// Send final aggregated states (same as batch version)
+		select {
+		case resultChan <- projectorStates:
+		case <-ctx.Done():
+			// Context cancelled while trying to send final states
+		}
+
+		// Send complete AppendCondition with cursor
+		select {
+		case appendConditionChan <- appendCondition:
+		case <-ctx.Done():
+			// Context cancelled while trying to send AppendCondition
 		}
 	}()
 
-	return resultChan, latestCursor, nil
+	return resultChan, appendConditionChan, nil
 }

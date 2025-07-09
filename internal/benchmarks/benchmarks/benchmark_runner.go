@@ -21,7 +21,7 @@ type BenchmarkContext struct {
 	HasChannel   bool
 	Dataset      *setup.Dataset
 	Queries      []dcb.Query
-	Projectors   []dcb.BatchProjector
+	Projectors   []dcb.StateProjector
 }
 
 // SetupBenchmarkContext creates a benchmark context with test data

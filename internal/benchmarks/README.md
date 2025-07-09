@@ -234,13 +234,11 @@ query := dcb.NewQuery(dcb.NewTags("grade", "A"), "StudentEnrolledInCourse")
 #### **2. Business Decision Boundaries**
 ```go
 // ✅ Business Decision: Count CS courses
-projector := dcb.BatchProjector{
+projector := dcb.StateProjector{
     ID: "csCourseCount",
-    StateProjector: dcb.StateProjector{
-        Query: dcb.NewQuery(dcb.NewTags("category", "Computer Science"), "CourseDefined"),
-        InitialState: 0,
-        TransitionFn: func(state any, event dcb.Event) any { return state.(int) + 1 },
-    },
+    Query: dcb.NewQuery(dcb.NewTags("category", "Computer Science"), "CourseDefined"),
+    InitialState: 0,
+    TransitionFn: func(state any, event dcb.Event) any { return state.(int) + 1 },
 }
 ```
 

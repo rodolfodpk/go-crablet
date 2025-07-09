@@ -405,7 +405,7 @@ func benchmarkSingleProjector(ctx context.Context, store dcb.EventStore, channel
 	fmt.Println("Single Projector:")
 
 	// DCB-focused projector: count courses in specific category instead of all courses
-	projector := dcb.BatchProjector{
+	projector := dcb.StateProjector{
 		ID: "csCourseCount",
 		StateProjector: dcb.StateProjector{
 			Query:        dcb.NewQuery(dcb.NewTags("category", "Computer Science"), "CourseDefined"),
@@ -417,7 +417,7 @@ func benchmarkSingleProjector(ctx context.Context, store dcb.EventStore, channel
 	}
 
 	start := time.Now()
-	states, _, err := channelStore.ProjectDecisionModel(ctx, []dcb.BatchProjector{projector})
+	states, _, err := channelStore.ProjectDecisionModel(ctx, []dcb.StateProjector{projector})
 	duration := time.Since(start)
 
 	if err != nil {
@@ -431,7 +431,7 @@ func benchmarkMultipleProjectors(ctx context.Context, store dcb.EventStore, chan
 	fmt.Println("Multiple Projectors:")
 
 	// DCB-focused projectors: specific targeted queries instead of full scans
-	projectors := []dcb.BatchProjector{
+	projectors := []dcb.StateProjector{
 		{
 			ID: "csCourseCount",
 			StateProjector: dcb.StateProjector{
@@ -482,7 +482,7 @@ func benchmarkChannelProjection(ctx context.Context, channelStore dcb.EventStore
 	fmt.Println("Channel Projection:")
 
 	// DCB-focused projector: specific category instead of all courses
-	projectors := []dcb.BatchProjector{
+	projectors := []dcb.StateProjector{
 		{
 			ID: "csCourseCount",
 			StateProjector: dcb.StateProjector{

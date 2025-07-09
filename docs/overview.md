@@ -38,12 +38,13 @@ type EventStore interface {
 
     // ProjectDecisionModel projects multiple states using projectors and returns final states and append condition
     // This is a go-crablet feature for building decision models in command handlers
-    ProjectDecisionModel(ctx context.Context, projectors []BatchProjector) (map[string]any, AppendCondition, error)
+    ProjectDecisionModel(ctx context.Context, projectors []StateProjector) (map[string]any, AppendCondition, error)
 
     // ProjectDecisionModelChannel projects multiple states using channel-based streaming
     // This is optimized for small to medium datasets (< 500 events) and provides
     // a more Go-idiomatic interface using channels for state projection
-    ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector) (<-chan ProjectionResult, Cursor, error)
+    // Returns final aggregated states (same as batch version) via streaming
+    ProjectDecisionModelChannel(ctx context.Context, projectors []StateProjector) (<-chan map[string]any, <-chan AppendCondition, error)
 
     // GetConfig returns the current EventStore configuration
     GetConfig() EventStoreConfig
@@ -75,7 +76,7 @@ We're exploring how a Dynamic Consistency Boundary decision model might work:
 ## Example: Course Subscription
 
 ```go
-projectors := []dcb.BatchProjector{
+projectors := []dcb.StateProjector{
     {ID: "courseExists", StateProjector: dcb.StateProjector{...}},
     {ID: "numSubscriptions", StateProjector: dcb.StateProjector{...}},
 }

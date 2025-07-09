@@ -142,7 +142,7 @@ func CourseExistsProjector(courseID string) StateProjector {
 		InitialState: false,
 		TransitionFn: func(state any, event Event) any {
 			return true
-		},
+		
 	}
 }
 
@@ -152,7 +152,7 @@ func CourseStateProjector(courseID string) StateProjector {
 			NewTags("course_id", courseID),
 			"CourseDefined", "CourseCapacityChanged", "StudentEnrolledInCourse", "StudentDroppedFromCourse",
 		),
-		InitialState: &CourseState{CourseID: courseID, Exists: false},
+		InitialState: &CourseState{CourseID: courseID, Exists: false
 		TransitionFn: func(state any, event Event) any {
 			course := state.(*CourseState)
 			switch event.Type {
@@ -173,7 +173,7 @@ func CourseStateProjector(courseID string) StateProjector {
 				course.EnrolledCount--
 			}
 			return course
-		},
+		
 	}
 }
 
@@ -190,7 +190,7 @@ func CourseEnrollmentCountProjector(courseID string) StateProjector {
 				return count - 1
 			}
 			return count
-		},
+		
 	}
 }
 
@@ -200,14 +200,14 @@ func StudentExistsProjector(studentID string) StateProjector {
 		InitialState: false,
 		TransitionFn: func(state any, event Event) any {
 			return true
-		},
+		
 	}
 }
 
 func StudentStateProjector(studentID string) StateProjector {
 	return StateProjector{
 		Query:        NewQuerySimple(NewTags("student_id", studentID), "StudentRegistered"),
-		InitialState: &StudentState{StudentID: studentID, Exists: false},
+		InitialState: &StudentState{StudentID: studentID, Exists: false
 		TransitionFn: func(state any, event Event) any {
 			student := state.(*StudentState)
 			switch event.Type {
@@ -219,7 +219,7 @@ func StudentStateProjector(studentID string) StateProjector {
 				student.Exists = true
 			}
 			return student
-		},
+		
 	}
 }
 
@@ -236,14 +236,14 @@ func StudentEnrollmentCountProjector(studentID string) StateProjector {
 				return count - 1
 			}
 			return count
-		},
+		
 	}
 }
 
 func StudentEnrollmentStateProjector(studentID, courseID string) StateProjector {
 	return StateProjector{
 		Query:        NewQuerySimple(NewTags("student_id", studentID, "course_id", courseID), "StudentEnrolledInCourse", "StudentDroppedFromCourse"),
-		InitialState: &EnrollmentState{StudentID: studentID, CourseID: courseID, IsEnrolled: false},
+		InitialState: &EnrollmentState{StudentID: studentID, CourseID: courseID, IsEnrolled: false
 		TransitionFn: func(state any, event Event) any {
 			enrollment := state.(*EnrollmentState)
 			switch event.Type {
@@ -253,14 +253,18 @@ func StudentEnrollmentStateProjector(studentID, courseID string) StateProjector 
 				enrollment.IsEnrolled = false
 			}
 			return enrollment
-		},
+		
 	}
 }
 
 // Command handlers - following the command pattern from examples
 func handleCreateCourse(ctx context.Context, store EventStore, cmd CreateCourseCommand) error {
-	projectors := []BatchProjector{
-		{ID: "courseExists", StateProjector: CourseExistsProjector(cmd.CourseID)},
+	projectors := []StateProjector{
+		{ID: "courseExists",
+			Query:        CourseExistsProjector(cmd.CourseID).Query,
+			InitialState: CourseExistsProjector(cmd.CourseID).InitialState,
+			TransitionFn: CourseExistsProjector(cmd.CourseID).TransitionFn,
+		
 	}
 
 	states, _, err := store.ProjectDecisionModel(ctx, projectors)
@@ -283,8 +287,8 @@ func handleCreateCourse(ctx context.Context, store EventStore, cmd CreateCourseC
 }
 
 func handleRegisterStudent(ctx context.Context, store EventStore, cmd RegisterStudentCommand) error {
-	projectors := []BatchProjector{
-		{ID: "studentExists", StateProjector: StudentExistsProjector(cmd.StudentID)},
+	projectors := []StateProjector{
+		{ID: "studentExists", StateProjector: StudentExistsProjector(cmd.StudentID)
 	}
 
 	states, _, err := store.ProjectDecisionModel(ctx, projectors)
@@ -307,13 +311,13 @@ func handleRegisterStudent(ctx context.Context, store EventStore, cmd RegisterSt
 }
 
 func handleEnrollStudent(ctx context.Context, store EventStore, cmd EnrollStudentCommand) error {
-	projectors := []BatchProjector{
-		{ID: "courseExists", StateProjector: CourseExistsProjector(cmd.CourseID)},
-		{ID: "studentExists", StateProjector: StudentExistsProjector(cmd.StudentID)},
-		{ID: "courseState", StateProjector: CourseStateProjector(cmd.CourseID)},
-		{ID: "courseEnrollmentCount", StateProjector: CourseEnrollmentCountProjector(cmd.CourseID)},
-		{ID: "studentEnrollmentCount", StateProjector: StudentEnrollmentCountProjector(cmd.StudentID)},
-		{ID: "studentEnrollmentState", StateProjector: StudentEnrollmentStateProjector(cmd.StudentID, cmd.CourseID)},
+	projectors := []StateProjector{
+		{ID: "courseExists", StateProjector: CourseExistsProjector(cmd.CourseID)
+		{ID: "studentExists", StateProjector: StudentExistsProjector(cmd.StudentID)
+		{ID: "courseState", StateProjector: CourseStateProjector(cmd.CourseID)
+		{ID: "courseEnrollmentCount", StateProjector: CourseEnrollmentCountProjector(cmd.CourseID)
+		{ID: "studentEnrollmentCount", StateProjector: StudentEnrollmentCountProjector(cmd.StudentID)
+		{ID: "studentEnrollmentState", StateProjector: StudentEnrollmentStateProjector(cmd.StudentID, cmd.CourseID)
 	}
 
 	states, _, err := store.ProjectDecisionModel(ctx, projectors)
@@ -364,8 +368,8 @@ func handleEnrollStudent(ctx context.Context, store EventStore, cmd EnrollStuden
 }
 
 func handleDropStudent(ctx context.Context, store EventStore, cmd DropStudentCommand) error {
-	projectors := []BatchProjector{
-		{ID: "studentEnrollmentState", StateProjector: StudentEnrollmentStateProjector(cmd.StudentID, cmd.CourseID)},
+	projectors := []StateProjector{
+		{ID: "studentEnrollmentState", StateProjector: StudentEnrollmentStateProjector(cmd.StudentID, cmd.CourseID)
 	}
 
 	states, _, err := store.ProjectDecisionModel(ctx, projectors)
@@ -399,8 +403,8 @@ func handleChangeCourseCapacity(ctx context.Context, store EventStore, cmd Chang
 	newCapacity := cmd.NewCapacity
 
 	// Project course state
-	projectors := []BatchProjector{
-		{ID: "courseState", StateProjector: CourseStateProjector(courseID)},
+	projectors := []StateProjector{
+		{ID: "courseState", StateProjector: CourseStateProjector(courseID)
 	}
 
 	states, _, err := store.ProjectDecisionModel(ctx, projectors)
@@ -881,8 +885,8 @@ var _ = Describe("Course Subscription Domain", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Project course state
-			projectors := []BatchProjector{
-				{ID: "courseState", StateProjector: CourseStateProjector("math-101")},
+			projectors := []StateProjector{
+				{ID: "courseState", StateProjector: CourseStateProjector("math-101")
 			}
 
 			states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
