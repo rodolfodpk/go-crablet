@@ -187,33 +187,63 @@ export default function () {
   sleep(0.05);
 }
 
-// Setup function to initialize test data
+// Setup function to validate basic functionality before running the full-scan test
 export function setup() {
   const params = {
     headers: {
       'Content-Type': 'application/json',
     },
+    timeout: '10s',
   };
 
-  // Add some initial events for full-scan testing
-  const initialEvents = [
-    generateUniqueEvent('CoursePlanned', ['course', 'user']),
-    generateUniqueEvent('StudentEnrolled', ['course', 'student']),
-    generateUniqueEvent('AssignmentCreated', ['course', 'assignment']),
-    generateUniqueEvent('FullScanEvent', ['fullscan', 'baseline']),
-  ];
+  console.log('🧪 Validating basic functionality for full-scan test...');
 
-  const setupPayload = {
-    events: initialEvents,
-  };
-
-  const res = http.post(
-    `${BASE_URL}/append`,
-    JSON.stringify(setupPayload),
-    params
-  );
-
-  if (res.status !== 200) {
-    // Setup failed silently
+  // Test 1: Health endpoint
+  const healthRes = http.get(`${BASE_URL}/health`, params);
+  if (healthRes.status !== 200) {
+    throw new Error(`Health check failed: status ${healthRes.status}`);
   }
+
+  // Test 2: Simple append
+  const testEvent = {
+    type: 'FullScanTestEvent',
+    data: JSON.stringify({ message: 'full-scan test validation' }),
+    tags: ['test:fullscan', 'validation:test']
+  };
+  const appendRes = http.post(`${BASE_URL}/append`, JSON.stringify({ events: testEvent }), params);
+  
+  if (appendRes.status !== 200) {
+    throw new Error(`Append test failed: status ${appendRes.status} body: ${appendRes.body}`);
+  }
+
+  // Test 3: Read the event back
+  const readPayload = {
+    query: {
+      items: [{ types: ['FullScanTestEvent'], tags: ['test:fullscan'] }]
+    }
+  };
+  const readRes = http.post(`${BASE_URL}/read`, JSON.stringify(readPayload), params);
+  
+  if (readRes.status !== 200) {
+    throw new Error(`Read test failed: status ${readRes.status} body: ${readRes.body}`);
+  }
+
+  const readBody = JSON.parse(readRes.body);
+  if (!readBody || !('numberOfMatchingEvents' in readBody) || readBody.numberOfMatchingEvents < 1) {
+    throw new Error(`Read test failed: did not return the event. Body: ${readRes.body}`);
+  }
+
+  // Test 4: Full scan read (empty query)
+  const fullScanPayload = {
+    query: {
+      items: [{ types: [], tags: [] }]
+    }
+  };
+  const fullScanRes = http.post(`${BASE_URL}/read`, JSON.stringify(fullScanPayload), params);
+  
+  if (fullScanRes.status !== 200) {
+    throw new Error(`Full scan test failed: status ${fullScanRes.status} body: ${fullScanRes.body}`);
+  }
+
+  console.log('✅ Basic functionality validated - proceeding with full-scan test');
 } 

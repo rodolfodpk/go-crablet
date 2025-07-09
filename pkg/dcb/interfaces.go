@@ -29,6 +29,16 @@ type EventStore interface {
 	// ProjectDecisionModel projects multiple states using projectors and returns final states and append condition
 	// This is a go-crablet feature for building decision models in command handlers
 	ProjectDecisionModel(ctx context.Context, projectors []BatchProjector) (map[string]any, AppendCondition, error)
+
+	// ReadStreamChannel creates a channel-based stream of events matching a query
+	// This is optimized for small to medium datasets (< 500 events) and provides
+	// a more Go-idiomatic interface using channels
+	ReadStreamChannel(ctx context.Context, query Query) (<-chan Event, *Cursor, error)
+
+	// ProjectDecisionModelChannel projects multiple states using channel-based streaming
+	// This is optimized for small to medium datasets (< 500 events) and provides
+	// a more Go-idiomatic interface using channels for state projection
+	ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector) (<-chan ProjectionResult, *Cursor, error)
 }
 
 // ProjectionResult represents a single projection result from channel-based projection
@@ -41,22 +51,6 @@ type ProjectionResult struct {
 
 	// Error is set if there was an error processing events
 	Error error
-}
-
-// ChannelEventStore extends EventStore with channel-based streaming capabilities
-// This provides an alternative Go-idiomatic interface for event streaming
-type ChannelEventStore interface {
-	EventStore
-
-	// ReadStreamChannel creates a channel-based stream of events matching a query
-	// This is optimized for small to medium datasets (< 500 events) and provides
-	// a more Go-idiomatic interface using channels
-	ReadStreamChannel(ctx context.Context, query Query) (<-chan Event, *Cursor, error)
-
-	// ProjectDecisionModelChannel projects multiple states using channel-based streaming
-	// This is optimized for small to medium datasets (< 500 events) and provides
-	// a more Go-idiomatic interface using channels for state projection
-	ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector) (<-chan ProjectionResult, *Cursor, error)
 }
 
 // Event represents a single event in the store

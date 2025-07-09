@@ -93,9 +93,6 @@ func (es *eventStore) ReadStreamChannel(ctx context.Context, query Query) (<-cha
 	return resultChan, latestCursor, nil
 }
 
-// Ensure eventStore implements ChannelEventStore interface
-var _ ChannelEventStore = (*eventStore)(nil)
-
 // ProjectDecisionModelChannel projects multiple states using channel-based streaming
 // This is optimized for small to medium datasets (< 500 events) and provides
 // a more Go-idiomatic interface using channels for state projection
@@ -248,5 +245,4 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 	return resultChan, latestCursor, nil
 }
 
-// ChannelEventStore extends EventStore with channel-based streaming capabilities
 // Append now returns only error, not position.

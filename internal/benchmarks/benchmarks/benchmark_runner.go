@@ -17,7 +17,7 @@ import (
 // BenchmarkContext holds the context for running benchmarks
 type BenchmarkContext struct {
 	Store        dcb.EventStore
-	ChannelStore dcb.ChannelEventStore
+	ChannelStore dcb.EventStore
 	HasChannel   bool
 	Dataset      *setup.Dataset
 	Queries      []dcb.Query
@@ -67,8 +67,8 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
 		b.Fatalf("Failed to create event store: %v", err)
 	}
 
-	// Check if ChannelEventStore is available
-	channelStore, hasChannel := store.(dcb.ChannelEventStore)
+	// Check if EventStore is available
+	channelStore, hasChannel := store.(dcb.EventStore)
 
 	// Get dataset configuration
 	config, exists := setup.DatasetSizes[datasetSize]

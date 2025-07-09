@@ -217,32 +217,71 @@ export default function () {
   sleep(0.05);  // Reduced from 0.1s for better performance
 }
 
-// Setup function to initialize test data
+// Setup function to validate basic functionality before running the full test
 export function setup() {
   const params = {
     headers: {
       'Content-Type': 'application/json',
     },
+    timeout: '10s',
   };
 
-  // Add some initial events for testing with unique IDs
-  const initialEvents = [
-    generateUniqueEvent('CoursePlanned', ['course', 'user']),
-    generateUniqueEvent('StudentEnrolled', ['course', 'student']),
-    generateUniqueEvent('AssignmentCreated', ['course', 'assignment']),
-  ];
+  console.log('🧪 Validating basic functionality for full test...');
 
-  const setupPayload = {
-    events: initialEvents,
-  };
-
-  const res = http.post(
-    `${BASE_URL}/append`,
-    JSON.stringify(setupPayload),
-    params
-  );
-
-  if (res.status !== 200) {
-    // Setup failed silently
+  // Test 1: Health endpoint
+  const healthRes = http.get(`${BASE_URL}/health`, params);
+  if (healthRes.status !== 200) {
+    throw new Error(`Health check failed: status ${healthRes.status}`);
   }
+
+  // Test 2: Simple append
+  const testEvent = {
+    type: 'FullTestEvent',
+    data: JSON.stringify({ message: 'full test validation' }),
+    tags: ['test:full', 'validation:test']
+  };
+  const appendRes = http.post(`${BASE_URL}/append`, JSON.stringify({ events: testEvent }), params);
+  
+  if (appendRes.status !== 200) {
+    throw new Error(`Append test failed: status ${appendRes.status} body: ${appendRes.body}`);
+  }
+
+  // Test 3: Read the event back
+  const readPayload = {
+    query: {
+      items: [{ types: ['FullTestEvent'], tags: ['test:full'] }]
+    }
+  };
+  const readRes = http.post(`${BASE_URL}/read`, JSON.stringify(readPayload), params);
+  
+  if (readRes.status !== 200) {
+    throw new Error(`Read test failed: status ${readRes.status} body: ${readRes.body}`);
+  }
+
+  const readBody = JSON.parse(readRes.body);
+  if (!readBody || !('numberOfMatchingEvents' in readBody) || readBody.numberOfMatchingEvents < 1) {
+    throw new Error(`Read test failed: did not return the event. Body: ${readRes.body}`);
+  }
+
+  // Test 4: Append with condition
+  const conditionEvent = {
+    type: 'FullTestConditionEvent',
+    data: JSON.stringify({ message: 'full test condition validation' }),
+    tags: ['test:full', 'condition:test']
+  };
+  const conditionPayload = {
+    events: conditionEvent,
+    condition: {
+      failIfEventsMatch: {
+        items: [{ types: ['NonExistentEvent'], tags: ['test:full'] }]
+      }
+    }
+  };
+  const conditionRes = http.post(`${BASE_URL}/append`, JSON.stringify(conditionPayload), params);
+  
+  if (conditionRes.status !== 200) {
+    throw new Error(`Condition test failed: status ${conditionRes.status} body: ${conditionRes.body}`);
+  }
+
+  console.log('✅ Basic functionality validated - proceeding with full test');
 } 

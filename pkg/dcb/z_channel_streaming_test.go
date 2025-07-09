@@ -12,7 +12,7 @@ import (
 var _ = Describe("Channel-Based Streaming", func() {
 	var (
 		store        EventStore
-		channelStore ChannelEventStore
+		channelStore EventStore
 		ctx          context.Context
 	)
 
@@ -20,8 +20,8 @@ var _ = Describe("Channel-Based Streaming", func() {
 		// Use shared PostgreSQL container and truncate events between tests
 		store = NewEventStoreFromPool(pool)
 		var ok bool
-		channelStore, ok = store.(ChannelEventStore)
-		Expect(ok).To(BeTrue(), "Store should implement ChannelEventStore")
+		channelStore, ok = store.(EventStore)
+		Expect(ok).To(BeTrue(), "Store should implement EventStore")
 
 		// Create context with timeout for each test
 		ctx, _ = context.WithTimeout(context.Background(), 30*time.Second)
@@ -367,15 +367,15 @@ var _ = Describe("Channel-Based Streaming", func() {
 	})
 
 	Describe("Extension Interface Pattern", func() {
-		It("should properly implement ChannelEventStore interface", func() {
-			// Test that the store implements the ChannelEventStore interface
-			var channelEventStore ChannelEventStore = channelStore
-			Expect(channelEventStore).NotTo(BeNil())
+		It("should properly implement EventStore interface", func() {
+			// Test that the store implements the EventStore interface
+			var eventStore EventStore = channelStore
+			Expect(eventStore).NotTo(BeNil())
 
-			// Test that our implementation does implement ChannelEventStore
+			// Test that our implementation does implement EventStore
 			// (since our eventStore has the ReadStreamChannel method)
-			_, ok := store.(ChannelEventStore)
-			Expect(ok).To(BeTrue(), "Our EventStore implementation should implement ChannelEventStore")
+			_, ok := store.(EventStore)
+			Expect(ok).To(BeTrue(), "Our EventStore implementation should implement EventStore")
 		})
 	})
 

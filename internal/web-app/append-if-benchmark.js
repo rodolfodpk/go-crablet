@@ -226,7 +226,7 @@ export default function () {
     sleep(sleepTime);
 }
 
-// Setup function to ensure database is ready
+// Setup function to validate basic functionality and appendIf conditions before running the benchmark
 export function setup() {
     const params = {
         headers: {
@@ -235,23 +235,90 @@ export function setup() {
         timeout: '10s',
     };
 
-    // Test health endpoint
-    const healthRes = http.get(`${BASE_URL}/health`, params);
-    check(healthRes, {
-        'health check status is 200': (r) => r.status === 200,
-    });
+    console.log('🧪 Validating basic functionality and appendIf conditions for appendIf benchmark...');
 
+    // Test 1: Health endpoint
+    const healthRes = http.get(`${BASE_URL}/health`, params);
     if (healthRes.status !== 200) {
-        throw new Error('Web app is not ready');
+        throw new Error(`Health check failed: status ${healthRes.status}`);
     }
 
-    // Clean up database before benchmark
-    const cleanupRes = http.post(`${BASE_URL}/cleanup`, null, params);
-    check(cleanupRes, {
-        'cleanup status is 200': (r) => r.status === 200,
-    });
+    // Test 2: Simple append
+    const testEvent = {
+        type: 'AppendIfBenchmarkTestEvent',
+        data: JSON.stringify({ message: 'appendIf benchmark test' }),
+        tags: ['test:appendif', 'benchmark:validation']
+    };
+    const appendRes = http.post(`${BASE_URL}/append`, JSON.stringify({ events: testEvent }), params);
+    
+    if (appendRes.status !== 200) {
+        throw new Error(`Append test failed: status ${appendRes.status} body: ${appendRes.body}`);
+    }
 
-    console.log('Setup completed - database cleaned and ready for appendIf benchmark');
+    // Test 3: AppendIf with condition that should succeed
+    const appendIfEvent = {
+        type: 'AppendIfBenchmarkTestEvent2',
+        data: JSON.stringify({ message: 'appendIf condition test' }),
+        tags: ['test:appendif', 'condition:success']
+    };
+    const appendIfPayload = {
+        events: appendIfEvent,
+        condition: {
+            failIfEventsMatch: {
+                items: [{ types: ['NonExistentEvent'], tags: ['test:appendif'] }]
+            }
+        }
+    };
+    const appendIfRes = http.post(`${BASE_URL}/append`, JSON.stringify(appendIfPayload), params);
+    
+    if (appendIfRes.status !== 200) {
+        throw new Error(`AppendIf test failed: status ${appendIfRes.status} body: ${appendIfRes.body}`);
+    }
+
+    // Test 4: AppendIf with condition that should fail
+    const appendIfFailEvent = {
+        type: 'AppendIfBenchmarkTestEvent3',
+        data: JSON.stringify({ message: 'appendIf condition fail test' }),
+        tags: ['test:appendif', 'condition:fail']
+    };
+    const appendIfFailPayload = {
+        events: appendIfFailEvent,
+        condition: {
+            failIfEventsMatch: {
+                items: [{ types: ['AppendIfBenchmarkTestEvent'], tags: ['test:appendif'] }]
+            }
+        }
+    };
+    const appendIfFailRes = http.post(`${BASE_URL}/append`, JSON.stringify(appendIfFailPayload), params);
+    
+    if (appendIfFailRes.status !== 200) {
+        throw new Error(`AppendIf fail test failed: status ${appendIfFailRes.status} body: ${appendIfFailRes.body}`);
+    }
+
+    // Test 5: Read events back
+    const readPayload = {
+        query: {
+            items: [{ types: ['AppendIfBenchmarkTestEvent', 'AppendIfBenchmarkTestEvent2'], tags: ['test:appendif'] }]
+        }
+    };
+    const readRes = http.post(`${BASE_URL}/read`, JSON.stringify(readPayload), params);
+    
+    if (readRes.status !== 200) {
+        throw new Error(`Read test failed: status ${readRes.status} body: ${readRes.body}`);
+    }
+
+    const readBody = JSON.parse(readRes.body);
+    if (!readBody || !('numberOfMatchingEvents' in readBody) || readBody.numberOfMatchingEvents < 2) {
+        throw new Error(`Read test failed: did not return expected events. Body: ${readRes.body}`);
+    }
+
+    // Test 6: Clean up database before benchmark
+    const cleanupRes = http.post(`${BASE_URL}/cleanup`, null, params);
+    if (cleanupRes.status !== 200) {
+        throw new Error(`Cleanup failed: status ${cleanupRes.status}`);
+    }
+
+    console.log('✅ Basic functionality and appendIf conditions validated - proceeding with appendIf benchmark');
 }
 
 // Teardown function

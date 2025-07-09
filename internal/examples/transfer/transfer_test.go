@@ -37,8 +37,8 @@ func TestTransferExample(t *testing.T) {
 	store, err := dcb.NewEventStore(ctx, pool)
 	require.NoError(t, err)
 
-	// Cast to ChannelEventStore for extended functionality
-	channelStore := store.(dcb.ChannelEventStore)
+	// Cast to EventStore for extended functionality
+	channelStore := store.(dcb.EventStore)
 
 	// Test Command 1: Create Account 1
 	t.Run("Create Account 1", func(t *testing.T) {
@@ -206,8 +206,8 @@ func TestSequentialTransfers(t *testing.T) {
 	store, err := dcb.NewEventStore(ctx, pool)
 	require.NoError(t, err)
 
-	// Cast to ChannelEventStore for extended functionality
-	channelStore := store.(dcb.ChannelEventStore)
+	// Cast to EventStore for extended functionality
+	channelStore := store.(dcb.EventStore)
 
 	// Create accounts for testing
 	createAccount3Cmd := CreateAccountCommand{
@@ -269,7 +269,7 @@ func TestConcurrentTransfers_OptimisticLocking(t *testing.T) {
 	store, err := dcb.NewEventStore(ctx, pool)
 	g.Expect(err).To(BeNil())
 
-	channelStore := store.(dcb.ChannelEventStore)
+	channelStore := store.(dcb.EventStore)
 
 	// Create accounts
 	createAccount1Cmd := CreateAccountCommand{

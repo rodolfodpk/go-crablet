@@ -10,8 +10,8 @@ SELECT 'CREATE DATABASE dcb_app' WHERE NOT EXISTS (SELECT FROM pg_database WHERE
 CREATE TABLE events (type VARCHAR(64) NOT NULL,
                      tags TEXT[] NOT NULL,
                      data JSON NOT NULL,
-                     position BIGSERIAL NOT NULL PRIMARY KEY,
                      transaction_id xid8 NOT NULL,
+                     position BIGSERIAL NOT NULL PRIMARY KEY,
                      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                      CONSTRAINT chk_event_type_length CHECK (LENGTH(type) <= 64));
 
@@ -110,6 +110,83 @@ BEGIN
             after_cursor := p_condition->'after_cursor';
         END IF;
     END IF;
+    
+    -- Check append conditions first
+    PERFORM check_append_condition(fail_if_events_match, after_cursor);
+    
+    -- If conditions pass, insert events using UNNEST for all cases
+    PERFORM append_events_batch(p_types, p_tags, p_data);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to acquire advisory locks based on tags with "lock:" prefix
+-- This function takes the same contract as append_events_with_condition but adds locking
+CREATE OR REPLACE FUNCTION append_events_with_advisory_locks(
+    p_types TEXT[],
+    p_tags TEXT[], -- array of Postgres array literals as strings
+    p_data JSONB[],
+    p_condition JSONB DEFAULT NULL
+) RETURNS VOID AS $$
+DECLARE
+    fail_if_events_match JSONB;
+    after_cursor JSONB;
+    cleaned_tags TEXT[];
+    lock_keys TEXT[];
+    tag_array TEXT[];
+    tag_key TEXT;
+    lock_key TEXT;
+    i INTEGER;
+BEGIN
+    -- Extract condition parameters
+    IF p_condition IS NOT NULL THEN
+        fail_if_events_match := p_condition->'fail_if_events_match';
+        IF p_condition->'after_cursor' IS NOT NULL AND p_condition->'after_cursor' != 'null' THEN
+            after_cursor := p_condition->'after_cursor';
+        END IF;
+    END IF;
+    
+    -- Process each event's tags to extract lock keys and clean tags
+    FOR i IN 1..array_length(p_tags, 1) LOOP
+        -- Parse the tag array string into actual array
+        tag_array := p_tags[i]::TEXT[];
+        
+        -- Initialize arrays for this event
+        cleaned_tags := '{}';
+        lock_keys := '{}';
+        
+        -- Process each tag in the array
+        FOREACH tag_key IN ARRAY tag_array LOOP
+            -- Check if tag starts with "lock:"
+            IF tag_key LIKE 'lock:%' THEN
+                -- Extract the lock key (remove "lock:" prefix)
+                lock_key := substring(tag_key from 6); -- 'lock:' is 5 chars, so start from position 6
+                
+                -- Add to lock keys array
+                lock_keys := array_append(lock_keys, lock_key);
+                
+                -- Don't add to cleaned tags (remove the lock: prefix entirely)
+            ELSE
+                -- Add to cleaned tags (no lock: prefix)
+                cleaned_tags := array_append(cleaned_tags, tag_key);
+            END IF;
+        END LOOP;
+        
+        -- Acquire advisory locks for all lock keys (sorted to prevent deadlocks)
+        IF array_length(lock_keys, 1) > 0 THEN
+            -- Sort lock keys to prevent deadlocks
+            SELECT array_agg(key ORDER BY key) INTO lock_keys FROM unnest(lock_keys) AS key;
+            
+            -- Acquire locks for each key
+            FOREACH lock_key IN ARRAY lock_keys LOOP
+                -- Use pg_advisory_xact_lock for transaction-scoped locks
+                -- Convert string to hash for advisory lock
+                PERFORM pg_advisory_xact_lock(hashtext(lock_key));
+            END LOOP;
+        END IF;
+        
+        -- Update the tags array with cleaned tags
+        p_tags[i] := array_to_string(cleaned_tags, ',');
+    END LOOP;
     
     -- Check append conditions first
     PERFORM check_append_condition(fail_if_events_match, after_cursor);

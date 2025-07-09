@@ -273,8 +273,7 @@ var _ = Describe("Batch Projection", func() {
 			}
 
 			// Test ProjectDecisionModel
-			channelStore := store.(ChannelEventStore)
-			states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
+			states, _, err := store.ProjectDecisionModel(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(states["course"]).To(Equal(1))
@@ -323,8 +322,7 @@ var _ = Describe("Batch Projection", func() {
 				},
 			}
 
-			channelStore := store.(ChannelEventStore)
-			states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
+			states, _, err := store.ProjectDecisionModel(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(states["count"]).To(Equal(2))
@@ -361,8 +359,7 @@ var _ = Describe("Batch Projection", func() {
 			}
 
 			// Test ProjectDecisionModel
-			channelStore := store.(ChannelEventStore)
-			states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
+			states, _, err := store.ProjectDecisionModel(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(states["totalAmount"]).To(Equal(150.0))
@@ -380,8 +377,7 @@ var _ = Describe("Batch Projection", func() {
 				},
 			}
 
-			channelStore := store.(ChannelEventStore)
-			_, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
+			_, _, err := store.ProjectDecisionModel(ctx, projectors)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("nil transition function"))
 		})
@@ -400,8 +396,7 @@ var _ = Describe("Batch Projection", func() {
 				},
 			}
 
-			channelStore := store.(ChannelEventStore)
-			_, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
+			_, _, err := store.ProjectDecisionModel(ctx, projectors)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("empty query"))
 		})
@@ -453,8 +448,7 @@ var _ = Describe("Batch Projection", func() {
 			}
 
 			// Test ProjectDecisionModel
-			channelStore := store.(ChannelEventStore)
-			states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
+			states, _, err := store.ProjectDecisionModel(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(states["orderCount"]).To(Equal(1))
@@ -491,8 +485,7 @@ var _ = Describe("Batch Projection", func() {
 			}
 
 			// Test with cursor streaming
-			channelStore := store.(ChannelEventStore)
-			states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
+			states, _, err := store.ProjectDecisionModel(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(states["count"]).To(Equal(1000))
@@ -529,8 +522,7 @@ var _ = Describe("Batch Projection", func() {
 		projectors := []BatchProjector{projector}
 
 		// Test ProjectDecisionModel
-		channelStore := store.(ChannelEventStore)
-		states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
+		states, _, err := store.ProjectDecisionModel(ctx, projectors)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(states).To(HaveKey("enrollment"))
 		Expect(states["enrollment"]).To(Equal("enrolled"))
@@ -551,8 +543,7 @@ var _ = Describe("Batch Projection", func() {
 		projectors := []BatchProjector{projector}
 
 		// Test ProjectDecisionModel
-		channelStore := store.(ChannelEventStore)
-		states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
+		states, _, err := store.ProjectDecisionModel(ctx, projectors)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(states).To(HaveKey("enrollment"))
 		Expect(states["enrollment"]).To(Equal("not_enrolled")) // Should remain initial state
@@ -573,8 +564,7 @@ var _ = Describe("Batch Projection", func() {
 		projectors := []BatchProjector{projector}
 
 		// Test ProjectDecisionModel
-		channelStore := store.(ChannelEventStore)
-		_, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
+		_, _, err := store.ProjectDecisionModel(ctx, projectors)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("empty"))
 	})
@@ -592,8 +582,7 @@ var _ = Describe("Batch Projection", func() {
 		projectors := []BatchProjector{projector}
 
 		// Test ProjectDecisionModel
-		channelStore := store.(ChannelEventStore)
-		_, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
+		_, _, err := store.ProjectDecisionModel(ctx, projectors)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("nil"))
 	})
@@ -637,8 +626,7 @@ var _ = Describe("Batch Projection", func() {
 		projectors := []BatchProjector{projector1, projector2}
 
 		// Test ProjectDecisionModel
-		channelStore := store.(ChannelEventStore)
-		states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
+		states, _, err := store.ProjectDecisionModel(ctx, projectors)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(states).To(HaveKey("student_123"))
 		Expect(states).To(HaveKey("student_456"))
@@ -684,8 +672,7 @@ var _ = Describe("Batch Projection", func() {
 		projectors := []BatchProjector{projector}
 
 		// Test ProjectDecisionModel
-		channelStore := store.(ChannelEventStore)
-		states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
+		states, _, err := store.ProjectDecisionModel(ctx, projectors)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(states).To(HaveKey("enrollment"))
 		Expect(states["enrollment"]).To(Equal("enrolled"))

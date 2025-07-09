@@ -25,6 +25,7 @@ func init() {
 
 type Server struct {
 	store dcb.EventStore
+	pool  *pgxpool.Pool
 }
 
 func main() {
@@ -116,7 +117,7 @@ func main() {
 		log.Fatalf("Failed to create event store: %v", err)
 	}
 
-	server := &Server{store: store}
+	server := &Server{store: store, pool: pool}
 
 	// Setup routes with optimized handlers
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -318,71 +319,28 @@ func convertInputEvent(event Event) dcb.InputEvent {
 }
 
 func convertInputEvents(events interface{}) ([]dcb.InputEvent, error) {
-	// Handle the case where events is already unmarshaled as our custom types
-	switch v := events.(type) {
-	case Event:
-		return []dcb.InputEvent{convertInputEvent(v)}, nil
-	case Events:
-		result := make([]dcb.InputEvent, len(v))
-		for i, event := range v {
-			result[i] = convertInputEvent(event)
-		}
-		return result, nil
+	// If events is nil, return error
+	if events == nil {
+		return nil, fmt.Errorf("events is nil")
 	}
 
-	// Handle raw JSON unmarshaling
+	// If events is already a slice, use it
 	switch v := events.(type) {
-	case map[string]interface{}:
-		// Single event
-		eventType, ok := v["type"].(string)
-		if !ok {
-			return nil, fmt.Errorf("missing or invalid type field")
-		}
-
-		data, ok := v["data"].(string)
-		if !ok {
-			return nil, fmt.Errorf("missing or invalid data field")
-		}
-
-		var tags []string
-		if tagsRaw, ok := v["tags"].([]interface{}); ok {
-			tags = make([]string, len(tagsRaw))
-			for i, tag := range tagsRaw {
-				if tagStr, ok := tag.(string); ok {
-					tags[i] = tagStr
-				} else {
-					return nil, fmt.Errorf("invalid tag at index %d", i)
-				}
-			}
-		}
-
-		// Convert string slice to Tags
-		tagsSlice := make(Tags, len(tags))
-		for i, tag := range tags {
-			tagsSlice[i] = Tag(tag)
-		}
-
-		return []dcb.InputEvent{dcb.NewInputEvent(eventType, convertTags(tagsSlice), []byte(data))}, nil
-
 	case []interface{}:
-		// Array of events
 		result := make([]dcb.InputEvent, len(v))
 		for i, eventRaw := range v {
 			eventMap, ok := eventRaw.(map[string]interface{})
 			if !ok {
 				return nil, fmt.Errorf("invalid event at index %d", i)
 			}
-
 			eventType, ok := eventMap["type"].(string)
 			if !ok {
 				return nil, fmt.Errorf("missing or invalid type field at index %d", i)
 			}
-
 			data, ok := eventMap["data"].(string)
 			if !ok {
 				return nil, fmt.Errorf("missing or invalid data field at index %d", i)
 			}
-
 			var tags []string
 			if tagsRaw, ok := eventMap["tags"].([]interface{}); ok {
 				tags = make([]string, len(tagsRaw))
@@ -394,17 +352,39 @@ func convertInputEvents(events interface{}) ([]dcb.InputEvent, error) {
 					}
 				}
 			}
-
-			// Convert string slice to Tags
 			tagsSlice := make(Tags, len(tags))
 			for j, tag := range tags {
 				tagsSlice[j] = Tag(tag)
 			}
-
 			result[i] = dcb.NewInputEvent(eventType, convertTags(tagsSlice), []byte(data))
 		}
 		return result, nil
-
+	case map[string]interface{}:
+		// Single event, wrap in a slice
+		eventType, ok := v["type"].(string)
+		if !ok {
+			return nil, fmt.Errorf("missing or invalid type field")
+		}
+		data, ok := v["data"].(string)
+		if !ok {
+			return nil, fmt.Errorf("missing or invalid data field")
+		}
+		var tags []string
+		if tagsRaw, ok := v["tags"].([]interface{}); ok {
+			tags = make([]string, len(tagsRaw))
+			for i, tag := range tagsRaw {
+				if tagStr, ok := tag.(string); ok {
+					tags[i] = tagStr
+				} else {
+					return nil, fmt.Errorf("invalid tag at index %d", i)
+				}
+			}
+		}
+		tagsSlice := make(Tags, len(tags))
+		for i, tag := range tags {
+			tagsSlice[i] = Tag(tag)
+		}
+		return []dcb.InputEvent{dcb.NewInputEvent(eventType, convertTags(tagsSlice), []byte(data))}, nil
 	default:
 		return nil, fmt.Errorf("invalid events type: %T", events)
 	}
@@ -475,16 +455,31 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	inputEvents, err := convertInputEvents(req.Events)
+	// Unmarshal req.Events (json.RawMessage) into interface{}
+	var eventsAny interface{}
+	if err := json.Unmarshal(req.Events, &eventsAny); err != nil {
+		log.Printf("Failed to unmarshal events: %v", err)
+		http.Error(w, "Invalid events", http.StatusBadRequest)
+		return
+	}
+
+	inputEvents, err := convertInputEvents(eventsAny)
 	if err != nil {
+		log.Printf("convertInputEvents error: %v, events type: %T", err, eventsAny)
 		http.Error(w, "Invalid events", http.StatusBadRequest)
 		return
 	}
 	condition := convertAppendCondition(req.Condition)
 
-	// Determine append method based on headers
+	// Check if any events have lock: tags to determine if we should use advisory locks
+	useAdvisoryLocks := hasLockTags(inputEvents)
+
+	// Determine append method based on headers and lock tags
 	var appendErr error
-	if condition != nil {
+	if useAdvisoryLocks {
+		// Use advisory lock function when lock: tags are present
+		appendErr = s.appendWithAdvisoryLocks(r.Context(), inputEvents, condition)
+	} else if condition != nil {
 		// Check for isolation level header for conditional appends
 		isoHeader := r.Header.Get("X-Append-If-Isolation")
 		if strings.ToLower(isoHeader) == "serializable" {
@@ -516,4 +511,74 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+// hasLockTags checks if any events have tags starting with "lock:"
+func hasLockTags(events []dcb.InputEvent) bool {
+	for _, event := range events {
+		for _, tag := range event.GetTags() {
+			if strings.HasPrefix(tag.GetKey(), "lock:") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// appendWithAdvisoryLocks calls the PostgreSQL advisory lock function directly
+func (s *Server) appendWithAdvisoryLocks(ctx context.Context, events []dcb.InputEvent, condition dcb.AppendCondition) error {
+	// Prepare data for the function
+	types := make([]string, len(events))
+	tags := make([]string, len(events))
+	data := make([][]byte, len(events))
+
+	for i, event := range events {
+		types[i] = event.GetType()
+		tags[i] = encodeTagsArrayLiteral(event.GetTags())
+		data[i] = event.GetData()
+	}
+
+	// Convert condition to JSON
+	var conditionJSON []byte
+	var err error
+	if condition != nil {
+		conditionJSON, err = json.Marshal(condition)
+		if err != nil {
+			return fmt.Errorf("failed to marshal condition: %w", err)
+		}
+	}
+
+	// Call the advisory lock function directly
+	_, err = s.pool.Exec(ctx, `
+		SELECT append_events_with_advisory_locks($1, $2, $3, $4)
+	`, types, tags, data, conditionJSON)
+
+	if err != nil {
+		// Check if it's a condition violation error
+		if strings.Contains(err.Error(), "append condition violated") {
+			return &dcb.ConcurrencyError{
+				EventStoreError: dcb.EventStoreError{
+					Op:  "append",
+					Err: fmt.Errorf("append condition violated: %w", err),
+				},
+			}
+		}
+
+		return fmt.Errorf("failed to append events with advisory locks: %w", err)
+	}
+
+	return nil
+}
+
+// encodeTagsArrayLiteral converts tags to PostgreSQL array literal format
+func encodeTagsArrayLiteral(tags []dcb.Tag) string {
+	result := "{"
+	for i, tag := range tags {
+		if i > 0 {
+			result += ","
+		}
+		result += "\"" + tag.GetKey() + ":" + tag.GetValue() + "\""
+	}
+	result += "}"
+	return result
 }

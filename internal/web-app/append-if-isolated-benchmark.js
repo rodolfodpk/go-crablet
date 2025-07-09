@@ -238,7 +238,7 @@ export default function () {
     sleep(sleepTime);
 }
 
-// Setup function to ensure database is ready
+// Setup function to validate basic functionality and appendIfIsolated conditions before running the benchmark
 export function setup() {
     const params = {
         headers: {
@@ -247,23 +247,97 @@ export function setup() {
         timeout: '10s',
     };
 
-    // Test health endpoint
-    const healthRes = http.get(`${BASE_URL}/health`, params);
-    check(healthRes, {
-        'health check status is 200': (r) => r.status === 200,
-    });
+    console.log('🧪 Validating basic functionality and appendIfIsolated conditions for appendIfIsolated benchmark...');
 
+    // Test 1: Health endpoint
+    const healthRes = http.get(`${BASE_URL}/health`, params);
     if (healthRes.status !== 200) {
-        throw new Error('Web app is not ready');
+        throw new Error(`Health check failed: status ${healthRes.status}`);
     }
 
-    // Clean up database before benchmark
-    const cleanupRes = http.post(`${BASE_URL}/cleanup`, null, params);
-    check(cleanupRes, {
-        'cleanup status is 200': (r) => r.status === 200,
-    });
+    // Test 2: Simple append
+    const testEvent = {
+        type: 'AppendIfIsolatedBenchmarkTestEvent',
+        data: JSON.stringify({ message: 'appendIfIsolated benchmark test' }),
+        tags: ['test:appendifisolated', 'benchmark:validation']
+    };
+    const appendRes = http.post(`${BASE_URL}/append`, JSON.stringify({ events: testEvent }), params);
+    
+    if (appendRes.status !== 200) {
+        throw new Error(`Append test failed: status ${appendRes.status} body: ${appendRes.body}`);
+    }
 
-    console.log('Setup completed - database cleaned and ready for appendIfIsolated benchmark');
+    // Test 3: AppendIfIsolated with condition that should succeed
+    const appendIfIsolatedEvent = {
+        type: 'AppendIfIsolatedBenchmarkTestEvent2',
+        data: JSON.stringify({ message: 'appendIfIsolated condition test' }),
+        tags: ['test:appendifisolated', 'condition:success']
+    };
+    const appendIfIsolatedPayload = {
+        events: appendIfIsolatedEvent,
+        condition: {
+            failIfEventsMatch: {
+                items: [{ types: ['NonExistentEvent'], tags: ['test:appendifisolated'] }]
+            }
+        }
+    };
+    const isolatedParams = {
+        ...params,
+        headers: {
+            ...params.headers,
+            'X-Append-If-Isolation': 'SERIALIZABLE',
+        },
+    };
+    const appendIfIsolatedRes = http.post(`${BASE_URL}/append`, JSON.stringify(appendIfIsolatedPayload), isolatedParams);
+    
+    if (appendIfIsolatedRes.status !== 200) {
+        throw new Error(`AppendIfIsolated test failed: status ${appendIfIsolatedRes.status} body: ${appendIfIsolatedRes.body}`);
+    }
+
+    // Test 4: AppendIfIsolated with condition that should fail
+    const appendIfIsolatedFailEvent = {
+        type: 'AppendIfIsolatedBenchmarkTestEvent3',
+        data: JSON.stringify({ message: 'appendIfIsolated condition fail test' }),
+        tags: ['test:appendifisolated', 'condition:fail']
+    };
+    const appendIfIsolatedFailPayload = {
+        events: appendIfIsolatedFailEvent,
+        condition: {
+            failIfEventsMatch: {
+                items: [{ types: ['AppendIfIsolatedBenchmarkTestEvent'], tags: ['test:appendifisolated'] }]
+            }
+        }
+    };
+    const appendIfIsolatedFailRes = http.post(`${BASE_URL}/append`, JSON.stringify(appendIfIsolatedFailPayload), isolatedParams);
+    
+    if (appendIfIsolatedFailRes.status !== 200) {
+        throw new Error(`AppendIfIsolated fail test failed: status ${appendIfIsolatedFailRes.status} body: ${appendIfIsolatedFailRes.body}`);
+    }
+
+    // Test 5: Read events back
+    const readPayload = {
+        query: {
+            items: [{ types: ['AppendIfIsolatedBenchmarkTestEvent', 'AppendIfIsolatedBenchmarkTestEvent2'], tags: ['test:appendifisolated'] }]
+        }
+    };
+    const readRes = http.post(`${BASE_URL}/read`, JSON.stringify(readPayload), params);
+    
+    if (readRes.status !== 200) {
+        throw new Error(`Read test failed: status ${readRes.status} body: ${readRes.body}`);
+    }
+
+    const readBody = JSON.parse(readRes.body);
+    if (!readBody || !('numberOfMatchingEvents' in readBody) || readBody.numberOfMatchingEvents < 2) {
+        throw new Error(`Read test failed: did not return expected events. Body: ${readRes.body}`);
+    }
+
+    // Test 6: Clean up database before benchmark
+    const cleanupRes = http.post(`${BASE_URL}/cleanup`, null, params);
+    if (cleanupRes.status !== 200) {
+        throw new Error(`Cleanup failed: status ${cleanupRes.status}`);
+    }
+
+    console.log('✅ Basic functionality and appendIfIsolated conditions validated - proceeding with appendIfIsolated benchmark');
 }
 
 // Teardown function

@@ -91,7 +91,7 @@ func channelBasedExample() {
     store, _ := dcb.NewEventStore(ctx, pool)
     
     // Get channel-based store
-    channelStore := store.(dcb.ChannelEventStore)
+    channelStore := store.(dcb.EventStore)
 
     courseID := "c1"
     studentID := "s1"
@@ -155,7 +155,7 @@ func channelStreamingExample() {
     store, _ := dcb.NewEventStore(ctx, pool)
     
     // Get channel-based store
-    channelStore := store.(dcb.ChannelEventStore)
+    channelStore := store.(dcb.EventStore)
 
     // Create query for course events
     query := dcb.NewQueryFromItems(

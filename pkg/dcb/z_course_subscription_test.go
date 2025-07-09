@@ -258,7 +258,7 @@ func StudentEnrollmentStateProjector(studentID, courseID string) StateProjector 
 }
 
 // Command handlers - following the command pattern from examples
-func handleCreateCourse(ctx context.Context, store ChannelEventStore, cmd CreateCourseCommand) error {
+func handleCreateCourse(ctx context.Context, store EventStore, cmd CreateCourseCommand) error {
 	projectors := []BatchProjector{
 		{ID: "courseExists", StateProjector: CourseExistsProjector(cmd.CourseID)},
 	}
@@ -282,7 +282,7 @@ func handleCreateCourse(ctx context.Context, store ChannelEventStore, cmd Create
 	return nil
 }
 
-func handleRegisterStudent(ctx context.Context, store ChannelEventStore, cmd RegisterStudentCommand) error {
+func handleRegisterStudent(ctx context.Context, store EventStore, cmd RegisterStudentCommand) error {
 	projectors := []BatchProjector{
 		{ID: "studentExists", StateProjector: StudentExistsProjector(cmd.StudentID)},
 	}
@@ -306,7 +306,7 @@ func handleRegisterStudent(ctx context.Context, store ChannelEventStore, cmd Reg
 	return nil
 }
 
-func handleEnrollStudent(ctx context.Context, store ChannelEventStore, cmd EnrollStudentCommand) error {
+func handleEnrollStudent(ctx context.Context, store EventStore, cmd EnrollStudentCommand) error {
 	projectors := []BatchProjector{
 		{ID: "courseExists", StateProjector: CourseExistsProjector(cmd.CourseID)},
 		{ID: "studentExists", StateProjector: StudentExistsProjector(cmd.StudentID)},
@@ -363,7 +363,7 @@ func handleEnrollStudent(ctx context.Context, store ChannelEventStore, cmd Enrol
 	return nil
 }
 
-func handleDropStudent(ctx context.Context, store ChannelEventStore, cmd DropStudentCommand) error {
+func handleDropStudent(ctx context.Context, store EventStore, cmd DropStudentCommand) error {
 	projectors := []BatchProjector{
 		{ID: "studentEnrollmentState", StateProjector: StudentEnrollmentStateProjector(cmd.StudentID, cmd.CourseID)},
 	}
@@ -394,7 +394,7 @@ func handleDropStudent(ctx context.Context, store ChannelEventStore, cmd DropStu
 	return nil
 }
 
-func handleChangeCourseCapacity(ctx context.Context, store ChannelEventStore, cmd ChangeCourseCapacityCommand) error {
+func handleChangeCourseCapacity(ctx context.Context, store EventStore, cmd ChangeCourseCapacityCommand) error {
 	courseID := cmd.CourseID
 	newCapacity := cmd.NewCapacity
 
@@ -435,14 +435,14 @@ func handleChangeCourseCapacity(ctx context.Context, store ChannelEventStore, cm
 var _ = Describe("Course Subscription Domain", func() {
 	var (
 		store        EventStore
-		channelStore ChannelEventStore
+		channelStore EventStore
 		ctx          context.Context
 	)
 
 	BeforeEach(func() {
 		// Use shared PostgreSQL container and truncate events between tests
 		store = NewEventStoreFromPool(pool)
-		channelStore = store.(ChannelEventStore)
+		channelStore = store.(EventStore)
 
 		// Create context with timeout for each test
 		ctx, _ = context.WithTimeout(context.Background(), 30*time.Second)
@@ -461,7 +461,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Instructor: "Dr. Smith",
 				Capacity:   25,
 			}
-			channelStore := store.(ChannelEventStore)
+			channelStore := store.(EventStore)
 			err := handleCreateCourse(ctx, channelStore, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -475,7 +475,7 @@ var _ = Describe("Course Subscription Domain", func() {
 
 		It("should use ReadStreamChannel for large datasets", func() {
 			// Create multiple courses using command pattern
-			channelStore := store.(ChannelEventStore)
+			channelStore := store.(EventStore)
 			for i := 1; i <= 5; i++ {
 				createCourseCmd := CreateCourseCommand{
 					CourseID:   fmt.Sprintf("course-%d", i),
@@ -509,7 +509,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Capacity:   30,
 			}
 
-			channelStore := store.(ChannelEventStore)
+			channelStore := store.(EventStore)
 			err := handleCreateCourse(ctx, channelStore, cmd)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -528,7 +528,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Capacity:   30,
 			}
 
-			channelStore := store.(ChannelEventStore)
+			channelStore := store.(EventStore)
 			// Create course first time
 			err := handleCreateCourse(ctx, channelStore, cmd)
 			Expect(err).NotTo(HaveOccurred())
@@ -546,7 +546,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Email:     "alice@example.com",
 			}
 
-			channelStore := store.(ChannelEventStore)
+			channelStore := store.(EventStore)
 			err := handleRegisterStudent(ctx, channelStore, cmd)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -564,7 +564,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Email:     "alice@example.com",
 			}
 
-			channelStore := store.(ChannelEventStore)
+			channelStore := store.(EventStore)
 			// Register student first time
 			err := handleRegisterStudent(ctx, channelStore, cmd)
 			Expect(err).NotTo(HaveOccurred())
@@ -583,7 +583,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Instructor: "Dr. Johnson",
 				Capacity:   30,
 			}
-			channelStore := store.(ChannelEventStore)
+			channelStore := store.(EventStore)
 			err := handleCreateCourse(ctx, channelStore, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -618,7 +618,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Name:      "Alice Johnson",
 				Email:     "alice@example.com",
 			}
-			channelStore := store.(ChannelEventStore)
+			channelStore := store.(EventStore)
 			err := handleRegisterStudent(ctx, channelStore, registerStudentCmd)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -640,7 +640,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Instructor: "Dr. Johnson",
 				Capacity:   30,
 			}
-			channelStore := store.(ChannelEventStore)
+			channelStore := store.(EventStore)
 			err := handleCreateCourse(ctx, channelStore, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -662,7 +662,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Instructor: "Dr. Johnson",
 				Capacity:   30,
 			}
-			channelStore := store.(ChannelEventStore)
+			channelStore := store.(EventStore)
 			err := handleCreateCourse(ctx, channelStore, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 

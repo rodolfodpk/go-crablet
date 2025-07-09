@@ -46,8 +46,8 @@ func main() {
 		log.Fatalf("Failed to create event store: %v", err)
 	}
 
-	// Cast to ChannelEventStore for extended functionality
-	channelStore := store.(dcb.ChannelEventStore)
+	// Cast to EventStore for extended functionality
+	channelStore := store.(dcb.EventStore)
 
 	fmt.Println("=== Batch Processing Example ===")
 	fmt.Println("This example demonstrates batch processing with DCB-inspired event sourcing.")
@@ -111,7 +111,7 @@ func main() {
 
 // Command handlers with their own business rules
 
-func handleCreateUser(ctx context.Context, store dcb.ChannelEventStore, cmd CreateUserCommand) error {
+func handleCreateUser(ctx context.Context, store dcb.EventStore, cmd CreateUserCommand) error {
 	// Command-specific projectors
 	projectors := []dcb.BatchProjector{
 		{ID: "userExists", StateProjector: dcb.StateProjector{
@@ -172,7 +172,7 @@ func handleCreateUser(ctx context.Context, store dcb.ChannelEventStore, cmd Crea
 	return nil
 }
 
-func handleCreateOrder(ctx context.Context, store dcb.ChannelEventStore, cmd CreateOrderCommand) error {
+func handleCreateOrder(ctx context.Context, store dcb.EventStore, cmd CreateOrderCommand) error {
 	// Command-specific projectors
 	projectors := []dcb.BatchProjector{
 		{ID: "orderExists", StateProjector: dcb.StateProjector{
@@ -240,7 +240,7 @@ func handleCreateOrder(ctx context.Context, store dcb.ChannelEventStore, cmd Cre
 	return nil
 }
 
-func handleBatchCreateUsers(ctx context.Context, store dcb.ChannelEventStore, commands []CreateUserCommand) error {
+func handleBatchCreateUsers(ctx context.Context, store dcb.EventStore, commands []CreateUserCommand) error {
 	// Batch-specific projectors to check all users and emails at once
 	projectors := []dcb.BatchProjector{}
 
@@ -314,7 +314,7 @@ func handleBatchCreateUsers(ctx context.Context, store dcb.ChannelEventStore, co
 	return nil
 }
 
-func handleBatchCreateOrders(ctx context.Context, store dcb.ChannelEventStore, commands []CreateOrderCommand) error {
+func handleBatchCreateOrders(ctx context.Context, store dcb.EventStore, commands []CreateOrderCommand) error {
 	// Batch-specific projectors to check all orders and users at once
 	projectors := []dcb.BatchProjector{}
 

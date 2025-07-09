@@ -33,8 +33,8 @@ func TestBatchExample(t *testing.T) {
 	store, err := dcb.NewEventStore(ctx, pool)
 	require.NoError(t, err)
 
-	// Cast to ChannelEventStore for extended functionality
-	channelStore := store.(dcb.ChannelEventStore)
+	// Cast to EventStore for extended functionality
+	channelStore := store.(dcb.EventStore)
 
 	// Test Command 1: Create User
 	t.Run("Create User", func(t *testing.T) {

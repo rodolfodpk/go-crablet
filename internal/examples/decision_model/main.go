@@ -40,8 +40,8 @@ func main() {
 		log.Fatalf("Failed to create event store: %v", err)
 	}
 
-	// Cast to ChannelEventStore for extended functionality
-	channelStore := store.(dcb.ChannelEventStore)
+	// Cast to EventStore for extended functionality
+	channelStore := store.(dcb.EventStore)
 
 	runID := fmt.Sprintf("run_id_%d", rand.Int63())
 	accountID := "acc_decision_" + runID
@@ -182,7 +182,7 @@ func main() {
 
 // Command handlers with their own business rules
 
-func handleOpenAccount(ctx context.Context, store dcb.ChannelEventStore, cmd OpenAccountCommand) error {
+func handleOpenAccount(ctx context.Context, store dcb.EventStore, cmd OpenAccountCommand) error {
 	projectors := []dcb.BatchProjector{
 		{ID: "accountExists", StateProjector: dcb.StateProjector{
 			Query: dcb.NewQuery(
@@ -215,7 +215,7 @@ func handleOpenAccount(ctx context.Context, store dcb.ChannelEventStore, cmd Ope
 	return nil
 }
 
-func handleProcessTransaction(ctx context.Context, store dcb.ChannelEventStore, cmd ProcessTransactionCommand) error {
+func handleProcessTransaction(ctx context.Context, store dcb.EventStore, cmd ProcessTransactionCommand) error {
 	accountProjector := dcb.StateProjector{
 		Query: dcb.NewQuery(
 			dcb.NewTags("account_id", cmd.AccountID),
@@ -260,7 +260,7 @@ func handleProcessTransaction(ctx context.Context, store dcb.ChannelEventStore, 
 	return nil
 }
 
-func handleProcessTransactionWithCondition(ctx context.Context, store dcb.ChannelEventStore, cmd ProcessTransactionCommand, condition dcb.AppendCondition) error {
+func handleProcessTransactionWithCondition(ctx context.Context, store dcb.EventStore, cmd ProcessTransactionCommand, condition dcb.AppendCondition) error {
 	accountProjector := dcb.StateProjector{
 		Query: dcb.NewQuery(
 			dcb.NewTags("account_id", cmd.AccountID),

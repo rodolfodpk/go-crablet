@@ -57,12 +57,12 @@ func main() {
 	fmt.Println("\n1. Core EventStore - Read into memory:")
 	demonstrateCoreRead(ctx, store)
 
-	// 2. ChannelEventStore - Channel-based streaming
-	fmt.Println("\n2. ChannelEventStore - Channel-based streaming:")
+	// 2. EventStore - Channel-based streaming
+	fmt.Println("\n2. EventStore - Channel-based streaming:")
 	demonstrateChannelStreaming(ctx, store)
 
-	// 3. ChannelEventStore - Channel-based projection
-	fmt.Println("\n3. ChannelEventStore - Channel-based projection:")
+	// 3. EventStore - Channel-based projection
+	fmt.Println("\n3. EventStore - Channel-based projection:")
 	demonstrateChannelProjection(ctx, store)
 }
 
@@ -85,10 +85,10 @@ func demonstrateCoreRead(ctx context.Context, store dcb.EventStore) {
 
 // demonstrateChannelStreaming shows channel-based event streaming
 func demonstrateChannelStreaming(ctx context.Context, store dcb.EventStore) {
-	// Check if store implements ChannelEventStore
-	channelStore, ok := store.(dcb.ChannelEventStore)
+	// Check if store implements EventStore
+	channelStore, ok := store.(dcb.EventStore)
 	if !ok {
-		fmt.Println("   - Store does not implement ChannelEventStore interface")
+		fmt.Println("   - Store does not implement EventStore interface")
 		return
 	}
 
@@ -112,10 +112,10 @@ func demonstrateChannelStreaming(ctx context.Context, store dcb.EventStore) {
 
 // demonstrateChannelProjection shows channel-based state projection
 func demonstrateChannelProjection(ctx context.Context, store dcb.EventStore) {
-	// Check if store implements ChannelEventStore
-	channelStore, ok := store.(dcb.ChannelEventStore)
+	// Check if store implements EventStore
+	channelStore, ok := store.(dcb.EventStore)
 	if !ok {
-		fmt.Println("   - Store does not implement ChannelEventStore interface")
+		fmt.Println("   - Store does not implement EventStore interface")
 		return
 	}
 

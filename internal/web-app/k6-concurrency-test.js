@@ -246,44 +246,46 @@ export default function () {
   sleep(0.05);
 }
 
-// Setup function to initialize test data
+// Setup function to validate basic functionality before running the test
 export function setup() {
-  const params = {
+  const baseParams = {
     headers: {
       'Content-Type': 'application/json',
     },
+    timeout: '10s',
   };
 
-  // Add some initial events for testing with static tags (no __ITER)
-  const initialEvents = [
-    {
-      type: 'CoursePlanned',
-      data: JSON.stringify({ message: 'setup event' }),
-      tags: ['course:setup', 'user:setup'],
-    },
-    {
-      type: 'StudentEnrolled',
-      data: JSON.stringify({ message: 'setup event' }),
-      tags: ['course:setup', 'student:setup'],
-    },
-    {
-      type: 'AssignmentCreated',
-      data: JSON.stringify({ message: 'setup event' }),
-      tags: ['course:setup', 'assignment:setup'],
-    },
-  ];
+  console.log('🧪 Validating basic functionality...');
 
-  const setupPayload = {
-    events: initialEvents,
+  // Test 1: Simple append
+  const setupEvent = {
+    type: 'SetupTestEvent',
+    data: JSON.stringify({ message: 'setup check' }),
+    tags: ['check:test', 'multi:test']
   };
-
-  const res = http.post(
-    `${BASE_URL}/append`,
-    JSON.stringify(setupPayload),
-    params
-  );
-
-  if (res.status !== 200) {
-    // Setup failed silently
+  const appendPayload = { events: setupEvent };
+  const appendRes = http.post(`${BASE_URL}/append`, JSON.stringify(appendPayload), baseParams);
+  
+  if (appendRes.status !== 200) {
+    throw new Error(`Setup failed: /append status ${appendRes.status} body: ${appendRes.body}`);
   }
+
+  // Test 2: Read the event back
+  const readPayload = {
+    query: {
+      items: [{ types: ['SetupTestEvent'], tags: ['check:test'] }]
+    }
+  };
+  const readRes = http.post(`${BASE_URL}/read`, JSON.stringify(readPayload), baseParams);
+  
+  if (readRes.status !== 200) {
+    throw new Error(`Setup failed: /read status ${readRes.status} body: ${readRes.body}`);
+  }
+
+  const readBody = JSON.parse(readRes.body);
+  if (!readBody || !('numberOfMatchingEvents' in readBody) || readBody.numberOfMatchingEvents < 1) {
+    throw new Error(`Setup failed: /read did not return the event. Body: ${readRes.body}`);
+  }
+
+  console.log('✅ Basic functionality validated - proceeding with concurrency test');
 } 

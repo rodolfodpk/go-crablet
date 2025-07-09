@@ -79,8 +79,8 @@ func main() {
 		log.Fatalf("Failed to create event store: %v", err)
 	}
 
-	// Check if ChannelEventStore is available
-	channelStore, hasChannel := store.(dcb.ChannelEventStore)
+	// Check if EventStore is available
+	channelStore, hasChannel := store.(dcb.EventStore)
 
 	fmt.Println("=== DCB Performance Benchmarks ===")
 	fmt.Printf("Database: localhost:5432/dcb_app\n")
@@ -126,7 +126,7 @@ func runReadBenchmarks(ctx context.Context, store dcb.EventStore) {
 	fmt.Println()
 }
 
-func runStreamBenchmarks(ctx context.Context, store dcb.EventStore, channelStore dcb.ChannelEventStore, hasChannel bool) {
+func runStreamBenchmarks(ctx context.Context, store dcb.EventStore, channelStore dcb.EventStore, hasChannel bool) {
 	fmt.Println("--- Streaming Benchmarks ---")
 
 	// Iterator vs Channel comparison
@@ -140,7 +140,7 @@ func runStreamBenchmarks(ctx context.Context, store dcb.EventStore, channelStore
 	fmt.Println()
 }
 
-func runProjectionBenchmarks(ctx context.Context, store dcb.EventStore, channelStore dcb.ChannelEventStore, hasChannel bool) {
+func runProjectionBenchmarks(ctx context.Context, store dcb.EventStore, channelStore dcb.EventStore, hasChannel bool) {
 	fmt.Println("--- Projection Benchmarks ---")
 
 	// Single projector
@@ -371,7 +371,7 @@ func benchmarkComplexQueries(ctx context.Context, store dcb.EventStore) {
 	}
 }
 
-func benchmarkIteratorVsChannel(ctx context.Context, store dcb.EventStore, channelStore dcb.ChannelEventStore) {
+func benchmarkIteratorVsChannel(ctx context.Context, store dcb.EventStore, channelStore dcb.EventStore) {
 	fmt.Println("Iterator vs Channel:")
 
 	// DCB-focused query: specific student's enrollments instead of all enrollments
@@ -395,7 +395,7 @@ func benchmarkIteratorVsChannel(ctx context.Context, store dcb.EventStore, chann
 	}
 }
 
-func benchmarkMemoryUsage(ctx context.Context, store dcb.EventStore, channelStore dcb.ChannelEventStore, hasChannel bool) {
+func benchmarkMemoryUsage(ctx context.Context, store dcb.EventStore, channelStore dcb.EventStore, hasChannel bool) {
 	fmt.Println("Memory Usage Comparison:")
 
 	// This would require runtime.ReadMemStats() for actual memory measurement
@@ -403,7 +403,7 @@ func benchmarkMemoryUsage(ctx context.Context, store dcb.EventStore, channelStor
 	fmt.Println("  (Memory measurement requires runtime.ReadMemStats())")
 }
 
-func benchmarkSingleProjector(ctx context.Context, store dcb.EventStore, channelStore dcb.ChannelEventStore) {
+func benchmarkSingleProjector(ctx context.Context, store dcb.EventStore, channelStore dcb.EventStore) {
 	fmt.Println("Single Projector:")
 
 	// DCB-focused projector: count courses in specific category instead of all courses
@@ -429,7 +429,7 @@ func benchmarkSingleProjector(ctx context.Context, store dcb.EventStore, channel
 	}
 }
 
-func benchmarkMultipleProjectors(ctx context.Context, store dcb.EventStore, channelStore dcb.ChannelEventStore) {
+func benchmarkMultipleProjectors(ctx context.Context, store dcb.EventStore, channelStore dcb.EventStore) {
 	fmt.Println("Multiple Projectors:")
 
 	// DCB-focused projectors: specific targeted queries instead of full scans
@@ -480,7 +480,7 @@ func benchmarkMultipleProjectors(ctx context.Context, store dcb.EventStore, chan
 	}
 }
 
-func benchmarkChannelProjection(ctx context.Context, channelStore dcb.ChannelEventStore) {
+func benchmarkChannelProjection(ctx context.Context, channelStore dcb.EventStore) {
 	fmt.Println("Channel Projection:")
 
 	// DCB-focused projector: specific category instead of all courses

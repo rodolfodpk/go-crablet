@@ -24,8 +24,8 @@ func TestDecisionModelExample(t *testing.T) {
 	store, err := dcb.NewEventStore(ctx, pool)
 	require.NoError(t, err)
 
-	// Cast to ChannelEventStore for extended functionality
-	channelStore := store.(dcb.ChannelEventStore)
+	// Cast to EventStore for extended functionality
+	channelStore := store.(dcb.EventStore)
 
 	// Test Command 1: Open Account
 	t.Run("Open Account", func(t *testing.T) {

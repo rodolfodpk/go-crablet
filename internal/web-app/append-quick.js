@@ -118,17 +118,48 @@ export function setup() {
         timeout: '5s',
     };
 
-    // Health check
+    console.log('🧪 Validating basic functionality for append quick test...');
+
+    // Test 1: Health endpoint
     const healthRes = http.get(`${BASE_URL}/health`, params);
-    check(healthRes, {
-        'health check status is 200': (r) => r.status === 200,
-    });
+    if (healthRes.status !== 200) {
+        throw new Error(`Health check failed: status ${healthRes.status}`);
+    }
 
-    // Clean database
+    // Test 2: Simple append
+    const testEvent = {
+        type: 'AppendQuickTestEvent',
+        data: JSON.stringify({ message: 'append quick test validation' }),
+        tags: ['test:appendquick', 'validation:test']
+    };
+    const appendRes = http.post(`${BASE_URL}/append`, JSON.stringify({ events: testEvent }), params);
+    
+    if (appendRes.status !== 200) {
+        throw new Error(`Append test failed: status ${appendRes.status} body: ${appendRes.body}`);
+    }
+
+    // Test 3: Read the event back
+    const readPayload = {
+        query: {
+            items: [{ types: ['AppendQuickTestEvent'], tags: ['test:appendquick'] }]
+        }
+    };
+    const readRes = http.post(`${BASE_URL}/read`, JSON.stringify(readPayload), params);
+    
+    if (readRes.status !== 200) {
+        throw new Error(`Read test failed: status ${readRes.status} body: ${readRes.body}`);
+    }
+
+    const readBody = JSON.parse(readRes.body);
+    if (!readBody || !('numberOfMatchingEvents' in readBody) || readBody.numberOfMatchingEvents < 1) {
+        throw new Error(`Read test failed: did not return the event. Body: ${readRes.body}`);
+    }
+
+    // Test 4: Clean database
     const cleanupRes = http.post(`${BASE_URL}/cleanup`, null, params);
-    check(cleanupRes, {
-        'cleanup status is 200': (r) => r.status === 200,
-    });
+    if (cleanupRes.status !== 200) {
+        throw new Error(`Cleanup failed: status ${cleanupRes.status}`);
+    }
 
-    console.log('Quick append benchmark setup completed');
+    console.log('✅ Basic functionality validated - proceeding with append quick test');
 } 
