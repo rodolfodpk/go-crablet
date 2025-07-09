@@ -61,18 +61,8 @@ paths:
             schema:
               $ref: '#/components/schemas/AppendRequest'
         required: true
-      parameters:
-        - in: header
-          name: X-Append-If-Isolation
-          schema:
-            type: string
-            enum: [REPEATABLE READ, SERIALIZABLE]
-          required: false
-          description: |
-            Controls the isolation level for conditional appends (when a condition is present).
-            - If omitted or set to REPEATABLE READ, uses repeatable read isolation (default).
-            - If set to SERIALIZABLE, uses serializable isolation (strongest consistency).
-            Has no effect if no condition is provided.
+      # Note: Isolation level is configured at the EventStore level (default: READ_COMMITTED)
+      # and cannot be changed per request. The isolation level affects all append operations.
       responses:
         '200':
           description: Successfully appended events

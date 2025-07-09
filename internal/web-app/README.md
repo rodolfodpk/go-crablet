@@ -18,7 +18,7 @@ curl http://localhost:8080/health
 
 ## 📊 Performance Results
 
-See [BENCHMARK.md](BENCHMARK.md) for the latest concise benchmark results and performance insights from all major tests and isolation levels.
+See [k6/README.md](k6/README.md) for comprehensive test organization and [k6/benchmarks/](k6/benchmarks/) for detailed benchmark results.
 
 ### Recent Benchmark Results
 - **Zero HTTP Failures**: All tests achieve 100% HTTP success rate
@@ -39,20 +39,29 @@ make start-db           # Start PostgreSQL
 make stop-db            # Stop PostgreSQL
 make cleanup-db         # Clean database
 
-# Benchmark Tests
-make quick-test         # Quick test (10s)
-make full              # Full scenario test (5m)
-make concurrency-test  # Concurrency test (4m10s)
+# Quick Tests (30s-2m)
+make test-quick        # Run all quick validation tests
+make quick-basic       # Basic functionality test
+make quick-append      # Quick append validation
+make quick-append-if   # Quick conditional append test
+make quick-append-isolated # Quick isolated append test
 
-# Append Benchmarks
-make append-quick      # Quick append benchmark (30s)
-make append-full       # Full append benchmark (6m)
+# Benchmarks (3-5m)
+make test-benchmarks   # Run all benchmark tests
+make benchmark-append  # Full append performance benchmark
+make benchmark-append-if # Conditional append benchmark
+make benchmark-append-isolated # Serializable isolation benchmark
+make benchmark-isolation # Compare all isolation levels
 
-# Isolation Level Benchmarks
-make append-if-quick              # Quick AppendIf benchmark (30s)
-make append-if-full               # Full AppendIf benchmark (6m)
-make append-if-isolated-quick     # Quick Serializable benchmark (30s)
-make append-if-isolated-full      # Full Serializable benchmark (6m)
+# Functional Tests (2-4m)
+make test-functional   # Run all functional tests
+make test-concurrency  # Basic concurrency testing
+make test-advisory-locks # Advisory locks concurrency
+
+# Load Tests (5-10m)
+make test-load         # Run all load tests
+make load-full         # Complete system load test
+make load-full-scan    # Full scan performance under load
 ```
 
 ## 🔌 API Endpoints
@@ -136,11 +145,11 @@ Clean database (removes all events).
 
 ## 📈 Benchmark Details
 
-### Standard Benchmarks
-- **Quick Test**: 10 seconds, 1 VU - Basic functionality validation
-- **Full Benchmark**: 5 minutes, up to 50 VUs - Sustained load testing
-- **Concurrency Test**: 4 minutes - Optimistic locking validation
-- **Full-Scan Test**: 4.5 minutes - Resource-intensive queries
+### Test Categories
+- **Quick Tests** (30s-2m): Fast validation and smoke tests
+- **Benchmarks** (3-5m): Comprehensive performance measurement
+- **Functional Tests** (2-4m): Functional validation and concurrency testing
+- **Load Tests** (5-10m): High-load system testing
 
 ### Isolation Level Benchmarks
 - **Append Benchmarks**: Test ReadCommitted isolation performance
@@ -184,11 +193,17 @@ go run main.go
 # Install k6
 brew install k6  # macOS
 
-# Run benchmarks
-make quick-test
-make full
-make append-quick
-make append-if-quick
+# Run tests by category
+make test-quick        # Quick validation tests
+make test-benchmarks   # Performance benchmarks
+make test-functional   # Functional tests
+make test-load         # Load tests
+
+# Or run individual tests
+make quick-basic       # Basic functionality
+make benchmark-append  # Append performance
+make test-concurrency  # Concurrency testing
+make load-full         # Full system load
 ```
 
 ## 📚 Documentation

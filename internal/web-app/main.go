@@ -24,8 +24,10 @@ func init() {
 }
 
 type Server struct {
-	store dcb.EventStore
-	pool  *pgxpool.Pool
+	storeReadCommitted  dcb.EventStore
+	storeRepeatableRead dcb.EventStore
+	storeSerializable   dcb.EventStore
+	pool                *pgxpool.Pool
 }
 
 func main() {
@@ -111,15 +113,42 @@ func main() {
 	}
 	defer pool.Close()
 
-	// Create event store with default config
-	store, err := dcb.NewEventStore(ctx, pool)
+	// Create event stores for each isolation level
+	storeReadCommitted, err := dcb.NewEventStoreWithConfig(ctx, pool, dcb.EventStoreConfig{
+		MaxBatchSize:           1000,
+		LockTimeout:            5000,
+		StreamBuffer:           1000,
+		DefaultAppendIsolation: dcb.IsolationLevelReadCommitted,
+	})
 	if err != nil {
-		log.Fatalf("Failed to create event store: %v", err)
+		log.Fatalf("Failed to create ReadCommitted store: %v", err)
+	}
+
+	storeRepeatableRead, err := dcb.NewEventStoreWithConfig(ctx, pool, dcb.EventStoreConfig{
+		MaxBatchSize:           1000,
+		LockTimeout:            5000,
+		StreamBuffer:           1000,
+		DefaultAppendIsolation: dcb.IsolationLevelRepeatableRead,
+	})
+	if err != nil {
+		log.Fatalf("Failed to create RepeatableRead store: %v", err)
+	}
+
+	storeSerializable, err := dcb.NewEventStoreWithConfig(ctx, pool, dcb.EventStoreConfig{
+		MaxBatchSize:           1000,
+		LockTimeout:            5000,
+		StreamBuffer:           1000,
+		DefaultAppendIsolation: dcb.IsolationLevelSerializable,
+	})
+	if err != nil {
+		log.Fatalf("Failed to create Serializable store: %v", err)
 	}
 
 	server := &Server{
-		store: store,
-		pool:  pool,
+		storeReadCommitted:  storeReadCommitted,
+		storeRepeatableRead: storeRepeatableRead,
+		storeSerializable:   storeSerializable,
+		pool:                pool,
 	}
 
 	// Setup routes with optimized handlers
@@ -393,7 +422,7 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
 
 	// Execute read (ReadWithOptions has been removed, use Read instead)
 	ctx := r.Context()
-	result, err := s.store.Read(ctx, query)
+	result, err := s.storeReadCommitted.Read(ctx, query)
 
 	duration := time.Since(start)
 	durationMicroseconds := duration.Microseconds()
@@ -465,12 +494,23 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 		appendErr = s.appendWithAdvisoryLocks(r.Context(), inputEvents, condition)
 	} else {
 		// Use standard append methods
+		isolation := r.Header.Get("X-Append-If-Isolation")
+		var store dcb.EventStore
+		switch isolation {
+		case "SERIALIZABLE":
+			store = s.storeSerializable
+		case "REPEATABLE READ":
+			store = s.storeRepeatableRead
+		default:
+			store = s.storeReadCommitted
+		}
+
 		if condition != nil {
 			// Use AppendIf with conditions
-			appendErr = s.store.AppendIf(r.Context(), inputEvents, condition)
+			appendErr = store.AppendIf(r.Context(), inputEvents, condition)
 		} else {
 			// Simple append without conditions
-			appendErr = s.store.Append(r.Context(), inputEvents)
+			appendErr = store.Append(r.Context(), inputEvents)
 		}
 	}
 	duration := time.Since(start)
@@ -531,7 +571,7 @@ func (s *Server) appendWithAdvisoryLocks(ctx context.Context, events []dcb.Input
 	}
 
 	// Get lock timeout from EventStore config
-	lockTimeout := s.store.GetConfig().LockTimeout
+	lockTimeout := s.storeReadCommitted.GetConfig().LockTimeout // Assuming a default or common lock timeout
 
 	// Call the advisory lock function directly with timeout
 	_, err = s.pool.Exec(ctx, `
