@@ -359,7 +359,7 @@ func benchmarkComplexQueries(ctx context.Context, store dcb.EventStore) {
 	// Query enrollments by grade (DCB-focused: specific grade instead of all enrollments)
 	start = time.Now()
 	limit := 100
-	options := &dcb.ReadOptions{Limit: &limit}
+	options := dcb.ReadOptions{Limit: &limit}
 	query = dcb.NewQuery(dcb.NewTags("grade", "A"), "StudentEnrolledInCourse")
 	events, err = store.ReadWithOptions(ctx, query, options)
 	duration = time.Since(start)

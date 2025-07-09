@@ -31,7 +31,7 @@ func convertRowToEvent(row rowEvent) Event {
 }
 
 // buildReadQuerySQL builds the SQL query for reading events
-func (es *eventStore) buildReadQuerySQL(query Query, options *ReadOptions) (string, []interface{}, error) {
+func (es *eventStore) buildReadQuerySQL(query Query, options ReadOptions) (string, []interface{}, error) {
 	// Pre-allocate slices with reasonable capacity
 	conditions := make([]string, 0, 4) // Usually 1-4 conditions
 	args := make([]interface{}, 0, 8)  // Usually 2-8 args
@@ -72,7 +72,7 @@ func (es *eventStore) buildReadQuerySQL(query Query, options *ReadOptions) (stri
 	}
 
 	// Add cursor conditions (replaces FromPosition logic)
-	if options != nil && options.Cursor != nil {
+	if options.Cursor != nil {
 		// Use the correct cursor logic from Oskar's article:
 		// (transaction_id = cursor.TransactionID AND position > cursor.Position) OR (transaction_id > cursor.TransactionID)
 		conditions = append(conditions, fmt.Sprintf("( (transaction_id = $%d AND position > $%d) OR (transaction_id > $%d) )", argIndex, argIndex+1, argIndex+2))
@@ -93,7 +93,7 @@ func (es *eventStore) buildReadQuerySQL(query Query, options *ReadOptions) (stri
 	sqlQuery.WriteString(" ORDER BY transaction_id ASC, position ASC")
 
 	// Add limit if specified
-	if options != nil && options.Limit != nil {
+	if options.Limit != nil {
 		sqlQuery.WriteString(fmt.Sprintf(" LIMIT %d", *options.Limit))
 	}
 
@@ -214,7 +214,7 @@ func (es *eventStore) ProjectDecisionModel(ctx context.Context, projectors []Bat
 // projectDecisionModelWithQuery uses query-based approach for all datasets
 func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Query, projectors []BatchProjector) (map[string]any, AppendCondition, error) {
 	// Build SQL query based on query items
-	sqlQuery, args, err := es.buildReadQuerySQL(query, nil)
+	sqlQuery, args, err := es.buildReadQuerySQL(query, ReadOptions{})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -348,7 +348,7 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 	}
 
 	// Build the SQL query
-	sqlQuery, args, err := es.buildReadQuerySQL(query, nil)
+	sqlQuery, args, err := es.buildReadQuerySQL(query, ReadOptions{})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to build query: %w", err)
 	}

@@ -369,7 +369,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			}
 
 			// Read events after the cursor using ReadWithOptions
-			options := &ReadOptions{Cursor: &cursor}
+			options := ReadOptions{Cursor: &cursor}
 			eventsAfterCursor, err := store.ReadWithOptions(context.Background(), query, options)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -429,7 +429,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			}
 
 			// Read events after the cursor
-			options := &ReadOptions{Cursor: &cursor}
+			options := ReadOptions{Cursor: &cursor}
 			eventsAfterCursor, err := store.ReadWithOptions(context.Background(), query, options)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -445,7 +445,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 				Position:      readEvents[1].Position,
 			}
 
-			options = &ReadOptions{Cursor: &middleCursor}
+			options = ReadOptions{Cursor: &middleCursor}
 			eventsAfterMiddle, err := store.ReadWithOptions(context.Background(), query, options)
 			Expect(err).ToNot(HaveOccurred())
 

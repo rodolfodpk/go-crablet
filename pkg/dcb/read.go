@@ -8,7 +8,7 @@ import (
 )
 
 // ReadWithOptions reads events matching the query with additional options
-func (es *eventStore) ReadWithOptions(ctx context.Context, query Query, options *ReadOptions) ([]Event, error) {
+func (es *eventStore) ReadWithOptions(ctx context.Context, query Query, options ReadOptions) ([]Event, error) {
 	if len(query.getItems()) == 0 {
 		return nil, &ValidationError{
 			EventStoreError: EventStoreError{
@@ -84,7 +84,7 @@ func (es *eventStore) ReadWithOptions(ctx context.Context, query Query, options 
 
 // Read reads events matching the query (no options)
 func (es *eventStore) Read(ctx context.Context, query Query) ([]Event, error) {
-	return es.ReadWithOptions(ctx, query, nil)
+	return es.ReadWithOptions(ctx, query, ReadOptions{})
 }
 
 // ReadStreamChannel creates a channel-based stream of events matching a query
@@ -104,7 +104,7 @@ func (es *eventStore) ReadStreamChannel(ctx context.Context, query Query) (<-cha
 	}
 
 	// Build the SQL query
-	sqlQuery, args, err := es.buildReadQuerySQL(query, nil)
+	sqlQuery, args, err := es.buildReadQuerySQL(query, ReadOptions{})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to build query: %w", err)
 	}

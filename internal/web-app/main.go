@@ -278,9 +278,9 @@ func convertQuery(query Query) dcb.Query {
 	return dcb.NewQueryFromItems(items...)
 }
 
-func convertReadOptions(options *ReadOptions) *dcb.ReadOptions {
+func convertReadOptions(options *ReadOptions) dcb.ReadOptions {
 	if options == nil {
-		return nil
+		return dcb.ReadOptions{}
 	}
 
 	var cursor *dcb.Cursor
@@ -293,7 +293,7 @@ func convertReadOptions(options *ReadOptions) *dcb.ReadOptions {
 		}
 	}
 
-	return &dcb.ReadOptions{
+	return dcb.ReadOptions{
 		Cursor: cursor,
 	}
 }

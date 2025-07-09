@@ -24,7 +24,7 @@ type EventStore interface {
 	Read(ctx context.Context, query Query) ([]Event, error)
 
 	// ReadWithOptions reads events matching the query with additional options
-	ReadWithOptions(ctx context.Context, query Query, options *ReadOptions) ([]Event, error)
+	ReadWithOptions(ctx context.Context, query Query, options ReadOptions) ([]Event, error)
 
 	// ProjectDecisionModel projects multiple states using projectors and returns final states and append condition
 	// This is a go-crablet feature for building decision models in command handlers
