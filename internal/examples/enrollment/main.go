@@ -121,8 +121,9 @@ func main() {
 
 func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCourseCommand) error {
 	// Command-specific projectors
-	projectors := []dcb.BatchProjector{
-		{ID: "courseExists", StateProjector: dcb.StateProjector{
+	projectors := []dcb.StateProjector{
+		{
+			ID: "courseExists",
 			Query: dcb.NewQuery(
 				dcb.NewTags("course_id", cmd.CourseID),
 				"CourseDefined",
@@ -131,7 +132,7 @@ func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCou
 			TransitionFn: func(state any, event dcb.Event) any {
 				return true // If we see a CourseDefined event, course exists
 			},
-		}},
+		},
 	}
 
 	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
@@ -168,8 +169,9 @@ func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCou
 
 func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd RegisterStudentCommand) error {
 	// Command-specific projectors
-	projectors := []dcb.BatchProjector{
-		{ID: "studentExists", StateProjector: dcb.StateProjector{
+	projectors := []dcb.StateProjector{
+		{
+			ID: "studentExists",
 			Query: dcb.NewQuery(
 				dcb.NewTags("student_id", cmd.StudentID),
 				"StudentRegistered",
@@ -178,8 +180,9 @@ func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd Regist
 			TransitionFn: func(state any, event dcb.Event) any {
 				return true // If we see a StudentRegistered event, student exists
 			},
-		}},
-		{ID: "emailExists", StateProjector: dcb.StateProjector{
+		},
+		{
+			ID: "emailExists",
 			Query: dcb.NewQuery(
 				dcb.NewTags("email", cmd.Email),
 				"StudentRegistered",
@@ -188,7 +191,7 @@ func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd Regist
 			TransitionFn: func(state any, event dcb.Event) any {
 				return true // If we see a StudentRegistered event with this email, email exists
 			},
-		}},
+		},
 	}
 
 	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
@@ -301,10 +304,25 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollSt
 	}
 
 	// Project all states using the DCB decision model pattern
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, []dcb.BatchProjector{
-		{ID: "course", StateProjector: courseProjector},
-		{ID: "student", StateProjector: studentProjector},
-		{ID: "enrollmentExists", StateProjector: enrollmentProjector},
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, []dcb.StateProjector{
+		{
+			ID:           "course",
+			Query:        courseProjector.Query,
+			InitialState: courseProjector.InitialState,
+			TransitionFn: courseProjector.TransitionFn,
+		},
+		{
+			ID:           "student",
+			Query:        studentProjector.Query,
+			InitialState: studentProjector.InitialState,
+			TransitionFn: studentProjector.TransitionFn,
+		},
+		{
+			ID:           "enrollmentExists",
+			Query:        enrollmentProjector.Query,
+			InitialState: enrollmentProjector.InitialState,
+			TransitionFn: enrollmentProjector.TransitionFn,
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("projection failed: %w", err)

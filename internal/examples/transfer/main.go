@@ -198,7 +198,8 @@ func main() {
 func handleCreateAccount(ctx context.Context, store dcb.EventStore, cmd CreateAccountCommand) error {
 	// Command-specific projectors
 	projectors := []dcb.StateProjector{
-		{ID: "accountExists", StateProjector: dcb.StateProjector{
+		{
+			ID: "accountExists",
 			Query: dcb.NewQuery(
 				dcb.NewTags("account_id", cmd.AccountID),
 				"AccountOpened",
@@ -207,7 +208,7 @@ func handleCreateAccount(ctx context.Context, store dcb.EventStore, cmd CreateAc
 			TransitionFn: func(state any, event dcb.Event) any {
 				return true // If we see an AccountOpened event, account exists
 			},
-		}},
+		},
 	}
 
 	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
@@ -317,7 +318,12 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 	// Project state and get append condition
 	// Project only the 'from' account for the append condition
 	states, appendCondition, err := store.ProjectDecisionModel(ctx, []dcb.StateProjector{
-		{ID: "from", StateProjector: fromProjector},
+		{
+			ID:           "from",
+			Query:        fromProjector.Query,
+			InitialState: fromProjector.InitialState,
+			TransitionFn: fromProjector.TransitionFn,
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("projection failed: %w", err)
@@ -326,7 +332,12 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 
 	// Project the 'to' account separately for business logic
 	statesTo, _, err := store.ProjectDecisionModel(ctx, []dcb.StateProjector{
-		{ID: "to", StateProjector: toProjector},
+		{
+			ID:           "to",
+			Query:        toProjector.Query,
+			InitialState: toProjector.InitialState,
+			TransitionFn: toProjector.TransitionFn,
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("projection failed for to account: %w", err)
