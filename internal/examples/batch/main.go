@@ -47,7 +47,7 @@ func main() {
 	}
 
 	// Cast to EventStore for extended functionality
-	channelStore := store.(dcb.EventStore)
+	// Use store directly
 
 	fmt.Println("=== Batch Processing Example ===")
 	fmt.Println("This example demonstrates batch processing with DCB-inspired event sourcing.")
@@ -55,7 +55,7 @@ func main() {
 
 	// Single command examples
 	fmt.Println("1. Single Command Processing:")
-	if err := handleCreateUser(ctx, channelStore, CreateUserCommand{
+	if err := handleCreateUser(ctx, store, CreateUserCommand{
 		UserID:   "user1",
 		Username: "john_doe",
 		Email:    "john@example.com",
@@ -63,7 +63,7 @@ func main() {
 		log.Printf("Failed to create user: %v", err)
 	}
 
-	if err := handleCreateOrder(ctx, channelStore, CreateOrderCommand{
+	if err := handleCreateOrder(ctx, store, CreateOrderCommand{
 		OrderID: "order1",
 		UserID:  "user1",
 		Items: []OrderItem{
@@ -84,7 +84,7 @@ func main() {
 		{UserID: "user4", Username: "alice_brown", Email: "alice@example.com"},
 	}
 
-	if err := handleBatchCreateUsers(ctx, channelStore, batchUsers); err != nil {
+	if err := handleBatchCreateUsers(ctx, store, batchUsers); err != nil {
 		log.Printf("Failed to batch create users: %v", err)
 	}
 
@@ -101,7 +101,7 @@ func main() {
 		},
 	}
 
-	if err := handleBatchCreateOrders(ctx, channelStore, batchOrders); err != nil {
+	if err := handleBatchCreateOrders(ctx, store, batchOrders); err != nil {
 		log.Printf("Failed to batch create orders: %v", err)
 	}
 
@@ -316,35 +316,31 @@ func handleBatchCreateUsers(ctx context.Context, store dcb.EventStore, commands 
 
 func handleBatchCreateOrders(ctx context.Context, store dcb.EventStore, commands []CreateOrderCommand) error {
 	// Batch-specific projectors to check all orders and users at once
-	projectors := []dcb.BatchProjector{}
+	projectors := []dcb.StateProjector{}
 
 	// Add projectors for each order and user
 	for _, cmd := range commands {
-		projectors = append(projectors, dcb.BatchProjector{
+		projectors = append(projectors, dcb.StateProjector{
 			ID: fmt.Sprintf("orderExists_%s", cmd.OrderID),
-			StateProjector: dcb.StateProjector{
-				Query: dcb.NewQuery(
-					dcb.NewTags("order_id", cmd.OrderID),
-					"OrderCreated",
-				),
-				InitialState: false,
-				TransitionFn: func(state any, event dcb.Event) any {
-					return true
-				},
+			Query: dcb.NewQuery(
+				dcb.NewTags("order_id", cmd.OrderID),
+				"OrderCreated",
+			),
+			InitialState: false,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return true
 			},
 		})
 
-		projectors = append(projectors, dcb.BatchProjector{
+		projectors = append(projectors, dcb.StateProjector{
 			ID: fmt.Sprintf("userExists_%s", cmd.UserID),
-			StateProjector: dcb.StateProjector{
-				Query: dcb.NewQuery(
-					dcb.NewTags("user_id", cmd.UserID),
-					"UserCreated",
-				),
-				InitialState: false,
-				TransitionFn: func(state any, event dcb.Event) any {
-					return true
-				},
+			Query: dcb.NewQuery(
+				dcb.NewTags("user_id", cmd.UserID),
+				"UserCreated",
+			),
+			InitialState: false,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return true
 			},
 		})
 	}

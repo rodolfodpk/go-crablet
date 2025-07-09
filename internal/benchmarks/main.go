@@ -80,7 +80,8 @@ func main() {
 	}
 
 	// Check if EventStore is available
-	channelStore, hasChannel := store.(dcb.EventStore)
+	// All EventStore instances support channel operations
+	hasChannel := true
 
 	fmt.Println("=== DCB Performance Benchmarks ===")
 	fmt.Printf("Database: localhost:5432/dcb_app\n")
@@ -90,8 +91,8 @@ func main() {
 	// Run benchmarks
 	runAppendBenchmarks(ctx, store)
 	runReadBenchmarks(ctx, store)
-	runStreamBenchmarks(ctx, store, channelStore, hasChannel)
-	runProjectionBenchmarks(ctx, store, channelStore, hasChannel)
+	runStreamBenchmarks(ctx, store, store, hasChannel)
+	runProjectionBenchmarks(ctx, store, store, hasChannel)
 
 	fmt.Println("=== Benchmark Complete ===")
 }

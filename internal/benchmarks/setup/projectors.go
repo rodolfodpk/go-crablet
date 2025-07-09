@@ -261,47 +261,23 @@ func CreateMapProjector(eventType string, tagKey, tagValue string, keyExtractor 
 // CreateBenchmarkProjectors creates a set of projectors for benchmark testing
 func CreateBenchmarkProjectors(dataset *Dataset) []dcb.StateProjector {
 	projectors := []dcb.StateProjector{
-		{
-			ID:             "courseCount",
-			StateProjector: CreateSimpleCountProjector("CourseDefined", "", ""),
-		},
-		{
-			ID:             "studentCount",
-			StateProjector: CreateSimpleCountProjector("StudentRegistered", "", ""),
-		},
-		{
-			ID:             "enrollmentCount",
-			StateProjector: CreateSimpleCountProjector("StudentEnrolledInCourse", "", ""),
-		},
-		{
-			ID:             "dropCount",
-			StateProjector: CreateSimpleCountProjector("StudentDroppedFromCourse", "", ""),
-		},
+		CreateSimpleCountProjector("CourseDefined", "", ""),
+		CreateSimpleCountProjector("StudentRegistered", "", ""),
+		CreateSimpleCountProjector("StudentEnrolledInCourse", "", ""),
+		CreateSimpleCountProjector("StudentDroppedFromCourse", "", ""),
 	}
 
 	// Add a few specific course and student projectors
 	if len(dataset.Courses) > 0 {
 		courseID := dataset.Courses[0].ID
-		projectors = append(projectors, dcb.StateProjector{
-			ID:             "courseState",
-			StateProjector: CreateCourseStateProjector(courseID),
-		})
-		projectors = append(projectors, dcb.StateProjector{
-			ID:             "courseEnrollmentCount",
-			StateProjector: CreateCourseEnrollmentCountProjector(courseID),
-		})
+		projectors = append(projectors, CreateCourseStateProjector(courseID))
+		projectors = append(projectors, CreateCourseEnrollmentCountProjector(courseID))
 	}
 
 	if len(dataset.Students) > 0 {
 		studentID := dataset.Students[0].ID
-		projectors = append(projectors, dcb.StateProjector{
-			ID:             "studentState",
-			StateProjector: CreateStudentStateProjector(studentID),
-		})
-		projectors = append(projectors, dcb.StateProjector{
-			ID:             "studentEnrollmentCount",
-			StateProjector: CreateStudentEnrollmentCountProjector(studentID),
-		})
+		projectors = append(projectors, CreateStudentStateProjector(studentID))
+		projectors = append(projectors, CreateStudentEnrollmentCountProjector(studentID))
 	}
 
 	return projectors

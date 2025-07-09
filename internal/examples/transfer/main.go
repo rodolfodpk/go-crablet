@@ -457,7 +457,8 @@ func simulateConcurrentTransfers(ctx context.Context, store dcb.EventStore, from
 
 	// First, get the current balance to transfer exactly that amount
 	projectors := []dcb.StateProjector{
-		{ID: "from", StateProjector: dcb.StateProjector{
+		{
+			ID: "from",
 			Query: dcb.NewQuery(
 				dcb.NewTags("account_id", fromID),
 				"AccountOpened", "MoneyTransferred",
@@ -488,7 +489,7 @@ func simulateConcurrentTransfers(ctx context.Context, store dcb.EventStore, from
 				}
 				return acc
 			},
-		}},
+		},
 	}
 	states, _, err := store.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
@@ -512,7 +513,8 @@ func simulateConcurrentTransfers(ctx context.Context, store dcb.EventStore, from
 		defer wg.Done()
 		// Project state and get append condition
 		projectors := []dcb.StateProjector{
-			{ID: "from", StateProjector: dcb.StateProjector{
+			{
+				ID: "from",
 				Query: dcb.NewQuery(
 					dcb.NewTags("account_id", fromID),
 					"AccountOpened", "MoneyTransferred", // Include both for state projection
@@ -543,7 +545,7 @@ func simulateConcurrentTransfers(ctx context.Context, store dcb.EventStore, from
 					}
 					return acc
 				},
-			}},
+			},
 		}
 		states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
 		if err != nil {

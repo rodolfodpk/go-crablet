@@ -392,8 +392,13 @@ func handleUnenrollStudent(ctx context.Context, store dcb.EventStore, cmd Unenro
 	}
 
 	// Project enrollment state
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, []dcb.BatchProjector{
-		{ID: "enrollment", StateProjector: enrollmentProjector},
+	states, appendCondition, err := store.ProjectDecisionModel(ctx, []dcb.StateProjector{
+		{
+			ID:           "enrollment",
+			Query:        enrollmentProjector.Query,
+			InitialState: enrollmentProjector.InitialState,
+			TransitionFn: enrollmentProjector.TransitionFn,
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("projection failed: %w", err)

@@ -86,7 +86,7 @@ func demonstrateCoreRead(ctx context.Context, store dcb.EventStore) {
 // demonstrateChannelStreaming shows channel-based event streaming
 func demonstrateChannelStreaming(ctx context.Context, store dcb.EventStore) {
 	// Check if store implements EventStore
-	channelStore, ok := store.(dcb.EventStore)
+	store, ok := store.(dcb.EventStore)
 	if !ok {
 		fmt.Println("   - Store does not implement EventStore interface")
 		return
@@ -95,7 +95,7 @@ func demonstrateChannelStreaming(ctx context.Context, store dcb.EventStore) {
 	query := dcb.NewQuerySimple(dcb.NewTags(), "UserCreated", "UserUpdated")
 
 	// Stream events through channel
-	eventChan, err := channelStore.ReadChannel(ctx, query)
+	eventChan, err := store.ReadChannel(ctx, query)
 	if err != nil {
 		log.Printf("ReadChannel failed: %v", err)
 		return
@@ -113,7 +113,7 @@ func demonstrateChannelStreaming(ctx context.Context, store dcb.EventStore) {
 // demonstrateChannelProjection shows channel-based state projection
 func demonstrateChannelProjection(ctx context.Context, store dcb.EventStore) {
 	// Check if store implements EventStore
-	channelStore, ok := store.(dcb.EventStore)
+	store, ok := store.(dcb.EventStore)
 	if !ok {
 		fmt.Println("   - Store does not implement EventStore interface")
 		return
@@ -140,7 +140,7 @@ func demonstrateChannelProjection(ctx context.Context, store dcb.EventStore) {
 	}
 
 	// Stream projection results through channel
-	resultChan, _, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
+	resultChan, _, err := store.ProjectDecisionModelChannel(ctx, projectors)
 	if err != nil {
 		log.Printf("ProjectDecisionModelChannel failed: %v", err)
 		return

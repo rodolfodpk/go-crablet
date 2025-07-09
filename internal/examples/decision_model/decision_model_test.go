@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
+	"time"
 
 	"go-crablet/pkg/dcb"
 
@@ -25,25 +27,28 @@ func TestDecisionModelExample(t *testing.T) {
 	require.NoError(t, err)
 
 	// Cast to EventStore for extended functionality
-	channelStore := store.(dcb.EventStore)
+	// Use store directly
+
+	// Generate unique test ID to avoid conflicts
+	testID := fmt.Sprintf("test_%d", time.Now().UnixNano())
 
 	// Test Command 1: Open Account
 	t.Run("Open Account", func(t *testing.T) {
 		openAccountCmd := OpenAccountCommand{
-			AccountID:      "test_acc_decision_123",
+			AccountID:      fmt.Sprintf("test_acc_decision_%s", testID),
 			InitialBalance: 1000,
 		}
-		err := handleOpenAccount(ctx, channelStore, openAccountCmd)
+		err := handleOpenAccount(ctx, store, openAccountCmd)
 		assert.NoError(t, err)
 	})
 
 	// Test Command 2: Process Transaction
 	t.Run("Process Transaction", func(t *testing.T) {
 		processTransactionCmd := ProcessTransactionCommand{
-			AccountID: "test_acc_decision_123",
+			AccountID: fmt.Sprintf("test_acc_decision_%s", testID),
 			Amount:    500,
 		}
-		err := handleProcessTransaction(ctx, channelStore, processTransactionCmd)
+		err := handleProcessTransaction(ctx, store, processTransactionCmd)
 		assert.NoError(t, err)
 	})
 
@@ -52,10 +57,10 @@ func TestDecisionModelExample(t *testing.T) {
 		// Test: Cannot open account with same ID
 		t.Run("Cannot Open Duplicate Account", func(t *testing.T) {
 			duplicateCmd := OpenAccountCommand{
-				AccountID:      "test_acc_decision_123", // Same ID as existing account
+				AccountID:      fmt.Sprintf("test_acc_decision_%s", testID), // Same ID as existing account
 				InitialBalance: 2000,
 			}
-			err := handleOpenAccount(ctx, channelStore, duplicateCmd)
+			err := handleOpenAccount(ctx, store, duplicateCmd)
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), "already exists")
 		})
@@ -63,10 +68,10 @@ func TestDecisionModelExample(t *testing.T) {
 		// Test: Cannot process transaction for non-existent account
 		t.Run("Cannot Process Transaction for Non-existent Account", func(t *testing.T) {
 			nonExistentAccountCmd := ProcessTransactionCommand{
-				AccountID: "non_existent_account",
+				AccountID: fmt.Sprintf("non_existent_account_%s", testID),
 				Amount:    100,
 			}
-			err := handleProcessTransaction(ctx, channelStore, nonExistentAccountCmd)
+			err := handleProcessTransaction(ctx, store, nonExistentAccountCmd)
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), "does not exist")
 		})
@@ -74,13 +79,15 @@ func TestDecisionModelExample(t *testing.T) {
 
 	// Test decision model projection
 	t.Run("Decision Model Projection", func(t *testing.T) {
+		accountID := fmt.Sprintf("test_acc_decision_%s", testID)
+
 		// Define projectors for decision model
 		accountProjector := dcb.StateProjector{
 			Query: dcb.NewQuery(
-				dcb.NewTags("account_id", "test_acc_decision_123"),
+				dcb.NewTags("account_id", accountID),
 				"AccountOpened", "AccountBalanceChanged",
 			),
-			InitialState: &AccountState{ID: "test_acc_decision_123", Balance: 0},
+			InitialState: &AccountState{ID: accountID, Balance: 0},
 			TransitionFn: func(state any, event dcb.Event) any {
 				account := state.(*AccountState)
 				switch event.Type {
@@ -99,7 +106,7 @@ func TestDecisionModelExample(t *testing.T) {
 
 		transactionProjector := dcb.StateProjector{
 			Query: dcb.NewQuery(
-				dcb.NewTags("account_id", "test_acc_decision_123"),
+				dcb.NewTags("account_id", accountID),
 				"TransactionProcessed",
 			),
 			InitialState: &TransactionState{Count: 0, TotalAmount: 0},
@@ -116,9 +123,19 @@ func TestDecisionModelExample(t *testing.T) {
 		}
 
 		// Create batch projectors
-		projectors := []dcb.BatchProjector{
-			{ID: "account", StateProjector: accountProjector},
-			{ID: "transactions", StateProjector: transactionProjector},
+		projectors := []dcb.StateProjector{
+			{
+				ID:           "account",
+				Query:        accountProjector.Query,
+				InitialState: accountProjector.InitialState,
+				TransitionFn: accountProjector.TransitionFn,
+			},
+			{
+				ID:           "transactions",
+				Query:        transactionProjector.Query,
+				InitialState: transactionProjector.InitialState,
+				TransitionFn: transactionProjector.TransitionFn,
+			},
 		}
 
 		states, _, err := store.ProjectDecisionModel(ctx, projectors)
@@ -126,7 +143,7 @@ func TestDecisionModelExample(t *testing.T) {
 
 		// Verify account state
 		if account, ok := states["account"].(*AccountState); ok {
-			assert.Equal(t, "test_acc_decision_123", account.ID)
+			assert.Equal(t, accountID, account.ID)
 			assert.Equal(t, 1000, account.Balance) // Initial balance
 		}
 
@@ -141,10 +158,10 @@ func TestDecisionModelExample(t *testing.T) {
 			// Get current append condition for optimistic locking
 			accountProjector := dcb.StateProjector{
 				Query: dcb.NewQuery(
-					dcb.NewTags("account_id", "test_acc_decision_123"),
+					dcb.NewTags("account_id", accountID),
 					"AccountOpened", "AccountBalanceChanged",
 				),
-				InitialState: &AccountState{ID: "test_acc_decision_123", Balance: 0},
+				InitialState: &AccountState{ID: accountID, Balance: 0},
 				TransitionFn: func(state any, event dcb.Event) any {
 					account := state.(*AccountState)
 					switch event.Type {
@@ -161,17 +178,20 @@ func TestDecisionModelExample(t *testing.T) {
 				},
 			}
 
-			_, appendCondition, err := channelStore.ProjectDecisionModel(ctx, []dcb.BatchProjector{
-				{ID: "account", StateProjector: accountProjector},
-			})
+			_, appendCondition, err := store.ProjectDecisionModel(ctx, []dcb.StateProjector{{
+				ID:           "account",
+				Query:        accountProjector.Query,
+				InitialState: accountProjector.InitialState,
+				TransitionFn: accountProjector.TransitionFn,
+			}})
 			require.NoError(t, err)
 
 			// Test optimistic locking with append condition
 			optimisticCmd := ProcessTransactionCommand{
-				AccountID: "test_acc_decision_123",
+				AccountID: accountID,
 				Amount:    200,
 			}
-			err = handleProcessTransactionWithCondition(ctx, channelStore, optimisticCmd, appendCondition)
+			err = handleProcessTransactionWithCondition(ctx, store, optimisticCmd, appendCondition)
 			assert.NoError(t, err)
 		})
 	})
