@@ -407,13 +407,11 @@ func benchmarkSingleProjector(ctx context.Context, store dcb.EventStore, channel
 
 	// DCB-focused projector: count courses in specific category instead of all courses
 	projector := dcb.StateProjector{
-		ID: "csCourseCount",
-		StateProjector: dcb.StateProjector{
-			Query:        dcb.NewQuery(dcb.NewTags("category", "Computer Science"), "CourseDefined"),
-			InitialState: 0,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return state.(int) + 1
-			},
+		ID:           "csCourseCount",
+		Query:        dcb.NewQuery(dcb.NewTags("category", "Computer Science"), "CourseDefined"),
+		InitialState: 0,
+		TransitionFn: func(state any, event dcb.Event) any {
+			return state.(int) + 1
 		},
 	}
 
@@ -434,33 +432,27 @@ func benchmarkMultipleProjectors(ctx context.Context, store dcb.EventStore, chan
 	// DCB-focused projectors: specific targeted queries instead of full scans
 	projectors := []dcb.StateProjector{
 		{
-			ID: "csCourseCount",
-			StateProjector: dcb.StateProjector{
-				Query:        dcb.NewQuery(dcb.NewTags("category", "Computer Science"), "CourseDefined"),
-				InitialState: 0,
-				TransitionFn: func(state any, event dcb.Event) any {
-					return state.(int) + 1
-				},
+			ID:           "csCourseCount",
+			Query:        dcb.NewQuery(dcb.NewTags("category", "Computer Science"), "CourseDefined"),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
 			},
 		},
 		{
-			ID: "csStudentCount",
-			StateProjector: dcb.StateProjector{
-				Query:        dcb.NewQuery(dcb.NewTags("major", "Computer Science"), "StudentRegistered"),
-				InitialState: 0,
-				TransitionFn: func(state any, event dcb.Event) any {
-					return state.(int) + 1
-				},
+			ID:           "csStudentCount",
+			Query:        dcb.NewQuery(dcb.NewTags("major", "Computer Science"), "StudentRegistered"),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
 			},
 		},
 		{
-			ID: "aGradeEnrollments",
-			StateProjector: dcb.StateProjector{
-				Query:        dcb.NewQuery(dcb.NewTags("grade", "A"), "StudentEnrolledInCourse"),
-				InitialState: 0,
-				TransitionFn: func(state any, event dcb.Event) any {
-					return state.(int) + 1
-				},
+			ID:           "aGradeEnrollments",
+			Query:        dcb.NewQuery(dcb.NewTags("grade", "A"), "StudentEnrolledInCourse"),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
 			},
 		},
 	}
@@ -485,13 +477,11 @@ func benchmarkChannelProjection(ctx context.Context, channelStore dcb.EventStore
 	// DCB-focused projector: specific category instead of all courses
 	projectors := []dcb.StateProjector{
 		{
-			ID: "csCourseCount",
-			StateProjector: dcb.StateProjector{
-				Query:        dcb.NewQuery(dcb.NewTags("category", "Computer Science"), "CourseDefined"),
-				InitialState: 0,
-				TransitionFn: func(state any, event dcb.Event) any {
-					return state.(int) + 1
-				},
+			ID:           "csCourseCount",
+			Query:        dcb.NewQuery(dcb.NewTags("category", "Computer Science"), "CourseDefined"),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
 			},
 		},
 	}
