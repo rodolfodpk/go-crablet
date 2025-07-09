@@ -347,20 +347,34 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 		}
 	}
 
+	// Validate query items
+	if err := validateQueryTags(query); err != nil {
+		return nil, Cursor{}, err
+	}
+
 	// Build the SQL query
 	sqlQuery, args, err := es.buildReadQuerySQL(query, ReadOptions{})
 	if err != nil {
 		return nil, Cursor{}, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	// Execute the query
-	rows, err := es.pool.Query(ctx, sqlQuery, args...)
+	// Use the caller's context directly for streaming
+	queryCtx := ctx
+
+	// Execute the query with timeout (same as ReadWithOptions)
+	rows, err := es.pool.Query(queryCtx, sqlQuery, args...)
 	if err != nil {
-		return nil, Cursor{}, fmt.Errorf("query failed: %w", err)
+		return nil, Cursor{}, &ResourceError{
+			EventStoreError: EventStoreError{
+				Op:  "ProjectDecisionModelChannel",
+				Err: fmt.Errorf("query failed: %w", err),
+			},
+			Resource: "database",
+		}
 	}
 
-	// Create result channel
-	resultChan := make(chan ProjectionResult, 100)
+	// Create result channel with configurable buffer
+	resultChan := make(chan ProjectionResult, es.streamBuffer)
 
 	// Track latest cursor
 	var latestCursor Cursor
@@ -402,8 +416,15 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 					&row.CreatedAt,
 				)
 				if err != nil {
-					// Log error but continue processing
+					// Log error and send error result
 					log.Printf("Error scanning row in ProjectDecisionModelChannel: %v", err)
+					select {
+					case resultChan <- ProjectionResult{
+						Error: fmt.Errorf("scan error: %w", err),
+					}:
+					case <-ctx.Done():
+						return
+					}
 					continue
 				}
 

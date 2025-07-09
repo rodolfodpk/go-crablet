@@ -16,12 +16,61 @@ func NewEventStore(ctx context.Context, pool *pgxpool.Pool) (EventStore, error) 
 	return newEventStore(ctx, pool)
 }
 
+// NewEventStoreWithLockTimeout creates a new EventStore instance with a custom lock timeout.
+// The lock timeout is used for advisory locks when events have "lock:" prefixed tags.
+func NewEventStoreWithLockTimeout(ctx context.Context, pool *pgxpool.Pool, lockTimeoutMs int) (EventStore, error) {
+	es, err := newEventStore(ctx, pool)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set the custom lock timeout
+	es.lockTimeout = lockTimeoutMs
+	return es, nil
+}
+
+// NewEventStoreWithConfig creates a new EventStore instance with custom configuration.
+func NewEventStoreWithConfig(ctx context.Context, pool *pgxpool.Pool, lockTimeoutMs, streamBuffer int) (EventStore, error) {
+	es, err := newEventStore(ctx, pool)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set custom configuration
+	es.lockTimeout = lockTimeoutMs
+	es.streamBuffer = streamBuffer
+	return es, nil
+}
+
 // NewEventStoreFromPool creates a new EventStore from an existing pool without connection testing.
 // This is used for tests that share a PostgreSQL container.
 func NewEventStoreFromPool(pool *pgxpool.Pool) EventStore {
 	return &eventStore{
 		pool:         pool,
 		maxBatchSize: 1000, // Default maximum batch size
+		lockTimeout:  5000, // Default 5 second lock timeout
+		streamBuffer: 100,  // Default channel buffer size
+	}
+}
+
+// NewEventStoreFromPoolWithLockTimeout creates a new EventStore from an existing pool with custom lock timeout.
+// This is used for tests that share a PostgreSQL container and need custom lock timeouts.
+func NewEventStoreFromPoolWithLockTimeout(pool *pgxpool.Pool, lockTimeoutMs int) EventStore {
+	return &eventStore{
+		pool:         pool,
+		maxBatchSize: 1000, // Default maximum batch size
+		lockTimeout:  lockTimeoutMs,
+		streamBuffer: 100, // Default channel buffer size
+	}
+}
+
+// NewEventStoreFromPoolWithConfig creates a new EventStore from an existing pool with custom configuration.
+func NewEventStoreFromPoolWithConfig(pool *pgxpool.Pool, lockTimeoutMs, streamBuffer int) EventStore {
+	return &eventStore{
+		pool:         pool,
+		maxBatchSize: 1000, // Default maximum batch size
+		lockTimeout:  lockTimeoutMs,
+		streamBuffer: streamBuffer,
 	}
 }
 

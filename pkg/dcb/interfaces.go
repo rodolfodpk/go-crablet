@@ -40,6 +40,9 @@ type EventStore interface {
 	// This is optimized for small to medium datasets (< 500 events) and provides
 	// a more Go-idiomatic interface using channels for state projection
 	ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector) (<-chan ProjectionResult, Cursor, error)
+
+	// GetLockTimeout returns the lock timeout in milliseconds for advisory locks
+	GetLockTimeout() int
 }
 
 // ProjectionResult represents a single projection result from channel-based projection

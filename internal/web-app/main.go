@@ -548,11 +548,8 @@ func (s *Server) appendWithAdvisoryLocks(ctx context.Context, events []dcb.Input
 		}
 	}
 
-	// Get lock timeout from context or use default (5 seconds)
-	lockTimeout := 5000 // 5 seconds default
-	if timeout, ok := ctx.Value("lock_timeout_ms").(int); ok {
-		lockTimeout = timeout
-	}
+	// Get lock timeout from EventStore (configured at construction time)
+	lockTimeout := s.store.GetLockTimeout()
 
 	// Call the advisory lock function directly with timeout
 	_, err = s.pool.Exec(ctx, `
