@@ -165,7 +165,7 @@ func channelStreamingExample() {
     )
 
     // Channel-based streaming
-    eventChan, err := channelStore.ReadStreamChannel(ctx, query)
+    eventChan, err := channelStore.ReadChannel(ctx, query)
     if err != nil {
         panic(err)
     }
@@ -225,13 +225,13 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
     }
     
     // Use optimistic locking to prevent double-spending
-    return store.AppendIfIsolated(ctx, events, appendCondition)
+    return store.AppendIf(ctx, events, appendCondition)
 }
 ```
 
 **Key features:**
 - **Business logic validation**: Checks sufficient funds before transfer
-- **Optimistic locking**: Uses `AppendIfIsolated` with SERIALIZABLE isolation
+- **Optimistic locking**: Uses `AppendIf` with configurable isolation level
 - **Concurrent safety**: Only one transfer can succeed when multiple try to spend the same balance
 - **Event sourcing**: All transfers are recorded as events for audit trail
 
@@ -247,23 +247,21 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 
 ## Transaction Isolation Levels
 
-go-crablet uses the following PostgreSQL transaction isolation levels for append operations:
+go-crablet uses configurable PostgreSQL transaction isolation levels for append operations:
 
 ```go
-// Simple append (no conditions) - Read Committed
+// Simple append (no conditions) - uses default isolation level
 store.Append(ctx, events)
 
-// Conditional append - Repeatable Read
+// Conditional append - uses default isolation level
 store.AppendIf(ctx, events, condition)
-
-// Conditional append with strongest consistency - Serializable
-store.AppendIfIsolated(ctx, events, condition)
 ```
 
-**When to use different isolation levels:**
-- **Read Committed** (`Append`): Fastest, safe for simple appends
-- **Repeatable Read** (`AppendIf`): Good for most conditional appends, prevents phantom reads
-- **Serializable** (`AppendIfIsolated`): Use for the strongest consistency guarantees
+**When to use different methods:**
+- **Append**: Fastest, safe for simple appends
+- **AppendIf**: Good for conditional appends, prevents phantom reads with optimistic locking
+
+The isolation level can be configured when creating the EventStore via `EventStoreConfig.DefaultAppendIsolation`.
 
 ## Query Building with Helper Functions
 
@@ -332,16 +330,15 @@ events, err := store.Read(ctx, query)
 
 Benchmark results from web-app load testing (30-second tests):
 
-| Isolation Level | Throughput | Avg Response Time | p95 Response Time | Use Case |
-|----------------|------------|------------------|------------------|----------|
-| **Read Committed** (Append) | 79.2 req/s | 24.87ms | 49.16ms | Simple appends |
-| **Repeatable Read** (AppendIf) | 61.7 req/s | 12.82ms | 21.86ms | Conditional appends |
-| **Serializable** (AppendIfIsolated) | 12.4 req/s | 13.4ms | 30.62ms | Critical operations |
+| Method | Throughput | Avg Response Time | p95 Response Time | Use Case |
+|--------|------------|------------------|------------------|----------|
+| **Append** | 79.2 req/s | 24.87ms | 49.16ms | Simple appends |
+| **AppendIf** | 61.7 req/s | 12.82ms | 21.86ms | Conditional appends |
 
 **Key insights:**
 - **AppendIf is fastest**: Conditional appends with Repeatable Read perform better than simple appends
-- **Excellent reliability**: All isolation levels achieve 100% success rate
-- **Reasonable trade-offs**: Serializable provides strongest consistency with acceptable performance
+- **Excellent reliability**: Both methods achieve 100% success rate
+- **Optimized implementation**: Cursor-based optimistic locking and SQL functions are highly efficient
 
 ## Available Examples
 

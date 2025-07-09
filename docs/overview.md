@@ -18,27 +18,35 @@ go-crablet is a Go library for event sourcing, exploring concepts inspired by th
 
 ```go
 type EventStore interface {
-    // Simple append without conditions (Read Committed)
-    Append(ctx context.Context, events []InputEvent) error
-    
-    // Conditional append (Repeatable Read)
-    AppendIf(ctx context.Context, events []InputEvent, condition AppendCondition) error
-    
-    // Conditional append with strongest consistency (Serializable)
-    AppendIfIsolated(ctx context.Context, events []InputEvent, condition AppendCondition) error
-    
-    // Read events matching a query
+    // Read reads events matching the query (no options)
     Read(ctx context.Context, query Query) ([]Event, error)
-    ReadWithOptions(ctx context.Context, query Query, options *ReadOptions) ([]Event, error)
-    
-    // Project multiple states using projectors
-    ProjectDecisionModel(ctx context.Context, projectors []BatchProjector) (map[string]any, AppendCondition, error)
-}
 
-type ReadOptions struct {
-    Cursor    *Cursor `json:"cursor"` // (transaction_id, position) tracking
-    Limit     *int    `json:"limit"`
-    BatchSize *int    `json:"batch_size"`
+    // ReadChannel creates a channel-based stream of events matching a query
+    // This replaces ReadWithOptions functionality - the caller manages complexity
+    // like limits and cursors through channel consumption patterns
+    // This is optimized for small to medium datasets (< 500 events) and provides
+    // a more Go-idiomatic interface using channels
+    ReadChannel(ctx context.Context, query Query) (<-chan Event, error)
+
+    // Append appends events to the store (always succeeds if no validation errors)
+    // Uses the default isolation level configured in EventStoreConfig
+    Append(ctx context.Context, events []InputEvent) error
+
+    // AppendIf appends events to the store only if the condition is met
+    // Uses the default isolation level configured in EventStoreConfig
+    AppendIf(ctx context.Context, events []InputEvent, condition AppendCondition) error
+
+    // ProjectDecisionModel projects multiple states using projectors and returns final states and append condition
+    // This is a go-crablet feature for building decision models in command handlers
+    ProjectDecisionModel(ctx context.Context, projectors []BatchProjector) (map[string]any, AppendCondition, error)
+
+    // ProjectDecisionModelChannel projects multiple states using channel-based streaming
+    // This is optimized for small to medium datasets (< 500 events) and provides
+    // a more Go-idiomatic interface using channels for state projection
+    ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector) (<-chan ProjectionResult, Cursor, error)
+
+    // GetConfig returns the current EventStore configuration
+    GetConfig() EventStoreConfig
 }
 
 type Cursor struct {
@@ -82,39 +90,36 @@ if states["numSubscriptions"].(int) < 2 {
 
 ## Transaction Isolation Levels
 
-go-crablet automatically chooses the optimal PostgreSQL transaction isolation level for each append method:
+go-crablet uses configurable PostgreSQL transaction isolation levels:
 
-- **Append**: Uses **Read Committed** (fastest, safe for simple appends)
-- **AppendIf**: Uses **Repeatable Read** (strong consistency for conditional appends)
-- **AppendIfIsolated**: Uses **Serializable** (strongest consistency for critical operations)
+- **Append**: Uses the default isolation level configured in `EventStoreConfig` (typically Read Committed)
+- **AppendIf**: Uses the default isolation level configured in `EventStoreConfig` (typically Repeatable Read)
 
-Isolation levels are **implicit and not configurable** in the API. This ensures the best balance of safety and performance for each operation.
+The isolation level can be configured when creating the EventStore via `EventStoreConfig.DefaultAppendIsolation`.
 
 ## Performance Comparison Across Isolation Levels
 
 Benchmark results from web-app load testing (30-second tests, multiple VUs):
 
-| Metric | Append (Read Committed) | AppendIf (Repeatable Read) | AppendIfIsolated (Serializable) |
-|--------|------------------------|---------------------------|--------------------------------|
-| **Throughput** | 79.2 req/s | 61.7 req/s | 12.4 req/s |
-| **Avg Response Time** | 24.87ms | 12.82ms | 13.4ms |
-| **p95 Response Time** | 49.16ms | 21.86ms | 30.62ms |
-| **Success Rate** | 100% | 100% | 100% |
-| **VUs** | 10 | 10 | 5 |
-| **Use Case** | Simple appends | Conditional appends | Critical operations |
+| Metric | Append (Read Committed) | AppendIf (Repeatable Read) |
+|--------|------------------------|---------------------------|
+| **Throughput** | 79.2 req/s | 61.7 req/s |
+| **Avg Response Time** | 24.87ms | 12.82ms |
+| **p95 Response Time** | 49.16ms | 21.86ms |
+| **Success Rate** | 100% | 100% |
+| **VUs** | 10 | 10 |
+| **Use Case** | Simple appends | Conditional appends |
 
 ### Key Performance Insights
 
 - **AppendIf is fastest**: Conditional appends with Repeatable Read isolation actually perform better than simple appends
-- **Excellent reliability**: All isolation levels achieve 100% success rate
-- **Reasonable trade-offs**: Serializable isolation provides strongest consistency with acceptable performance
+- **Excellent reliability**: Both isolation levels achieve 100% success rate
 - **Optimized implementation**: Cursor-based optimistic locking and SQL functions are highly efficient
 
-### When to Use Each Isolation Level
+### When to Use Each Method
 
 - **Append**: Use for simple event appends where no conditions are needed
-- **AppendIf**: Use for most conditional appends - best performance with strong consistency
-- **AppendIfIsolated**: Use for critical operations requiring the strongest consistency guarantees
+- **AppendIf**: Use for conditional appends requiring optimistic locking
 
 ## Implementation Details
 
