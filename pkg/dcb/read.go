@@ -90,10 +90,10 @@ func (es *eventStore) Read(ctx context.Context, query Query) ([]Event, error) {
 // ReadStreamChannel creates a channel-based stream of events matching a query
 // This is optimized for small to medium datasets (< 500 events) and provides
 // a more Go-idiomatic interface using channels
-func (es *eventStore) ReadStreamChannel(ctx context.Context, query Query) (<-chan Event, *Cursor, error) {
+func (es *eventStore) ReadStreamChannel(ctx context.Context, query Query) (<-chan Event, Cursor, error) {
 	// Validate that the query is not empty (same validation as Read method)
 	if len(query.getItems()) == 0 {
-		return nil, nil, &ValidationError{
+		return nil, Cursor{}, &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  "ReadStreamChannel",
 				Err: fmt.Errorf("query must contain at least one item"),
@@ -106,20 +106,20 @@ func (es *eventStore) ReadStreamChannel(ctx context.Context, query Query) (<-cha
 	// Build the SQL query
 	sqlQuery, args, err := es.buildReadQuerySQL(query, ReadOptions{})
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to build query: %w", err)
+		return nil, Cursor{}, fmt.Errorf("failed to build query: %w", err)
 	}
 
 	// Execute the query
 	rows, err := es.pool.Query(ctx, sqlQuery, args...)
 	if err != nil {
-		return nil, nil, fmt.Errorf("query failed: %w", err)
+		return nil, Cursor{}, fmt.Errorf("query failed: %w", err)
 	}
 
 	// Create result channel
 	resultChan := make(chan Event, 100)
 
 	// Track latest cursor
-	var latestCursor *Cursor
+	var latestCursor Cursor
 
 	// Start streaming events in a goroutine
 	go func() {
@@ -154,7 +154,7 @@ func (es *eventStore) ReadStreamChannel(ctx context.Context, query Query) (<-cha
 				}
 
 				// Update latest cursor (events are ordered by transaction_id ASC, position ASC)
-				latestCursor = &Cursor{
+				latestCursor = Cursor{
 					TransactionID: row.TransactionID,
 					Position:      row.Position,
 				}

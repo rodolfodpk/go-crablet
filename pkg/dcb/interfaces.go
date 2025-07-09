@@ -33,12 +33,12 @@ type EventStore interface {
 	// ReadStreamChannel creates a channel-based stream of events matching a query
 	// This is optimized for small to medium datasets (< 500 events) and provides
 	// a more Go-idiomatic interface using channels
-	ReadStreamChannel(ctx context.Context, query Query) (<-chan Event, *Cursor, error)
+	ReadStreamChannel(ctx context.Context, query Query) (<-chan Event, Cursor, error)
 
 	// ProjectDecisionModelChannel projects multiple states using channel-based streaming
 	// This is optimized for small to medium datasets (< 500 events) and provides
 	// a more Go-idiomatic interface using channels for state projection
-	ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector) (<-chan ProjectionResult, *Cursor, error)
+	ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector) (<-chan ProjectionResult, Cursor, error)
 }
 
 // ProjectionResult represents a single projection result from channel-based projection

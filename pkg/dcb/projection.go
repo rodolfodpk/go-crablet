@@ -313,15 +313,15 @@ func BuildAppendConditionFromQuery(query Query) AppendCondition {
 // ProjectDecisionModelChannel projects multiple states using channel-based streaming
 // This is optimized for small to medium datasets (< 500 events) and provides
 // a more Go-idiomatic interface using channels for state projection
-func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector) (<-chan ProjectionResult, *Cursor, error) {
+func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projectors []BatchProjector) (<-chan ProjectionResult, Cursor, error) {
 	if len(projectors) == 0 {
-		return nil, nil, fmt.Errorf("at least one projector is required")
+		return nil, Cursor{}, fmt.Errorf("at least one projector is required")
 	}
 
 	// Validate projectors
 	for _, bp := range projectors {
 		if bp.StateProjector.TransitionFn == nil {
-			return nil, nil, &ValidationError{
+			return nil, Cursor{}, &ValidationError{
 				EventStoreError: EventStoreError{
 					Op:  "ProjectDecisionModelChannel",
 					Err: fmt.Errorf("projector %s has nil transition function", bp.ID),
@@ -337,7 +337,7 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 
 	// Validate that the combined query is not empty (same validation as Read method)
 	if len(query.getItems()) == 0 {
-		return nil, nil, &ValidationError{
+		return nil, Cursor{}, &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  "ProjectDecisionModelChannel",
 				Err: fmt.Errorf("query must contain at least one item"),
@@ -350,20 +350,20 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 	// Build the SQL query
 	sqlQuery, args, err := es.buildReadQuerySQL(query, ReadOptions{})
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to build query: %w", err)
+		return nil, Cursor{}, fmt.Errorf("failed to build query: %w", err)
 	}
 
 	// Execute the query
 	rows, err := es.pool.Query(ctx, sqlQuery, args...)
 	if err != nil {
-		return nil, nil, fmt.Errorf("query failed: %w", err)
+		return nil, Cursor{}, fmt.Errorf("query failed: %w", err)
 	}
 
 	// Create result channel
 	resultChan := make(chan ProjectionResult, 100)
 
 	// Track latest cursor
-	var latestCursor *Cursor
+	var latestCursor Cursor
 
 	// Start projection processing in a goroutine
 	go func() {
@@ -408,7 +408,7 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 				}
 
 				// Update latest cursor (events are ordered by transaction_id ASC, position ASC)
-				latestCursor = &Cursor{
+				latestCursor = Cursor{
 					TransactionID: row.TransactionID,
 					Position:      row.Position,
 				}
