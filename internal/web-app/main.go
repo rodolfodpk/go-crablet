@@ -548,12 +548,28 @@ func (s *Server) appendWithAdvisoryLocks(ctx context.Context, events []dcb.Input
 		}
 	}
 
-	// Call the advisory lock function directly
+	// Get lock timeout from context or use default (5 seconds)
+	lockTimeout := 5000 // 5 seconds default
+	if timeout, ok := ctx.Value("lock_timeout_ms").(int); ok {
+		lockTimeout = timeout
+	}
+
+	// Call the advisory lock function directly with timeout
 	_, err = s.pool.Exec(ctx, `
-		SELECT append_events_with_advisory_locks($1, $2, $3, $4)
-	`, types, tags, data, conditionJSON)
+		SELECT append_events_with_advisory_locks($1, $2, $3, $4, $5)
+	`, types, tags, data, conditionJSON, lockTimeout)
 
 	if err != nil {
+		// Check if it's a lock timeout error
+		if strings.Contains(err.Error(), "lock timeout") {
+			return &dcb.ConcurrencyError{
+				EventStoreError: dcb.EventStoreError{
+					Op:  "append",
+					Err: fmt.Errorf("advisory lock timeout: %w", err),
+				},
+			}
+		}
+
 		// Check if it's a condition violation error
 		if strings.Contains(err.Error(), "append condition violated") {
 			return &dcb.ConcurrencyError{

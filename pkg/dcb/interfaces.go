@@ -8,6 +8,18 @@ import (
 
 // EventStore is the core interface for appending and reading events
 type EventStore interface {
+
+	// Read reads events matching the query (no options)
+	Read(ctx context.Context, query Query) ([]Event, error)
+
+	// ReadWithOptions reads events matching the query with additional options
+	ReadWithOptions(ctx context.Context, query Query, options ReadOptions) ([]Event, error)
+
+	// ReadStreamChannel creates a channel-based stream of events matching a query
+	// This is optimized for small to medium datasets (< 500 events) and provides
+	// a more Go-idiomatic interface using channels
+	ReadStreamChannel(ctx context.Context, query Query) (<-chan Event, Cursor, error)
+
 	// Append appends events to the store (always succeeds if no validation errors)
 	// Uses PostgreSQL Read Committed isolation level (pgx.ReadCommitted)
 	Append(ctx context.Context, events []InputEvent) error
@@ -20,20 +32,9 @@ type EventStore interface {
 	// Uses PostgreSQL Serializable isolation level (pgx.Serializable)
 	AppendIfIsolated(ctx context.Context, events []InputEvent, condition AppendCondition) error
 
-	// Read reads events matching the query (no options)
-	Read(ctx context.Context, query Query) ([]Event, error)
-
-	// ReadWithOptions reads events matching the query with additional options
-	ReadWithOptions(ctx context.Context, query Query, options ReadOptions) ([]Event, error)
-
 	// ProjectDecisionModel projects multiple states using projectors and returns final states and append condition
 	// This is a go-crablet feature for building decision models in command handlers
 	ProjectDecisionModel(ctx context.Context, projectors []BatchProjector) (map[string]any, AppendCondition, error)
-
-	// ReadStreamChannel creates a channel-based stream of events matching a query
-	// This is optimized for small to medium datasets (< 500 events) and provides
-	// a more Go-idiomatic interface using channels
-	ReadStreamChannel(ctx context.Context, query Query) (<-chan Event, Cursor, error)
 
 	// ProjectDecisionModelChannel projects multiple states using channel-based streaming
 	// This is optimized for small to medium datasets (< 500 events) and provides

@@ -125,7 +125,8 @@ CREATE OR REPLACE FUNCTION append_events_with_advisory_locks(
     p_types TEXT[],
     p_tags TEXT[], -- array of Postgres array literals as strings
     p_data JSONB[],
-    p_condition JSONB DEFAULT NULL
+    p_condition JSONB DEFAULT NULL,
+    p_lock_timeout_ms INTEGER DEFAULT 5000 -- 5 second default timeout
 ) RETURNS VOID AS $$
 DECLARE
     fail_if_events_match JSONB;
@@ -136,7 +137,12 @@ DECLARE
     tag_key TEXT;
     lock_key TEXT;
     i INTEGER;
+    lock_timeout_setting TEXT;
 BEGIN
+    -- Set lock timeout for this transaction
+    lock_timeout_setting := current_setting('lock_timeout', true);
+    PERFORM set_config('lock_timeout', p_lock_timeout_ms::TEXT, false);
+    
     -- Extract condition parameters
     IF p_condition IS NOT NULL THEN
         fail_if_events_match := p_condition->'fail_if_events_match';
@@ -193,6 +199,69 @@ BEGIN
     
     -- If conditions pass, insert events using UNNEST for all cases
     PERFORM append_events_batch(p_types, p_tags, p_data);
+    
+    -- Restore original lock timeout setting
+    IF lock_timeout_setting IS NOT NULL THEN
+        PERFORM set_config('lock_timeout', lock_timeout_setting, false);
+    END IF;
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Restore original lock timeout setting on error
+        IF lock_timeout_setting IS NOT NULL THEN
+            PERFORM set_config('lock_timeout', lock_timeout_setting, false);
+        END IF;
+        RAISE;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to monitor advisory lock usage
+CREATE OR REPLACE FUNCTION get_advisory_lock_stats() 
+RETURNS TABLE (
+    lock_id BIGINT,
+    database_id OID,
+    object_id BIGINT,
+    session_id INTEGER,
+    application_name TEXT,
+    client_addr INET,
+    backend_start TIMESTAMPTZ,
+    query_start TIMESTAMPTZ,
+    state TEXT,
+    wait_event_type TEXT,
+    wait_event TEXT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        al.lockid,
+        al.database,
+        al.objid,
+        p.pid,
+        p.application_name,
+        p.client_addr,
+        p.backend_start,
+        p.query_start,
+        p.state,
+        p.wait_event_type,
+        p.wait_event
+    FROM pg_locks al
+    JOIN pg_stat_activity p ON al.pid = p.pid
+    WHERE al.locktype = 'advisory'
+    AND p.state != 'idle'
+    ORDER BY al.lockid, p.backend_start;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to get advisory lock count
+CREATE OR REPLACE FUNCTION get_advisory_lock_count() 
+RETURNS INTEGER AS $$
+DECLARE
+    lock_count INTEGER;
+BEGIN
+    SELECT COUNT(*) INTO lock_count
+    FROM pg_locks 
+    WHERE locktype = 'advisory';
+    
+    RETURN lock_count;
 END;
 $$ LANGUAGE plpgsql;
     
