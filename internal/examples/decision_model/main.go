@@ -67,8 +67,9 @@ func main() {
 	}
 
 	// Re-project state and get a fresh append condition for optimistic locking
-	projectors := []dcb.BatchProjector{
-		{ID: "account", StateProjector: dcb.StateProjector{
+	projectors := []dcb.StateProjector{
+		{
+			ID: "account",
 			Query: dcb.NewQuery(
 				dcb.NewTags("account_id", accountID),
 				"AccountOpened", "AccountBalanceChanged",
@@ -88,7 +89,7 @@ func main() {
 				}
 				return account
 			},
-		}},
+		},
 	}
 	_, appendCondition, err := channelStore.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
@@ -150,9 +151,19 @@ func main() {
 	}
 
 	// Create batch projectors
-	projectors = []dcb.BatchProjector{
-		{ID: "account", StateProjector: accountProjector},
-		{ID: "transactions", StateProjector: transactionProjector},
+	projectors = []dcb.StateProjector{
+		{
+			ID:           "account",
+			Query:        accountProjector.Query,
+			InitialState: accountProjector.InitialState,
+			TransitionFn: accountProjector.TransitionFn,
+		},
+		{
+			ID:           "transactions",
+			Query:        transactionProjector.Query,
+			InitialState: transactionProjector.InitialState,
+			TransitionFn: transactionProjector.TransitionFn,
+		},
 	}
 
 	states, appendCondition, err := channelStore.ProjectDecisionModel(ctx, projectors)
@@ -183,15 +194,16 @@ func main() {
 // Command handlers with their own business rules
 
 func handleOpenAccount(ctx context.Context, store dcb.EventStore, cmd OpenAccountCommand) error {
-	projectors := []dcb.BatchProjector{
-		{ID: "accountExists", StateProjector: dcb.StateProjector{
+	projectors := []dcb.StateProjector{
+		{
+			ID: "accountExists",
 			Query: dcb.NewQuery(
 				dcb.NewTags("account_id", cmd.AccountID),
 				"AccountOpened",
 			),
 			InitialState: false,
 			TransitionFn: func(state any, event dcb.Event) any { return true },
-		}},
+		},
 	}
 	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
 	if err != nil {
