@@ -90,33 +90,35 @@ func channelBasedExample() {
     pool, _ := pgxpool.New(ctx, "postgres://user:pass@localhost/db")
     store, _ := dcb.NewEventStore(ctx, pool)
     
-    // Get channel-based store
-    channelStore := store.(dcb.EventStore)
+    // Use store directly (all EventStore instances support channels)
 
     courseID := "c1"
     studentID := "s1"
 
     // Define the same projectors
     projectors := []dcb.StateProjector{
-        {ID: "courseExists", StateProjector: dcb.StateProjector{
+        {
+            ID: "courseExists",
             Query: dcb.NewQuerySimple(dcb.NewTags("course_id", courseID), "CourseDefined"),
             InitialState: false,
             TransitionFn: func(state any, e dcb.Event) any { return true },
-        }},
-        {ID: "numSubscriptions", StateProjector: dcb.StateProjector{
+        },
+        {
+            ID: "numSubscriptions",
             Query: dcb.NewQuerySimple(dcb.NewTags("course_id", courseID), "StudentSubscribed"),
             InitialState: 0,
             TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
-        }},
-        {ID: "alreadySubscribed", StateProjector: dcb.StateProjector{
+        },
+        {
+            ID: "alreadySubscribed",
             Query: dcb.NewQuerySimple(dcb.NewTags("student_id", studentID, "course_id", courseID), "StudentSubscribed"),
             InitialState: false,
             TransitionFn: func(state any, e dcb.Event) any { return true },
-        }},
+        },
     }
 
     // Channel-based projection with immediate feedback
-    resultChan, _, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
+    resultChan, _, err := store.ProjectDecisionModelChannel(ctx, projectors)
     
     // Process results as they come in
     finalStates := make(map[string]interface{})
@@ -154,8 +156,7 @@ func channelStreamingExample() {
     pool, _ := pgxpool.New(ctx, "postgres://user:pass@localhost/db")
     store, _ := dcb.NewEventStore(ctx, pool)
     
-    // Get channel-based store
-    channelStore := store.(dcb.EventStore)
+    // Use store directly (all EventStore instances support channels)
 
     // Create query for course events
     query := dcb.NewQueryFromItems(
@@ -165,7 +166,7 @@ func channelStreamingExample() {
     )
 
     // Channel-based streaming
-    eventChan, err := channelStore.ReadChannel(ctx, query)
+    eventChan, err := store.ReadChannel(ctx, query)
     if err != nil {
         panic(err)
     }
@@ -193,7 +194,8 @@ This example demonstrates concurrent money transfers with optimistic locking to 
 func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd TransferMoneyCommand) error {
     // Project state for the "from" account
     projectors := []dcb.StateProjector{
-        {ID: "from", StateProjector: dcb.StateProjector{
+        {
+            ID: "from",
             Query: dcb.NewQuery(dcb.NewTags("account_id", cmd.FromAccountID), "AccountOpened", "MoneyTransferred"),
             InitialState: &AccountState{AccountID: cmd.FromAccountID},
             TransitionFn: func(state any, event dcb.Event) any {
@@ -206,7 +208,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
                 }
                 return acc
             },
-        }},
+        },
     }
     
     states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
@@ -283,21 +285,24 @@ Query: dcb.NewQueryFromItems(dcb.QItemKV("CourseDefined", "course_id", courseID)
 ```go
 // Define projectors using the new helper functions
 projectors := []dcb.StateProjector{
-    {ID: "courseExists", StateProjector: dcb.StateProjector{
+    {
+        ID: "courseExists",
         Query: dcb.NewQueryFromItems(dcb.QItemKV("CourseDefined", "course_id", courseID)),
         InitialState: false,
         TransitionFn: func(state any, e dcb.Event) any { return true },
-    }},
-    {ID: "numSubscriptions", StateProjector: dcb.StateProjector{
+    },
+    {
+        ID: "numSubscriptions",
         Query: dcb.NewQueryFromItems(dcb.QItemKV("StudentSubscribed", "course_id", courseID)),
         InitialState: 0,
         TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
-    }},
-    {ID: "alreadySubscribed", StateProjector: dcb.StateProjector{
+    },
+    {
+        ID: "alreadySubscribed",
         Query: dcb.NewQueryFromItems(dcb.QItemKV("StudentSubscribed", "student_id", studentID, "course_id", courseID)),
         InitialState: false,
         TransitionFn: func(state any, e dcb.Event) any { return true },
-    }},
+    },
 }
 ```
 

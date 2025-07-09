@@ -77,8 +77,22 @@ We're exploring how a Dynamic Consistency Boundary decision model might work:
 
 ```go
 projectors := []dcb.StateProjector{
-    {ID: "courseExists", StateProjector: dcb.StateProjector{...}},
-    {ID: "numSubscriptions", StateProjector: dcb.StateProjector{...}},
+    {
+        ID: "courseExists",
+        Query: dcb.NewQuery(dcb.NewTags("course_id", courseID), "CourseDefined"),
+        InitialState: false,
+        TransitionFn: func(state any, event dcb.Event) any {
+            return true // If we see a CourseDefined event, course exists
+        },
+    },
+    {
+        ID: "numSubscriptions",
+        Query: dcb.NewQuery(dcb.NewTags("course_id", courseID), "StudentEnrolled"),
+        InitialState: 0,
+        TransitionFn: func(state any, event dcb.Event) any {
+            return state.(int) + 1
+        },
+    },
 }
 states, appendCond, _ := store.ProjectDecisionModel(ctx, projectors)
 if !states["courseExists"].(bool) { 
