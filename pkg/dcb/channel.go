@@ -244,5 +244,3 @@ func (es *eventStore) ProjectDecisionModelChannel(ctx context.Context, projector
 
 	return resultChan, latestCursor, nil
 }
-
-// Append now returns only error, not position.
