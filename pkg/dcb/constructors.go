@@ -27,7 +27,7 @@ func NewEventStoreFromPool(pool *pgxpool.Pool) EventStore {
 	cfg := EventStoreConfig{
 		MaxBatchSize:           1000,
 		LockTimeout:            5000,
-		StreamBuffer:           100,
+		StreamBuffer:           1000,
 		DefaultAppendIsolation: IsolationLevelReadCommitted,
 	}
 	return &eventStore{

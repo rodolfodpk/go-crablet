@@ -26,6 +26,10 @@ func init() {
 type Server struct {
 	store dcb.EventStore
 	pool  *pgxpool.Pool
+	// Store with different isolation levels for benchmarking
+	readCommittedStore  dcb.EventStore
+	repeatableReadStore dcb.EventStore
+	serializableStore   dcb.EventStore
 }
 
 func main() {
@@ -111,13 +115,53 @@ func main() {
 	}
 	defer pool.Close()
 
-	// Create event store
+	// Create event store with default config
 	store, err := dcb.NewEventStore(ctx, pool)
 	if err != nil {
 		log.Fatalf("Failed to create event store: %v", err)
 	}
 
-	server := &Server{store: store, pool: pool}
+	// Create stores with different isolation levels for benchmarking
+	readCommittedConfig := dcb.EventStoreConfig{
+		MaxBatchSize:           1000,
+		LockTimeout:            5000,
+		StreamBuffer:           1000,
+		DefaultAppendIsolation: dcb.IsolationLevelReadCommitted,
+	}
+	readCommittedStore, err := dcb.NewEventStoreWithConfig(ctx, pool, readCommittedConfig)
+	if err != nil {
+		log.Fatalf("Failed to create read committed store: %v", err)
+	}
+
+	repeatableReadConfig := dcb.EventStoreConfig{
+		MaxBatchSize:           1000,
+		LockTimeout:            5000,
+		StreamBuffer:           1000,
+		DefaultAppendIsolation: dcb.IsolationLevelRepeatableRead,
+	}
+	repeatableReadStore, err := dcb.NewEventStoreWithConfig(ctx, pool, repeatableReadConfig)
+	if err != nil {
+		log.Fatalf("Failed to create repeatable read store: %v", err)
+	}
+
+	serializableConfig := dcb.EventStoreConfig{
+		MaxBatchSize:           1000,
+		LockTimeout:            5000,
+		StreamBuffer:           1000,
+		DefaultAppendIsolation: dcb.IsolationLevelSerializable,
+	}
+	serializableStore, err := dcb.NewEventStoreWithConfig(ctx, pool, serializableConfig)
+	if err != nil {
+		log.Fatalf("Failed to create serializable store: %v", err)
+	}
+
+	server := &Server{
+		store:               store,
+		pool:                pool,
+		readCommittedStore:  readCommittedStore,
+		repeatableReadStore: repeatableReadStore,
+		serializableStore:   serializableStore,
+	}
 
 	// Setup routes with optimized handlers
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -455,17 +499,35 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 	// Check if any events have lock: tags to determine if we should use advisory locks
 	useAdvisoryLocks := hasLockTags(inputEvents)
 
+	// Get isolation level from header for benchmarking
+	isolationLevel := r.Header.Get("X-Isolation-Level")
+
 	// Determine append method based on headers and lock tags
 	var appendErr error
 	if useAdvisoryLocks {
 		// Use advisory lock function when lock: tags are present
 		appendErr = s.appendWithAdvisoryLocks(r.Context(), inputEvents, condition)
-	} else if condition != nil {
-		// Use AppendIf with config-based isolation level
-		appendErr = s.store.AppendIf(r.Context(), inputEvents, condition)
 	} else {
-		// Simple append without conditions
-		appendErr = s.store.Append(r.Context(), inputEvents)
+		// Select store based on isolation level header
+		var targetStore dcb.EventStore
+		switch isolationLevel {
+		case "read_committed":
+			targetStore = s.readCommittedStore
+		case "repeatable_read":
+			targetStore = s.repeatableReadStore
+		case "serializable":
+			targetStore = s.serializableStore
+		default:
+			targetStore = s.store // Use default store
+		}
+
+		if condition != nil {
+			// Use AppendIf with selected isolation level
+			appendErr = targetStore.AppendIf(r.Context(), inputEvents, condition)
+		} else {
+			// Simple append without conditions
+			appendErr = targetStore.Append(r.Context(), inputEvents)
+		}
 	}
 	duration := time.Since(start)
 

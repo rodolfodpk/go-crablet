@@ -26,7 +26,7 @@ func newEventStore(ctx context.Context, pool *pgxpool.Pool, config *EventStoreCo
 		cfg = EventStoreConfig{
 			MaxBatchSize:           1000,
 			LockTimeout:            5000,
-			StreamBuffer:           100,
+			StreamBuffer:           1000,
 			DefaultAppendIsolation: IsolationLevelReadCommitted,
 		}
 	}
