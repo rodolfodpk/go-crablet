@@ -113,8 +113,9 @@ func main() {
 
 func handleCreateUser(ctx context.Context, store dcb.EventStore, cmd CreateUserCommand) error {
 	// Command-specific projectors
-	projectors := []dcb.BatchProjector{
-		{ID: "userExists", StateProjector: dcb.StateProjector{
+	projectors := []dcb.StateProjector{
+		{
+			ID: "userExists",
 			Query: dcb.NewQuery(
 				dcb.NewTags("user_id", cmd.UserID),
 				"UserCreated",
@@ -123,8 +124,9 @@ func handleCreateUser(ctx context.Context, store dcb.EventStore, cmd CreateUserC
 			TransitionFn: func(state any, event dcb.Event) any {
 				return true // If we see a UserCreated event, user exists
 			},
-		}},
-		{ID: "emailExists", StateProjector: dcb.StateProjector{
+		},
+		{
+			ID: "emailExists",
 			Query: dcb.NewQuery(
 				dcb.NewTags("email", cmd.Email),
 				"UserCreated",
@@ -133,7 +135,7 @@ func handleCreateUser(ctx context.Context, store dcb.EventStore, cmd CreateUserC
 			TransitionFn: func(state any, event dcb.Event) any {
 				return true // If we see a UserCreated event with this email, email exists
 			},
-		}},
+		},
 	}
 
 	states, _, err := store.ProjectDecisionModel(ctx, projectors)
@@ -174,8 +176,9 @@ func handleCreateUser(ctx context.Context, store dcb.EventStore, cmd CreateUserC
 
 func handleCreateOrder(ctx context.Context, store dcb.EventStore, cmd CreateOrderCommand) error {
 	// Command-specific projectors
-	projectors := []dcb.BatchProjector{
-		{ID: "orderExists", StateProjector: dcb.StateProjector{
+	projectors := []dcb.StateProjector{
+		{
+			ID: "orderExists",
 			Query: dcb.NewQuery(
 				dcb.NewTags("order_id", cmd.OrderID),
 				"OrderCreated",
@@ -184,8 +187,9 @@ func handleCreateOrder(ctx context.Context, store dcb.EventStore, cmd CreateOrde
 			TransitionFn: func(state any, event dcb.Event) any {
 				return true // If we see an OrderCreated event, order exists
 			},
-		}},
-		{ID: "userExists", StateProjector: dcb.StateProjector{
+		},
+		{
+			ID: "userExists",
 			Query: dcb.NewQuery(
 				dcb.NewTags("user_id", cmd.UserID),
 				"UserCreated",
@@ -194,7 +198,7 @@ func handleCreateOrder(ctx context.Context, store dcb.EventStore, cmd CreateOrde
 			TransitionFn: func(state any, event dcb.Event) any {
 				return true // If we see a UserCreated event, user exists
 			},
-		}},
+		},
 	}
 
 	states, _, err := store.ProjectDecisionModel(ctx, projectors)
@@ -242,35 +246,31 @@ func handleCreateOrder(ctx context.Context, store dcb.EventStore, cmd CreateOrde
 
 func handleBatchCreateUsers(ctx context.Context, store dcb.EventStore, commands []CreateUserCommand) error {
 	// Batch-specific projectors to check all users and emails at once
-	projectors := []dcb.BatchProjector{}
+	projectors := []dcb.StateProjector{}
 
 	// Add projectors for each user and email
 	for _, cmd := range commands {
-		projectors = append(projectors, dcb.BatchProjector{
+		projectors = append(projectors, dcb.StateProjector{
 			ID: fmt.Sprintf("userExists_%s", cmd.UserID),
-			StateProjector: dcb.StateProjector{
-				Query: dcb.NewQuery(
-					dcb.NewTags("user_id", cmd.UserID),
-					"UserCreated",
-				),
-				InitialState: false,
-				TransitionFn: func(state any, event dcb.Event) any {
-					return true
-				},
+			Query: dcb.NewQuery(
+				dcb.NewTags("user_id", cmd.UserID),
+				"UserCreated",
+			),
+			InitialState: false,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return true
 			},
 		})
 
-		projectors = append(projectors, dcb.BatchProjector{
+		projectors = append(projectors, dcb.StateProjector{
 			ID: fmt.Sprintf("emailExists_%s", cmd.Email),
-			StateProjector: dcb.StateProjector{
-				Query: dcb.NewQuery(
-					dcb.NewTags("email", cmd.Email),
-					"UserCreated",
-				),
-				InitialState: false,
-				TransitionFn: func(state any, event dcb.Event) any {
-					return true
-				},
+			Query: dcb.NewQuery(
+				dcb.NewTags("email", cmd.Email),
+				"UserCreated",
+			),
+			InitialState: false,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return true
 			},
 		})
 	}
