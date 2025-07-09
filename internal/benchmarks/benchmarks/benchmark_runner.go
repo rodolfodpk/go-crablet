@@ -190,8 +190,9 @@ func BenchmarkAppendIf(b *testing.B, benchCtx *BenchmarkContext, batchSize int) 
 	}
 }
 
-// BenchmarkAppendIfIsolated benchmarks conditional append with Serializable isolation
-func BenchmarkAppendIfIsolated(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
+// BenchmarkAppendIfWithCondition benchmarks conditional append with configurable isolation
+// NOTE: The isolation level is configured in the EventStore config.
+func BenchmarkAppendIfWithCondition(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
 	// Create context with timeout for each benchmark iteration
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -201,12 +202,12 @@ func BenchmarkAppendIfIsolated(b *testing.B, benchCtx *BenchmarkContext, batchSi
 
 	for i := 0; i < b.N; i++ {
 		events := make([]dcb.InputEvent, batchSize)
-		uniqueID := fmt.Sprintf("appendifisolated_%d_%d", time.Now().UnixNano(), i)
+		uniqueID := fmt.Sprintf("appendif_%d_%d", time.Now().UnixNano(), i)
 
 		for j := 0; j < batchSize; j++ {
 			eventID := fmt.Sprintf("%s_%d", uniqueID, j)
 			events[j] = dcb.NewInputEvent("TestEvent",
-				dcb.NewTags("test", "appendifisolated", "unique_id", eventID),
+				dcb.NewTags("test", "appendif", "unique_id", eventID),
 				[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, eventID)))
 		}
 
@@ -215,9 +216,9 @@ func BenchmarkAppendIfIsolated(b *testing.B, benchCtx *BenchmarkContext, batchSi
 			dcb.NewQuery(dcb.NewTags("test", "conflict"), "ConflictingEvent"),
 		)
 
-		err := benchCtx.Store.AppendIfIsolated(ctx, events, condition)
+		err := benchCtx.Store.AppendIf(ctx, events, condition)
 		if err != nil {
-			b.Fatalf("AppendIfIsolated failed: %v", err)
+			b.Fatalf("AppendIf failed: %v", err)
 		}
 	}
 }
@@ -264,8 +265,9 @@ func BenchmarkAppendIfWithConflict(b *testing.B, benchCtx *BenchmarkContext, bat
 	}
 }
 
-// BenchmarkAppendIfIsolatedWithConflict benchmarks AppendIfIsolated with a condition that should fail
-func BenchmarkAppendIfIsolatedWithConflict(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
+// BenchmarkAppendIfWithConflictCondition benchmarks AppendIf with a condition that should fail
+// NOTE: The isolation level is configured in the EventStore config.
+func BenchmarkAppendIfWithConflictCondition(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
 	// Create context with timeout for each benchmark iteration
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -289,7 +291,7 @@ func BenchmarkAppendIfIsolatedWithConflict(b *testing.B, benchCtx *BenchmarkCont
 		for j := 0; j < batchSize; j++ {
 			eventID := fmt.Sprintf("%s_%d", uniqueID, j)
 			events[j] = dcb.NewInputEvent("TestEvent",
-				dcb.NewTags("test", "appendifisolatedconflict", "unique_id", eventID),
+				dcb.NewTags("test", "appendifconflict", "unique_id", eventID),
 				[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, eventID)))
 		}
 
@@ -299,9 +301,9 @@ func BenchmarkAppendIfIsolatedWithConflict(b *testing.B, benchCtx *BenchmarkCont
 		)
 
 		// This should fail due to the conflicting event
-		err = benchCtx.Store.AppendIfIsolated(ctx, events, condition)
+		err = benchCtx.Store.AppendIf(ctx, events, condition)
 		if err == nil {
-			b.Fatalf("AppendIfIsolated should have failed due to conflict")
+			b.Fatalf("AppendIf should have failed due to conflict")
 		}
 	}
 }
@@ -330,10 +332,10 @@ func BenchmarkRead(b *testing.B, benchCtx *BenchmarkContext, queryIndex int) {
 }
 
 // BenchmarkReadStream has been removed - use Read instead for batch reading
-// ReadStream was replaced with ReadStreamChannel for streaming operations
+// ReadStream was replaced with ReadChannel for streaming operations
 
-// BenchmarkReadStreamChannel benchmarks event streaming with channels
-func BenchmarkReadStreamChannel(b *testing.B, benchCtx *BenchmarkContext, queryIndex int) {
+// BenchmarkReadChannel benchmarks event streaming with channels
+func BenchmarkReadChannel(b *testing.B, benchCtx *BenchmarkContext, queryIndex int) {
 	if !benchCtx.HasChannel {
 		b.Skip("Channel streaming not available")
 	}
@@ -352,9 +354,9 @@ func BenchmarkReadStreamChannel(b *testing.B, benchCtx *BenchmarkContext, queryI
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		eventChan, _, err := benchCtx.ChannelStore.ReadStreamChannel(ctx, query)
+		eventChan, err := benchCtx.ChannelStore.ReadChannel(ctx, query)
 		if err != nil {
-			b.Fatalf("ReadStreamChannel failed: %v", err)
+			b.Fatalf("ReadChannel failed: %v", err)
 		}
 
 		count := 0
@@ -454,9 +456,9 @@ func BenchmarkMemoryUsage(b *testing.B, benchCtx *BenchmarkContext, operation st
 			}
 		case "stream":
 			query := dcb.NewQuery(dcb.NewTags(), "StudentEnrolledInCourse")
-			eventChan, _, err := benchCtx.ChannelStore.ReadStreamChannel(ctx, query)
+			eventChan, err := benchCtx.ChannelStore.ReadChannel(ctx, query)
 			if err != nil {
-				b.Fatalf("ReadStreamChannel failed: %v", err)
+				b.Fatalf("ReadChannel failed: %v", err)
 			}
 			for range eventChan {
 				// Just iterate through events
@@ -504,8 +506,8 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 	})
 
 	if benchCtx.HasChannel {
-		b.Run("ReadStreamChannel", func(b *testing.B) {
-			BenchmarkReadStreamChannel(b, benchCtx, 0)
+		b.Run("ReadChannel", func(b *testing.B) {
+			BenchmarkReadChannel(b, benchCtx, 0)
 		})
 	}
 

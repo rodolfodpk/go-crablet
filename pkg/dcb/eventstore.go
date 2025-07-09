@@ -9,30 +9,38 @@ import (
 
 // eventStore implements the EventStore interface using PostgreSQL
 type eventStore struct {
-	pool         *pgxpool.Pool
-	maxBatchSize int
-	lockTimeout  int // Lock timeout in milliseconds for advisory locks
-	streamBuffer int // Channel buffer size for streaming operations
+	pool   *pgxpool.Pool
+	config EventStoreConfig
 }
 
 // newEventStore creates a new eventStore instance
-func newEventStore(ctx context.Context, pool *pgxpool.Pool) (*eventStore, error) {
+func newEventStore(ctx context.Context, pool *pgxpool.Pool, config *EventStoreConfig) (*eventStore, error) {
 	// Test the connection
 	if err := pool.Ping(ctx); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
-
+	var cfg EventStoreConfig
+	if config != nil {
+		cfg = *config
+	} else {
+		cfg = EventStoreConfig{
+			MaxBatchSize:           1000,
+			LockTimeout:            5000,
+			StreamBuffer:           100,
+			DefaultAppendIsolation: IsolationLevelReadCommitted,
+		}
+	}
 	return &eventStore{
-		pool:         pool,
-		maxBatchSize: 1000, // Default maximum batch size
-		lockTimeout:  5000, // Default 5 second lock timeout
-		streamBuffer: 100,  // Default channel buffer size
+		pool:   pool,
+		config: cfg,
 	}, nil
 }
 
-// GetLockTimeout returns the lock timeout in milliseconds for advisory locks
-func (es *eventStore) GetLockTimeout() int {
-	return es.lockTimeout
+// Remove GetLockTimeout method - lock timeout is now accessed via GetConfig().LockTimeout
+
+// GetConfig returns the current EventStore configuration
+func (es *eventStore) GetConfig() EventStoreConfig {
+	return es.config
 }
 
 // Remove ReadWithOptions and Read methods (now in read.go)

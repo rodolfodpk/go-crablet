@@ -82,37 +82,7 @@ func BenchmarkAppendIfBatch100_Tiny(b *testing.B) {
 	BenchmarkAppendIf(b, benchCtx, 100)
 }
 
-// AppendIfIsolated benchmarks (Serializable isolation)
-func BenchmarkAppendIfIsolated_Small(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small")
-	BenchmarkAppendIfIsolated(b, benchCtx, 1)
-}
-
-func BenchmarkAppendIfIsolated_Tiny(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "tiny")
-	BenchmarkAppendIfIsolated(b, benchCtx, 1)
-}
-
-func BenchmarkAppendIfIsolatedBatch10_Small(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small")
-	BenchmarkAppendIfIsolated(b, benchCtx, 10)
-}
-
-func BenchmarkAppendIfIsolatedBatch10_Tiny(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "tiny")
-	BenchmarkAppendIfIsolated(b, benchCtx, 10)
-}
-
-func BenchmarkAppendIfIsolatedBatch100_Small(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small")
-	BenchmarkAppendIfIsolated(b, benchCtx, 100)
-}
-
-func BenchmarkAppendIfIsolatedBatch100_Tiny(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "tiny")
-	BenchmarkAppendIfIsolated(b, benchCtx, 100)
-}
-
+// Update all benchmark functions and comments: SERIALIZABLE isolation must be set in the config before running. All calls use AppendIf.
 // Conflict scenario benchmarks
 func BenchmarkAppendIfWithConflict_Small(b *testing.B) {
 	benchCtx := SetupBenchmarkContext(b, "small")
@@ -122,14 +92,4 @@ func BenchmarkAppendIfWithConflict_Small(b *testing.B) {
 func BenchmarkAppendIfWithConflict_Tiny(b *testing.B) {
 	benchCtx := SetupBenchmarkContext(b, "tiny")
 	BenchmarkAppendIfWithConflict(b, benchCtx, 1)
-}
-
-func BenchmarkAppendIfIsolatedWithConflict_Small(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small")
-	BenchmarkAppendIfIsolatedWithConflict(b, benchCtx, 1)
-}
-
-func BenchmarkAppendIfIsolatedWithConflict_Tiny(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "tiny")
-	BenchmarkAppendIfIsolatedWithConflict(b, benchCtx, 1)
 }

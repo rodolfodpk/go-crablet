@@ -31,7 +31,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	Describe("ReadStreamChannel", func() {
+	Describe("ReadChannel", func() {
 		It("should stream events through channels", func() {
 			// Setup test data
 			event1 := NewInputEvent("TestEvent", NewTags("test", "value"), toJSON(map[string]string{"data": "value1"}))
@@ -45,7 +45,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 			// Test channel-based streaming
 			query := NewQuerySimple(NewTags("test", "value"), "TestEvent")
-			eventChan, _, err := channelStore.ReadStreamChannel(ctx, query)
+			eventChan, err := channelStore.ReadChannel(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 
 			count := 0
@@ -59,7 +59,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 		It("should handle empty result sets", func() {
 			query := NewQuerySimple(NewTags("non-existent", "value"), "TestEvent")
-			eventChan, _, err := channelStore.ReadStreamChannel(ctx, query)
+			eventChan, err := channelStore.ReadChannel(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 
 			count := 0
@@ -85,7 +85,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 			defer cancel()
 
 			query := NewQuerySimple(NewTags("test", "value"), "TestEvent")
-			eventChan, _, err := channelStore.ReadStreamChannel(cancelCtx, query)
+			eventChan, err := channelStore.ReadChannel(cancelCtx, query)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Cancel context after first event
@@ -114,7 +114,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 			// Test with small batch size
 			query := NewQuerySimple(NewTags("test", "value"), "TestEvent")
-			eventChan, _, err := channelStore.ReadStreamChannel(ctx, query)
+			eventChan, err := channelStore.ReadChannel(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 
 			count := 0
@@ -394,7 +394,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 			// Test channel-based streaming performance
 			start := time.Now()
 			query := NewQuerySimple(NewTags("test", "value"), "TestEvent")
-			eventChan, _, err := channelStore.ReadStreamChannel(ctx, query)
+			eventChan, err := channelStore.ReadChannel(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 
 			count := 0

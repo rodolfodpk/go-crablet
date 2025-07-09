@@ -235,7 +235,7 @@ func handleCreateAccount(ctx context.Context, store dcb.EventStore, cmd CreateAc
 	}
 
 	// Append events atomically for this command
-	err = store.AppendIfIsolated(ctx, events, appendCondition)
+	err = store.AppendIf(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to create account: %w", err)
 	}
@@ -397,7 +397,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 	conditionJSON, _ := json.Marshal(appendCondition)
 	fmt.Printf("[DEBUG Transfer %s] Condition JSON: %s\n", cmd.TransferID, string(conditionJSON))
 
-	err = store.AppendIfIsolated(ctx, events, appendCondition)
+	err = store.AppendIf(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("append failed: %w", err)
 	}
@@ -577,7 +577,7 @@ func simulateConcurrentTransfers(ctx context.Context, store dcb.EventStore, from
 
 		// Use the original append condition which has the correct AfterCursor
 		// This ensures optimistic locking by checking for new events on the account after the cursor
-		err = store.AppendIfIsolated(ctx, events, appendCondition)
+		err = store.AppendIf(ctx, events, appendCondition)
 		if err != nil {
 			results <- fmt.Sprintf("%s: transfer failed (expected optimistic locking): %v", name, err)
 		} else {

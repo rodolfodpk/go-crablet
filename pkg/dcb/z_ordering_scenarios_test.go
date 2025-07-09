@@ -368,10 +368,20 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 				Position:      events[0].Position,
 			}
 
-			// Read events after the cursor using ReadWithOptions
-			options := ReadOptions{Cursor: &cursor}
-			eventsAfterCursor, err := store.ReadWithOptions(context.Background(), query, options)
+			// Read events after the cursor using ReadChannel
+			eventsChan, err := store.ReadChannel(context.Background(), query)
 			Expect(err).ToNot(HaveOccurred())
+
+			// Collect events after the cursor
+			var eventsAfterCursor []Event
+			for event := range eventsChan {
+				// Skip events before or at the cursor
+				if event.TransactionID < cursor.TransactionID ||
+					(event.TransactionID == cursor.TransactionID && event.Position <= cursor.Position) {
+					continue
+				}
+				eventsAfterCursor = append(eventsAfterCursor, event)
+			}
 
 			// Should only get the second poll event after the cursor
 			Expect(eventsAfterCursor).To(HaveLen(1))
@@ -429,9 +439,19 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			}
 
 			// Read events after the cursor
-			options := ReadOptions{Cursor: &cursor}
-			eventsAfterCursor, err := store.ReadWithOptions(context.Background(), query, options)
+			eventsChan, err := store.ReadChannel(context.Background(), query)
 			Expect(err).ToNot(HaveOccurred())
+
+			// Collect events after the cursor
+			var eventsAfterCursor []Event
+			for event := range eventsChan {
+				// Skip events before or at the cursor
+				if event.TransactionID < cursor.TransactionID ||
+					(event.TransactionID == cursor.TransactionID && event.Position <= cursor.Position) {
+					continue
+				}
+				eventsAfterCursor = append(eventsAfterCursor, event)
+			}
 
 			// Should get the remaining 3 events
 			Expect(eventsAfterCursor).To(HaveLen(3))
@@ -445,9 +465,20 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 				Position:      readEvents[1].Position,
 			}
 
-			options = ReadOptions{Cursor: &middleCursor}
-			eventsAfterMiddle, err := store.ReadWithOptions(context.Background(), query, options)
+			// Read events after the middle cursor
+			eventsChan2, err := store.ReadChannel(context.Background(), query)
 			Expect(err).ToNot(HaveOccurred())
+
+			// Collect events after the middle cursor
+			var eventsAfterMiddle []Event
+			for event := range eventsChan2 {
+				// Skip events before or at the middle cursor
+				if event.TransactionID < middleCursor.TransactionID ||
+					(event.TransactionID == middleCursor.TransactionID && event.Position <= middleCursor.Position) {
+					continue
+				}
+				eventsAfterMiddle = append(eventsAfterMiddle, event)
+			}
 
 			// Should get the remaining 2 events
 			Expect(eventsAfterMiddle).To(HaveLen(2))

@@ -201,14 +201,13 @@ type Query struct {
 
 type EventId string
 
-type ReadOptions struct {
-	From      *EventId `json:"from,omitempty"`
-	Backwards *bool    `json:"backwards,omitempty"`
-}
+// ReadOptions struct removed - ReadWithOptions functionality is now handled
+// by ReadChannel for streaming cases or Read for simple cases
 
 type ReadRequest struct {
-	Query   Query        `json:"query"`
-	Options *ReadOptions `json:"options,omitempty"`
+	Query Query `json:"query"`
+	// Options field removed - ReadWithOptions functionality is now handled
+	// by ReadChannel for streaming cases or Read for simple cases
 }
 
 type ReadResponse struct {
@@ -278,25 +277,8 @@ func convertQuery(query Query) dcb.Query {
 	return dcb.NewQueryFromItems(items...)
 }
 
-func convertReadOptions(options *ReadOptions) dcb.ReadOptions {
-	if options == nil {
-		return dcb.ReadOptions{}
-	}
-
-	var cursor *dcb.Cursor
-	if options.From != nil {
-		// In a real implementation, you'd need to convert EventId to cursor
-		// For now, we'll use a default cursor
-		cursor = &dcb.Cursor{
-			TransactionID: 0,
-			Position:      0,
-		}
-	}
-
-	return dcb.ReadOptions{
-		Cursor: cursor,
-	}
-}
+// convertReadOptions has been removed - ReadWithOptions functionality is now handled
+// by ReadChannel for streaming cases or Read for simple cases
 
 func convertAppendCondition(condition *AppendCondition) dcb.AppendCondition {
 	if condition == nil {
@@ -405,11 +387,10 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
 
 	start := time.Now()
 	query := convertQuery(req.Query)
-	options := convertReadOptions(req.Options)
 
-	// Execute read
+	// Execute read (ReadWithOptions has been removed, use Read instead)
 	ctx := r.Context()
-	result, err := s.store.ReadWithOptions(ctx, query, options)
+	result, err := s.store.Read(ctx, query)
 
 	duration := time.Since(start)
 	durationMicroseconds := duration.Microseconds()
@@ -480,13 +461,8 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 		// Use advisory lock function when lock: tags are present
 		appendErr = s.appendWithAdvisoryLocks(r.Context(), inputEvents, condition)
 	} else if condition != nil {
-		// Check for isolation level header for conditional appends
-		isoHeader := r.Header.Get("X-Append-If-Isolation")
-		if strings.ToLower(isoHeader) == "serializable" {
-			appendErr = s.store.AppendIfIsolated(r.Context(), inputEvents, condition)
-		} else {
-			appendErr = s.store.AppendIf(r.Context(), inputEvents, condition)
-		}
+		// Use AppendIf with config-based isolation level
+		appendErr = s.store.AppendIf(r.Context(), inputEvents, condition)
 	} else {
 		// Simple append without conditions
 		appendErr = s.store.Append(r.Context(), inputEvents)
@@ -548,8 +524,8 @@ func (s *Server) appendWithAdvisoryLocks(ctx context.Context, events []dcb.Input
 		}
 	}
 
-	// Get lock timeout from EventStore (configured at construction time)
-	lockTimeout := s.store.GetLockTimeout()
+	// Get lock timeout from EventStore config
+	lockTimeout := s.store.GetConfig().LockTimeout
 
 	// Call the advisory lock function directly with timeout
 	_, err = s.pool.Exec(ctx, `

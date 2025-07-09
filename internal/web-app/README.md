@@ -203,3 +203,7 @@ make append-if-quick
 - **Multiple Isolation Levels**: Choose consistency vs performance trade-offs
 - **Comprehensive Testing**: k6 load testing with multiple scenarios
 - **Production Ready**: Optimized connection pooling and resource allocation
+
+## NOTE ON ISOLATION LEVEL
+
+Isolation level is now set in the server config, not per request. To test with SERIALIZABLE, restart the server with the config set to IsolationLevelSerializable. All k6 scripts now use the server's configured isolation level.

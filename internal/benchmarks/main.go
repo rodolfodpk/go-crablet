@@ -358,16 +358,14 @@ func benchmarkComplexQueries(ctx context.Context, store dcb.EventStore) {
 
 	// Query enrollments by grade (DCB-focused: specific grade instead of all enrollments)
 	start = time.Now()
-	limit := 100
-	options := dcb.ReadOptions{Limit: &limit}
 	query = dcb.NewQuery(dcb.NewTags("grade", "A"), "StudentEnrolledInCourse")
-	events, err = store.ReadWithOptions(ctx, query, options)
+	events, err = store.Read(ctx, query)
 	duration = time.Since(start)
 
 	if err != nil {
-		fmt.Printf("  ReadWithOptions: Error: %v\n", err)
+		fmt.Printf("  Read: Error: %v\n", err)
 	} else {
-		fmt.Printf("  ReadWithOptions: %v (%d events)\n", duration, len(events))
+		fmt.Printf("  Read: %v (%d events)\n", duration, len(events))
 	}
 }
 
@@ -382,7 +380,7 @@ func benchmarkIteratorVsChannel(ctx context.Context, store dcb.EventStore, chann
 
 	// Channel approach
 	start := time.Now()
-	eventChan, _, err := channelStore.ReadStreamChannel(ctx, query)
+	eventChan, err := channelStore.ReadChannel(ctx, query)
 	if err != nil {
 		fmt.Printf("  Channel: Error creating stream: %v\n", err)
 	} else {

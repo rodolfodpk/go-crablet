@@ -95,19 +95,19 @@ func demonstrateChannelStreaming(ctx context.Context, store dcb.EventStore) {
 	query := dcb.NewQuerySimple(dcb.NewTags(), "UserCreated", "UserUpdated")
 
 	// Stream events through channel
-	eventChan, _, err := channelStore.ReadStreamChannel(ctx, query)
+	eventChan, err := channelStore.ReadChannel(ctx, query)
 	if err != nil {
-		log.Printf("ReadStreamChannel failed: %v", err)
+		log.Printf("ReadChannel failed: %v", err)
 		return
 	}
 
 	count := 0
 	for event := range eventChan {
-		fmt.Printf("   - ReadStreamChannel(): Event %d: Position=%d, Type=%s\n",
+		fmt.Printf("   - ReadChannel(): Event %d: Position=%d, Type=%s\n",
 			count+1, event.Position, event.Type)
 		count++
 	}
-	fmt.Printf("   - ReadStreamChannel(): Processed %d events using channels\n", count)
+	fmt.Printf("   - ReadChannel(): Processed %d events using channels\n", count)
 }
 
 // demonstrateChannelProjection shows channel-based state projection

@@ -128,7 +128,6 @@ export default function () {
     const params = {
         headers: {
             'Content-Type': 'application/json',
-            'X-Append-If-Isolation': 'serializable',
         },
         timeout: '15s', // Higher timeout due to Serializable isolation
     };

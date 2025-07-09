@@ -307,3 +307,7 @@ For issues or questions:
 - Review server and k6 logs
 - Verify database connectivity
 - Check system resources 
+
+## NOTE ON ISOLATION LEVEL
+
+Isolation level is now set in the server config, not per request. To test with SERIALIZABLE, restart the server with the config set to IsolationLevelSerializable. All benchmarks now use the server's configured isolation level. 

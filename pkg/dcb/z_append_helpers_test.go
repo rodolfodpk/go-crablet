@@ -307,37 +307,37 @@ var _ = Describe("Append Helpers", func() {
 		})
 	})
 
-	Describe("AppendIfIsolated", func() {
-		It("should append events with serializable isolation", func() {
+	Describe("AppendIf with configurable isolation", func() {
+		It("should append events with default isolation level", func() {
 			events := []InputEvent{
-				NewInputEvent("TestEvent", NewTags("test", "serializable"), []byte(`{"value": "test"}`)),
+				NewInputEvent("TestEvent", NewTags("test", "default"), []byte(`{"value": "test"}`)),
 			}
 
-			err := store.AppendIfIsolated(ctx, events, nil)
+			err := store.AppendIf(ctx, events, nil) // Use AppendIf with nil condition
 			Expect(err).To(BeNil())
 
 			// Verify the event was appended
-			query := NewQuery(NewTags("test", "serializable"), "TestEvent")
+			query := NewQuery(NewTags("test", "default"), "TestEvent")
 			readEvents, err := store.Read(ctx, query)
 			Expect(err).To(BeNil())
 			Expect(readEvents).To(HaveLen(1))
 		})
 
-		It("should respect append conditions with serializable isolation", func() {
+		It("should respect append conditions with default isolation level", func() {
 			// First append
 			events1 := []InputEvent{
-				NewInputEvent("TestEvent", NewTags("test", "serializable"), []byte(`{"value": "test"}`)),
+				NewInputEvent("TestEvent", NewTags("test", "default"), []byte(`{"value": "test"}`)),
 			}
-			err := store.AppendIfIsolated(ctx, events1, nil)
+			err := store.AppendIf(ctx, events1, nil) // Use AppendIf with nil condition
 			Expect(err).NotTo(HaveOccurred())
 
 			// Second append with condition that should fail (looking for the event we just created)
 			events2 := []InputEvent{
-				NewInputEvent("TestEvent2", NewTags("test", "serializable"), []byte(`{"value": "test2"}`)),
+				NewInputEvent("TestEvent2", NewTags("test", "default"), []byte(`{"value": "test2"}`)),
 			}
-			query := NewQuery(NewTags("test", "serializable"), "TestEvent")
+			query := NewQuery(NewTags("test", "default"), "TestEvent")
 			condition := NewAppendCondition(query)
-			err = store.AppendIfIsolated(ctx, events2, condition)
+			err = store.AppendIf(ctx, events2, condition)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("append condition violated"))
 		})
@@ -355,7 +355,7 @@ var _ = Describe("Append Helpers", func() {
 
 			appendFn := func() {
 				<-start
-				err := store.AppendIfIsolated(ctx, []InputEvent{event}, condition)
+				err := store.AppendIf(ctx, []InputEvent{event}, condition)
 				results <- err
 			}
 

@@ -19,17 +19,11 @@ func (es *eventStore) Append(ctx context.Context, events []InputEvent) error {
 // AppendIf appends events to the store only if the condition is met
 // Uses REPEATABLE READ isolation level for better consistency
 func (es *eventStore) AppendIf(ctx context.Context, events []InputEvent, condition AppendCondition) error {
-	return es.appendEventsWithCondition(ctx, events, condition, pgx.RepeatableRead)
-}
-
-// AppendIfIsolated appends events to the store only if the condition is met
-// Uses SERIALIZABLE isolation level for strongest consistency
-func (es *eventStore) AppendIfIsolated(ctx context.Context, events []InputEvent, condition AppendCondition) error {
-	return es.appendEventsWithCondition(ctx, events, condition, pgx.Serializable)
+	return es.appendEventsWithCondition(ctx, events, condition)
 }
 
 // appendEventsWithCondition uses PostgreSQL functions for atomic append with condition checking
-func (es *eventStore) appendEventsWithCondition(ctx context.Context, events []InputEvent, condition AppendCondition, isolationLevel pgx.TxIsoLevel) error {
+func (es *eventStore) appendEventsWithCondition(ctx context.Context, events []InputEvent, condition AppendCondition) error {
 	// Validate events
 	if len(events) == 0 {
 		return &ValidationError{
@@ -42,11 +36,11 @@ func (es *eventStore) appendEventsWithCondition(ctx context.Context, events []In
 		}
 	}
 
-	if len(events) > es.maxBatchSize {
+	if len(events) > es.config.MaxBatchSize {
 		return &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  "append",
-				Err: fmt.Errorf("batch size %d exceeds maximum of %d", len(events), es.maxBatchSize),
+				Err: fmt.Errorf("batch size %d exceeds maximum of %d", len(events), es.config.MaxBatchSize),
 			},
 			Field: "events",
 			Value: fmt.Sprintf("count:%d", len(events)),
@@ -132,7 +126,7 @@ func (es *eventStore) appendEventsWithCondition(ctx context.Context, events []In
 
 	// Start transaction with specified isolation level
 	tx, err := es.pool.BeginTx(ctx, pgx.TxOptions{
-		IsoLevel: isolationLevel,
+		IsoLevel: toPgxIsoLevel(es.config.DefaultAppendIsolation),
 	})
 	if err != nil {
 		return &ResourceError{
@@ -197,11 +191,11 @@ func (es *eventStore) appendEventsBatch(ctx context.Context, events []InputEvent
 		}
 	}
 
-	if len(events) > es.maxBatchSize {
+	if len(events) > es.config.MaxBatchSize {
 		return &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  "append",
-				Err: fmt.Errorf("batch size %d exceeds maximum of %d", len(events), es.maxBatchSize),
+				Err: fmt.Errorf("batch size %d exceeds maximum of %d", len(events), es.config.MaxBatchSize),
 			},
 			Field: "events",
 			Value: fmt.Sprintf("count:%d", len(events)),
@@ -271,7 +265,7 @@ func (es *eventStore) appendEventsBatch(ctx context.Context, events []InputEvent
 
 	// Execute PostgreSQL function for batch insert
 	tx, err := es.pool.BeginTx(ctx, pgx.TxOptions{
-		IsoLevel: pgx.ReadCommitted, // Always use default for batch
+		IsoLevel: toPgxIsoLevel(es.config.DefaultAppendIsolation),
 	})
 	if err != nil {
 		return &ResourceError{
@@ -317,6 +311,21 @@ func encodeTagsArrayLiteral(tags []string) string {
 		tags[i] = `"` + strings.ReplaceAll(t, `"`, `\\"`) + `"`
 	}
 	return "{" + strings.Join(tags, ",") + "}"
+}
+
+// Helper to convert our IsolationLevel to pgx.TxIsoLevel
+func toPgxIsoLevel(level IsolationLevel) pgx.TxIsoLevel {
+	// Map our enum to pgx
+	switch level {
+	case IsolationLevelReadCommitted:
+		return pgx.ReadCommitted
+	case IsolationLevelRepeatableRead:
+		return pgx.RepeatableRead
+	case IsolationLevelSerializable:
+		return pgx.Serializable
+	default:
+		return pgx.ReadCommitted
+	}
 }
 
 // isConcurrencyError checks if the error is a concurrency error raised by SQL

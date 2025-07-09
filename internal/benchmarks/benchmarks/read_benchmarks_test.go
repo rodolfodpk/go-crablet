@@ -15,7 +15,7 @@ func BenchmarkRead_Small(b *testing.B) {
 
 	if benchCtx.HasChannel {
 		b.Run("ReadStreamChannel", func(b *testing.B) {
-			BenchmarkReadStreamChannel(b, benchCtx, 0)
+			BenchmarkReadChannel(b, benchCtx, 0)
 		})
 	}
 }
@@ -33,7 +33,7 @@ func BenchmarkRead_Tiny(b *testing.B) {
 
 	if benchCtx.HasChannel {
 		b.Run("ReadStreamChannel", func(b *testing.B) {
-			BenchmarkReadStreamChannel(b, benchCtx, 0)
+			BenchmarkReadChannel(b, benchCtx, 0)
 		})
 	}
 }
@@ -59,14 +59,14 @@ func BenchmarkReadComplex_Tiny(b *testing.B) {
 	BenchmarkRead(b, benchCtx, 1)
 }
 
-func BenchmarkReadStreamChannel_Small(b *testing.B) {
+func BenchmarkReadChannel_Small(b *testing.B) {
 	benchCtx := SetupBenchmarkContext(b, "small")
-	BenchmarkReadStreamChannel(b, benchCtx, 0)
+	BenchmarkReadChannel(b, benchCtx, 0)
 }
 
-func BenchmarkReadStreamChannel_Tiny(b *testing.B) {
+func BenchmarkReadChannel_Tiny(b *testing.B) {
 	benchCtx := SetupBenchmarkContext(b, "tiny")
-	BenchmarkReadStreamChannel(b, benchCtx, 0)
+	BenchmarkReadChannel(b, benchCtx, 0)
 }
 
 // Memory usage benchmarks for read operations

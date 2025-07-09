@@ -281,14 +281,10 @@ export function setup() {
             }
         }
     };
-    const isolatedParams = {
-        ...params,
-        headers: {
-            ...params.headers,
-            'X-Append-If-Isolation': 'SERIALIZABLE',
-        },
-    };
-    const appendIfIsolatedRes = http.post(`${BASE_URL}/append`, JSON.stringify(appendIfIsolatedPayload), isolatedParams);
+    // NOTE: Isolation level is now set in the server config, not per request.
+    // To test with SERIALIZABLE, restart the server with the config set to IsolationLevelSerializable.
+    // Remove any code or comments about per-request isolation level headers.
+    const appendIfIsolatedRes = http.post(`${BASE_URL}/append`, JSON.stringify(appendIfIsolatedPayload), params);
     
     if (appendIfIsolatedRes.status !== 200) {
         throw new Error(`AppendIfIsolated test failed: status ${appendIfIsolatedRes.status} body: ${appendIfIsolatedRes.body}`);
@@ -308,7 +304,7 @@ export function setup() {
             }
         }
     };
-    const appendIfIsolatedFailRes = http.post(`${BASE_URL}/append`, JSON.stringify(appendIfIsolatedFailPayload), isolatedParams);
+    const appendIfIsolatedFailRes = http.post(`${BASE_URL}/append`, JSON.stringify(appendIfIsolatedFailPayload), params);
     
     if (appendIfIsolatedFailRes.status !== 200) {
         throw new Error(`AppendIfIsolated fail test failed: status ${appendIfIsolatedFailRes.status} body: ${appendIfIsolatedFailRes.body}`);

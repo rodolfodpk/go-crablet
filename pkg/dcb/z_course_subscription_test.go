@@ -473,7 +473,7 @@ var _ = Describe("Course Subscription Domain", func() {
 			Expect(events[0].Type).To(Equal("CourseDefined"))
 		})
 
-		It("should use ReadStreamChannel for large datasets", func() {
+		It("should use ReadChannel for large datasets", func() {
 			// Create multiple courses using command pattern
 			channelStore := store.(EventStore)
 			for i := 1; i <= 5; i++ {
@@ -487,9 +487,9 @@ var _ = Describe("Course Subscription Domain", func() {
 				Expect(err).NotTo(HaveOccurred())
 			}
 
-			// Use ReadStreamChannel instead of ReadStream
+			// Use ReadChannel instead of ReadStream
 			query := NewQuerySimple(NewTags(), "CourseDefined")
-			eventChan, _, err := channelStore.ReadStreamChannel(ctx, query)
+			eventChan, err := channelStore.ReadChannel(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 
 			eventCount := 0

@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-// ReadWithOptions reads events matching the query with additional options
-func (es *eventStore) ReadWithOptions(ctx context.Context, query Query, options ReadOptions) ([]Event, error) {
+// Read reads events matching the query (no options)
+func (es *eventStore) Read(ctx context.Context, query Query) ([]Event, error) {
 	if len(query.getItems()) == 0 {
 		return nil, &ValidationError{
 			EventStoreError: EventStoreError{
@@ -26,7 +26,7 @@ func (es *eventStore) ReadWithOptions(ctx context.Context, query Query, options 
 	}
 
 	// Build SQL query based on query items
-	sqlQuery, args, err := es.buildReadQuerySQL(query, options)
+	sqlQuery, args, err := es.buildReadQuerySQL(query, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -82,20 +82,15 @@ func (es *eventStore) ReadWithOptions(ctx context.Context, query Query, options 
 	return events, nil
 }
 
-// Read reads events matching the query (no options)
-func (es *eventStore) Read(ctx context.Context, query Query) ([]Event, error) {
-	return es.ReadWithOptions(ctx, query, ReadOptions{})
-}
-
-// ReadStreamChannel creates a channel-based stream of events matching a query
+// ReadChannel creates a channel-based stream of events matching a query
 // This is optimized for small to medium datasets (< 500 events) and provides
 // a more Go-idiomatic interface using channels
-func (es *eventStore) ReadStreamChannel(ctx context.Context, query Query) (<-chan Event, Cursor, error) {
+func (es *eventStore) ReadChannel(ctx context.Context, query Query) (<-chan Event, error) {
 	// Validate that the query is not empty (same validation as Read method)
 	if len(query.getItems()) == 0 {
-		return nil, Cursor{}, &ValidationError{
+		return nil, &ValidationError{
 			EventStoreError: EventStoreError{
-				Op:  "ReadStreamChannel",
+				Op:  "ReadChannel",
 				Err: fmt.Errorf("query must contain at least one item"),
 			},
 			Field: "query",
@@ -105,13 +100,13 @@ func (es *eventStore) ReadStreamChannel(ctx context.Context, query Query) (<-cha
 
 	// Validate query items
 	if err := validateQueryTags(query); err != nil {
-		return nil, Cursor{}, err
+		return nil, err
 	}
 
 	// Build the SQL query
-	sqlQuery, args, err := es.buildReadQuerySQL(query, ReadOptions{})
+	sqlQuery, args, err := es.buildReadQuerySQL(query, nil, nil)
 	if err != nil {
-		return nil, Cursor{}, fmt.Errorf("failed to build query: %w", err)
+		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
 	// Use the caller's context directly for streaming
@@ -120,9 +115,9 @@ func (es *eventStore) ReadStreamChannel(ctx context.Context, query Query) (<-cha
 	// Execute the query
 	rows, err := es.pool.Query(queryCtx, sqlQuery, args...)
 	if err != nil {
-		return nil, Cursor{}, &ResourceError{
+		return nil, &ResourceError{
 			EventStoreError: EventStoreError{
-				Op:  "ReadStreamChannel",
+				Op:  "ReadChannel",
 				Err: fmt.Errorf("query failed: %w", err),
 			},
 			Resource: "database",
@@ -130,17 +125,14 @@ func (es *eventStore) ReadStreamChannel(ctx context.Context, query Query) (<-cha
 	}
 
 	// Create result channel with configurable buffer
-	resultChan := make(chan Event, es.streamBuffer)
-
-	// Track latest cursor
-	var latestCursor Cursor
+	resultChan := make(chan Event, es.config.StreamBuffer)
 
 	// Start streaming events in a goroutine
 	go func() {
 		// Ensure rows are always closed, even if goroutine panics
 		defer func() {
 			if r := recover(); r != nil {
-				log.Printf("ReadStreamChannel panic recovered: %v", r)
+				log.Printf("ReadChannel panic recovered: %v", r)
 			}
 			rows.Close()
 			close(resultChan)
@@ -163,19 +155,13 @@ func (es *eventStore) ReadStreamChannel(ctx context.Context, query Query) (<-cha
 				)
 				if err != nil {
 					// Log error and return a sentinel event that consumers can detect
-					log.Printf("Error scanning row in ReadStreamChannel: %v", err)
+					log.Printf("Error scanning row in ReadChannel: %v", err)
 					// Return an event with empty type to indicate error
 					return Event{
 						Type: "", // Empty type indicates scan error
 						Tags: []Tag{},
 						Data: []byte{},
 					}
-				}
-
-				// Update latest cursor (events are ordered by transaction_id ASC, position ASC)
-				latestCursor = Cursor{
-					TransactionID: row.TransactionID,
-					Position:      row.Position,
 				}
 
 				return convertRowToEvent(row)
@@ -186,9 +172,9 @@ func (es *eventStore) ReadStreamChannel(ctx context.Context, query Query) (<-cha
 
 		// Check for row iteration errors
 		if err := rows.Err(); err != nil {
-			log.Printf("Row iteration error in ReadStreamChannel: %v", err)
+			log.Printf("Row iteration error in ReadChannel: %v", err)
 		}
 	}()
 
-	return resultChan, latestCursor, nil
+	return resultChan, nil
 }

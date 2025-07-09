@@ -120,11 +120,11 @@ func validateEvent(e InputEvent, index int) error {
 
 // validateBatchSize validates that the batch size is within limits
 func (es *eventStore) validateBatchSize(events []InputEvent, operation string) error {
-	if len(events) > es.maxBatchSize {
+	if len(events) > es.config.MaxBatchSize {
 		return &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  operation,
-				Err: fmt.Errorf("batch size %d exceeds maximum %d", len(events), es.maxBatchSize),
+				Err: fmt.Errorf("batch size %d exceeds maximum %d", len(events), es.config.MaxBatchSize),
 			},
 			Field: "batchSize",
 			Value: fmt.Sprintf("%d", len(events)),
