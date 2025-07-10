@@ -12,8 +12,8 @@ type Event struct {
 	Type          string    `json:"type"`
 	Tags          []Tag     `json:"tags"`
 	Data          []byte    `json:"data"`
-	Position      int64     `json:"position"`
 	TransactionID uint64    `json:"transaction_id"`
+	Position      int64     `json:"position"`
 	CreatedAt     time.Time `json:"created_at"`
 }
 
@@ -46,7 +46,9 @@ type Query interface {
 	getItems() []QueryItem
 }
 
-// Cursor represents a position in the event stream for resuming reads
+// Cursor represents a position in the event stream
+// When used in Read/Project operations, events are returned EXCLUSIVE of this position
+// (i.e., events after this cursor, not including the cursor position itself)
 type Cursor struct {
 	TransactionID uint64 `json:"transaction_id"`
 	Position      int64  `json:"position"`
@@ -68,35 +70,36 @@ type AppendCondition interface {
 // EventStore is the core interface for appending and reading events
 type EventStore interface {
 
-	// Read reads events matching the query (no options)
-	Read(ctx context.Context, query Query) ([]Event, error)
+	// Read reads events matching the query with optional cursor
+	// after == nil: read from beginning of stream
+	// after != nil: read from specified cursor position (EXCLUSIVE - events after cursor, not including cursor)
+	Read(ctx context.Context, query Query, after *Cursor) ([]Event, error)
 
-	// ReadStream creates a channel-based stream of events matching a query
-	// This replaces ReadWithOptions functionality - the caller manages complexity
-	// like limits and cursors through channel consumption patterns
+	// ReadStream creates a channel-based stream of events matching a query with optional cursor
+	// after == nil: stream from beginning of stream
+	// after != nil: stream from specified cursor position (EXCLUSIVE - events after cursor, not including cursor)
 	// This is optimized for large datasets and provides backpressure through channels
 	// for efficient memory usage and Go-idiomatic streaming
-	ReadStream(ctx context.Context, query Query) (<-chan Event, error)
+	ReadStream(ctx context.Context, query Query, after *Cursor) (<-chan Event, error)
 
-	// Append appends events to the store (always succeeds if no validation errors)
-	// Uses the default isolation level configured in EventStoreConfig
-	Append(ctx context.Context, events []InputEvent) error
+	// Append appends events to the store with optional condition
+	// condition == nil: unconditional append
+	// condition != nil: conditional append (optimistic locking)
+	Append(ctx context.Context, events []InputEvent, condition *AppendCondition) error
 
-	// AppendIf appends events to the store only if the condition is met
-	// Uses the default isolation level configured in EventStoreConfig
-	AppendIf(ctx context.Context, events []InputEvent, condition AppendCondition) error
+	// Project projects state from events matching projectors with optional cursor
+	// after == nil: project from beginning of stream
+	// after != nil: project from specified cursor position (EXCLUSIVE - events after cursor, not including cursor)
+	// Returns final aggregated states and append condition for optimistic locking
+	Project(ctx context.Context, projectors []StateProjector, after *Cursor) (map[string]any, AppendCondition, error)
 
-	// Project projects multiple states using projectors and returns final states and append condition
-	// This is a go-crablet feature for building decision models in command handlers
-	Project(ctx context.Context, projectors []StateProjector) (map[string]any, AppendCondition, error)
+	// ProjectStream creates a channel-based stream of projected states with optional cursor
+	// after == nil: stream from beginning of stream
+	// after != nil: stream from specified cursor position (EXCLUSIVE - events after cursor, not including cursor)
+	// Returns intermediate states and append conditions via channels for streaming projections
+	ProjectStream(ctx context.Context, projectors []StateProjector, after *Cursor) (<-chan map[string]any, <-chan AppendCondition, error)
 
-	// ProjectStream projects multiple states using channel-based streaming
-	// This is optimized for large datasets and provides backpressure through channels
-	// for efficient memory usage and Go-idiomatic streaming
-	// Returns final aggregated states (same as batch version) via streaming
-	ProjectStream(ctx context.Context, projectors []StateProjector) (<-chan map[string]any, <-chan AppendCondition, error)
-
-	// GetConfig returns the current EventStore configuration
+	// GetConfig returns the current configuration of the event store
 	GetConfig() EventStoreConfig
 }
 

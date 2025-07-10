@@ -90,7 +90,7 @@ func main() {
 			},
 		},
 	}
-	_, appendCondition, err := store.Project(ctx, projectors)
+	_, appendCondition, err := store.Project(ctx, projectors, nil)
 	if err != nil {
 		log.Fatalf("Failed to project state for optimistic locking: %v", err)
 	}
@@ -165,7 +165,7 @@ func main() {
 		},
 	}
 
-	states, appendCondition, err := store.Project(ctx, projectors)
+	states, appendCondition, err := store.Project(ctx, projectors, nil)
 	if err != nil {
 		log.Fatalf("Failed to read stream: %v", err)
 	}
@@ -204,7 +204,7 @@ func handleOpenAccount(ctx context.Context, store dcb.EventStore, cmd OpenAccoun
 			TransitionFn: func(state any, event dcb.Event) any { return true },
 		},
 	}
-	states, appendCondition, err := store.Project(ctx, projectors)
+	states, appendCondition, err := store.Project(ctx, projectors, nil)
 	if err != nil {
 		return fmt.Errorf("failed to check account existence: %w", err)
 	}
@@ -218,7 +218,7 @@ func handleOpenAccount(ctx context.Context, store dcb.EventStore, cmd OpenAccoun
 			toJSON(AccountOpenedData{InitialBalance: cmd.InitialBalance}),
 		),
 	}
-	err = store.AppendIf(ctx, events, appendCondition)
+	err = store.Append(ctx, events, &appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to open account: %w", err)
 	}
@@ -253,7 +253,7 @@ func handleProcessTransaction(ctx context.Context, store dcb.EventStore, cmd Pro
 		Query:        accountProjector.Query,
 		InitialState: accountProjector.InitialState,
 		TransitionFn: accountProjector.TransitionFn,
-	}})
+	}}, nil)
 	if err != nil {
 		return fmt.Errorf("failed to project account state: %w", err)
 	}
@@ -268,7 +268,7 @@ func handleProcessTransaction(ctx context.Context, store dcb.EventStore, cmd Pro
 			toJSON(TransactionProcessedData{Amount: cmd.Amount}),
 		),
 	}
-	err = store.AppendIf(ctx, events, appendCondition)
+	err = store.Append(ctx, events, &appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to process transaction: %w", err)
 	}
@@ -303,7 +303,7 @@ func handleProcessTransactionWithCondition(ctx context.Context, store dcb.EventS
 		Query:        accountProjector.Query,
 		InitialState: accountProjector.InitialState,
 		TransitionFn: accountProjector.TransitionFn,
-	}})
+	}}, nil)
 	if err != nil {
 		return fmt.Errorf("failed to project account state: %w", err)
 	}
@@ -318,7 +318,7 @@ func handleProcessTransactionWithCondition(ctx context.Context, store dcb.EventS
 			toJSON(TransactionProcessedData{Amount: cmd.Amount}),
 		),
 	}
-	err = store.AppendIf(ctx, events, condition)
+	err = store.Append(ctx, events, &condition)
 	if err != nil {
 		return fmt.Errorf("failed to process transaction with optimistic locking: %w", err)
 	}

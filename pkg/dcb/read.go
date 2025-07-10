@@ -7,8 +7,10 @@ import (
 	"time"
 )
 
-// Read reads events matching the query (no options)
-func (es *eventStore) Read(ctx context.Context, query Query) ([]Event, error) {
+// Read reads events matching the query with optional cursor
+// after == nil: read from beginning of stream
+// after != nil: read from specified cursor position (EXCLUSIVE - events after cursor, not including cursor)
+func (es *eventStore) Read(ctx context.Context, query Query, after *Cursor) ([]Event, error) {
 	if len(query.getItems()) == 0 {
 		return nil, &ValidationError{
 			EventStoreError: EventStoreError{
@@ -25,68 +27,58 @@ func (es *eventStore) Read(ctx context.Context, query Query) ([]Event, error) {
 		return nil, err
 	}
 
-	// Build SQL query based on query items
-	sqlQuery, args, err := es.buildReadQuerySQL(query, nil, nil)
+	// Build SQL query based on query items with cursor
+	sqlQuery, args, err := es.buildReadQuerySQL(query, after, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	// Execute the query with configurable timeout (defensive against hanging reads)
-	queryCtx, cancel := context.WithTimeout(ctx, time.Duration(es.config.ReadTimeout)*time.Millisecond)
+	// Execute query with timeout
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(es.config.ReadTimeout)*time.Millisecond)
 	defer cancel()
 
-	rows, err := es.pool.Query(queryCtx, sqlQuery, args...)
+	rows, err := es.pool.Query(ctx, sqlQuery, args...)
 	if err != nil {
-		return nil, &ResourceError{
-			EventStoreError: EventStoreError{
-				Op:  "read",
-				Err: fmt.Errorf("failed to execute read query: %w", err),
-			},
-			Resource: "database",
+		return nil, &EventStoreError{
+			Op:  "read",
+			Err: fmt.Errorf("failed to execute read query: %w", err),
 		}
 	}
 	defer rows.Close()
 
-	// Collect events
+	// Scan results
 	var events []Event
-
 	for rows.Next() {
 		var row rowEvent
-
-		if err := rows.Scan(&row.Type, &row.Tags, &row.Data, &row.Position, &row.TransactionID, &row.CreatedAt); err != nil {
-			return nil, &ResourceError{
-				EventStoreError: EventStoreError{
-					Op:  "read",
-					Err: fmt.Errorf("failed to scan event row: %w", err),
-				},
-				Resource: "database",
+		err := rows.Scan(&row.Type, &row.Tags, &row.Data, &row.TransactionID, &row.Position, &row.CreatedAt)
+		if err != nil {
+			return nil, &EventStoreError{
+				Op:  "read",
+				Err: fmt.Errorf("failed to scan event row: %w", err),
 			}
 		}
 
-		// Convert row to Event using the helper function
+		// Convert rowEvent to Event
 		event := convertRowToEvent(row)
 		events = append(events, event)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, &ResourceError{
-			EventStoreError: EventStoreError{
-				Op:  "read",
-				Err: fmt.Errorf("error iterating over events: %w", err),
-			},
-			Resource: "database",
+		return nil, &EventStoreError{
+			Op:  "read",
+			Err: fmt.Errorf("error iterating over rows: %w", err),
 		}
 	}
 
 	return events, nil
 }
 
-// ReadStream creates a channel-based stream of events matching a query
-// This replaces ReadWithOptions functionality - the caller manages complexity
-// like limits and cursors through channel consumption patterns
+// ReadStream creates a channel-based stream of events matching a query with optional cursor
+// after == nil: stream from beginning of stream
+// after != nil: stream from specified cursor position (EXCLUSIVE - events after cursor, not including cursor)
 // This is optimized for large datasets and provides backpressure through channels
 // for efficient memory usage and Go-idiomatic streaming
-func (es *eventStore) ReadStream(ctx context.Context, query Query) (<-chan Event, error) {
+func (es *eventStore) ReadStream(ctx context.Context, query Query, after *Cursor) (<-chan Event, error) {
 	// Validate query
 	if query == nil {
 		return nil, &ValidationError{
@@ -123,8 +115,8 @@ func (es *eventStore) ReadStream(ctx context.Context, query Query) (<-chan Event
 			close(eventChan)
 		}()
 
-		// Build SQL query
-		sqlQuery, args, err := es.buildReadQuerySQL(query, nil, nil)
+		// Build SQL query with cursor
+		sqlQuery, args, err := es.buildReadQuerySQL(query, after, nil)
 		if err != nil {
 			log.Printf("Error building SQL query in ReadStream: %v", err)
 			return
@@ -141,7 +133,7 @@ func (es *eventStore) ReadStream(ctx context.Context, query Query) (<-chan Event
 		// Stream events through channel
 		for rows.Next() {
 			var row rowEvent
-			err := rows.Scan(&row.Type, &row.Tags, &row.Data, &row.Position, &row.TransactionID, &row.CreatedAt)
+			err := rows.Scan(&row.Type, &row.Tags, &row.Data, &row.TransactionID, &row.Position, &row.CreatedAt)
 			if err != nil {
 				log.Printf("Error scanning row in ReadStream: %v", err)
 				continue

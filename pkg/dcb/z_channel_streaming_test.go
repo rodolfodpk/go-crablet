@@ -39,12 +39,12 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 			events := []InputEvent{event1, event2, event3}
 
-			err := store.Append(ctx, events)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Test channel-based streaming
 			query := NewQuery(NewTags("test", "value"), "TestEvent")
-			eventChan, err := store.ReadStream(ctx, query)
+			eventChan, err := store.ReadStream(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			count := 0
@@ -58,7 +58,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 		It("should handle empty result sets", func() {
 			query := NewQuery(NewTags("non-existent", "value"), "TestEvent")
-			eventChan, err := store.ReadStream(ctx, query)
+			eventChan, err := store.ReadStream(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			count := 0
@@ -76,7 +76,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 			events := []InputEvent{event1, event2}
 
-			err := store.Append(ctx, events)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Create cancellable context
@@ -84,7 +84,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 			defer cancel()
 
 			query := NewQuery(NewTags("test", "value"), "TestEvent")
-			eventChan, err := store.ReadStream(cancelCtx, query)
+			eventChan, err := store.ReadStream(cancelCtx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Cancel context after first event
@@ -108,12 +108,12 @@ var _ = Describe("Channel-Based Streaming", func() {
 				events[i] = event
 			}
 
-			err := store.Append(ctx, events)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Test with small batch size
 			query := NewQuery(NewTags("test", "value"), "TestEvent")
-			eventChan, err := store.ReadStream(ctx, query)
+			eventChan, err := store.ReadStream(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			count := 0
@@ -135,7 +135,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 			events := []InputEvent{event1, event2, event3}
 
-			err := store.Append(ctx, events)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Define projectors
@@ -157,7 +157,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 			}
 
 			// Use channel-based projection
-			resultChan, _, err := store.ProjectStream(ctx, projectors)
+			resultChan, _, err := store.ProjectStream(ctx, projectors, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Process results - now we get final aggregated states
@@ -168,7 +168,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 		})
 
 		It("should handle empty projectors list", func() {
-			_, _, err := store.ProjectStream(ctx, []StateProjector{})
+			_, _, err := store.ProjectStream(ctx, []StateProjector{}, nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("at least one projector is required"))
 		})
@@ -182,7 +182,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 				},
 			}
 
-			_, _, err := store.ProjectStream(ctx, projectors)
+			_, _, err := store.ProjectStream(ctx, projectors, nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("nil transition function"))
 		})
@@ -195,7 +195,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 				events[i] = event
 			}
 
-			err := store.Append(ctx, events)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Create cancellable context
@@ -213,7 +213,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 				},
 			}
 
-			resultChan, _, err := store.ProjectStream(cancelCtx, projectors)
+			resultChan, _, err := store.ProjectStream(cancelCtx, projectors, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Cancel context after a short delay
@@ -242,7 +242,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 				},
 			}
 
-			resultChan, _, err := store.ProjectStream(ctx, projectors)
+			resultChan, _, err := store.ProjectStream(ctx, projectors, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Should receive final states even with no matching events
@@ -258,7 +258,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 			events := []InputEvent{event1, event2, event3}
 
-			err := store.Append(ctx, events)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Define projectors for different event types
@@ -287,7 +287,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 			}
 
 			// Use channel-based projection
-			resultChan, _, err := store.ProjectStream(ctx, projectors)
+			resultChan, _, err := store.ProjectStream(ctx, projectors, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Process results - now we get final aggregated states
@@ -306,7 +306,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 				events[i] = event
 			}
 
-			err := store.Append(ctx, events)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Define projector
@@ -321,7 +321,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 			}
 
 			// Use channel-based projection
-			resultChan, _, err := store.ProjectStream(ctx, projectors)
+			resultChan, _, err := store.ProjectStream(ctx, projectors, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Process results - now we get final aggregated states

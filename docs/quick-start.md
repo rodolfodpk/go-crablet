@@ -64,7 +64,7 @@ func main() {
     event := dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", "123"), []byte(`{"name": "John Doe", "email": "john@example.com"}`))
 
     // Append event (simple, no conditions)
-    err = store.Append(ctx, []dcb.InputEvent{event})
+    err = store.Append(ctx, []dcb.InputEvent{event}, nil)
     if err != nil {
         log.Fatal(err)
     }
@@ -72,7 +72,7 @@ func main() {
 
     // Read events
     query := dcb.NewQuery(dcb.NewTags("user_id", "123"), "UserCreated")
-    events, err := store.Read(ctx, query)
+    events, err := store.Read(ctx, query, nil)
     if err != nil {
         log.Fatal(err)
     }
@@ -85,7 +85,7 @@ func main() {
     if len(events) > 0 {
         condition := dcb.NewAppendCondition(query)
         newEvent := dcb.NewInputEvent("UserUpdated", dcb.NewTags("user_id", "123"), []byte(`{"name": "John Smith"}`))
-        err = store.AppendIf(ctx, []dcb.InputEvent{newEvent}, condition)
+        err = store.Append(ctx, []dcb.InputEvent{newEvent}, &condition)
         if err != nil {
             log.Printf("Conditional append failed: %v", err)
         }

@@ -34,7 +34,7 @@ var _ = Describe("Concurrency and Locking", func() {
 
 			// First, create an existing event that will be used in the condition
 			existingEvent := NewInputEvent("ExistingEvent", NewTags("key", key), toJSON(map[string]string{"data": "existing"}))
-			err := store.Append(ctx, []InputEvent{existingEvent})
+			err := store.Append(ctx, []InputEvent{existingEvent}, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Create a condition that looks for this existing event
@@ -51,7 +51,7 @@ var _ = Describe("Concurrency and Locking", func() {
 
 			appendFn := func(event InputEvent) {
 				<-start
-				err := store.AppendIf(ctx, []InputEvent{event}, condition)
+				err := store.Append(ctx, []InputEvent{event}, &condition)
 				results <- err
 			}
 

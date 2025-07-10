@@ -36,14 +36,14 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			go func() {
 				defer wg.Done()
 				event := NewInputEvent("TestEvent", NewTags("test", "1"), []byte(`{"data": "success"}`))
-				err := store.Append(context.Background(), []InputEvent{event})
+				err := store.Append(context.Background(), []InputEvent{event}, nil)
 				if err != nil {
 					errors <- err
 					return
 				}
 				// Read the event to get its position
 				query := NewQuery(NewTags("test", "1"), "TestEvent")
-				events, err := store.Read(context.Background(), query)
+				events, err := store.Read(context.Background(), query, nil)
 				if err != nil {
 					errors <- err
 					return
@@ -59,7 +59,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 				defer wg.Done()
 				// This will create a gap in the sequence
 				event := NewInputEvent("TestEvent", NewTags("test", "2"), []byte(`{"data": "will_rollback"}`))
-				err := store.Append(context.Background(), []InputEvent{event})
+				err := store.Append(context.Background(), []InputEvent{event}, nil)
 				if err != nil {
 					// Simulate rollback by not sending result
 					return
@@ -73,14 +73,14 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			go func() {
 				defer wg.Done()
 				event := NewInputEvent("TestEvent", NewTags("test", "3"), []byte(`{"data": "success"}`))
-				err := store.Append(context.Background(), []InputEvent{event})
+				err := store.Append(context.Background(), []InputEvent{event}, nil)
 				if err != nil {
 					errors <- err
 					return
 				}
 				// Read the event to get its position
 				query := NewQuery(NewTags("test", "3"), "TestEvent")
-				events, err := store.Read(context.Background(), query)
+				events, err := store.Read(context.Background(), query, nil)
 				if err != nil {
 					errors <- err
 					return
@@ -130,14 +130,14 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 				time.Sleep(100 * time.Millisecond)
 
 				event := NewInputEvent("SlowEvent", NewTags("test", "slow"), []byte(`{"data": "slow"}`))
-				err := store.Append(context.Background(), []InputEvent{event})
+				err := store.Append(context.Background(), []InputEvent{event}, nil)
 				if err != nil {
 					return
 				}
 
 				// Read the event to get its position and transaction ID
 				query := NewQuery(NewTags("test", "slow"), "SlowEvent")
-				events, err := store.Read(context.Background(), query)
+				events, err := store.Read(context.Background(), query, nil)
 				if err != nil {
 					return
 				}
@@ -165,14 +165,14 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 				time.Sleep(10 * time.Millisecond)
 
 				event := NewInputEvent("FastEvent", NewTags("test", "fast"), []byte(`{"data": "fast"}`))
-				err := store.Append(context.Background(), []InputEvent{event})
+				err := store.Append(context.Background(), []InputEvent{event}, nil)
 				if err != nil {
 					return
 				}
 
 				// Read the event to get its position and transaction ID
 				query := NewQuery(NewTags("test", "fast"), "FastEvent")
-				events, err := store.Read(context.Background(), query)
+				events, err := store.Read(context.Background(), query, nil)
 				if err != nil {
 					return
 				}
@@ -199,14 +199,14 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 				time.Sleep(50 * time.Millisecond)
 
 				event := NewInputEvent("MediumEvent", NewTags("test", "medium"), []byte(`{"data": "medium"}`))
-				err := store.Append(context.Background(), []InputEvent{event})
+				err := store.Append(context.Background(), []InputEvent{event}, nil)
 				if err != nil {
 					return
 				}
 
 				// Read the event to get its position and transaction ID
 				query := NewQuery(NewTags("test", "medium"), "MediumEvent")
-				events, err := store.Read(context.Background(), query)
+				events, err := store.Read(context.Background(), query, nil)
 				if err != nil {
 					return
 				}
@@ -265,17 +265,17 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 
 			fmt.Printf("Start order (by start time):\n")
 			for i, r := range startOrder {
-				fmt.Printf("  %d: Position=%d, TX=%d, Started=%v\n", i+1, r.position, r.txID, r.started)
+				fmt.Printf("  %d: TX=%d, Position=%d, Started=%v\n", i+1, r.txID, r.position, r.started)
 			}
 
-			fmt.Printf("Commit order (by position):\n")
+			fmt.Printf("Commit order (by TX):\n")
 			for i, r := range commitOrder {
-				fmt.Printf("  %d: Position=%d, TX=%d, Started=%v\n", i+1, r.position, r.txID, r.started)
+				fmt.Printf("  %d: TX=%d, Position=%d, Started=%v\n", i+1, r.txID, r.position, r.started)
 			}
 
 			fmt.Printf("Transaction order (by TX ID):\n")
 			for i, r := range txOrder {
-				fmt.Printf("  %d: Position=%d, TX=%d, Started=%v\n", i+1, r.position, r.txID, r.started)
+				fmt.Printf("  %d: TX=%d, Position=%d, Started=%v\n", i+1, r.txID, r.position, r.started)
 			}
 
 			// Demonstrate that position order != transaction start order
@@ -298,7 +298,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 
 			// Read events ordered by transaction_id, position
 			query := NewQuery(NewTags("test"), "TestEvent")
-			events, err := store.Read(context.Background(), query)
+			events, err := store.Read(context.Background(), query, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			if len(events) < 2 {
@@ -306,12 +306,12 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 				event1 := NewInputEvent("TestEvent", NewTags("test", "order1"), []byte(`{"data": "1"}`))
 				event2 := NewInputEvent("TestEvent", NewTags("test", "order2"), []byte(`{"data": "2"}`))
 
-				err = store.Append(context.Background(), []InputEvent{event1})
+				err = store.Append(context.Background(), []InputEvent{event1}, nil)
 				Expect(err).ToNot(HaveOccurred())
-				err = store.Append(context.Background(), []InputEvent{event2})
+				err = store.Append(context.Background(), []InputEvent{event2}, nil)
 				Expect(err).ToNot(HaveOccurred())
 
-				events, err = store.Read(context.Background(), query)
+				events, err = store.Read(context.Background(), query, nil)
 				Expect(err).ToNot(HaveOccurred())
 			}
 
@@ -332,8 +332,8 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 
 			fmt.Printf("Events ordered by transaction_id, position:\n")
 			for i, event := range events {
-				fmt.Printf("  %d: Position=%d, TX=%d, Type=%s\n",
-					i+1, event.Position, event.TransactionID, event.Type)
+				fmt.Printf("  %d: TX=%d, Position=%d, Type=%s\n",
+					i+1, event.TransactionID, event.Position, event.Type)
 			}
 		})
 
@@ -346,14 +346,14 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			event1 := NewInputEvent("TestEvent", NewTags("unique", uniqueTag), []byte(`{"data": "1"}`))
 			event2 := NewInputEvent("TestEvent", NewTags("unique", uniqueTag), []byte(`{"data": "2"}`))
 
-			err := store.Append(context.Background(), []InputEvent{event1})
+			err := store.Append(context.Background(), []InputEvent{event1}, nil)
 			Expect(err).ToNot(HaveOccurred())
-			err = store.Append(context.Background(), []InputEvent{event2})
+			err = store.Append(context.Background(), []InputEvent{event2}, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			// Read the events to get their positions and transaction IDs
 			query := NewQueryFromItems(NewQueryItem([]string{"TestEvent"}, NewTags("unique", uniqueTag)))
-			events, err := store.Read(context.Background(), query)
+			events, err := store.Read(context.Background(), query, nil)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(events).To(HaveLen(2))
 
@@ -369,7 +369,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			}
 
 			// Read events after the cursor using ReadStream
-			eventsChan, err := store.ReadStream(context.Background(), query)
+			eventsChan, err := store.ReadStream(context.Background(), query, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			// Collect events after the cursor
@@ -406,12 +406,12 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			}
 
 			// Append all events in a single transaction
-			err := store.Append(context.Background(), events)
+			err := store.Append(context.Background(), events, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			// Read the events back
 			query := NewQueryFromItems(NewQueryItem([]string{"MultiEvent"}, NewTags("unique", uniqueTag)))
-			readEvents, err := store.Read(context.Background(), query)
+			readEvents, err := store.Read(context.Background(), query, nil)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(readEvents).To(HaveLen(4))
 
@@ -428,8 +428,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 				Expect(curr.Position).To(BeNumerically(">", prev.Position))
 			}
 
-			fmt.Printf("Multi-event transaction: TX=%d, Positions=%v\n",
-				firstTXID, []int64{readEvents[0].Position, readEvents[1].Position, readEvents[2].Position, readEvents[3].Position})
+			fmt.Printf("Multi-event transaction: TX=%d, Positions=%v\n", firstTXID, []int64{readEvents[0].Position, readEvents[1].Position, readEvents[2].Position, readEvents[3].Position})
 
 			// Test cursor-based polling with multiple events in the same transaction
 			// Start cursor at the first event
@@ -439,7 +438,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			}
 
 			// Read events after the cursor
-			eventsChan, err := store.ReadStream(context.Background(), query)
+			eventsChan, err := store.ReadStream(context.Background(), query, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			// Collect events after the cursor
@@ -466,7 +465,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			}
 
 			// Read events after the middle cursor
-			eventsChan2, err := store.ReadStream(context.Background(), query)
+			eventsChan2, err := store.ReadStream(context.Background(), query, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			// Collect events after the middle cursor

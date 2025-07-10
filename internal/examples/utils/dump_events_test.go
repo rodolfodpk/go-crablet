@@ -48,7 +48,7 @@ func TestDumpEvents(t *testing.T) {
 
 		// Insert a test event using EventStore API
 		event := dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", "123"), []byte(`{"name": "John Doe"}`))
-		err := store.Append(ctx, []dcb.InputEvent{event})
+		err := store.Append(ctx, []dcb.InputEvent{event}, nil)
 		require.NoError(t, err)
 
 		// DumpEvents should not panic with single event
@@ -67,7 +67,7 @@ func TestDumpEvents(t *testing.T) {
 			dcb.NewInputEvent("OrderCreated", dcb.NewTags("order_id", "456", "user_id", "123"), []byte(`{"total": 100.50}`)),
 		}
 
-		err := store.Append(ctx, events)
+		err := store.Append(ctx, events, nil)
 		require.NoError(t, err)
 
 		// DumpEvents should not panic with multiple events
@@ -83,7 +83,7 @@ func TestDumpEvents(t *testing.T) {
 		longData := `{"very_long_field_name": "This is a very long data value that should be truncated when displayed in the output"}`
 		event := dcb.NewInputEvent("TestEvent", dcb.NewTags("very_long_tag_key_that_exceeds_limit", "another_long_tag_value_here"), []byte(longData))
 
-		err := store.Append(ctx, []dcb.InputEvent{event})
+		err := store.Append(ctx, []dcb.InputEvent{event}, nil)
 		require.NoError(t, err)
 
 		// DumpEvents should not panic with long content
@@ -99,7 +99,7 @@ func TestDumpEvents(t *testing.T) {
 		specialData := `{"message": "Hello\nWorld\twith\"quotes\"and'single'quotes"}`
 		event := dcb.NewInputEvent("SpecialEvent", dcb.NewTags("test", "value"), []byte(specialData))
 
-		err := store.Append(ctx, []dcb.InputEvent{event})
+		err := store.Append(ctx, []dcb.InputEvent{event}, nil)
 		require.NoError(t, err)
 
 		// DumpEvents should not panic with special characters

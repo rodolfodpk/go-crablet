@@ -138,7 +138,7 @@ func handleCreateUser(ctx context.Context, store dcb.EventStore, cmd CreateUserC
 		},
 	}
 
-	states, _, err := store.Project(ctx, projectors)
+	states, _, err := store.Project(ctx, projectors, nil)
 	if err != nil {
 		return fmt.Errorf("failed to check user existence: %w", err)
 	}
@@ -165,7 +165,7 @@ func handleCreateUser(ctx context.Context, store dcb.EventStore, cmd CreateUserC
 	}
 
 	// Append events atomically for this command
-	err = store.Append(ctx, events)
+	err = store.Append(ctx, events, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
@@ -201,7 +201,7 @@ func handleCreateOrder(ctx context.Context, store dcb.EventStore, cmd CreateOrde
 		},
 	}
 
-	states, _, err := store.Project(ctx, projectors)
+	states, _, err := store.Project(ctx, projectors, nil)
 	if err != nil {
 		return fmt.Errorf("failed to check order and user existence: %w", err)
 	}
@@ -235,7 +235,7 @@ func handleCreateOrder(ctx context.Context, store dcb.EventStore, cmd CreateOrde
 	}
 
 	// Append events atomically for this command
-	err = store.Append(ctx, events)
+	err = store.Append(ctx, events, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create order: %w", err)
 	}
@@ -275,7 +275,7 @@ func handleBatchCreateUsers(ctx context.Context, store dcb.EventStore, commands 
 		})
 	}
 
-	states, _, err := store.Project(ctx, projectors)
+	states, _, err := store.Project(ctx, projectors, nil)
 	if err != nil {
 		return fmt.Errorf("failed to check batch user existence: %w", err)
 	}
@@ -305,7 +305,7 @@ func handleBatchCreateUsers(ctx context.Context, store dcb.EventStore, commands 
 	}
 
 	// Append events atomically for this batch
-	err = store.Append(ctx, events)
+	err = store.Append(ctx, events, nil)
 	if err != nil {
 		return fmt.Errorf("failed to batch create users: %w", err)
 	}
@@ -345,7 +345,7 @@ func handleBatchCreateOrders(ctx context.Context, store dcb.EventStore, commands
 		})
 	}
 
-	states, _, err := store.Project(ctx, projectors)
+	states, _, err := store.Project(ctx, projectors, nil)
 	if err != nil {
 		return fmt.Errorf("failed to check batch order existence: %w", err)
 	}
@@ -382,7 +382,7 @@ func handleBatchCreateOrders(ctx context.Context, store dcb.EventStore, commands
 	}
 
 	// Append events atomically for this batch
-	err = store.Append(ctx, events)
+	err = store.Append(ctx, events, nil)
 	if err != nil {
 		return fmt.Errorf("failed to batch create orders: %w", err)
 	}

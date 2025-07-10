@@ -147,9 +147,9 @@ func truncateEventsTable(ctx context.Context, pool *pgxpool.Pool) error {
 // dumpEvents queries the events table and prints the results as JSON
 func dumpEvents(pool *pgxpool.Pool) {
 	rows, err := pool.Query(ctx, `
-		SELECT type, position, tags, data
+		SELECT type, transaction_id, position, tags, data
 		FROM events 
-		ORDER BY position
+		ORDER BY transaction_id, position
 	`)
 	if err != nil {
 		return
@@ -158,10 +158,11 @@ func dumpEvents(pool *pgxpool.Pool) {
 
 	// Event structure for scanning
 	type Event struct {
-		Type     string          `json:"type"`
-		Position int64           `json:"position"`
-		Tags     []string        `json:"tags"`
-		Data     json.RawMessage `json:"data"`
+		Type          string          `json:"type"`
+		TransactionID uint64          `json:"transaction_id"`
+		Position      int64           `json:"position"`
+		Tags          []string        `json:"tags"`
+		Data          json.RawMessage `json:"data"`
 	}
 
 	var events []Event
@@ -170,7 +171,7 @@ func dumpEvents(pool *pgxpool.Pool) {
 		var tagsArray []string
 		var dataBytes []byte
 
-		err := rows.Scan(&event.Type, &event.Position, &tagsArray, &dataBytes)
+		err := rows.Scan(&event.Type, &event.TransactionID, &event.Position, &tagsArray, &dataBytes)
 		if err != nil {
 			return
 		}

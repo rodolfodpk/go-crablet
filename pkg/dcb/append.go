@@ -11,15 +11,27 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// Append appends events to the store (always succeeds if no validation errors)
-func (es *eventStore) Append(ctx context.Context, events []InputEvent) error {
-	return es.appendEventsBatch(ctx, events)
-}
+// Append appends events to the store with optional condition
+// condition == nil: unconditional append
+// condition != nil: conditional append (optimistic locking)
+func (es *eventStore) Append(ctx context.Context, events []InputEvent, condition *AppendCondition) error {
+	// Validate events
+	if len(events) == 0 {
+		return &ValidationError{
+			EventStoreError: EventStoreError{
+				Op:  "append",
+				Err: fmt.Errorf("events slice cannot be empty"),
+			},
+			Field: "events",
+			Value: "empty",
+		}
+	}
 
-// AppendIf appends events to the store only if the condition is met
-// Uses REPEATABLE READ isolation level for better consistency
-func (es *eventStore) AppendIf(ctx context.Context, events []InputEvent, condition AppendCondition) error {
-	return es.appendEventsWithCondition(ctx, events, condition)
+	// Use conditional or unconditional append based on condition parameter
+	if condition != nil {
+		return es.appendEventsWithCondition(ctx, events, *condition)
+	}
+	return es.appendEventsBatch(ctx, events)
 }
 
 // appendEventsWithCondition uses PostgreSQL functions for atomic append with condition checking

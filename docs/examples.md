@@ -77,7 +77,7 @@ func main() {
     // Subscribe student
     data, _ := json.Marshal(StudentSubscribed{studentID, courseID})
     event := dcb.NewInputEvent("StudentSubscribed", dcb.NewTags("student_id", studentID, "course_id", courseID), data)
-    store.AppendIf(ctx, []dcb.InputEvent{event}, appendCond)
+    store.Append(ctx, []dcb.InputEvent{event}, &appendCond)
 }
 ```
 
@@ -118,7 +118,7 @@ func channelBasedExample() {
     }
 
     // Channel-based projection with immediate feedback
-    resultChan, _, err := store.ProjectStream(ctx, projectors)
+    resultChan, _, err := store.ProjectStream(ctx, projectors, nil)
     
     // Process results as they come in
     finalStates := make(map[string]interface{})
@@ -166,7 +166,7 @@ func channelStreamingExample() {
     )
 
     // Channel-based streaming
-    eventChan, err := store.ReadStream(ctx, query)
+    eventChan, err := store.ReadStream(ctx, query, nil)
     if err != nil {
         panic(err)
     }
@@ -211,7 +211,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
         },
     }
     
-    states, appendCondition, err := store.Project(ctx, projectors)
+    states, appendCondition, err := store.Project(ctx, projectors, nil)
     if err != nil {
         return err
     }
@@ -227,7 +227,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
     }
     
     // Use optimistic locking to prevent double-spending
-    return store.AppendIf(ctx, events, appendCondition)
+    return store.Append(ctx, events, &appendCondition)
 }
 ```
 
@@ -253,15 +253,15 @@ go-crablet uses configurable PostgreSQL transaction isolation levels for append 
 
 ```go
 // Simple append (no conditions) - uses default isolation level
-store.Append(ctx, events)
+store.Append(ctx, events, nil)
 
 // Conditional append - uses default isolation level
-store.AppendIf(ctx, events, condition)
+store.Append(ctx, events, &condition)
 ```
 
 **When to use different methods:**
-- **Append**: Fastest, safe for simple appends
-- **AppendIf**: Good for conditional appends, prevents phantom reads with optimistic locking
+- **Append (nil condition)**: Fastest, safe for simple appends
+- **Append (with condition)**: Good for conditional appends, prevents phantom reads with optimistic locking
 
 The isolation level can be configured when creating the EventStore via `EventStoreConfig.DefaultAppendIsolation`.
 

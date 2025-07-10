@@ -268,7 +268,7 @@ func handleCreateCourse(ctx context.Context, store EventStore, cmd CreateCourseC
 		},
 	}
 
-	states, _, err := store.Project(ctx, projectors)
+	states, _, err := store.Project(ctx, projectors, nil)
 	if err != nil {
 		return fmt.Errorf("failed to project course state: %w", err)
 	}
@@ -277,9 +277,8 @@ func handleCreateCourse(ctx context.Context, store EventStore, cmd CreateCourseC
 		return fmt.Errorf("course with id \"%s\" already exists", cmd.CourseID)
 	}
 
-	err = store.AppendIf(ctx, []InputEvent{
-		NewCourseDefinedEvent(cmd.CourseID, cmd.Name, cmd.Instructor, cmd.Capacity),
-	}, nil)
+	condition := NewAppendCondition(NewQuery(NewTags("course_id", cmd.CourseID), "CourseDefined"))
+	err = store.Append(ctx, []InputEvent{NewCourseDefinedEvent(cmd.CourseID, cmd.Name, cmd.Instructor, cmd.Capacity)}, &condition)
 	if err != nil {
 		return fmt.Errorf("failed to create course: %w", err)
 	}
@@ -297,7 +296,7 @@ func handleRegisterStudent(ctx context.Context, store EventStore, cmd RegisterSt
 		},
 	}
 
-	states, _, err := store.Project(ctx, projectors)
+	states, _, err := store.Project(ctx, projectors, nil)
 	if err != nil {
 		return fmt.Errorf("failed to project student state: %w", err)
 	}
@@ -306,9 +305,8 @@ func handleRegisterStudent(ctx context.Context, store EventStore, cmd RegisterSt
 		return fmt.Errorf("student with id \"%s\" already exists", cmd.StudentID)
 	}
 
-	err = store.AppendIf(ctx, []InputEvent{
-		NewStudentRegisteredEvent(cmd.StudentID, cmd.Name, cmd.Email),
-	}, nil)
+	condition := NewAppendCondition(NewQuery(NewTags("student_id", cmd.StudentID), "StudentRegistered"))
+	err = store.Append(ctx, []InputEvent{NewStudentRegisteredEvent(cmd.StudentID, cmd.Name, cmd.Email)}, &condition)
 	if err != nil {
 		return fmt.Errorf("failed to register student: %w", err)
 	}
@@ -356,7 +354,7 @@ func handleEnrollStudent(ctx context.Context, store EventStore, cmd EnrollStuden
 		},
 	}
 
-	states, _, err := store.Project(ctx, projectors)
+	states, _, err := store.Project(ctx, projectors, nil)
 	if err != nil {
 		return fmt.Errorf("failed to project enrollment state: %w", err)
 	}
@@ -393,9 +391,7 @@ func handleEnrollStudent(ctx context.Context, store EventStore, cmd EnrollStuden
 	enrollmentQuery := NewQuery(NewTags("student_id", cmd.StudentID, "course_id", cmd.CourseID), "StudentEnrolledInCourse")
 	appendCondition := NewAppendCondition(enrollmentQuery)
 
-	err = store.AppendIf(ctx, []InputEvent{
-		NewStudentEnrolledEvent(cmd.StudentID, cmd.CourseID, time.Now().Format(time.RFC3339)),
-	}, appendCondition)
+	err = store.Append(ctx, []InputEvent{NewStudentEnrolledEvent(cmd.StudentID, cmd.CourseID, time.Now().Format(time.RFC3339))}, &appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to enroll student: %w", err)
 	}
@@ -413,7 +409,7 @@ func handleDropStudent(ctx context.Context, store EventStore, cmd DropStudentCom
 		},
 	}
 
-	states, _, err := store.Project(ctx, projectors)
+	states, _, err := store.Project(ctx, projectors, nil)
 	if err != nil {
 		return fmt.Errorf("failed to project enrollment state: %w", err)
 	}
@@ -429,9 +425,7 @@ func handleDropStudent(ctx context.Context, store EventStore, cmd DropStudentCom
 	// We only need optimistic locking to ensure no concurrent changes
 	appendCondition := NewAppendCondition(nil) // No need to check for existing events
 
-	err = store.AppendIf(ctx, []InputEvent{
-		NewStudentDroppedEvent(cmd.StudentID, cmd.CourseID, time.Now().Format(time.RFC3339)),
-	}, appendCondition)
+	err = store.Append(ctx, []InputEvent{NewStudentDroppedEvent(cmd.StudentID, cmd.CourseID, time.Now().Format(time.RFC3339))}, &appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to drop student: %w", err)
 	}
@@ -453,7 +447,7 @@ func handleChangeCourseCapacity(ctx context.Context, store EventStore, cmd Chang
 		},
 	}
 
-	states, _, err := store.Project(ctx, projectors)
+	states, _, err := store.Project(ctx, projectors, nil)
 	if err != nil {
 		return err
 	}
@@ -473,7 +467,7 @@ func handleChangeCourseCapacity(ctx context.Context, store EventStore, cmd Chang
 
 	// Append with optimistic locking using the same query
 	appendCondition := NewAppendCondition(NewQuery(NewTags("course_id", courseID), "CourseCapacityChanged"))
-	err = store.AppendIf(ctx, []InputEvent{event}, appendCondition)
+	err = store.Append(ctx, []InputEvent{event}, &appendCondition)
 	if err != nil {
 		return err
 	}
@@ -516,7 +510,7 @@ var _ = Describe("Course Subscription Domain", func() {
 
 			// Read events
 			query := NewQuery(NewTags("course_id", "course-1"), "CourseDefined")
-			events, err := store.Read(ctx, query)
+			events, err := store.Read(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events).To(HaveLen(1))
 			Expect(events[0].Type).To(Equal("CourseDefined"))
@@ -538,7 +532,7 @@ var _ = Describe("Course Subscription Domain", func() {
 
 			// Use ReadStream instead of ReadStream
 			query := NewQuery(NewTags(), "CourseDefined")
-			eventChan, err := store.ReadStream(ctx, query)
+			eventChan, err := store.ReadStream(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			eventCount := 0
@@ -564,7 +558,7 @@ var _ = Describe("Course Subscription Domain", func() {
 
 			// Verify course was created
 			query := NewQuery(NewTags("course_id", "math-101"), "CourseDefined")
-			events, err := store.Read(ctx, query)
+			events, err := store.Read(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events).To(HaveLen(1))
 		})
@@ -601,7 +595,7 @@ var _ = Describe("Course Subscription Domain", func() {
 
 			// Verify student was registered
 			query := NewQuery(NewTags("student_id", "student-123"), "StudentRegistered")
-			events, err := store.Read(ctx, query)
+			events, err := store.Read(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events).To(HaveLen(1))
 		})
@@ -655,7 +649,7 @@ var _ = Describe("Course Subscription Domain", func() {
 
 			// Verify enrollment
 			query := NewQuery(NewTags("student_id", "student-123", "course_id", "math-101"), "StudentEnrolledInCourse")
-			events, err := store.Read(ctx, query)
+			events, err := store.Read(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events).To(HaveLen(1))
 		})
@@ -816,7 +810,7 @@ var _ = Describe("Course Subscription Domain", func() {
 
 			// Verify drop event
 			query := NewQuery(NewTags("student_id", "student-123", "course_id", "math-101"), "StudentDroppedFromCourse")
-			events, err := store.Read(ctx, query)
+			events, err := store.Read(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events).To(HaveLen(1))
 		})
@@ -872,7 +866,7 @@ var _ = Describe("Course Subscription Domain", func() {
 
 			// Verify capacity change event
 			query := NewQuery(NewTags("course_id", "math-101"), "CourseCapacityChanged")
-			events, err := store.Read(ctx, query)
+			events, err := store.Read(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events).To(HaveLen(1))
 		})
@@ -939,7 +933,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				},
 			}
 
-			states, _, err := store.Project(ctx, projectors)
+			states, _, err := store.Project(ctx, projectors, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			courseState := states["courseState"].(*CourseState)

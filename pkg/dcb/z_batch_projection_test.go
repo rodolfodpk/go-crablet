@@ -235,8 +235,8 @@ var _ = Describe("Batch Projection", func() {
 				NewInputEvent("StudentEnrolled", []Tag{NewTag("course_id", "c1"), NewTag("student_id", "s1")}, toJSON(map[string]string{"enrolled_at": "2024-01-01"})),
 				NewInputEvent("StudentEnrolled", []Tag{NewTag("course_id", "c1"), NewTag("student_id", "s2")}, toJSON(map[string]string{"enrolled_at": "2024-01-02"})),
 			}
-			err := store.Append(ctx, events)
-			Expect(err).NotTo(HaveOccurred())
+			err := store.Append(ctx, events, nil)
+			Expect(err).To(BeNil())
 
 			// Define projectors
 			projectors := []StateProjector{
@@ -267,7 +267,7 @@ var _ = Describe("Batch Projection", func() {
 			}
 
 			// Test Project
-			states, _, err := store.Project(ctx, projectors)
+			states, _, err := store.Project(ctx, projectors, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(states["course"]).To(Equal(1))
@@ -282,8 +282,8 @@ var _ = Describe("Batch Projection", func() {
 			events := []InputEvent{event1, event2}
 
 			// Append events
-			err := store.Append(ctx, events)
-			Expect(err).NotTo(HaveOccurred())
+			err := store.Append(ctx, events, nil)
+			Expect(err).To(BeNil())
 
 			// Define projectors with different initial states
 			projectors := []StateProjector{
@@ -312,7 +312,7 @@ var _ = Describe("Batch Projection", func() {
 				},
 			}
 
-			states, _, err := store.Project(ctx, projectors)
+			states, _, err := store.Project(ctx, projectors, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(states["count"]).To(Equal(2))
@@ -326,8 +326,8 @@ var _ = Describe("Batch Projection", func() {
 			events := []InputEvent{event1, event2}
 
 			// Append events
-			err := store.Append(ctx, events)
-			Expect(err).NotTo(HaveOccurred())
+			err := store.Append(ctx, events, nil)
+			Expect(err).To(BeNil())
 
 			// Define projector with complex state
 			projectors := []StateProjector{
@@ -347,7 +347,7 @@ var _ = Describe("Batch Projection", func() {
 			}
 
 			// Test Project
-			states, _, err := store.Project(ctx, projectors)
+			states, _, err := store.Project(ctx, projectors, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(states["totalAmount"]).To(Equal(150.0))
@@ -363,7 +363,7 @@ var _ = Describe("Batch Projection", func() {
 				},
 			}
 
-			_, _, err := store.Project(ctx, projectors)
+			_, _, err := store.Project(ctx, projectors, nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("nil transition function"))
 		})
@@ -380,7 +380,7 @@ var _ = Describe("Batch Projection", func() {
 				},
 			}
 
-			_, _, err := store.Project(ctx, projectors)
+			_, _, err := store.Project(ctx, projectors, nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("empty query"))
 		})
@@ -394,8 +394,8 @@ var _ = Describe("Batch Projection", func() {
 			events := []InputEvent{event1, event2, event3, event4}
 
 			// Append events
-			err := store.Append(ctx, events)
-			Expect(err).NotTo(HaveOccurred())
+			err := store.Append(ctx, events, nil)
+			Expect(err).To(BeNil())
 
 			// Define projectors with different query types
 			projectors := []StateProjector{
@@ -426,7 +426,7 @@ var _ = Describe("Batch Projection", func() {
 			}
 
 			// Test Project
-			states, _, err := store.Project(ctx, projectors)
+			states, _, err := store.Project(ctx, projectors, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(states["orderCount"]).To(Equal(1))
@@ -445,8 +445,8 @@ var _ = Describe("Batch Projection", func() {
 			}
 
 			// Append events
-			err := store.Append(ctx, events)
-			Expect(err).NotTo(HaveOccurred())
+			err := store.Append(ctx, events, nil)
+			Expect(err).To(BeNil())
 
 			// Define projector
 			projectors := []StateProjector{
@@ -461,7 +461,7 @@ var _ = Describe("Batch Projection", func() {
 			}
 
 			// Test with cursor streaming
-			states, _, err := store.Project(ctx, projectors)
+			states, _, err := store.Project(ctx, projectors, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(states["count"]).To(Equal(1000))
@@ -474,8 +474,8 @@ var _ = Describe("Batch Projection", func() {
 			NewInputEvent("EnrollmentStarted", NewTags("student_id", "123"), toJSON(map[string]string{"course": "math"})),
 			NewInputEvent("EnrollmentCompleted", NewTags("student_id", "123"), toJSON(map[string]string{"course": "math"})),
 		}
-		err := store.Append(ctx, events)
-		Expect(err).NotTo(HaveOccurred())
+		err := store.Append(ctx, events, nil)
+		Expect(err).To(BeNil())
 
 		// Create projector
 		projector := StateProjector{
@@ -496,7 +496,7 @@ var _ = Describe("Batch Projection", func() {
 		projectors := []StateProjector{projector}
 
 		// Test Project
-		states, _, err := store.Project(ctx, projectors)
+		states, _, err := store.Project(ctx, projectors, nil)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(states).To(HaveKey("enrollment"))
 		Expect(states["enrollment"]).To(Equal("enrolled"))
@@ -515,7 +515,7 @@ var _ = Describe("Batch Projection", func() {
 		projectors := []StateProjector{projector}
 
 		// Test Project
-		states, _, err := store.Project(ctx, projectors)
+		states, _, err := store.Project(ctx, projectors, nil)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(states).To(HaveKey("enrollment"))
 		Expect(states["enrollment"]).To(Equal("not_enrolled")) // Should remain initial state
@@ -534,7 +534,7 @@ var _ = Describe("Batch Projection", func() {
 		projectors := []StateProjector{projector}
 
 		// Test Project
-		_, _, err := store.Project(ctx, projectors)
+		_, _, err := store.Project(ctx, projectors, nil)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("empty"))
 	})
@@ -550,7 +550,7 @@ var _ = Describe("Batch Projection", func() {
 		projectors := []StateProjector{projector}
 
 		// Test Project
-		_, _, err := store.Project(ctx, projectors)
+		_, _, err := store.Project(ctx, projectors, nil)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("nil"))
 	})
@@ -561,8 +561,8 @@ var _ = Describe("Batch Projection", func() {
 			NewInputEvent("EnrollmentStarted", NewTags("student_id", "123"), toJSON(map[string]string{"course": "math"})),
 			NewInputEvent("EnrollmentStarted", NewTags("student_id", "456"), toJSON(map[string]string{"course": "science"})),
 		}
-		err := store.Append(ctx, events)
-		Expect(err).NotTo(HaveOccurred())
+		err := store.Append(ctx, events, nil)
+		Expect(err).To(BeNil())
 
 		// Create projectors for different students
 		projector1 := StateProjector{
@@ -590,7 +590,7 @@ var _ = Describe("Batch Projection", func() {
 		projectors := []StateProjector{projector1, projector2}
 
 		// Test Project
-		states, _, err := store.Project(ctx, projectors)
+		states, _, err := store.Project(ctx, projectors, nil)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(states).To(HaveKey("student_123"))
 		Expect(states).To(HaveKey("student_456"))
@@ -605,8 +605,8 @@ var _ = Describe("Batch Projection", func() {
 			NewInputEvent("PaymentReceived", NewTags("student_id", "123"), toJSON(map[string]string{"amount": "100"})),
 			NewInputEvent("EnrollmentCompleted", NewTags("student_id", "123"), toJSON(map[string]string{"course": "math"})),
 		}
-		err := store.Append(ctx, events)
-		Expect(err).NotTo(HaveOccurred())
+		err := store.Append(ctx, events, nil)
+		Expect(err).To(BeNil())
 
 		// Create projector with complex state machine
 		projector := StateProjector{
@@ -634,7 +634,7 @@ var _ = Describe("Batch Projection", func() {
 		projectors := []StateProjector{projector}
 
 		// Test Project
-		states, _, err := store.Project(ctx, projectors)
+		states, _, err := store.Project(ctx, projectors, nil)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(states).To(HaveKey("enrollment"))
 		Expect(states["enrollment"]).To(Equal("enrolled"))

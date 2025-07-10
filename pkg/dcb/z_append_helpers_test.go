@@ -44,7 +44,7 @@ var _ = Describe("Append Helpers", func() {
 
 			// Try to append the event - this should fail validation
 			events := []InputEvent{event}
-			err := store.Append(ctx, events)
+			err := store.Append(ctx, events, nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("invalid input syntax for type json"))
 		})
@@ -56,7 +56,7 @@ var _ = Describe("Append Helpers", func() {
 
 			// Try to append the event - this should fail validation
 			events := []InputEvent{event}
-			err := store.Append(ctx, events)
+			err := store.Append(ctx, events, nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("empty type"))
 		})
@@ -118,7 +118,7 @@ var _ = Describe("Append Helpers", func() {
 			event2 := NewInputEvent("TestEvent", NewTags("key", "value2"), toJSON(map[string]string{"data": "value2"}))
 			events := []InputEvent{event1, event2}
 
-			err := store.Append(ctx, events)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -126,7 +126,7 @@ var _ = Describe("Append Helpers", func() {
 			// First append
 			event1 := NewInputEvent("TestEvent", NewTags("key", "value"), toJSON(map[string]string{"data": "test"}))
 			events1 := []InputEvent{event1}
-			err := store.Append(ctx, events1)
+			err := store.Append(ctx, events1, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Second append with After condition (using cursor-based approach)
@@ -135,7 +135,7 @@ var _ = Describe("Append Helpers", func() {
 			// Use cursor-based condition that doesn't match the first event
 			query := NewQuery(NewTags("key", "different"), "TestEvent")
 			condition := NewAppendCondition(query)
-			err = store.AppendIf(ctx, events2, condition)
+			err = store.Append(ctx, events2, &condition)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -146,7 +146,7 @@ var _ = Describe("Append Helpers", func() {
 			// Use cursor-based condition for non-existent events
 			query := NewQuery(NewTags("non_existent", "value"), "NonExistentEvent")
 			condition := NewAppendCondition(query)
-			err := store.AppendIf(ctx, events, condition)
+			err := store.Append(ctx, events, &condition)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -155,7 +155,7 @@ var _ = Describe("Append Helpers", func() {
 			events := []InputEvent{
 				NewInputEvent("UserCreated", NewTags("user_id", "123"), toJSON(map[string]string{"name": "John"})),
 			}
-			err := store.Append(ctx, events)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Second append with FailIfEventsMatch condition
@@ -164,7 +164,7 @@ var _ = Describe("Append Helpers", func() {
 			}
 			query := NewQuery(NewTags("user_id", "123"), "UserCreated")
 			condition := NewAppendCondition(query)
-			err = store.AppendIf(ctx, events2, condition)
+			err = store.Append(ctx, events2, &condition)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("matching events found"))
 		})
@@ -176,20 +176,20 @@ var _ = Describe("Append Helpers", func() {
 			}
 			query := NewQuery(NewTags("user_id", "123"), "UserUpdated")
 			condition := NewAppendCondition(query)
-			err := store.AppendIf(ctx, events, condition)
+			err := store.Append(ctx, events, &condition)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Describe("Append validation", func() {
 		It("should validate empty events slice", func() {
-			err := store.Append(ctx, []InputEvent{})
+			err := store.Append(ctx, []InputEvent{}, nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("empty"))
 		})
 
 		It("should validate nil events slice", func() {
-			err := store.Append(ctx, nil)
+			err := store.Append(ctx, nil, nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("empty"))
 		})
@@ -202,7 +202,7 @@ var _ = Describe("Append Helpers", func() {
 				events[i] = event
 			}
 
-			err := store.Append(ctx, events)
+			err := store.Append(ctx, events, nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("exceeds maximum"))
 		})
@@ -215,7 +215,7 @@ var _ = Describe("Append Helpers", func() {
 				event2,
 			}
 
-			err := store.Append(ctx, events)
+			err := store.Append(ctx, events, nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("empty type"))
 		})
@@ -267,7 +267,7 @@ var _ = Describe("Append Helpers", func() {
 		})
 	})
 
-	Describe("AppendIf with isolation levels", func() {
+	Describe("Append with conditions", func() {
 		It("should append events with condition", func() {
 			event := NewInputEvent("TestEvent", NewTags("key", "value"), toJSON(map[string]string{"data": "test"}))
 			events := []InputEvent{event}
@@ -276,7 +276,7 @@ var _ = Describe("Append Helpers", func() {
 			query := NewQuery(NewTags("non_existent", "value"), "NonExistentEvent")
 			condition := NewAppendCondition(query)
 
-			err := store.AppendIf(ctx, events, condition)
+			err := store.Append(ctx, events, &condition)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -284,7 +284,7 @@ var _ = Describe("Append Helpers", func() {
 			// First append an event
 			event1 := NewInputEvent("TestEvent", NewTags("key", "value"), toJSON(map[string]string{"data": "test"}))
 			events1 := []InputEvent{event1}
-			err := store.Append(ctx, events1)
+			err := store.Append(ctx, events1, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Then try to append with a condition that conflicts
@@ -293,32 +293,32 @@ var _ = Describe("Append Helpers", func() {
 			query := NewQuery(NewTags("key", "value"), "TestEvent")
 			condition := NewAppendCondition(query)
 
-			err = store.AppendIf(ctx, events2, condition)
+			err = store.Append(ctx, events2, &condition)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("matching events found"))
 		})
 
-		It("should append events with nil condition (same as Append)", func() {
+		It("should append events with nil condition (same as unconditional append)", func() {
 			event := NewInputEvent("TestEvent", NewTags("key", "value"), toJSON(map[string]string{"data": "test"}))
 			events := []InputEvent{event}
 
-			err := store.AppendIf(ctx, events, nil)
+			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
-	Describe("AppendIf with configurable isolation", func() {
+	Describe("Append with configurable isolation", func() {
 		It("should append events with default isolation level", func() {
 			events := []InputEvent{
 				NewInputEvent("TestEvent", NewTags("test", "default"), []byte(`{"value": "test"}`)),
 			}
 
-			err := store.AppendIf(ctx, events, nil) // Use AppendIf with nil condition
+			err := store.Append(ctx, events, nil) // Use Append with nil condition
 			Expect(err).To(BeNil())
 
 			// Verify the event was appended
 			query := NewQuery(NewTags("test", "default"), "TestEvent")
-			readEvents, err := store.Read(ctx, query)
+			readEvents, err := store.Read(ctx, query, nil)
 			Expect(err).To(BeNil())
 			Expect(readEvents).To(HaveLen(1))
 		})
@@ -328,8 +328,8 @@ var _ = Describe("Append Helpers", func() {
 			events1 := []InputEvent{
 				NewInputEvent("TestEvent", NewTags("test", "default"), []byte(`{"value": "test"}`)),
 			}
-			err := store.AppendIf(ctx, events1, nil) // Use AppendIf with nil condition
-			Expect(err).NotTo(HaveOccurred())
+			err := store.Append(ctx, events1, nil) // Use Append with nil condition
+			Expect(err).To(BeNil())
 
 			// Second append with condition that should fail (looking for the event we just created)
 			events2 := []InputEvent{
@@ -337,7 +337,7 @@ var _ = Describe("Append Helpers", func() {
 			}
 			query := NewQuery(NewTags("test", "default"), "TestEvent")
 			condition := NewAppendCondition(query)
-			err = store.AppendIf(ctx, events2, condition)
+			err = store.Append(ctx, events2, &condition)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("append condition violated"))
 		})

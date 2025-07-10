@@ -82,7 +82,7 @@ func (es *eventStore) buildReadQuerySQL(query Query, cursor *Cursor, limit *int)
 
 	// Build final query efficiently
 	var sqlQuery strings.Builder
-	sqlQuery.WriteString("SELECT type, tags, data, position, transaction_id, created_at FROM events")
+	sqlQuery.WriteString("SELECT type, tags, data, transaction_id, position, created_at FROM events")
 
 	if len(conditions) > 0 {
 		sqlQuery.WriteString(" WHERE ")
@@ -166,10 +166,11 @@ func (es *eventStore) eventMatchesProjector(event Event, projector StateProjecto
 	return false
 }
 
-// Project projects multiple states using projectors and returns final states and append condition
-// This is a go-crablet feature for building decision models in command handlers
-// The function internally computes the combined query from all projectors for the append condition
-func (es *eventStore) Project(ctx context.Context, projectors []StateProjector) (map[string]any, AppendCondition, error) {
+// Project projects state from events matching projectors with optional cursor
+// after == nil: project from beginning of stream
+// after != nil: project from specified cursor position (EXCLUSIVE - events after cursor, not including cursor)
+// Returns final aggregated states and append condition for optimistic locking
+func (es *eventStore) Project(ctx context.Context, projectors []StateProjector, after *Cursor) (map[string]any, AppendCondition, error) {
 	// Validate projectors
 	for _, bp := range projectors {
 		if bp.ID == "" {
@@ -205,10 +206,13 @@ func (es *eventStore) Project(ctx context.Context, projectors []StateProjector) 
 	}
 
 	// Combine all projector queries for the append condition
-	query := es.combineProjectorQueries(projectors)
+	combinedQuery := es.combineProjectorQueries(projectors)
 
-	// Use the query-based approach for all datasets
-	return es.projectDecisionModelWithQuery(ctx, query, projectors)
+	// Use cursor-based or full projection based on cursor parameter
+	if after != nil {
+		return es.projectDecisionModelWithQueryFromCursor(ctx, combinedQuery, projectors, after)
+	}
+	return es.projectDecisionModelWithQuery(ctx, combinedQuery, projectors)
 }
 
 // projectDecisionModelWithQuery uses query-based approach for all datasets
@@ -262,7 +266,7 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 	// Process events
 	for rows.Next() {
 		var row rowEvent
-		err := rows.Scan(&row.Type, &row.Tags, &row.Data, &row.Position, &row.TransactionID, &row.CreatedAt)
+		err := rows.Scan(&row.Type, &row.Tags, &row.Data, &row.TransactionID, &row.Position, &row.CreatedAt)
 		if err != nil {
 			return nil, nil, &ResourceError{
 				EventStoreError: EventStoreError{
@@ -316,6 +320,111 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 	return states, appendCondition, nil
 }
 
+// projectDecisionModelWithQueryFromCursor uses query-based approach for all datasets with cursor
+func (es *eventStore) projectDecisionModelWithQueryFromCursor(ctx context.Context, query Query, projectors []StateProjector, cursor *Cursor) (map[string]any, AppendCondition, error) {
+	// Validate query
+	if query == nil {
+		return nil, nil, &ValidationError{
+			EventStoreError: EventStoreError{
+				Op:  "ProjectFromCursor",
+				Err: fmt.Errorf("query cannot be nil"),
+			},
+			Field: "query",
+			Value: "nil",
+		}
+	}
+
+	// Build SQL query
+	sqlQuery, args, err := es.buildReadQuerySQL(query, cursor, nil)
+	if err != nil {
+		return nil, nil, &ResourceError{
+			EventStoreError: EventStoreError{
+				Op:  "ProjectFromCursor",
+				Err: fmt.Errorf("failed to build query: %w", err),
+			},
+			Resource: "database",
+		}
+	}
+
+	// Execute query
+	rows, err := es.pool.Query(ctx, sqlQuery, args...)
+	if err != nil {
+		return nil, nil, &ResourceError{
+			EventStoreError: EventStoreError{
+				Op:  "ProjectFromCursor",
+				Err: fmt.Errorf("query failed: %w", err),
+			},
+			Resource: "database",
+		}
+	}
+	defer rows.Close()
+
+	// Initialize states with initial values
+	states := make(map[string]any)
+	for _, projector := range projectors {
+		states[projector.ID] = projector.InitialState
+	}
+
+	// Track latest cursor for append condition
+	var latestCursor *Cursor
+
+	// Process events
+	for rows.Next() {
+		var row rowEvent
+		err := rows.Scan(&row.Type, &row.Tags, &row.Data, &row.TransactionID, &row.Position, &row.CreatedAt)
+		if err != nil {
+			return nil, nil, &ResourceError{
+				EventStoreError: EventStoreError{
+					Op:  "ProjectFromCursor",
+					Err: fmt.Errorf("failed to scan row: %w", err),
+				},
+				Resource: "database",
+			}
+		}
+
+		// Convert row to event
+		event := convertRowToEvent(row)
+
+		// Update latest cursor (events are ordered by transaction_id ASC, position ASC)
+		if latestCursor == nil ||
+			event.TransactionID > latestCursor.TransactionID ||
+			(event.TransactionID == latestCursor.TransactionID && event.Position > latestCursor.Position) {
+			latestCursor = &Cursor{
+				TransactionID: event.TransactionID,
+				Position:      event.Position,
+			}
+		}
+
+		// Apply event to matching projectors
+		for _, projector := range projectors {
+			if es.eventMatchesProjector(event, projector) {
+				states[projector.ID] = projector.TransitionFn(states[projector.ID], event)
+			}
+		}
+	}
+
+	// Check for row iteration errors
+	if err := rows.Err(); err != nil {
+		return nil, nil, &ResourceError{
+			EventStoreError: EventStoreError{
+				Op:  "ProjectFromCursor",
+				Err: fmt.Errorf("row iteration failed: %w", err),
+			},
+			Resource: "database",
+		}
+	}
+
+	// Build append condition from projector queries for optimistic locking
+	appendCondition := es.buildAppendConditionFromQuery(query)
+
+	// Set cursor in append condition if we have events
+	if latestCursor != nil {
+		appendCondition.setAfterCursor(latestCursor)
+	}
+
+	return states, appendCondition, nil
+}
+
 // buildAppendConditionFromQuery builds an AppendCondition from a specific query
 // This aligns with DCB specification: each append operation should use the same query
 // that was used when building the Decision Model
@@ -330,11 +439,13 @@ func BuildAppendConditionFromQuery(query Query) AppendCondition {
 	return NewAppendCondition(query)
 }
 
-// ProjectStream projects multiple states using channel-based streaming
+// ProjectStream projects multiple states using channel-based streaming with optional cursor
+// after == nil: stream from beginning of stream
+// after != nil: stream from specified cursor position
 // This is optimized for large datasets and provides backpressure through channels
 // for efficient memory usage and Go-idiomatic streaming
 // Returns final aggregated states (same as batch version) via streaming
-func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProjector) (<-chan map[string]any, <-chan AppendCondition, error) {
+func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProjector, after *Cursor) (<-chan map[string]any, <-chan AppendCondition, error) {
 	if len(projectors) == 0 {
 		return nil, nil, fmt.Errorf("at least one projector is required")
 	}
@@ -373,8 +484,8 @@ func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProje
 		return nil, nil, err
 	}
 
-	// Build the SQL query
-	sqlQuery, args, err := es.buildReadQuerySQL(query, nil, nil)
+	// Build the SQL query with cursor
+	sqlQuery, args, err := es.buildReadQuerySQL(query, after, nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to build query: %w", err)
 	}
@@ -434,8 +545,8 @@ func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProje
 					&row.Type,
 					&row.Tags,
 					&row.Data,
-					&row.Position,
 					&row.TransactionID,
+					&row.Position,
 					&row.CreatedAt,
 				)
 				if err != nil {

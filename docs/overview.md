@@ -18,33 +18,35 @@ go-crablet is a Go library for event sourcing, exploring concepts inspired by th
 
 ```go
 type EventStore interface {
-    // Read reads events matching the query (no options)
-    Read(ctx context.Context, query Query) ([]Event, error)
+    	// Read reads events matching the query with optional cursor
+	// cursor == nil: read from beginning of stream
+	// cursor != nil: read from specified cursor position (EXCLUSIVE - events after cursor, not including cursor)
+    Read(ctx context.Context, query Query, cursor *Cursor) ([]Event, error)
 
-    // ReadStream creates a channel-based stream of events matching a query
-    // This replaces ReadWithOptions functionality - the caller manages complexity
-    // like limits and cursors through channel consumption patterns
+    	// ReadStream creates a channel-based stream of events matching a query with optional cursor
+	// cursor == nil: stream from beginning of stream
+	// cursor != nil: stream from specified cursor position (EXCLUSIVE - events after cursor, not including cursor)
     // This is optimized for large datasets and provides backpressure through channels
     // for efficient memory usage and Go-idiomatic streaming
-    ReadStream(ctx context.Context, query Query) (<-chan Event, error)
+    ReadStream(ctx context.Context, query Query, cursor *Cursor) (<-chan Event, error)
 
-    // Append appends events to the store (always succeeds if no validation errors)
-    // Uses the default isolation level configured in EventStoreConfig
-    Append(ctx context.Context, events []InputEvent) error
+    // Append appends events to the store with optional condition
+    // condition == nil: unconditional append
+    // condition != nil: conditional append (optimistic locking)
+    Append(ctx context.Context, events []InputEvent, condition *AppendCondition) error
 
-    // AppendIf appends events to the store only if the condition is met
-    // Uses the default isolation level configured in EventStoreConfig
-    AppendIf(ctx context.Context, events []InputEvent, condition AppendCondition) error
+    	// Project projects multiple states using projectors with optional cursor
+	// cursor == nil: project from beginning of stream
+	// cursor != nil: project from specified cursor position (EXCLUSIVE - events after cursor, not including cursor)
+    // Returns final aggregated states and append condition for optimistic locking
+    Project(ctx context.Context, projectors []StateProjector, cursor *Cursor) (map[string]any, AppendCondition, error)
 
-    // Project projects multiple states using projectors and returns final states and append condition
-    // This is a go-crablet feature for building decision models in command handlers
-    Project(ctx context.Context, projectors []StateProjector) (map[string]any, AppendCondition, error)
-
-    // ProjectStream projects multiple states using channel-based streaming
+    	// ProjectStream projects multiple states using channel-based streaming with optional cursor
+	// cursor == nil: stream from beginning of stream
+	// cursor != nil: stream from specified cursor position (EXCLUSIVE - events after cursor, not including cursor)
     // This is optimized for large datasets and provides backpressure through channels
     // for efficient memory usage and Go-idiomatic streaming
-    // Returns final aggregated states (same as batch version) via streaming
-    ProjectStream(ctx context.Context, projectors []StateProjector) (<-chan map[string]any, <-chan AppendCondition, error)
+    ProjectStream(ctx context.Context, projectors []StateProjector, cursor *Cursor) (<-chan map[string]any, <-chan AppendCondition, error)
 
     // GetConfig returns the current EventStore configuration
     GetConfig() EventStoreConfig
@@ -94,12 +96,12 @@ projectors := []dcb.StateProjector{
         },
     },
 }
-states, appendCond, _ := store.Project(ctx, projectors)
+states, appendCond, _ := store.Project(ctx, projectors, nil)
 if !states["courseExists"].(bool) { 
-    store.Append(ctx, []dcb.InputEvent{...}) 
+    store.Append(ctx, []dcb.InputEvent{...}, nil) 
 }
 if states["numSubscriptions"].(int) < 2 { 
-    store.AppendIf(ctx, []dcb.InputEvent{...}, appendCond) 
+    store.Append(ctx, []dcb.InputEvent{...}, &appendCond) 
 }
 ```
 
@@ -107,8 +109,8 @@ if states["numSubscriptions"].(int) < 2 {
 
 go-crablet uses configurable PostgreSQL transaction isolation levels:
 
-- **Append**: Uses the default isolation level configured in `EventStoreConfig` (typically Read Committed)
-- **AppendIf**: Uses the default isolation level configured in `EventStoreConfig` (typically Repeatable Read)
+- **Append (unconditional)**: Uses the default isolation level configured in `EventStoreConfig` (typically Read Committed)
+- **Append (conditional)**: Uses the default isolation level configured in `EventStoreConfig` (typically Repeatable Read)
 
 The isolation level can be configured when creating the EventStore via `EventStoreConfig.DefaultAppendIsolation`.
 
@@ -131,13 +133,13 @@ type EventStoreConfig struct {
 - `LockTimeout`: 5000ms (5 seconds)
 - `StreamBuffer`: 1000 events
 - `DefaultAppendIsolation`: Read Committed
-- `ReadTimeout`: 30000ms (30 seconds)
+- `ReadTimeout`: 15000ms (15 seconds)
 
 ## Performance Comparison Across Isolation Levels
 
 Benchmark results from web-app load testing (30-second tests, multiple VUs):
 
-| Metric | Append (Read Committed) | AppendIf (Repeatable Read) |
+| Metric | Append (unconditional) | Append (conditional) |
 |--------|------------------------|---------------------------|
 | **Throughput** | 79.2 req/s | 61.7 req/s |
 | **Avg Response Time** | 24.87ms | 12.82ms |
@@ -148,14 +150,14 @@ Benchmark results from web-app load testing (30-second tests, multiple VUs):
 
 ### Key Performance Insights
 
-- **AppendIf is fastest**: Conditional appends with Repeatable Read isolation actually perform better than simple appends
+- **Conditional append is fastest**: Conditional appends with Repeatable Read isolation actually perform better than simple appends
 - **Excellent reliability**: Both isolation levels achieve 100% success rate
 - **Optimized implementation**: Cursor-based optimistic locking and SQL functions are highly efficient
 
 ### When to Use Each Method
 
-- **Append**: Use for simple event appends where no conditions are needed
-- **AppendIf**: Use for conditional appends requiring optimistic locking
+- **Append (nil condition)**: Use for simple event appends where no conditions are needed
+- **Append (with condition)**: Use for conditional appends requiring optimistic locking
 
 ## Implementation Details
 
