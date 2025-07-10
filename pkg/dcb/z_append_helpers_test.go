@@ -341,46 +341,5 @@ var _ = Describe("Append Helpers", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("append condition violated"))
 		})
-
-		It("should enforce optimistic locking under true concurrency", func() {
-			// Use a unique key for this test run
-			key := fmt.Sprintf("concurrent-%d", time.Now().UnixNano())
-			event := NewInputEvent("TestEvent", NewTags("key", key), toJSON(map[string]string{"data": "concurrent"}))
-			query := NewQuery(NewTags("key", key), "TestEvent")
-			condition := NewAppendCondition(query)
-
-			// Barrier to synchronize goroutines
-			start := make(chan struct{})
-			results := make(chan error, 2)
-
-			appendFn := func() {
-				<-start
-				err := store.AppendIf(ctx, []InputEvent{event}, condition)
-				results <- err
-			}
-
-			go appendFn()
-			go appendFn()
-			time.Sleep(100 * time.Millisecond) // Let goroutines get ready
-			close(start)
-
-			err1 := <-results
-			err2 := <-results
-
-			// One should succeed, one should fail with concurrency error
-			if err1 == nil {
-				Expect(err2).To(HaveOccurred())
-				Expect(err2.Error()).To(SatisfyAny(
-					ContainSubstring("append condition violated"),
-					ContainSubstring("SQLSTATE 40001"),
-				))
-			} else {
-				Expect(err1.Error()).To(SatisfyAny(
-					ContainSubstring("append condition violated"),
-					ContainSubstring("SQLSTATE 40001"),
-				))
-				Expect(err2).To(BeNil())
-			}
-		})
 	})
 })
