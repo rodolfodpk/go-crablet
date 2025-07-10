@@ -2,7 +2,9 @@ package dcb
 
 import (
 	"context"
+	"encoding/json"
 
+	"github.com/jackc/pgx/v5"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -282,5 +284,155 @@ var _ = Describe("Constructor Tests", func() {
 			condition := NewAppendCondition(query)
 			Expect(condition).NotTo(BeNil())
 		})
+	})
+})
+
+var _ = Describe("IsolationLevel", func() {
+	Describe("String()", func() {
+		It("should return correct string for ReadCommitted", func() {
+			Expect(IsolationLevelReadCommitted.String()).To(Equal("READ_COMMITTED"))
+		})
+
+		It("should return correct string for RepeatableRead", func() {
+			Expect(IsolationLevelRepeatableRead.String()).To(Equal("REPEATABLE_READ"))
+		})
+
+		It("should return correct string for Serializable", func() {
+			Expect(IsolationLevelSerializable.String()).To(Equal("SERIALIZABLE"))
+		})
+
+		It("should return UNKNOWN for invalid level", func() {
+			invalidLevel := IsolationLevel(999)
+			Expect(invalidLevel.String()).To(Equal("UNKNOWN"))
+		})
+	})
+
+	Describe("ParseIsolationLevel()", func() {
+		It("should parse READ_COMMITTED correctly", func() {
+			level, err := ParseIsolationLevel("READ_COMMITTED")
+			Expect(err).To(BeNil())
+			Expect(level).To(Equal(IsolationLevelReadCommitted))
+		})
+
+		It("should parse REPEATABLE_READ correctly", func() {
+			level, err := ParseIsolationLevel("REPEATABLE_READ")
+			Expect(err).To(BeNil())
+			Expect(level).To(Equal(IsolationLevelRepeatableRead))
+		})
+
+		It("should parse SERIALIZABLE correctly", func() {
+			level, err := ParseIsolationLevel("SERIALIZABLE")
+			Expect(err).To(BeNil())
+			Expect(level).To(Equal(IsolationLevelSerializable))
+		})
+
+		It("should return error for invalid level", func() {
+			level, err := ParseIsolationLevel("INVALID_LEVEL")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid isolation level"))
+			Expect(level).To(Equal(IsolationLevelReadCommitted))
+		})
+	})
+})
+
+var _ = Describe("Interface Methods", func() {
+	Describe("InputEvent interface", func() {
+		It("should implement all required methods", func() {
+			event := NewInputEvent("TestEvent", NewTags("key", "value"), []byte(`{"data": "test"}`))
+
+			// Test that it implements the interface
+			var _ InputEvent = event
+
+			// Test getter methods
+			Expect(event.GetType()).To(Equal("TestEvent"))
+			Expect(event.GetTags()).To(HaveLen(1))
+			Expect(event.GetTags()[0].GetKey()).To(Equal("key"))
+			Expect(event.GetTags()[0].GetValue()).To(Equal("value"))
+			Expect(event.GetData()).To(Equal([]byte(`{"data": "test"}`)))
+		})
+	})
+
+	Describe("Tag interface", func() {
+		It("should implement all required methods", func() {
+			tag := NewTag("key", "value")
+
+			// Test that it implements the interface
+			var _ Tag = tag
+
+			// Test getter methods
+			Expect(tag.GetKey()).To(Equal("key"))
+			Expect(tag.GetValue()).To(Equal("value"))
+		})
+
+		It("should marshal to JSON correctly", func() {
+			tag := NewTag("key", "value")
+			jsonData, err := json.Marshal(tag)
+			Expect(err).To(BeNil())
+			Expect(string(jsonData)).To(Equal(`{"key":"key","value":"value"}`))
+		})
+	})
+
+	Describe("Query interface", func() {
+		It("should implement all required methods", func() {
+			query := NewQuery(NewTags("key", "value"), "TestEvent")
+
+			// Test that it implements the interface
+			var _ Query = query
+
+			// Test getter methods
+			items := query.getItems()
+			Expect(items).To(HaveLen(1))
+			Expect(items[0].getEventTypes()).To(Equal([]string{"TestEvent"}))
+			Expect(items[0].getTags()).To(HaveLen(1))
+			Expect(items[0].getTags()[0].GetKey()).To(Equal("key"))
+			Expect(items[0].getTags()[0].GetValue()).To(Equal("value"))
+		})
+	})
+
+	Describe("AppendCondition interface", func() {
+		It("should implement all required methods", func() {
+			query := NewQuery(NewTags("key", "value"), "TestEvent")
+			condition := NewAppendCondition(query)
+
+			// Test that it implements the interface
+			var _ AppendCondition = condition
+
+			// Test getter methods
+			failQuery := condition.getFailIfEventsMatch()
+			Expect(failQuery).ToNot(BeNil())
+			Expect((*failQuery).getItems()).To(HaveLen(1))
+
+			// Test cursor methods
+			cursor := &Cursor{TransactionID: 123, Position: 456}
+			condition.setAfterCursor(cursor)
+			Expect(condition.getAfterCursor()).To(Equal(cursor))
+
+			// Test nil cursor
+			condition.setAfterCursor(nil)
+			Expect(condition.getAfterCursor()).To(BeNil())
+		})
+	})
+})
+
+var _ = Describe("toPgxIsoLevel", func() {
+	It("should convert ReadCommitted correctly", func() {
+		level := toPgxIsoLevel(IsolationLevelReadCommitted)
+		Expect(level).To(Equal(pgx.ReadCommitted))
+	})
+
+	It("should convert RepeatableRead correctly", func() {
+		level := toPgxIsoLevel(IsolationLevelRepeatableRead)
+		Expect(level).To(Equal(pgx.RepeatableRead))
+	})
+
+	It("should convert Serializable correctly", func() {
+		level := toPgxIsoLevel(IsolationLevelSerializable)
+		Expect(level).To(Equal(pgx.Serializable))
+	})
+
+	It("should default to ReadCommitted for invalid level", func() {
+		invalidLevel := IsolationLevel(999)
+		level := toPgxIsoLevel(invalidLevel)
+		Expect(level).To(Equal(pgx.ReadCommitted))
 	})
 })
