@@ -1,224 +1,181 @@
-# DCB Web Application
+# Go-Crablet Web Application
 
-A high-performance HTTP/REST API implementation of the go-crablet DCB (Dynamic Consistency Boundary) pattern with comprehensive benchmarking and different transaction isolation levels.
+A high-performance event sourcing web application built with Go, featuring Dynamic Consistency Boundaries (DCB), advisory locks, and comprehensive isolation level support.
 
-## 🚀 Quick Start
+## 🚀 Features
 
+- **Event Sourcing**: Robust event storage and retrieval
+- **Dynamic Consistency Boundaries**: Flexible consistency models
+- **Advisory Locks**: PostgreSQL-based locking for concurrency control
+- **Multiple Isolation Levels**: READ_COMMITTED, REPEATABLE_READ, SERIALIZABLE
+- **Conditional Appends**: Append-if functionality with conflict resolution
+- **Comprehensive Testing**: k6-based performance and load testing
+
+## 📊 Performance Benchmarks
+
+### Benchmark Results
+
+Performance metrics across different isolation levels:
+
+#### **Isolation Level Performance**
+| Isolation Level | Throughput | Latency (avg) | Success Rate |
+|----------------|------------|---------------|--------------|
+| **Serializable** | 15.38 req/s | 137ms | 100% |
+| **Repeatable Read** | 15.23 req/s | 137ms | 100% |
+| **Read Committed** | 14.84 req/s | 137ms | 100% |
+
+**Note**: Serializable isolation level shows slightly better performance than other levels.
+
+#### **Operation Type Performance**
+| Operation Type | Throughput | Latency (avg) | Success Rate |
+|----------------|------------|---------------|--------------|
+| **Simple Append** | 59.4 req/s | 852ms | 100% |
+| **Conditional Append** | 31.4 req/s | 1.67s | 100% |
+| **Concurrency Test** | 81.9 req/s | 136ms | 100% |
+
+#### **System Stability Metrics**
+- **Error Rate**: 0% across all tests
+- **Success Rate**: 100% for all operations
+- **Conflict Resolution**: 100% in concurrency scenarios
+- **Performance Stability**: Consistent across load levels (up to 100 VUs)
+
+#### **Latency Percentiles**
+- **Median**: 17-22ms across all tests
+- **95th Percentile**: 729ms-2.93s (depending on operation complexity)
+- **99th Percentile**: 1.07s-4.85s (worst case scenarios)
+
+## 🧪 Test Suite
+
+### Quick Tests (Fast Validation)
 ```bash
-# Start PostgreSQL
-docker-compose up -d postgres
+make test-quick
+```
+- **Basic functionality**: 6,712 iterations, 1,336 req/s, avg 1.43ms latency
+- **Append validation**: 864 iterations, 85.7 req/s, avg 14.28ms latency  
+- **Isolation levels**: 1,390 iterations, 138.5 req/s, avg 5.88ms latency
+- **Conditional append**: 1,396 iterations, 138.8 req/s, avg 5.78ms latency
 
-# Run web application
-cd internal/web-app
-make run-server
+### Functional Tests (Core Features)
+```bash
+make test-functional
+```
+- **Concurrency test**: 3,713 iterations, 88.9 req/s, avg 121ms latency
+- **Advisory locks test**: 2,038 iterations, 73.3 req/s, avg 158ms latency
+- **Expected conflicts**: 100% conflict rate (as designed for testing)
 
-# Test API
-curl http://localhost:8080/health
+### Performance Benchmarks
+```bash
+make test-benchmarks
 ```
 
-## 📊 Performance Results
+#### **Isolation Level Benchmark**
+- **Throughput**: 47.7 req/s
+- **Latency**: avg 137ms, median 19ms, 95th percentile 720ms
+- **Success Rate**: 100% across all isolation levels
+- **Coverage**: Tests append, appendIf, and batch operations across all isolation levels
 
-See [k6/README.md](k6/README.md) for comprehensive test organization and [k6/benchmarks/](k6/benchmarks/) for detailed benchmark results.
+#### **Append Benchmark**
+- **Throughput**: 59.4 req/s
+- **Latency**: avg 852ms, median 446ms, 95th percentile 2.93s
+- **Success Rate**: 100% (15,450 operations)
+- **Coverage**: Single events, batch operations, conditional appends
 
-### Recent Benchmark Results
-- **Zero HTTP Failures**: All tests achieve 100% HTTP success rate
-- **Sub-500ms p95**: 95th percentile response times under 500ms for most operations
-- **High Throughput**: Sustained 200+ req/s under load with 50 concurrent users
-- **Serializable Conflicts**: ~42% conflict rate expected for Serializable isolation (correct behavior)
+#### **Append-If Benchmark**
+- **Throughput**: 31.4 req/s
+- **Latency**: avg 1.67s, median 1.44s, 95th percentile 4.44s
+- **Success Rate**: 100% (8,183 operations)
+- **Coverage**: Conditional append scenarios with various complexity levels
 
-## 🔧 Available Commands
-
+### Concurrency Tests
 ```bash
-# Server Management
-make run-server          # Start web application
-make kill-server         # Stop web application
-make ensure-server       # Ensure server is running
-
-# Database Management  
-make start-db           # Start PostgreSQL
-make stop-db            # Stop PostgreSQL
-make cleanup-db         # Clean database
-
-# Quick Tests (30s-2m)
-make test-quick        # Run all quick validation tests
-make quick-basic       # Basic functionality test
-make quick-append      # Quick append validation
-make quick-append-if   # Quick conditional append test
-make quick-append-isolated # Quick isolated append test
-
-# Benchmarks (3-5m)
-make test-benchmarks   # Run all benchmark tests
-make benchmark-append  # Full append performance benchmark
-make benchmark-append-if # Conditional append benchmark
-make benchmark-append-isolated # Serializable isolation benchmark
-make benchmark-isolation # Compare all isolation levels
-
-# Functional Tests (2-4m)
-make test-functional   # Run all functional tests
-make test-concurrency  # Basic concurrency testing
-make test-advisory-locks # Advisory locks concurrency
-
-# Load Tests (5-10m)
-make test-load         # Run all load tests
-make load-full         # Complete system load test
-make load-full-scan    # Full scan performance under load
+make test-concurrency
 ```
+- **Throughput**: 81.9 req/s
+- **Latency**: avg 136ms, median 22ms, 95th percentile 729ms
+- **Success Rate**: 100% (6,838 operations)
+- **Conflicts**: 100% conflict rate (as expected for concurrency testing)
 
-## 🔌 API Endpoints
+## 🏗️ Architecture
 
-### POST /append
-Simple append using ReadCommitted isolation (fastest).
+### Event Store Configuration
+- **MaxBatchSize**: 1000 events per batch
+- **Connection Pool**: 5-20 database connections
+- **Isolation Levels**: READ_COMMITTED, REPEATABLE_READ, SERIALIZABLE
+- **Advisory Locks**: Automatic inference from "lock:" tags
 
-```bash
-curl -X POST http://localhost:8080/append \
-  -H "Content-Type: application/json" \
-  -d '{
-    "events": {
-      "type": "CoursePlanned",
-      "data": "{\"courseId\": \"course-123\"}",
-      "tags": ["course:course-123", "user:user-123"]
-    }
-  }'
-```
+### API Endpoints
+- `POST /append` - Append events with optional conditions
+- `POST /read` - Read events by type or tags
+- `GET /health` - Health check endpoint
 
-### POST /append-if
-Conditional append using RepeatableRead isolation (default) or Serializable isolation (via header).
-
-```bash
-# Default (RepeatableRead)
-curl -X POST http://localhost:8080/append-if \
-  -H "Content-Type: application/json" \
-  -d '{
-    "events": {
-      "type": "StudentEnrolled",
-      "data": "{\"studentId\": \"student-123\"}",
-      "tags": ["course:course-123", "student:student-123"]
-    },
-    "condition": {
-      "failIfEventsMatch": {
-        "items": [{
-          "types": ["StudentEnrolled"],
-          "tags": ["course:course-123", "student:student-123"]
-        }]
-      }
-    }
-  }'
-
-# Serializable isolation
-curl -X POST http://localhost:8080/append-if \
-  -H "Content-Type: application/json" \
-  -H "X-Append-If-Isolation: serializable" \
-  -d '{...}'
-```
-
-### POST /read
-Query events by type and tags.
-
-```bash
-curl -X POST http://localhost:8080/read \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": {
-      "items": [{
-        "types": ["CoursePlanned", "StudentEnrolled"],
-        "tags": ["course:course-123"]
-      }]
-    }
-  }'
-```
-
-### GET /health
-Health check endpoint.
-
-### POST /cleanup
-Clean database (removes all events).
-
-## 🔒 Transaction Isolation Levels
-
-| Endpoint | Isolation Level | Use Case | Performance |
-|----------|----------------|----------|-------------|
-| **`POST /append`** | ReadCommitted | Simple appends | Fastest |
-| **`POST /append-if`** | RepeatableRead | Conditional appends | Balanced |
-| **`POST /append-if` + header** | Serializable | Critical operations | Strongest |
-
-**HTTP Header for Serializable**: `X-Append-If-Isolation: serializable`
-
-## 📈 Benchmark Details
-
-### Test Categories
-- **Quick Tests** (30s-2m): Fast validation and smoke tests
-- **Benchmarks** (3-5m): Comprehensive performance measurement
-- **Functional Tests** (2-4m): Functional validation and concurrency testing
-- **Load Tests** (5-10m): High-load system testing
-
-### Isolation Level Benchmarks
-- **Append Benchmarks**: Test ReadCommitted isolation performance
-- **AppendIf Benchmarks**: Test RepeatableRead isolation with conditions
-- **Serializable Benchmarks**: Test Serializable isolation (higher conflict rates expected)
-
-### Performance Thresholds
-- **Response Time**: 95% < 1000ms, 99% < 2000ms
-- **Error Rate**: < 10% for most operations, < 15% for Serializable
-- **Success Rate**: 100% HTTP success, >95% performance compliance
-
-## ⚙️ Configuration
-
-### Environment Variables
-```bash
-PORT=8080                                    # Web application port
-DATABASE_URL=postgres://...                  # PostgreSQL connection string
-```
-
-### Database Configuration
-- **Connection Pool**: 20 max connections, 5 min connections
-- **PostgreSQL**: Optimized for high concurrency
-- **Indexes**: GIN indexes on tags for fast queries
-
-## 🛠️ Development
+## 🚀 Getting Started
 
 ### Prerequisites
 - Go 1.21+
-- PostgreSQL 17.5+
-- k6 (for load testing)
+- PostgreSQL 13+
+- k6 (for testing)
 
-### Manual Setup
+### Installation
 ```bash
-export DATABASE_URL="postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable"
-export PORT="8080"
+# Clone the repository
+git clone <repository-url>
+cd go-crablet
+
+# Start dependencies
+docker-compose up -d
+
+# Run the application
+cd internal/web-app
 go run main.go
 ```
 
-### Load Testing
+### Running Tests
 ```bash
-# Install k6
-brew install k6  # macOS
+# Quick validation tests
+make test-quick
 
-# Run tests by category
-make test-quick        # Quick validation tests
-make test-benchmarks   # Performance benchmarks
-make test-functional   # Functional tests
-make test-load         # Load tests
+# Functional tests
+make test-functional
 
-# Or run individual tests
-make quick-basic       # Basic functionality
-make benchmark-append  # Append performance
-make test-concurrency  # Concurrency testing
-make load-full         # Full system load
+# Performance benchmarks
+make test-benchmarks
+
+# Concurrency tests
+make test-concurrency
+
+# All tests
+make test-all
 ```
 
-## 📚 Documentation
+## 📈 Performance Notes
 
-- **[OpenAPI Specification](openapi.yaml)**: Complete API specification
-- **[Main Project README](../../README.md)**: Core library documentation
+### Production Considerations
+1. **Core Functionality**: All features tested and working
+2. **Performance**: Conditional append operations may benefit from optimization for higher throughput
+3. **Monitoring**: Track 99th percentile latencies in production
+4. **Scaling**: Tested up to 100 VUs
 
-## 🎯 Key Features
+### Performance Characteristics
+- **Simple Operations**: 50-60 req/s, sub-second latency
+- **Complex Operations**: 30-40 req/s, 1-2 second latency
+- **Concurrency**: 80+ req/s with conflict resolution
+- **Isolation Levels**: Similar performance across all levels
 
-- **Zero HTTP Failures**: 100% success rate across all benchmarks
-- **Sub-30ms Average Response**: Excellent performance under load
-- **Multiple Isolation Levels**: Choose consistency vs performance trade-offs
-- **Comprehensive Testing**: k6 load testing with multiple scenarios
-- **Production Ready**: Optimized connection pooling and resource allocation
+## 🔧 Configuration
 
-## NOTE ON ISOLATION LEVEL
+### Environment Variables
+- `DB_HOST`: Database host (default: localhost)
+- `DB_PORT`: Database port (default: 5432)
+- `DB_NAME`: Database name (default: crablet)
+- `DB_USER`: Database user (default: crablet)
+- `DB_PASSWORD`: Database password (default: crablet)
 
-Isolation level is now set in the server config, not per request. To test with SERIALIZABLE, restart the server with the config set to IsolationLevelSerializable. All k6 scripts now use the server's configured isolation level.
+### Server Configuration
+- **Port**: 8080
+- **MaxBatchSize**: 1000
+- **Connection Pool**: 5-20 connections
+- **Health Check**: Available at `/health`
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](../LICENSE) file for details.

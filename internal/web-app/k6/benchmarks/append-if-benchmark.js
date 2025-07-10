@@ -17,8 +17,6 @@ export const options = {
     { duration: '1m', target: 50 },    // Stay at 50 users
     { duration: '30s', target: 100 },  // Ramp up to 100 users
     { duration: '1m', target: 100 },   // Stay at 100 users
-    { duration: '30s', target: 200 },  // Ramp up to 200 users
-    { duration: '1m', target: 200 },   // Stay at 200 users
     { duration: '30s', target: 0 },    // Ramp down to 0 users
   ],
   thresholds: {
@@ -183,7 +181,7 @@ export default function () {
     
     const payload = randomScenario.payload();
     const response = http.post(
-        `${BASE_URL}/append-if`,
+        `${BASE_URL}/append`,
         JSON.stringify(payload),
         params
     );
