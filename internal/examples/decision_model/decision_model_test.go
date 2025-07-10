@@ -138,7 +138,7 @@ func TestDecisionModelExample(t *testing.T) {
 			},
 		}
 
-		states, _, err := store.ProjectDecisionModel(ctx, projectors)
+		states, _, err := store.Project(ctx, projectors)
 		require.NoError(t, err)
 
 		// Verify account state
@@ -178,7 +178,7 @@ func TestDecisionModelExample(t *testing.T) {
 				},
 			}
 
-			_, appendCondition, err := store.ProjectDecisionModel(ctx, []dcb.StateProjector{{
+			_, appendCondition, err := store.Project(ctx, []dcb.StateProjector{{
 				ID:           "account",
 				Query:        accountProjector.Query,
 				InitialState: accountProjector.InitialState,

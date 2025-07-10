@@ -60,7 +60,7 @@ func main() {
     }
 
     // Project all states in single query (cursor-based approach)
-    states, appendCond, err := store.ProjectDecisionModel(ctx, projectors)
+    states, appendCond, err := store.Project(ctx, projectors)
 
     if !states["courseExists"].(bool) {
         // Append CourseDefined event
@@ -118,7 +118,7 @@ func channelBasedExample() {
     }
 
     // Channel-based projection with immediate feedback
-    resultChan, _, err := store.ProjectDecisionModelChannel(ctx, projectors)
+    resultChan, _, err := store.ProjectStream(ctx, projectors)
     
     // Process results as they come in
     finalStates := make(map[string]interface{})
@@ -166,7 +166,7 @@ func channelStreamingExample() {
     )
 
     // Channel-based streaming
-    eventChan, err := store.ReadChannel(ctx, query)
+    eventChan, err := store.ReadStream(ctx, query)
     if err != nil {
         panic(err)
     }
@@ -211,7 +211,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
         },
     }
     
-    states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
+    states, appendCondition, err := store.Project(ctx, projectors)
     if err != nil {
         return err
     }

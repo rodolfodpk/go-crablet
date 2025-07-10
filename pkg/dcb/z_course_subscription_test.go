@@ -138,7 +138,7 @@ func NewCourseCapacityChangedEvent(courseID string, newCapacity int) InputEvent 
 // Projectors
 func CourseExistsProjector(courseID string) StateProjector {
 	return StateProjector{
-		Query:        NewQuerySimple(NewTags("course_id", courseID), "CourseDefined"),
+		Query:        NewQuery(NewTags("course_id", courseID), "CourseDefined"),
 		InitialState: false,
 		TransitionFn: func(state any, event Event) any {
 			return true
@@ -148,7 +148,7 @@ func CourseExistsProjector(courseID string) StateProjector {
 
 func CourseStateProjector(courseID string) StateProjector {
 	return StateProjector{
-		Query: NewQuerySimple(
+		Query: NewQuery(
 			NewTags("course_id", courseID),
 			"CourseDefined", "CourseCapacityChanged", "StudentEnrolledInCourse", "StudentDroppedFromCourse",
 		),
@@ -179,7 +179,7 @@ func CourseStateProjector(courseID string) StateProjector {
 
 func CourseEnrollmentCountProjector(courseID string) StateProjector {
 	return StateProjector{
-		Query:        NewQuerySimple(NewTags("course_id", courseID), "StudentEnrolledInCourse", "StudentDroppedFromCourse"),
+		Query:        NewQuery(NewTags("course_id", courseID), "StudentEnrolledInCourse", "StudentDroppedFromCourse"),
 		InitialState: 0,
 		TransitionFn: func(state any, event Event) any {
 			count := state.(int)
@@ -196,7 +196,7 @@ func CourseEnrollmentCountProjector(courseID string) StateProjector {
 
 func StudentExistsProjector(studentID string) StateProjector {
 	return StateProjector{
-		Query:        NewQuerySimple(NewTags("student_id", studentID), "StudentRegistered"),
+		Query:        NewQuery(NewTags("student_id", studentID), "StudentRegistered"),
 		InitialState: false,
 		TransitionFn: func(state any, event Event) any {
 			return true
@@ -206,7 +206,7 @@ func StudentExistsProjector(studentID string) StateProjector {
 
 func StudentStateProjector(studentID string) StateProjector {
 	return StateProjector{
-		Query:        NewQuerySimple(NewTags("student_id", studentID), "StudentRegistered"),
+		Query:        NewQuery(NewTags("student_id", studentID), "StudentRegistered"),
 		InitialState: &StudentState{StudentID: studentID, Exists: false},
 		TransitionFn: func(state any, event Event) any {
 			student := state.(*StudentState)
@@ -225,7 +225,7 @@ func StudentStateProjector(studentID string) StateProjector {
 
 func StudentEnrollmentCountProjector(studentID string) StateProjector {
 	return StateProjector{
-		Query:        NewQuerySimple(NewTags("student_id", studentID), "StudentEnrolledInCourse", "StudentDroppedFromCourse"),
+		Query:        NewQuery(NewTags("student_id", studentID), "StudentEnrolledInCourse", "StudentDroppedFromCourse"),
 		InitialState: 0,
 		TransitionFn: func(state any, event Event) any {
 			count := state.(int)
@@ -242,7 +242,7 @@ func StudentEnrollmentCountProjector(studentID string) StateProjector {
 
 func StudentEnrollmentStateProjector(studentID, courseID string) StateProjector {
 	return StateProjector{
-		Query:        NewQuerySimple(NewTags("student_id", studentID, "course_id", courseID), "StudentEnrolledInCourse", "StudentDroppedFromCourse"),
+		Query:        NewQuery(NewTags("student_id", studentID, "course_id", courseID), "StudentEnrolledInCourse", "StudentDroppedFromCourse"),
 		InitialState: &EnrollmentState{StudentID: studentID, CourseID: courseID, IsEnrolled: false},
 		TransitionFn: func(state any, event Event) any {
 			enrollment := state.(*EnrollmentState)
@@ -268,7 +268,7 @@ func handleCreateCourse(ctx context.Context, store EventStore, cmd CreateCourseC
 		},
 	}
 
-	states, _, err := store.ProjectDecisionModel(ctx, projectors)
+	states, _, err := store.Project(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to project course state: %w", err)
 	}
@@ -297,7 +297,7 @@ func handleRegisterStudent(ctx context.Context, store EventStore, cmd RegisterSt
 		},
 	}
 
-	states, _, err := store.ProjectDecisionModel(ctx, projectors)
+	states, _, err := store.Project(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to project student state: %w", err)
 	}
@@ -356,7 +356,7 @@ func handleEnrollStudent(ctx context.Context, store EventStore, cmd EnrollStuden
 		},
 	}
 
-	states, _, err := store.ProjectDecisionModel(ctx, projectors)
+	states, _, err := store.Project(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to project enrollment state: %w", err)
 	}
@@ -390,7 +390,7 @@ func handleEnrollStudent(ctx context.Context, store EventStore, cmd EnrollStuden
 
 	// DCB-compliant approach: use specific query for enrollment append condition
 	// Only check for duplicate enrollment events, not all projector queries
-	enrollmentQuery := NewQuerySimple(NewTags("student_id", cmd.StudentID, "course_id", cmd.CourseID), "StudentEnrolledInCourse")
+	enrollmentQuery := NewQuery(NewTags("student_id", cmd.StudentID, "course_id", cmd.CourseID), "StudentEnrolledInCourse")
 	appendCondition := NewAppendCondition(enrollmentQuery)
 
 	err = store.AppendIf(ctx, []InputEvent{
@@ -413,7 +413,7 @@ func handleDropStudent(ctx context.Context, store EventStore, cmd DropStudentCom
 		},
 	}
 
-	states, _, err := store.ProjectDecisionModel(ctx, projectors)
+	states, _, err := store.Project(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to project enrollment state: %w", err)
 	}
@@ -453,7 +453,7 @@ func handleChangeCourseCapacity(ctx context.Context, store EventStore, cmd Chang
 		},
 	}
 
-	states, _, err := store.ProjectDecisionModel(ctx, projectors)
+	states, _, err := store.Project(ctx, projectors)
 	if err != nil {
 		return err
 	}
@@ -472,7 +472,7 @@ func handleChangeCourseCapacity(ctx context.Context, store EventStore, cmd Chang
 	event := NewCourseCapacityChangedEvent(courseID, newCapacity)
 
 	// Append with optimistic locking using the same query
-	appendCondition := NewAppendCondition(NewQuerySimple(NewTags("course_id", courseID), "CourseCapacityChanged"))
+	appendCondition := NewAppendCondition(NewQuery(NewTags("course_id", courseID), "CourseCapacityChanged"))
 	err = store.AppendIf(ctx, []InputEvent{event}, appendCondition)
 	if err != nil {
 		return err
@@ -484,15 +484,14 @@ func handleChangeCourseCapacity(ctx context.Context, store EventStore, cmd Chang
 // Test Suite
 var _ = Describe("Course Subscription Domain", func() {
 	var (
-		store        EventStore
-		channelStore EventStore
-		ctx          context.Context
+		store EventStore
+		ctx   context.Context
 	)
 
 	BeforeEach(func() {
 		// Use shared PostgreSQL container and truncate events between tests
 		store = NewEventStoreFromPool(pool)
-		channelStore = store.(EventStore)
+		store = store.(EventStore)
 
 		// Create context with timeout for each test
 		ctx, _ = context.WithTimeout(context.Background(), 30*time.Second)
@@ -511,21 +510,21 @@ var _ = Describe("Course Subscription Domain", func() {
 				Instructor: "Dr. Smith",
 				Capacity:   25,
 			}
-			channelStore := store.(EventStore)
-			err := handleCreateCourse(ctx, channelStore, createCourseCmd)
+			store := store.(EventStore)
+			err := handleCreateCourse(ctx, store, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Read events
-			query := NewQuerySimple(NewTags("course_id", "course-1"), "CourseDefined")
+			query := NewQuery(NewTags("course_id", "course-1"), "CourseDefined")
 			events, err := store.Read(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events).To(HaveLen(1))
 			Expect(events[0].Type).To(Equal("CourseDefined"))
 		})
 
-		It("should use ReadChannel for large datasets", func() {
+		It("should use ReadStream for large datasets", func() {
 			// Create multiple courses using command pattern
-			channelStore := store.(EventStore)
+			store := store.(EventStore)
 			for i := 1; i <= 5; i++ {
 				createCourseCmd := CreateCourseCommand{
 					CourseID:   fmt.Sprintf("course-%d", i),
@@ -533,13 +532,13 @@ var _ = Describe("Course Subscription Domain", func() {
 					Instructor: "Instructor",
 					Capacity:   20,
 				}
-				err := handleCreateCourse(ctx, channelStore, createCourseCmd)
+				err := handleCreateCourse(ctx, store, createCourseCmd)
 				Expect(err).NotTo(HaveOccurred())
 			}
 
-			// Use ReadChannel instead of ReadStream
-			query := NewQuerySimple(NewTags(), "CourseDefined")
-			eventChan, err := channelStore.ReadChannel(ctx, query)
+			// Use ReadStream instead of ReadStream
+			query := NewQuery(NewTags(), "CourseDefined")
+			eventChan, err := store.ReadStream(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 
 			eventCount := 0
@@ -559,12 +558,12 @@ var _ = Describe("Course Subscription Domain", func() {
 				Capacity:   30,
 			}
 
-			channelStore := store.(EventStore)
-			err := handleCreateCourse(ctx, channelStore, cmd)
+			store := store.(EventStore)
+			err := handleCreateCourse(ctx, store, cmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Verify course was created
-			query := NewQuerySimple(NewTags("course_id", "math-101"), "CourseDefined")
+			query := NewQuery(NewTags("course_id", "math-101"), "CourseDefined")
 			events, err := store.Read(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events).To(HaveLen(1))
@@ -578,13 +577,13 @@ var _ = Describe("Course Subscription Domain", func() {
 				Capacity:   30,
 			}
 
-			channelStore := store.(EventStore)
+			store := store.(EventStore)
 			// Create course first time
-			err := handleCreateCourse(ctx, channelStore, cmd)
+			err := handleCreateCourse(ctx, store, cmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Try to create same course again
-			err = handleCreateCourse(ctx, channelStore, cmd)
+			err = handleCreateCourse(ctx, store, cmd)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("already exists"))
 		})
@@ -596,12 +595,12 @@ var _ = Describe("Course Subscription Domain", func() {
 				Email:     "alice@example.com",
 			}
 
-			channelStore := store.(EventStore)
-			err := handleRegisterStudent(ctx, channelStore, cmd)
+			store := store.(EventStore)
+			err := handleRegisterStudent(ctx, store, cmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Verify student was registered
-			query := NewQuerySimple(NewTags("student_id", "student-123"), "StudentRegistered")
+			query := NewQuery(NewTags("student_id", "student-123"), "StudentRegistered")
 			events, err := store.Read(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events).To(HaveLen(1))
@@ -614,13 +613,13 @@ var _ = Describe("Course Subscription Domain", func() {
 				Email:     "alice@example.com",
 			}
 
-			channelStore := store.(EventStore)
+			store := store.(EventStore)
 			// Register student first time
-			err := handleRegisterStudent(ctx, channelStore, cmd)
+			err := handleRegisterStudent(ctx, store, cmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Try to register same student again
-			err = handleRegisterStudent(ctx, channelStore, cmd)
+			err = handleRegisterStudent(ctx, store, cmd)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("already exists"))
 		})
@@ -633,8 +632,8 @@ var _ = Describe("Course Subscription Domain", func() {
 				Instructor: "Dr. Johnson",
 				Capacity:   30,
 			}
-			channelStore := store.(EventStore)
-			err := handleCreateCourse(ctx, channelStore, createCourseCmd)
+			store := store.(EventStore)
+			err := handleCreateCourse(ctx, store, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Register student
@@ -643,7 +642,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Name:      "Alice Johnson",
 				Email:     "alice@example.com",
 			}
-			err = handleRegisterStudent(ctx, channelStore, registerStudentCmd)
+			err = handleRegisterStudent(ctx, store, registerStudentCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Enroll student
@@ -651,11 +650,11 @@ var _ = Describe("Course Subscription Domain", func() {
 				StudentID: "student-123",
 				CourseID:  "math-101",
 			}
-			err = handleEnrollStudent(ctx, channelStore, enrollCmd)
+			err = handleEnrollStudent(ctx, store, enrollCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Verify enrollment
-			query := NewQuerySimple(NewTags("student_id", "student-123", "course_id", "math-101"), "StudentEnrolledInCourse")
+			query := NewQuery(NewTags("student_id", "student-123", "course_id", "math-101"), "StudentEnrolledInCourse")
 			events, err := store.Read(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events).To(HaveLen(1))
@@ -668,8 +667,8 @@ var _ = Describe("Course Subscription Domain", func() {
 				Name:      "Alice Johnson",
 				Email:     "alice@example.com",
 			}
-			channelStore := store.(EventStore)
-			err := handleRegisterStudent(ctx, channelStore, registerStudentCmd)
+			store := store.(EventStore)
+			err := handleRegisterStudent(ctx, store, registerStudentCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Try to enroll in non-existent course
@@ -677,7 +676,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				StudentID: "student-123",
 				CourseID:  "non-existent-course",
 			}
-			err = handleEnrollStudent(ctx, channelStore, enrollCmd)
+			err = handleEnrollStudent(ctx, store, enrollCmd)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("does not exist"))
 		})
@@ -690,8 +689,8 @@ var _ = Describe("Course Subscription Domain", func() {
 				Instructor: "Dr. Johnson",
 				Capacity:   30,
 			}
-			channelStore := store.(EventStore)
-			err := handleCreateCourse(ctx, channelStore, createCourseCmd)
+			store := store.(EventStore)
+			err := handleCreateCourse(ctx, store, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Try to enroll non-existent student
@@ -699,7 +698,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				StudentID: "non-existent-student",
 				CourseID:  "math-101",
 			}
-			err = handleEnrollStudent(ctx, channelStore, enrollCmd)
+			err = handleEnrollStudent(ctx, store, enrollCmd)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("does not exist"))
 		})
@@ -712,8 +711,8 @@ var _ = Describe("Course Subscription Domain", func() {
 				Instructor: "Dr. Johnson",
 				Capacity:   30,
 			}
-			channelStore := store.(EventStore)
-			err := handleCreateCourse(ctx, channelStore, createCourseCmd)
+			store := store.(EventStore)
+			err := handleCreateCourse(ctx, store, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Register student
@@ -722,7 +721,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Name:      "Alice Johnson",
 				Email:     "alice@example.com",
 			}
-			err = handleRegisterStudent(ctx, channelStore, registerStudentCmd)
+			err = handleRegisterStudent(ctx, store, registerStudentCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Enroll student first time
@@ -730,11 +729,11 @@ var _ = Describe("Course Subscription Domain", func() {
 				StudentID: "student-123",
 				CourseID:  "math-101",
 			}
-			err = handleEnrollStudent(ctx, channelStore, enrollCmd)
+			err = handleEnrollStudent(ctx, store, enrollCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Try to enroll same student again
-			err = handleEnrollStudent(ctx, channelStore, enrollCmd)
+			err = handleEnrollStudent(ctx, store, enrollCmd)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("already enrolled"))
 		})
@@ -747,7 +746,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Instructor: "Dr. Johnson",
 				Capacity:   1,
 			}
-			err := handleCreateCourse(ctx, channelStore, createCourseCmd)
+			err := handleCreateCourse(ctx, store, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Register two students
@@ -757,7 +756,7 @@ var _ = Describe("Course Subscription Domain", func() {
 					Name:      fmt.Sprintf("Student %d", i),
 					Email:     fmt.Sprintf("student%d@example.com", i),
 				}
-				err = handleRegisterStudent(ctx, channelStore, registerStudentCmd)
+				err = handleRegisterStudent(ctx, store, registerStudentCmd)
 				Expect(err).NotTo(HaveOccurred())
 			}
 
@@ -766,7 +765,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				StudentID: "student-1",
 				CourseID:  "math-101",
 			}
-			err = handleEnrollStudent(ctx, channelStore, enrollCmd1)
+			err = handleEnrollStudent(ctx, store, enrollCmd1)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Try to enroll second student (should fail - course is full)
@@ -774,7 +773,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				StudentID: "student-2",
 				CourseID:  "math-101",
 			}
-			err = handleEnrollStudent(ctx, channelStore, enrollCmd2)
+			err = handleEnrollStudent(ctx, store, enrollCmd2)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("already full"))
 		})
@@ -787,7 +786,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Instructor: "Dr. Johnson",
 				Capacity:   30,
 			}
-			err := handleCreateCourse(ctx, channelStore, createCourseCmd)
+			err := handleCreateCourse(ctx, store, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Register student
@@ -796,7 +795,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Name:      "Alice Johnson",
 				Email:     "alice@example.com",
 			}
-			err = handleRegisterStudent(ctx, channelStore, registerStudentCmd)
+			err = handleRegisterStudent(ctx, store, registerStudentCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Enroll student
@@ -804,7 +803,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				StudentID: "student-123",
 				CourseID:  "math-101",
 			}
-			err = handleEnrollStudent(ctx, channelStore, enrollCmd)
+			err = handleEnrollStudent(ctx, store, enrollCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Drop student
@@ -812,11 +811,11 @@ var _ = Describe("Course Subscription Domain", func() {
 				StudentID: "student-123",
 				CourseID:  "math-101",
 			}
-			err = handleDropStudent(ctx, channelStore, dropCmd)
+			err = handleDropStudent(ctx, store, dropCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Verify drop event
-			query := NewQuerySimple(NewTags("student_id", "student-123", "course_id", "math-101"), "StudentDroppedFromCourse")
+			query := NewQuery(NewTags("student_id", "student-123", "course_id", "math-101"), "StudentDroppedFromCourse")
 			events, err := store.Read(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events).To(HaveLen(1))
@@ -830,7 +829,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Instructor: "Dr. Johnson",
 				Capacity:   30,
 			}
-			err := handleCreateCourse(ctx, channelStore, createCourseCmd)
+			err := handleCreateCourse(ctx, store, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Register student
@@ -839,7 +838,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Name:      "Alice Johnson",
 				Email:     "alice@example.com",
 			}
-			err = handleRegisterStudent(ctx, channelStore, registerStudentCmd)
+			err = handleRegisterStudent(ctx, store, registerStudentCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Try to drop non-enrolled student
@@ -847,7 +846,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				StudentID: "student-123",
 				CourseID:  "math-101",
 			}
-			err = handleDropStudent(ctx, channelStore, dropCmd)
+			err = handleDropStudent(ctx, store, dropCmd)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("not enrolled"))
 		})
@@ -860,7 +859,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Instructor: "Dr. Johnson",
 				Capacity:   30,
 			}
-			err := handleCreateCourse(ctx, channelStore, createCourseCmd)
+			err := handleCreateCourse(ctx, store, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Change capacity
@@ -868,11 +867,11 @@ var _ = Describe("Course Subscription Domain", func() {
 				CourseID:    "math-101",
 				NewCapacity: 50,
 			}
-			err = handleChangeCourseCapacity(ctx, channelStore, changeCapacityCmd)
+			err = handleChangeCourseCapacity(ctx, store, changeCapacityCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Verify capacity change event
-			query := NewQuerySimple(NewTags("course_id", "math-101"), "CourseCapacityChanged")
+			query := NewQuery(NewTags("course_id", "math-101"), "CourseCapacityChanged")
 			events, err := store.Read(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events).To(HaveLen(1))
@@ -886,7 +885,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Instructor: "Dr. Johnson",
 				Capacity:   2,
 			}
-			err := handleCreateCourse(ctx, channelStore, createCourseCmd)
+			err := handleCreateCourse(ctx, store, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Register and enroll two students
@@ -896,14 +895,14 @@ var _ = Describe("Course Subscription Domain", func() {
 					Name:      fmt.Sprintf("Student %d", i),
 					Email:     fmt.Sprintf("student%d@example.com", i),
 				}
-				err = handleRegisterStudent(ctx, channelStore, registerStudentCmd)
+				err = handleRegisterStudent(ctx, store, registerStudentCmd)
 				Expect(err).NotTo(HaveOccurred())
 
 				enrollCmd := EnrollStudentCommand{
 					StudentID: fmt.Sprintf("student-%d", i),
 					CourseID:  "math-101",
 				}
-				err = handleEnrollStudent(ctx, channelStore, enrollCmd)
+				err = handleEnrollStudent(ctx, store, enrollCmd)
 				Expect(err).NotTo(HaveOccurred())
 			}
 
@@ -912,7 +911,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				CourseID:    "math-101",
 				NewCapacity: 1,
 			}
-			err = handleChangeCourseCapacity(ctx, channelStore, changeCapacityCmd)
+			err = handleChangeCourseCapacity(ctx, store, changeCapacityCmd)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("cannot reduce capacity"))
 		})
@@ -927,7 +926,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Instructor: "Dr. Johnson",
 				Capacity:   30,
 			}
-			err := handleCreateCourse(ctx, channelStore, createCourseCmd)
+			err := handleCreateCourse(ctx, store, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Project course state
@@ -940,7 +939,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				},
 			}
 
-			states, _, err := channelStore.ProjectDecisionModel(ctx, projectors)
+			states, _, err := store.Project(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			courseState := states["courseState"].(*CourseState)
@@ -955,7 +954,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				CourseID:    "math-101",
 				NewCapacity: 40,
 			}
-			err = handleChangeCourseCapacity(ctx, channelStore, changeCapacityCmd)
+			err = handleChangeCourseCapacity(ctx, store, changeCapacityCmd)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})

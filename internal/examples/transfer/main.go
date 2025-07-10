@@ -211,7 +211,7 @@ func handleCreateAccount(ctx context.Context, store dcb.EventStore, cmd CreateAc
 		},
 	}
 
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
+	states, appendCondition, err := store.Project(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to check account existence: %w", err)
 	}
@@ -317,7 +317,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 
 	// Project state and get append condition
 	// Project only the 'from' account for the append condition
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, []dcb.StateProjector{
+	states, appendCondition, err := store.Project(ctx, []dcb.StateProjector{
 		{
 			ID:           "from",
 			Query:        fromProjector.Query,
@@ -331,7 +331,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 	from := states["from"].(*AccountState)
 
 	// Project the 'to' account separately for business logic
-	statesTo, _, err := store.ProjectDecisionModel(ctx, []dcb.StateProjector{
+	statesTo, _, err := store.Project(ctx, []dcb.StateProjector{
 		{
 			ID:           "to",
 			Query:        toProjector.Query,
@@ -491,7 +491,7 @@ func simulateConcurrentTransfers(ctx context.Context, store dcb.EventStore, from
 			},
 		},
 	}
-	states, _, err := store.ProjectDecisionModel(ctx, projectors)
+	states, _, err := store.Project(ctx, projectors)
 	if err != nil {
 		fmt.Printf("Failed to get current balance: %v\n", err)
 		return
@@ -547,7 +547,7 @@ func simulateConcurrentTransfers(ctx context.Context, store dcb.EventStore, from
 				},
 			},
 		}
-		states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
+		states, appendCondition, err := store.Project(ctx, projectors)
 		if err != nil {
 			results <- fmt.Sprintf("%s: projection failed: %v", name, err)
 			return

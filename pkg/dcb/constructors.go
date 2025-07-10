@@ -106,27 +106,13 @@ func NewTags(kv ...string) []Tag {
 // =============================================================================
 
 // NewQuery creates a new Query with the given tags and event types.
-// This is a backward-compatible function that creates a single QueryItem.
+// This creates a single QueryItem with the specified tags and event types.
 func NewQuery(tags []Tag, eventTypes ...string) Query {
 	return &query{
 		Items: []QueryItem{
 			NewQueryItem(eventTypes, tags),
 		},
 	}
-}
-
-// NewQuerySimple creates a new Query with the given tags and event types.
-// This is a convenience function that combines NewTags and NewQuery.
-// Validation is performed when the query is used in EventStore operations.
-func NewQuerySimple(tags []Tag, eventTypes ...string) Query {
-	// Remove validation from constructor - validation will happen in EventStore operations
-	return NewQuery(tags, eventTypes...)
-}
-
-// NewQuerySimpleUnsafe creates a new Query without validation.
-// Use this only when you're certain the data is valid and you need maximum performance.
-func NewQuerySimpleUnsafe(tags []Tag, eventTypes ...string) Query {
-	return NewQuery(tags, eventTypes...)
 }
 
 // NewQueryEmpty creates a new empty query
@@ -154,18 +140,6 @@ func NewQueryItem(types []string, tags []Tag) QueryItem {
 		EventTypes: types,
 		Tags:       tags,
 	}
-}
-
-// NewQItem creates a new QueryItem with a single event type and tags.
-// This simplifies the common case of querying for one event type.
-func NewQItem(eventType string, tags []Tag) QueryItem {
-	return NewQueryItem([]string{eventType}, tags)
-}
-
-// NewQItemKV creates a new QueryItem with a single event type and key-value tags.
-// This is the most concise way to create a QueryItem for a single event type.
-func NewQItemKV(eventType string, kv ...string) QueryItem {
-	return NewQueryItem([]string{eventType}, NewTags(kv...))
 }
 
 // =============================================================================

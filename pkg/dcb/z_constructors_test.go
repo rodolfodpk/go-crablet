@@ -144,18 +144,7 @@ var _ = Describe("Constructor Tests", func() {
 	Describe("Query Constructors", func() {
 		It("should create NewQuery with valid data", func() {
 			tags := []Tag{NewTag("test", "value")}
-			query := NewQuery(tags, "Event1", "Event2")
-			Expect(query).NotTo(BeNil())
-
-			items := query.getItems()
-			Expect(items).To(HaveLen(1))
-			Expect(items[0].getEventTypes()).To(Equal([]string{"Event1", "Event2"}))
-			Expect(items[0].getTags()).To(Equal(tags))
-		})
-
-		It("should create NewQuerySimple with valid data", func() {
-			tags := []Tag{NewTag("test", "value")}
-			query := NewQuerySimple(tags, "Event1")
+			query := NewQuery(tags, "Event1")
 			Expect(query).NotTo(BeNil())
 
 			items := query.getItems()
@@ -164,9 +153,9 @@ var _ = Describe("Constructor Tests", func() {
 			Expect(items[0].getTags()).To(Equal(tags))
 		})
 
-		It("should create NewQuerySimpleUnsafe with valid data", func() {
+		It("should create NewQuery with valid data", func() {
 			tags := []Tag{NewTag("test", "value")}
-			query := NewQuerySimpleUnsafe(tags, "Event1")
+			query := NewQuery(tags, "Event1")
 			Expect(query).NotTo(BeNil())
 
 			items := query.getItems()
@@ -216,17 +205,17 @@ var _ = Describe("Constructor Tests", func() {
 			Expect(item.getTags()).To(Equal(tags))
 		})
 
-		It("should create NewQItem with valid data", func() {
+		It("should create NewQueryItem with single event type", func() {
 			tags := []Tag{NewTag("test", "value")}
 
-			item := NewQItem("Event1", tags)
+			item := NewQueryItem([]string{"Event1"}, tags)
 			Expect(item).NotTo(BeNil())
 			Expect(item.getEventTypes()).To(Equal([]string{"Event1"}))
 			Expect(item.getTags()).To(Equal(tags))
 		})
 
-		It("should create NewQItemKV with valid key-value pairs", func() {
-			item := NewQItemKV("Event1", "key1", "value1", "key2", "value2")
+		It("should create NewQueryItem with key-value tags", func() {
+			item := NewQueryItem([]string{"Event1"}, NewTags("key1", "value1", "key2", "value2"))
 			Expect(item).NotTo(BeNil())
 			Expect(item.getEventTypes()).To(Equal([]string{"Event1"}))
 
@@ -241,7 +230,7 @@ var _ = Describe("Constructor Tests", func() {
 
 	Describe("AppendCondition Constructors", func() {
 		It("should create NewAppendCondition with valid query", func() {
-			query := NewQuerySimple([]Tag{NewTag("test", "value")}, "TestEvent")
+			query := NewQuery([]Tag{NewTag("test", "value")}, "TestEvent")
 			condition := NewAppendCondition(query)
 
 			// Verify the condition is not nil
@@ -268,7 +257,7 @@ var _ = Describe("Constructor Tests", func() {
 		})
 
 		It("should implement Query interface", func() {
-			query := NewQuerySimple([]Tag{NewTag("key", "value")}, "Test")
+			query := NewQuery([]Tag{NewTag("key", "value")}, "Test")
 			Expect(query).NotTo(BeNil())
 			Expect(query.getItems()).To(HaveLen(1))
 		})
@@ -280,7 +269,7 @@ var _ = Describe("Constructor Tests", func() {
 		})
 
 		It("should implement AppendCondition interface", func() {
-			query := NewQuerySimple([]Tag{NewTag("key", "value")}, "Test")
+			query := NewQuery([]Tag{NewTag("key", "value")}, "Test")
 			condition := NewAppendCondition(query)
 			Expect(condition).NotTo(BeNil())
 		})

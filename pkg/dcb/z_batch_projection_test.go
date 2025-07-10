@@ -33,13 +33,13 @@ var _ = Describe("Batch Projection", func() {
 		It("should combine multiple projector queries with OR logic", func() {
 			projectors := []StateProjector{
 				{ID: "projector1",
-					Query: NewQuerySimple(NewTags("course_id", "c1"), "CourseDefined"),
+					Query: NewQuery(NewTags("course_id", "c1"), "CourseDefined"),
 				},
 				{ID: "projector2",
-					Query: NewQuerySimple(NewTags("student_id", "s1"), "StudentRegistered"),
+					Query: NewQuery(NewTags("student_id", "s1"), "StudentRegistered"),
 				},
 				{ID: "projector3",
-					Query: NewQuerySimple(NewTags("course_id", "c1", "student_id", "s1"), "StudentEnrolled"),
+					Query: NewQuery(NewTags("course_id", "c1", "student_id", "s1"), "StudentEnrolled"),
 				},
 			}
 
@@ -63,7 +63,7 @@ var _ = Describe("Batch Projection", func() {
 		It("should handle single projector", func() {
 			projectors := []StateProjector{
 				{ID: "single",
-					Query: NewQuerySimple(NewTags("test", "value"), "TestEvent"),
+					Query: NewQuery(NewTags("test", "value"), "TestEvent"),
 				},
 			}
 
@@ -80,7 +80,7 @@ var _ = Describe("Batch Projection", func() {
 			es := store.(*eventStore)
 
 			projector := StateProjector{
-				Query: NewQuerySimple(NewTags("course_id", "c1"), "CourseDefined"),
+				Query: NewQuery(NewTags("course_id", "c1"), "CourseDefined"),
 			}
 
 			event := Event{
@@ -96,7 +96,7 @@ var _ = Describe("Batch Projection", func() {
 			es := store.(*eventStore)
 
 			projector := StateProjector{
-				Query: NewQuerySimple(NewTags("course_id", "c1"), "CourseDefined"),
+				Query: NewQuery(NewTags("course_id", "c1"), "CourseDefined"),
 			}
 
 			event := Event{
@@ -112,7 +112,7 @@ var _ = Describe("Batch Projection", func() {
 			es := store.(*eventStore)
 
 			projector := StateProjector{
-				Query: NewQuerySimple(NewTags("course_id", "c1"), "CourseDefined"),
+				Query: NewQuery(NewTags("course_id", "c1"), "CourseDefined"),
 			}
 
 			event := Event{
@@ -128,7 +128,7 @@ var _ = Describe("Batch Projection", func() {
 			es := store.(*eventStore)
 
 			projector := StateProjector{
-				Query: NewQuerySimple(NewTags("course_id", "c1"), "CourseDefined"),
+				Query: NewQuery(NewTags("course_id", "c1"), "CourseDefined"),
 			}
 
 			event := Event{
@@ -147,7 +147,7 @@ var _ = Describe("Batch Projection", func() {
 			es := store.(*eventStore)
 
 			projector := StateProjector{
-				Query: NewQuerySimple(NewTags("course_id", "c1")), // No event types
+				Query: NewQuery(NewTags("course_id", "c1")), // No event types
 			}
 
 			event := Event{
@@ -163,7 +163,7 @@ var _ = Describe("Batch Projection", func() {
 			es := store.(*eventStore)
 
 			projector := StateProjector{
-				Query: NewQuerySimple([]Tag{}, "CourseDefined"), // No tags
+				Query: NewQuery([]Tag{}, "CourseDefined"), // No tags
 			}
 
 			event := Event{
@@ -185,7 +185,7 @@ var _ = Describe("Batch Projection", func() {
 			es := store.(*eventStore)
 
 			// DCB-compliant approach: use specific query from Decision Model
-			query := NewQuerySimple(NewTags("course_id", "c1"), "CourseDefined")
+			query := NewQuery(NewTags("course_id", "c1"), "CourseDefined")
 			appendCondition := es.buildAppendConditionFromQuery(query)
 
 			// Should use the exact query from Decision Model
@@ -214,7 +214,7 @@ var _ = Describe("Batch Projection", func() {
 			es := store.(*eventStore)
 
 			// Simulate building a Decision Model for course enrollment
-			enrollmentQuery := NewQuerySimple(NewTags("course_id", "c1", "student_id", "s1"), "StudentEnrolled")
+			enrollmentQuery := NewQuery(NewTags("course_id", "c1", "student_id", "s1"), "StudentEnrolled")
 
 			// DCB principle: use the same query for append condition
 			appendCondition := es.buildAppendConditionFromQuery(enrollmentQuery)
@@ -226,7 +226,7 @@ var _ = Describe("Batch Projection", func() {
 		})
 	})
 
-	Describe("ProjectDecisionModel with complex scenarios", func() {
+	Describe("Project with complex scenarios", func() {
 		It("should handle multiple projectors with overlapping queries", func() {
 			// Append test events
 			events := []InputEvent{
@@ -242,7 +242,7 @@ var _ = Describe("Batch Projection", func() {
 			projectors := []StateProjector{
 				{
 					ID:           "course",
-					Query:        NewQuerySimple([]Tag{NewTag("course_id", "c1")}, "CourseDefined"),
+					Query:        NewQuery([]Tag{NewTag("course_id", "c1")}, "CourseDefined"),
 					InitialState: 0,
 					TransitionFn: func(state any, event Event) any {
 						return state.(int) + 1
@@ -250,7 +250,7 @@ var _ = Describe("Batch Projection", func() {
 				},
 				{
 					ID:           "student",
-					Query:        NewQuerySimple([]Tag{NewTag("student_id", "s1")}, "StudentRegistered"),
+					Query:        NewQuery([]Tag{NewTag("student_id", "s1")}, "StudentRegistered"),
 					InitialState: 0,
 					TransitionFn: func(state any, event Event) any {
 						return state.(int) + 1
@@ -258,7 +258,7 @@ var _ = Describe("Batch Projection", func() {
 				},
 				{
 					ID:           "enrollment",
-					Query:        NewQuerySimple([]Tag{NewTag("course_id", "c1")}, "StudentEnrolled"),
+					Query:        NewQuery([]Tag{NewTag("course_id", "c1")}, "StudentEnrolled"),
 					InitialState: 0,
 					TransitionFn: func(state any, event Event) any {
 						return state.(int) + 1
@@ -266,8 +266,8 @@ var _ = Describe("Batch Projection", func() {
 				},
 			}
 
-			// Test ProjectDecisionModel
-			states, _, err := store.ProjectDecisionModel(ctx, projectors)
+			// Test Project
+			states, _, err := store.Project(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(states["course"]).To(Equal(1))
@@ -289,7 +289,7 @@ var _ = Describe("Batch Projection", func() {
 			projectors := []StateProjector{
 				{
 					ID:           "count",
-					Query:        NewQuerySimple([]Tag{NewTag("account_id", "acc1")}, "MoneyTransferred"),
+					Query:        NewQuery([]Tag{NewTag("account_id", "acc1")}, "MoneyTransferred"),
 					InitialState: 0,
 					TransitionFn: func(state any, event Event) any {
 						return state.(int) + 1
@@ -297,7 +297,7 @@ var _ = Describe("Batch Projection", func() {
 				},
 				{
 					ID:           "balance",
-					Query:        NewQuerySimple([]Tag{NewTag("account_id", "acc1")}, "MoneyTransferred"),
+					Query:        NewQuery([]Tag{NewTag("account_id", "acc1")}, "MoneyTransferred"),
 					InitialState: 1000.0, // Starting balance
 					TransitionFn: func(state any, event Event) any {
 						var data map[string]interface{}
@@ -312,7 +312,7 @@ var _ = Describe("Batch Projection", func() {
 				},
 			}
 
-			states, _, err := store.ProjectDecisionModel(ctx, projectors)
+			states, _, err := store.Project(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(states["count"]).To(Equal(2))
@@ -333,7 +333,7 @@ var _ = Describe("Batch Projection", func() {
 			projectors := []StateProjector{
 				{
 					ID:           "totalAmount",
-					Query:        NewQuerySimple([]Tag{NewTag("account_id", "acc1")}, "MoneyTransferred"),
+					Query:        NewQuery([]Tag{NewTag("account_id", "acc1")}, "MoneyTransferred"),
 					InitialState: 0.0,
 					TransitionFn: func(state any, event Event) any {
 						currentAmount := state.(float64)
@@ -346,8 +346,8 @@ var _ = Describe("Batch Projection", func() {
 				},
 			}
 
-			// Test ProjectDecisionModel
-			states, _, err := store.ProjectDecisionModel(ctx, projectors)
+			// Test Project
+			states, _, err := store.Project(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(states["totalAmount"]).To(Equal(150.0))
@@ -357,13 +357,13 @@ var _ = Describe("Batch Projection", func() {
 			projectors := []StateProjector{
 				{
 					ID:           "invalid",
-					Query:        NewQuerySimple([]Tag{NewTag("test", "value")}, "TestEvent"),
+					Query:        NewQuery([]Tag{NewTag("test", "value")}, "TestEvent"),
 					InitialState: 0,
 					TransitionFn: nil, // Nil transition function
 				},
 			}
 
-			_, _, err := store.ProjectDecisionModel(ctx, projectors)
+			_, _, err := store.Project(ctx, projectors)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("nil transition function"))
 		})
@@ -380,7 +380,7 @@ var _ = Describe("Batch Projection", func() {
 				},
 			}
 
-			_, _, err := store.ProjectDecisionModel(ctx, projectors)
+			_, _, err := store.Project(ctx, projectors)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("empty query"))
 		})
@@ -401,7 +401,7 @@ var _ = Describe("Batch Projection", func() {
 			projectors := []StateProjector{
 				{
 					ID:           "orderCount",
-					Query:        NewQuerySimple([]Tag{NewTag("order_id", "order1")}, "OrderCreated"),
+					Query:        NewQuery([]Tag{NewTag("order_id", "order1")}, "OrderCreated"),
 					InitialState: 0,
 					TransitionFn: func(state any, event Event) any {
 						return state.(int) + 1
@@ -409,7 +409,7 @@ var _ = Describe("Batch Projection", func() {
 				},
 				{
 					ID:           "itemCount",
-					Query:        NewQuerySimple([]Tag{NewTag("order_id", "order1")}, "ItemAdded"),
+					Query:        NewQuery([]Tag{NewTag("order_id", "order1")}, "ItemAdded"),
 					InitialState: 0,
 					TransitionFn: func(state any, event Event) any {
 						return state.(int) + 1
@@ -417,7 +417,7 @@ var _ = Describe("Batch Projection", func() {
 				},
 				{
 					ID:           "completionCount",
-					Query:        NewQuerySimple([]Tag{NewTag("order_id", "order1")}, "OrderCompleted"),
+					Query:        NewQuery([]Tag{NewTag("order_id", "order1")}, "OrderCompleted"),
 					InitialState: 0,
 					TransitionFn: func(state any, event Event) any {
 						return state.(int) + 1
@@ -425,8 +425,8 @@ var _ = Describe("Batch Projection", func() {
 				},
 			}
 
-			// Test ProjectDecisionModel
-			states, _, err := store.ProjectDecisionModel(ctx, projectors)
+			// Test Project
+			states, _, err := store.Project(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(states["orderCount"]).To(Equal(1))
@@ -452,7 +452,7 @@ var _ = Describe("Batch Projection", func() {
 			projectors := []StateProjector{
 				{
 					ID:           "count",
-					Query:        NewQuerySimple([]Tag{NewTag("test", "value")}, "TestEvent"),
+					Query:        NewQuery([]Tag{NewTag("test", "value")}, "TestEvent"),
 					InitialState: 0,
 					TransitionFn: func(state any, event Event) any {
 						return state.(int) + 1
@@ -461,7 +461,7 @@ var _ = Describe("Batch Projection", func() {
 			}
 
 			// Test with cursor streaming
-			states, _, err := store.ProjectDecisionModel(ctx, projectors)
+			states, _, err := store.Project(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(states["count"]).To(Equal(1000))
@@ -495,8 +495,8 @@ var _ = Describe("Batch Projection", func() {
 		}
 		projectors := []StateProjector{projector}
 
-		// Test ProjectDecisionModel
-		states, _, err := store.ProjectDecisionModel(ctx, projectors)
+		// Test Project
+		states, _, err := store.Project(ctx, projectors)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(states).To(HaveKey("enrollment"))
 		Expect(states["enrollment"]).To(Equal("enrolled"))
@@ -514,8 +514,8 @@ var _ = Describe("Batch Projection", func() {
 		}
 		projectors := []StateProjector{projector}
 
-		// Test ProjectDecisionModel
-		states, _, err := store.ProjectDecisionModel(ctx, projectors)
+		// Test Project
+		states, _, err := store.Project(ctx, projectors)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(states).To(HaveKey("enrollment"))
 		Expect(states["enrollment"]).To(Equal("not_enrolled")) // Should remain initial state
@@ -533,8 +533,8 @@ var _ = Describe("Batch Projection", func() {
 		}
 		projectors := []StateProjector{projector}
 
-		// Test ProjectDecisionModel
-		_, _, err := store.ProjectDecisionModel(ctx, projectors)
+		// Test Project
+		_, _, err := store.Project(ctx, projectors)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("empty"))
 	})
@@ -549,8 +549,8 @@ var _ = Describe("Batch Projection", func() {
 		}
 		projectors := []StateProjector{projector}
 
-		// Test ProjectDecisionModel
-		_, _, err := store.ProjectDecisionModel(ctx, projectors)
+		// Test Project
+		_, _, err := store.Project(ctx, projectors)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("nil"))
 	})
@@ -589,8 +589,8 @@ var _ = Describe("Batch Projection", func() {
 		}
 		projectors := []StateProjector{projector1, projector2}
 
-		// Test ProjectDecisionModel
-		states, _, err := store.ProjectDecisionModel(ctx, projectors)
+		// Test Project
+		states, _, err := store.Project(ctx, projectors)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(states).To(HaveKey("student_123"))
 		Expect(states).To(HaveKey("student_456"))
@@ -633,8 +633,8 @@ var _ = Describe("Batch Projection", func() {
 		}
 		projectors := []StateProjector{projector}
 
-		// Test ProjectDecisionModel
-		states, _, err := store.ProjectDecisionModel(ctx, projectors)
+		// Test Project
+		states, _, err := store.Project(ctx, projectors)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(states).To(HaveKey("enrollment"))
 		Expect(states["enrollment"]).To(Equal("enrolled"))

@@ -12,7 +12,7 @@ Current test coverage status and improvement guidelines for the go-crablet libra
 
 - **Event Store Operations**: 78-92% (Read, Append, NewEventStore)
 - **Streaming Operations**: 70-100% (ReadStream, Next, Event, Close)
-- **Projection Operations**: 84-100% (ProjectDecisionModel, combineProjectorQueries)
+- **Projection Operations**: 84-100% (Project, combineProjectorQueries)
 - **Validation Functions**: 100% (validateQueryTags, validateEvent, etc.)
 - **Helper Functions**: 75-100% (NewTags, NewQuery, toJSON)
 

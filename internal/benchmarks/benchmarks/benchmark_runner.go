@@ -68,7 +68,7 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
 	}
 
 	// Check if EventStore is available
-	channelStore, hasChannel := store.(dcb.EventStore)
+	store, hasChannel := store.(dcb.EventStore)
 
 	// Get dataset configuration
 	config, exists := setup.DatasetSizes[datasetSize]
@@ -93,7 +93,7 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
 
 	benchCtx := &BenchmarkContext{
 		Store:        store,
-		ChannelStore: channelStore,
+		ChannelStore: store,
 		HasChannel:   hasChannel,
 		Dataset:      dataset,
 		Queries:      queries,
@@ -370,8 +370,8 @@ func BenchmarkReadChannel(b *testing.B, benchCtx *BenchmarkContext, queryIndex i
 	}
 }
 
-// BenchmarkProjectDecisionModel benchmarks decision model projection
-func BenchmarkProjectDecisionModel(b *testing.B, benchCtx *BenchmarkContext, projectorCount int) {
+// BenchmarkProject benchmarks decision model projection
+func BenchmarkProject(b *testing.B, benchCtx *BenchmarkContext, projectorCount int) {
 	if !benchCtx.HasChannel {
 		b.Skip("Channel streaming not available")
 	}
@@ -390,15 +390,15 @@ func BenchmarkProjectDecisionModel(b *testing.B, benchCtx *BenchmarkContext, pro
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		_, _, err := benchCtx.Store.ProjectDecisionModel(ctx, projectors)
+		_, _, err := benchCtx.Store.Project(ctx, projectors)
 		if err != nil {
-			b.Fatalf("ProjectDecisionModel failed: %v", err)
+			b.Fatalf("Project failed: %v", err)
 		}
 	}
 }
 
-// BenchmarkProjectDecisionModelChannel benchmarks channel-based decision model projection
-func BenchmarkProjectDecisionModelChannel(b *testing.B, benchCtx *BenchmarkContext, projectorCount int) {
+// BenchmarkProjectChannel benchmarks channel-based decision model projection
+func BenchmarkProjectChannel(b *testing.B, benchCtx *BenchmarkContext, projectorCount int) {
 	if !benchCtx.HasChannel {
 		b.Skip("Channel streaming not available")
 	}
@@ -417,9 +417,9 @@ func BenchmarkProjectDecisionModelChannel(b *testing.B, benchCtx *BenchmarkConte
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		resultChan, _, err := benchCtx.ChannelStore.ProjectDecisionModelChannel(ctx, projectors)
+		resultChan, _, err := benchCtx.ChannelStore.ProjectChannel(ctx, projectors)
 		if err != nil {
-			b.Fatalf("ProjectDecisionModelChannel failed: %v", err)
+			b.Fatalf("ProjectChannel failed: %v", err)
 		}
 
 		count := 0
@@ -464,9 +464,9 @@ func BenchmarkMemoryUsage(b *testing.B, benchCtx *BenchmarkContext, operation st
 				// Just iterate through events
 			}
 		case "projection":
-			_, _, err := benchCtx.ChannelStore.ProjectDecisionModel(ctx, benchCtx.Projectors)
+			_, _, err := benchCtx.ChannelStore.Project(ctx, benchCtx.Projectors)
 			if err != nil {
-				b.Fatalf("ProjectDecisionModel failed: %v", err)
+				b.Fatalf("Project failed: %v", err)
 			}
 		default:
 			b.Fatalf("Unknown operation: %s", operation)
@@ -511,21 +511,21 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 		})
 	}
 
-	b.Run("ProjectDecisionModel1", func(b *testing.B) {
-		BenchmarkProjectDecisionModel(b, benchCtx, 1)
+	b.Run("Project1", func(b *testing.B) {
+		BenchmarkProject(b, benchCtx, 1)
 	})
 
-	b.Run("ProjectDecisionModel5", func(b *testing.B) {
-		BenchmarkProjectDecisionModel(b, benchCtx, 5)
+	b.Run("Project5", func(b *testing.B) {
+		BenchmarkProject(b, benchCtx, 5)
 	})
 
 	if benchCtx.HasChannel {
-		b.Run("ProjectDecisionModelChannel1", func(b *testing.B) {
-			BenchmarkProjectDecisionModelChannel(b, benchCtx, 1)
+		b.Run("ProjectChannel1", func(b *testing.B) {
+			BenchmarkProjectChannel(b, benchCtx, 1)
 		})
 
-		b.Run("ProjectDecisionModelChannel5", func(b *testing.B) {
-			BenchmarkProjectDecisionModelChannel(b, benchCtx, 5)
+		b.Run("ProjectChannel5", func(b *testing.B) {
+			BenchmarkProjectChannel(b, benchCtx, 5)
 		})
 	}
 

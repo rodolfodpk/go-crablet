@@ -82,99 +82,90 @@ func (es *eventStore) Read(ctx context.Context, query Query) ([]Event, error) {
 	return events, nil
 }
 
-// ReadChannel creates a channel-based stream of events matching a query
+// ReadStream creates a channel-based stream of events matching a query
+// This replaces ReadWithOptions functionality - the caller manages complexity
+// like limits and cursors through channel consumption patterns
 // This is optimized for small to medium datasets (< 500 events) and provides
 // a more Go-idiomatic interface using channels
-func (es *eventStore) ReadChannel(ctx context.Context, query Query) (<-chan Event, error) {
-	// Validate that the query is not empty (same validation as Read method)
-	if len(query.getItems()) == 0 {
+func (es *eventStore) ReadStream(ctx context.Context, query Query) (<-chan Event, error) {
+	// Validate query
+	if query == nil {
 		return nil, &ValidationError{
 			EventStoreError: EventStoreError{
-				Op:  "ReadChannel",
-				Err: fmt.Errorf("query must contain at least one item"),
+				Op:  "ReadStream",
+				Err: fmt.Errorf("query cannot be nil"),
 			},
 			Field: "query",
-			Value: "empty",
+			Value: "nil",
 		}
 	}
 
 	// Validate query items
-	if err := validateQueryTags(query); err != nil {
-		return nil, err
-	}
-
-	// Build the SQL query
-	sqlQuery, args, err := es.buildReadQuerySQL(query, nil, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build query: %w", err)
-	}
-
-	// Use the caller's context directly for streaming
-	queryCtx := ctx
-
-	// Execute the query
-	rows, err := es.pool.Query(queryCtx, sqlQuery, args...)
-	if err != nil {
-		return nil, &ResourceError{
+	if len(query.getItems()) == 0 {
+		return nil, &ValidationError{
 			EventStoreError: EventStoreError{
-				Op:  "ReadChannel",
-				Err: fmt.Errorf("query failed: %w", err),
+				Op:  "ReadStream",
+				Err: fmt.Errorf("query must have at least one item"),
 			},
-			Resource: "database",
+			Field: "query.items",
+			Value: "empty",
 		}
 	}
 
-	// Create result channel with configurable buffer
-	resultChan := make(chan Event, es.config.StreamBuffer)
+	// Create channel with buffer size from config
+	eventChan := make(chan Event, es.config.StreamBuffer)
 
-	// Start streaming events in a goroutine
+	// Start goroutine to handle the streaming
 	go func() {
-		// Ensure rows are always closed, even if goroutine panics
 		defer func() {
 			if r := recover(); r != nil {
-				log.Printf("ReadChannel panic recovered: %v", r)
+				log.Printf("ReadStream panic recovered: %v", r)
 			}
-			rows.Close()
-			close(resultChan)
+			close(eventChan)
 		}()
 
-		for rows.Next() {
-			select {
-			case <-ctx.Done():
-				// Context cancelled - exit cleanly
-				return
-			case resultChan <- func() Event {
-				var row rowEvent
-				err := rows.Scan(
-					&row.Type,
-					&row.Tags,
-					&row.Data,
-					&row.Position,
-					&row.TransactionID,
-					&row.CreatedAt,
-				)
-				if err != nil {
-					// Log error and return a sentinel event that consumers can detect
-					log.Printf("Error scanning row in ReadChannel: %v", err)
-					// Return an event with empty type to indicate error
-					return Event{
-						Type: "", // Empty type indicates scan error
-						Tags: []Tag{},
-						Data: []byte{},
-					}
-				}
+		// Build SQL query
+		sqlQuery, args, err := es.buildReadQuerySQL(query, nil, nil)
+		if err != nil {
+			log.Printf("Error building SQL query in ReadStream: %v", err)
+			return
+		}
 
-				return convertRowToEvent(row)
-			}():
+		// Execute query
+		rows, err := es.pool.Query(ctx, sqlQuery, args...)
+		if err != nil {
+			log.Printf("Error executing query in ReadStream: %v", err)
+			return
+		}
+		defer rows.Close()
+
+		// Stream events through channel
+		for rows.Next() {
+			var row rowEvent
+			err := rows.Scan(&row.Type, &row.Tags, &row.Data, &row.Position, &row.TransactionID, &row.CreatedAt)
+			if err != nil {
+				log.Printf("Error scanning row in ReadStream: %v", err)
+				continue
+			}
+
+			// Convert row to event
+			event := convertRowToEvent(row)
+
+			// Send event through channel (check for context cancellation)
+			select {
+			case eventChan <- event:
 				// Event sent successfully
+			case <-ctx.Done():
+				// Context cancelled, stop streaming
+				return
 			}
 		}
 
-		// Check for row iteration errors
+		// Check for errors during iteration
 		if err := rows.Err(); err != nil {
-			log.Printf("Row iteration error in ReadChannel: %v", err)
+			log.Printf("Row iteration error in ReadStream: %v", err)
 		}
 	}()
 
-	return resultChan, nil
+	return eventChan, nil
 }

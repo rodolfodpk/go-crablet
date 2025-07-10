@@ -11,16 +11,15 @@ import (
 
 var _ = Describe("Channel-Based Streaming", func() {
 	var (
-		store        EventStore
-		channelStore EventStore
-		ctx          context.Context
+		store EventStore
+		ctx   context.Context
 	)
 
 	BeforeEach(func() {
 		// Use shared PostgreSQL container and truncate events between tests
 		store = NewEventStoreFromPool(pool)
 		var ok bool
-		channelStore, ok = store.(EventStore)
+		store, ok = store.(EventStore)
 		Expect(ok).To(BeTrue(), "Store should implement EventStore")
 
 		// Create context with timeout for each test
@@ -31,7 +30,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	Describe("ReadChannel", func() {
+	Describe("ReadStream", func() {
 		It("should stream events through channels", func() {
 			// Setup test data
 			event1 := NewInputEvent("TestEvent", NewTags("test", "value"), toJSON(map[string]string{"data": "value1"}))
@@ -44,8 +43,8 @@ var _ = Describe("Channel-Based Streaming", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Test channel-based streaming
-			query := NewQuerySimple(NewTags("test", "value"), "TestEvent")
-			eventChan, err := channelStore.ReadChannel(ctx, query)
+			query := NewQuery(NewTags("test", "value"), "TestEvent")
+			eventChan, err := store.ReadStream(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 
 			count := 0
@@ -58,8 +57,8 @@ var _ = Describe("Channel-Based Streaming", func() {
 		})
 
 		It("should handle empty result sets", func() {
-			query := NewQuerySimple(NewTags("non-existent", "value"), "TestEvent")
-			eventChan, err := channelStore.ReadChannel(ctx, query)
+			query := NewQuery(NewTags("non-existent", "value"), "TestEvent")
+			eventChan, err := store.ReadStream(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 
 			count := 0
@@ -84,8 +83,8 @@ var _ = Describe("Channel-Based Streaming", func() {
 			cancelCtx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
-			query := NewQuerySimple(NewTags("test", "value"), "TestEvent")
-			eventChan, err := channelStore.ReadChannel(cancelCtx, query)
+			query := NewQuery(NewTags("test", "value"), "TestEvent")
+			eventChan, err := store.ReadStream(cancelCtx, query)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Cancel context after first event
@@ -113,8 +112,8 @@ var _ = Describe("Channel-Based Streaming", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Test with small batch size
-			query := NewQuerySimple(NewTags("test", "value"), "TestEvent")
-			eventChan, err := channelStore.ReadChannel(ctx, query)
+			query := NewQuery(NewTags("test", "value"), "TestEvent")
+			eventChan, err := store.ReadStream(ctx, query)
 			Expect(err).NotTo(HaveOccurred())
 
 			count := 0
@@ -127,7 +126,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 		})
 	})
 
-	Describe("ProjectDecisionModelChannel", func() {
+	Describe("ProjectStream", func() {
 		It("should project states using channels", func() {
 			// Setup test data
 			event1 := NewInputEvent("AccountOpened", NewTags("account_id", "acc1"), toJSON(map[string]string{"balance": "100"}))
@@ -142,14 +141,14 @@ var _ = Describe("Channel-Based Streaming", func() {
 			// Define projectors
 			projectors := []StateProjector{
 				{ID: "accountCount",
-					Query:        NewQuerySimple(NewTags("account_id", "acc1"), "AccountOpened"),
+					Query:        NewQuery(NewTags("account_id", "acc1"), "AccountOpened"),
 					InitialState: 0,
 					TransitionFn: func(state any, event Event) any {
 						return state.(int) + 1
 					},
 				},
 				{ID: "transferCount",
-					Query:        NewQuerySimple(NewTags("account_id", "acc1"), "MoneyTransferred"),
+					Query:        NewQuery(NewTags("account_id", "acc1"), "MoneyTransferred"),
 					InitialState: 0,
 					TransitionFn: func(state any, event Event) any {
 						return state.(int) + 1
@@ -158,7 +157,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 			}
 
 			// Use channel-based projection
-			resultChan, _, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
+			resultChan, _, err := store.ProjectStream(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Process results - now we get final aggregated states
@@ -169,7 +168,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 		})
 
 		It("should handle empty projectors list", func() {
-			_, _, err := channelStore.ProjectDecisionModelChannel(ctx, []StateProjector{})
+			_, _, err := store.ProjectStream(ctx, []StateProjector{})
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("at least one projector is required"))
 		})
@@ -177,13 +176,13 @@ var _ = Describe("Channel-Based Streaming", func() {
 		It("should handle nil transition function", func() {
 			projectors := []StateProjector{
 				{ID: "invalid",
-					Query:        NewQuerySimple(NewTags("test", "value"), "TestEvent"),
+					Query:        NewQuery(NewTags("test", "value"), "TestEvent"),
 					InitialState: 0,
 					TransitionFn: nil, // Nil transition function
 				},
 			}
 
-			_, _, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
+			_, _, err := store.ProjectStream(ctx, projectors)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("nil transition function"))
 		})
@@ -205,7 +204,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 			projectors := []StateProjector{
 				{ID: "test",
-					Query:        NewQuerySimple(NewTags("test", "value"), "TestEvent"),
+					Query:        NewQuery(NewTags("test", "value"), "TestEvent"),
 					InitialState: 0,
 					TransitionFn: func(state any, event Event) any {
 						time.Sleep(1 * time.Microsecond)
@@ -214,7 +213,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 				},
 			}
 
-			resultChan, _, err := channelStore.ProjectDecisionModelChannel(cancelCtx, projectors)
+			resultChan, _, err := store.ProjectStream(cancelCtx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Cancel context after a short delay
@@ -235,7 +234,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 		It("should handle projection with no matching events", func() {
 			projectors := []StateProjector{
 				{ID: "test",
-					Query:        NewQuerySimple(NewTags("non-existent", "value"), "TestEvent"),
+					Query:        NewQuery(NewTags("non-existent", "value"), "TestEvent"),
 					InitialState: 0,
 					TransitionFn: func(state any, event Event) any {
 						return state.(int) + 1
@@ -243,7 +242,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 				},
 			}
 
-			resultChan, _, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
+			resultChan, _, err := store.ProjectStream(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Should receive final states even with no matching events
@@ -265,21 +264,21 @@ var _ = Describe("Channel-Based Streaming", func() {
 			// Define projectors for different event types
 			projectors := []StateProjector{
 				{ID: "accountCount",
-					Query:        NewQuerySimple(NewTags("account_id", "acc1"), "AccountOpened"),
+					Query:        NewQuery(NewTags("account_id", "acc1"), "AccountOpened"),
 					InitialState: 0,
 					TransitionFn: func(state any, event Event) any {
 						return state.(int) + 1
 					},
 				},
 				{ID: "transferCount",
-					Query:        NewQuerySimple(NewTags("account_id", "acc1"), "MoneyTransferred"),
+					Query:        NewQuery(NewTags("account_id", "acc1"), "MoneyTransferred"),
 					InitialState: 0,
 					TransitionFn: func(state any, event Event) any {
 						return state.(int) + 1
 					},
 				},
 				{ID: "closeCount",
-					Query:        NewQuerySimple(NewTags("account_id", "acc1"), "AccountClosed"),
+					Query:        NewQuery(NewTags("account_id", "acc1"), "AccountClosed"),
 					InitialState: 0,
 					TransitionFn: func(state any, event Event) any {
 						return state.(int) + 1
@@ -288,7 +287,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 			}
 
 			// Use channel-based projection
-			resultChan, _, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
+			resultChan, _, err := store.ProjectStream(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Process results - now we get final aggregated states
@@ -313,7 +312,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 			// Define projector
 			projectors := []StateProjector{
 				{ID: "count",
-					Query:        NewQuerySimple(NewTags("test", "value"), "TestEvent"),
+					Query:        NewQuery(NewTags("test", "value"), "TestEvent"),
 					InitialState: 0,
 					TransitionFn: func(state any, event Event) any {
 						return state.(int) + 1
@@ -322,7 +321,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 			}
 
 			// Use channel-based projection
-			resultChan, _, err := channelStore.ProjectDecisionModelChannel(ctx, projectors)
+			resultChan, _, err := store.ProjectStream(ctx, projectors)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Process results - now we get final aggregated states
@@ -335,7 +334,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 	Describe("Extension Interface Pattern", func() {
 		It("should properly implement EventStore interface", func() {
 			// Test that the store implements the EventStore interface
-			var eventStore EventStore = channelStore
+			var eventStore EventStore = store
 			Expect(eventStore).NotTo(BeNil())
 
 			// Test that our implementation does implement EventStore

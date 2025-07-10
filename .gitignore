@@ -49,9 +49,16 @@ go.work.sum
 # Editor/IDE
 .idea/
 .vscode/
+
+# Binary files from examples and benchmarks
 batch
 benchmark
 channel_projection
 decision_model
 enrollment
+transfer
+web-app
+streaming
+server
+benchmarks
 

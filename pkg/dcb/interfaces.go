@@ -71,12 +71,12 @@ type EventStore interface {
 	// Read reads events matching the query (no options)
 	Read(ctx context.Context, query Query) ([]Event, error)
 
-	// ReadChannel creates a channel-based stream of events matching a query
+	// ReadStream creates a channel-based stream of events matching a query
 	// This replaces ReadWithOptions functionality - the caller manages complexity
 	// like limits and cursors through channel consumption patterns
 	// This is optimized for small to medium datasets (< 500 events) and provides
 	// a more Go-idiomatic interface using channels
-	ReadChannel(ctx context.Context, query Query) (<-chan Event, error)
+	ReadStream(ctx context.Context, query Query) (<-chan Event, error)
 
 	// Append appends events to the store (always succeeds if no validation errors)
 	// Uses the default isolation level configured in EventStoreConfig
@@ -86,15 +86,15 @@ type EventStore interface {
 	// Uses the default isolation level configured in EventStoreConfig
 	AppendIf(ctx context.Context, events []InputEvent, condition AppendCondition) error
 
-	// ProjectDecisionModel projects multiple states using projectors and returns final states and append condition
+	// Project projects multiple states using projectors and returns final states and append condition
 	// This is a go-crablet feature for building decision models in command handlers
-	ProjectDecisionModel(ctx context.Context, projectors []StateProjector) (map[string]any, AppendCondition, error)
+	Project(ctx context.Context, projectors []StateProjector) (map[string]any, AppendCondition, error)
 
-	// ProjectDecisionModelChannel projects multiple states using channel-based streaming
+	// ProjectStream projects multiple states using channel-based streaming
 	// This is optimized for small to medium datasets (< 500 events) and provides
 	// a more Go-idiomatic interface using channels for state projection
 	// Returns final aggregated states (same as batch version) via streaming
-	ProjectDecisionModelChannel(ctx context.Context, projectors []StateProjector) (<-chan map[string]any, <-chan AppendCondition, error)
+	ProjectStream(ctx context.Context, projectors []StateProjector) (<-chan map[string]any, <-chan AppendCondition, error)
 
 	// GetConfig returns the current EventStore configuration
 	GetConfig() EventStoreConfig

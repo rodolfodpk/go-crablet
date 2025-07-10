@@ -138,7 +138,7 @@ func handleCreateUser(ctx context.Context, store dcb.EventStore, cmd CreateUserC
 		},
 	}
 
-	states, _, err := store.ProjectDecisionModel(ctx, projectors)
+	states, _, err := store.Project(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to check user existence: %w", err)
 	}
@@ -201,7 +201,7 @@ func handleCreateOrder(ctx context.Context, store dcb.EventStore, cmd CreateOrde
 		},
 	}
 
-	states, _, err := store.ProjectDecisionModel(ctx, projectors)
+	states, _, err := store.Project(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to check order and user existence: %w", err)
 	}
@@ -275,7 +275,7 @@ func handleBatchCreateUsers(ctx context.Context, store dcb.EventStore, commands 
 		})
 	}
 
-	states, _, err := store.ProjectDecisionModel(ctx, projectors)
+	states, _, err := store.Project(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to check batch user existence: %w", err)
 	}
@@ -345,7 +345,7 @@ func handleBatchCreateOrders(ctx context.Context, store dcb.EventStore, commands
 		})
 	}
 
-	states, _, err := store.ProjectDecisionModel(ctx, projectors)
+	states, _, err := store.Project(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to check batch order existence: %w", err)
 	}

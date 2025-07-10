@@ -33,9 +33,6 @@ func TestBatchExample(t *testing.T) {
 	store, err := dcb.NewEventStore(ctx, pool)
 	require.NoError(t, err)
 
-	// Cast to EventStore for extended functionality
-	channelStore := store.(dcb.EventStore)
-
 	// Test Command 1: Create User
 	t.Run("Create User", func(t *testing.T) {
 		cleanupEvents(t, pool)
@@ -44,7 +41,7 @@ func TestBatchExample(t *testing.T) {
 			Username: "john_doe",
 			Email:    "john@example.com",
 		}
-		err := handleCreateUser(ctx, channelStore, createUserCmd)
+		err := handleCreateUser(ctx, store, createUserCmd)
 		assert.NoError(t, err)
 	})
 
@@ -57,7 +54,7 @@ func TestBatchExample(t *testing.T) {
 			Username: "john_doe",
 			Email:    "john@example.com",
 		}
-		err := handleCreateUser(ctx, channelStore, createUserCmd)
+		err := handleCreateUser(ctx, store, createUserCmd)
 		require.NoError(t, err)
 
 		// Now create the order
@@ -69,7 +66,7 @@ func TestBatchExample(t *testing.T) {
 				{ProductID: "prod2", Quantity: 1, Price: 49.99},
 			},
 		}
-		err = handleCreateOrder(ctx, channelStore, createOrderCmd)
+		err = handleCreateOrder(ctx, store, createOrderCmd)
 		assert.NoError(t, err)
 	})
 
@@ -85,7 +82,7 @@ func TestBatchExample(t *testing.T) {
 				Username: "john_doe",
 				Email:    "john@example.com",
 			}
-			err := handleCreateUser(ctx, channelStore, createUserCmd)
+			err := handleCreateUser(ctx, store, createUserCmd)
 			require.NoError(t, err)
 
 			// Attempt to create duplicate user
@@ -94,7 +91,7 @@ func TestBatchExample(t *testing.T) {
 				Username: "jane_doe",
 				Email:    "jane@example.com",
 			}
-			err = handleCreateUser(ctx, channelStore, duplicateCmd)
+			err = handleCreateUser(ctx, store, duplicateCmd)
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), "already exists")
 		})
@@ -108,7 +105,7 @@ func TestBatchExample(t *testing.T) {
 				Username: "john_doe",
 				Email:    "john@example.com",
 			}
-			err := handleCreateUser(ctx, channelStore, createUserCmd)
+			err := handleCreateUser(ctx, store, createUserCmd)
 			require.NoError(t, err)
 
 			// Attempt to create user with duplicate email
@@ -117,7 +114,7 @@ func TestBatchExample(t *testing.T) {
 				Username: "jane_doe",
 				Email:    "john@example.com", // Same email as existing user
 			}
-			err = handleCreateUser(ctx, channelStore, duplicateEmailCmd)
+			err = handleCreateUser(ctx, store, duplicateEmailCmd)
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), "already exists")
 		})
@@ -131,7 +128,7 @@ func TestBatchExample(t *testing.T) {
 				Username: "john_doe",
 				Email:    "john@example.com",
 			}
-			err := handleCreateUser(ctx, channelStore, createUserCmd)
+			err := handleCreateUser(ctx, store, createUserCmd)
 			require.NoError(t, err)
 
 			// Create the order first
@@ -142,7 +139,7 @@ func TestBatchExample(t *testing.T) {
 					{ProductID: "prod1", Quantity: 2, Price: 29.99},
 				},
 			}
-			err = handleCreateOrder(ctx, channelStore, createOrderCmd)
+			err = handleCreateOrder(ctx, store, createOrderCmd)
 			require.NoError(t, err)
 
 			// Attempt to create duplicate order
@@ -153,7 +150,7 @@ func TestBatchExample(t *testing.T) {
 					{ProductID: "prod3", Quantity: 1, Price: 19.99},
 				},
 			}
-			err = handleCreateOrder(ctx, channelStore, duplicateOrderCmd)
+			err = handleCreateOrder(ctx, store, duplicateOrderCmd)
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), "already exists")
 		})
@@ -168,7 +165,7 @@ func TestBatchExample(t *testing.T) {
 					{ProductID: "prod1", Quantity: 1, Price: 29.99},
 				},
 			}
-			err := handleCreateOrder(ctx, channelStore, nonExistentUserCmd)
+			err := handleCreateOrder(ctx, store, nonExistentUserCmd)
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), "does not exist")
 		})
@@ -184,7 +181,7 @@ func TestBatchExample(t *testing.T) {
 				{UserID: "batch_user1", Username: "batch_user1", Email: "batch1@example.com"},
 				{UserID: "batch_user2", Username: "batch_user2", Email: "batch2@example.com"},
 			}
-			err := handleBatchCreateUsers(ctx, channelStore, users)
+			err := handleBatchCreateUsers(ctx, store, users)
 			assert.NoError(t, err)
 		})
 
@@ -196,7 +193,7 @@ func TestBatchExample(t *testing.T) {
 				{UserID: "batch_user1", Username: "batch_user1", Email: "batch1@example.com"},
 				{UserID: "batch_user2", Username: "batch_user2", Email: "batch2@example.com"},
 			}
-			err := handleBatchCreateUsers(ctx, channelStore, users)
+			err := handleBatchCreateUsers(ctx, store, users)
 			require.NoError(t, err)
 
 			orders := []CreateOrderCommand{
@@ -215,7 +212,7 @@ func TestBatchExample(t *testing.T) {
 					},
 				},
 			}
-			err = handleBatchCreateOrders(ctx, channelStore, orders)
+			err = handleBatchCreateOrders(ctx, store, orders)
 			assert.NoError(t, err)
 		})
 
@@ -228,14 +225,14 @@ func TestBatchExample(t *testing.T) {
 				Username: "batch_user1",
 				Email:    "batch1@example.com",
 			}
-			err := handleCreateUser(ctx, channelStore, createUserCmd)
+			err := handleCreateUser(ctx, store, createUserCmd)
 			require.NoError(t, err)
 
 			users := []CreateUserCommand{
 				{UserID: "batch_user3", Username: "batch_user3", Email: "batch3@example.com"},
 				{UserID: "batch_user1", Username: "batch_user1_duplicate", Email: "batch1_duplicate@example.com"}, // Already exists
 			}
-			err = handleBatchCreateUsers(ctx, channelStore, users)
+			err = handleBatchCreateUsers(ctx, store, users)
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), "already exists")
 		})
@@ -249,7 +246,7 @@ func TestBatchExample(t *testing.T) {
 				Username: "batch_user3",
 				Email:    "batch3@example.com",
 			}
-			err := handleCreateUser(ctx, channelStore, createUserCmd)
+			err := handleCreateUser(ctx, store, createUserCmd)
 			require.NoError(t, err)
 
 			// Create the first order
@@ -260,7 +257,7 @@ func TestBatchExample(t *testing.T) {
 					{ProductID: "prod1", Quantity: 1, Price: 29.99},
 				},
 			}
-			err = handleCreateOrder(ctx, channelStore, createOrderCmd)
+			err = handleCreateOrder(ctx, store, createOrderCmd)
 			require.NoError(t, err)
 
 			// Now try to create a batch with a duplicate order
@@ -280,7 +277,7 @@ func TestBatchExample(t *testing.T) {
 					},
 				},
 			}
-			err = handleBatchCreateOrders(ctx, channelStore, orders)
+			err = handleBatchCreateOrders(ctx, store, orders)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "order batch_order1 already exists")
 		})

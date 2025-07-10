@@ -352,7 +352,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			// Read the events to get their positions and transaction IDs
-			query := NewQueryFromItems(NewQItemKV("TestEvent", "unique", uniqueTag))
+			query := NewQueryFromItems(NewQueryItem([]string{"TestEvent"}, NewTags("unique", uniqueTag)))
 			events, err := store.Read(context.Background(), query)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(events).To(HaveLen(2))
@@ -368,8 +368,8 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 				Position:      events[0].Position,
 			}
 
-			// Read events after the cursor using ReadChannel
-			eventsChan, err := store.ReadChannel(context.Background(), query)
+			// Read events after the cursor using ReadStream
+			eventsChan, err := store.ReadStream(context.Background(), query)
 			Expect(err).ToNot(HaveOccurred())
 
 			// Collect events after the cursor
@@ -410,7 +410,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			// Read the events back
-			query := NewQueryFromItems(NewQItemKV("MultiEvent", "unique", uniqueTag))
+			query := NewQueryFromItems(NewQueryItem([]string{"MultiEvent"}, NewTags("unique", uniqueTag)))
 			readEvents, err := store.Read(context.Background(), query)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(readEvents).To(HaveLen(4))
@@ -439,7 +439,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			}
 
 			// Read events after the cursor
-			eventsChan, err := store.ReadChannel(context.Background(), query)
+			eventsChan, err := store.ReadStream(context.Background(), query)
 			Expect(err).ToNot(HaveOccurred())
 
 			// Collect events after the cursor
@@ -466,7 +466,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			}
 
 			// Read events after the middle cursor
-			eventsChan2, err := store.ReadChannel(context.Background(), query)
+			eventsChan2, err := store.ReadStream(context.Background(), query)
 			Expect(err).ToNot(HaveOccurred())
 
 			// Collect events after the middle cursor

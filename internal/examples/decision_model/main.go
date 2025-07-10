@@ -90,7 +90,7 @@ func main() {
 			},
 		},
 	}
-	_, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
+	_, appendCondition, err := store.Project(ctx, projectors)
 	if err != nil {
 		log.Fatalf("Failed to project state for optimistic locking: %v", err)
 	}
@@ -105,8 +105,8 @@ func main() {
 		log.Fatalf("Process transaction 2 failed: %v", err)
 	}
 
-	// Use ProjectDecisionModel to build decision model
-	fmt.Println("\n=== Using ProjectDecisionModel API ===")
+	// Use Project to build decision model
+	fmt.Println("\n=== Using Project API ===")
 
 	// Define projectors for decision model
 	accountProjector := dcb.StateProjector{
@@ -165,7 +165,7 @@ func main() {
 		},
 	}
 
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
+	states, appendCondition, err := store.Project(ctx, projectors)
 	if err != nil {
 		log.Fatalf("Failed to read stream: %v", err)
 	}
@@ -204,7 +204,7 @@ func handleOpenAccount(ctx context.Context, store dcb.EventStore, cmd OpenAccoun
 			TransitionFn: func(state any, event dcb.Event) any { return true },
 		},
 	}
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
+	states, appendCondition, err := store.Project(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to check account existence: %w", err)
 	}
@@ -248,7 +248,7 @@ func handleProcessTransaction(ctx context.Context, store dcb.EventStore, cmd Pro
 			return account
 		},
 	}
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, []dcb.StateProjector{{
+	states, appendCondition, err := store.Project(ctx, []dcb.StateProjector{{
 		ID:           "account",
 		Query:        accountProjector.Query,
 		InitialState: accountProjector.InitialState,
@@ -298,7 +298,7 @@ func handleProcessTransactionWithCondition(ctx context.Context, store dcb.EventS
 			return account
 		},
 	}
-	states, _, err := store.ProjectDecisionModel(ctx, []dcb.StateProjector{{
+	states, _, err := store.Project(ctx, []dcb.StateProjector{{
 		ID:           "account",
 		Query:        accountProjector.Query,
 		InitialState: accountProjector.InitialState,

@@ -6,23 +6,23 @@ import (
 )
 
 var _ = Describe("Coverage Improvement Tests", func() {
-	Describe("NewQuerySimpleUnsafe", func() {
-		It("should create query without validation", func() {
+	Describe("NewQuery", func() {
+		It("should create query with validation", func() {
 			tags := NewTags("user_id", "123")
 			eventTypes := []string{"UserCreated", "UserUpdated"}
 
-			query := NewQuerySimpleUnsafe(tags, eventTypes...)
+			query := NewQuery(tags, eventTypes...)
 
 			Expect(query.getItems()).To(HaveLen(1))
 			Expect(query.getItems()[0].getEventTypes()).To(Equal(eventTypes))
 			Expect(query.getItems()[0].getTags()).To(Equal(tags))
 		})
 
-		It("should create query with event types and tags using unsafe constructor", func() {
+		It("should create query with event types and tags", func() {
 			eventTypes := []string{"Event1", "Event2"}
 			tags := []Tag{NewTag("key1", "value1")}
 
-			query := NewQuerySimpleUnsafe(tags, eventTypes...)
+			query := NewQuery(tags, eventTypes...)
 
 			Expect(query.getItems()).To(HaveLen(1))
 			Expect(query.getItems()[0].getEventTypes()).To(Equal(eventTypes))
@@ -30,24 +30,22 @@ var _ = Describe("Coverage Improvement Tests", func() {
 		})
 	})
 
-	Describe("NewQItem", func() {
+	Describe("NewQueryItem", func() {
 		It("should create query item with single event type and tags", func() {
 			eventType := "UserCreated"
 			tags := NewTags("user_id", "123")
 
-			item := NewQItem(eventType, tags)
+			item := NewQueryItem([]string{eventType}, tags)
 
 			Expect(item.getEventTypes()).To(Equal([]string{eventType}))
 			Expect(item.getTags()).To(Equal(tags))
 		})
-	})
 
-	Describe("NewQItemKV", func() {
 		It("should create query item with single event type and key-value tags", func() {
 			eventType := "UserCreated"
 			kv := []string{"user_id", "123", "tenant", "test"}
 
-			item := NewQItemKV(eventType, kv...)
+			item := NewQueryItem([]string{eventType}, NewTags(kv...))
 
 			Expect(item.getEventTypes()).To(Equal([]string{eventType}))
 			Expect(item.getTags()).To(HaveLen(2))
@@ -91,7 +89,7 @@ var _ = Describe("Coverage Improvement Tests", func() {
 			eventType := "UserCreated"
 			tags := NewTags("user_id", "123", "tenant", "test")
 
-			item := NewQItem(eventType, tags)
+			item := NewQueryItem([]string{eventType}, tags)
 
 			Expect(item.getEventTypes()).To(Equal([]string{eventType}))
 			Expect(item.getTags()).To(Equal(tags))
@@ -101,7 +99,7 @@ var _ = Describe("Coverage Improvement Tests", func() {
 			eventType := "UserCreated"
 			kv := []string{"user_id", "123", "tenant", "test"}
 
-			item := NewQItemKV(eventType, kv...)
+			item := NewQueryItem([]string{eventType}, NewTags(kv...))
 
 			Expect(item.getEventTypes()).To(Equal([]string{eventType}))
 			Expect(item.getTags()).To(HaveLen(2))
@@ -112,8 +110,8 @@ var _ = Describe("Coverage Improvement Tests", func() {
 		})
 	})
 
-	It("should cover NewQuerySimpleUnsafe and NewQueryEmpty", func() {
-		q := NewQuerySimpleUnsafe(NewTags("foo", "bar"), "TypeA", "TypeB")
+	It("should cover NewQuery and NewQueryEmpty", func() {
+		q := NewQuery(NewTags("foo", "bar"), "TypeA", "TypeB")
 		Expect(q).NotTo(BeNil())
 		q2 := NewQueryEmpty()
 		Expect(q2).NotTo(BeNil())

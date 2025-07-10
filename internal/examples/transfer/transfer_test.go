@@ -37,9 +37,6 @@ func TestTransferExample(t *testing.T) {
 	store, err := dcb.NewEventStore(ctx, pool)
 	require.NoError(t, err)
 
-	// Cast to EventStore for extended functionality
-	channelStore := store.(dcb.EventStore)
-
 	// Test Command 1: Create Account 1
 	t.Run("Create Account 1", func(t *testing.T) {
 		cleanupEvents(t, pool)
@@ -47,7 +44,7 @@ func TestTransferExample(t *testing.T) {
 			AccountID:      "test_acc1",
 			InitialBalance: 1000,
 		}
-		err := handleCreateAccount(ctx, channelStore, createAccount1Cmd)
+		err := handleCreateAccount(ctx, store, createAccount1Cmd)
 		assert.NoError(t, err)
 	})
 
@@ -58,7 +55,7 @@ func TestTransferExample(t *testing.T) {
 			AccountID:      "test_acc2",
 			InitialBalance: 500,
 		}
-		err := handleCreateAccount(ctx, channelStore, createAccount2Cmd)
+		err := handleCreateAccount(ctx, store, createAccount2Cmd)
 		assert.NoError(t, err)
 	})
 
@@ -70,14 +67,14 @@ func TestTransferExample(t *testing.T) {
 			AccountID:      "test_acc1",
 			InitialBalance: 1000,
 		}
-		err := handleCreateAccount(ctx, channelStore, createAccount1Cmd)
+		err := handleCreateAccount(ctx, store, createAccount1Cmd)
 		require.NoError(t, err)
 
 		createAccount2Cmd := CreateAccountCommand{
 			AccountID:      "test_acc2",
 			InitialBalance: 500,
 		}
-		err = handleCreateAccount(ctx, channelStore, createAccount2Cmd)
+		err = handleCreateAccount(ctx, store, createAccount2Cmd)
 		require.NoError(t, err)
 
 		transferCmd := TransferMoneyCommand{
@@ -86,7 +83,7 @@ func TestTransferExample(t *testing.T) {
 			ToAccountID:   "test_acc2",
 			Amount:        300,
 		}
-		err = handleTransferMoney(ctx, channelStore, transferCmd)
+		err = handleTransferMoney(ctx, store, transferCmd)
 		assert.NoError(t, err)
 	})
 
@@ -101,14 +98,14 @@ func TestTransferExample(t *testing.T) {
 				AccountID:      "test_acc1",
 				InitialBalance: 1000,
 			}
-			err := handleCreateAccount(ctx, channelStore, createAccountCmd)
+			err := handleCreateAccount(ctx, store, createAccountCmd)
 			require.NoError(t, err)
 
 			duplicateCmd := CreateAccountCommand{
 				AccountID:      "test_acc1", // Same ID as existing account
 				InitialBalance: 2000,
 			}
-			err = handleCreateAccount(ctx, channelStore, duplicateCmd)
+			err = handleCreateAccount(ctx, store, duplicateCmd)
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), "already exists")
 		})
@@ -121,14 +118,14 @@ func TestTransferExample(t *testing.T) {
 				AccountID:      "test_acc1",
 				InitialBalance: 1000,
 			}
-			err := handleCreateAccount(ctx, channelStore, createAccount1Cmd)
+			err := handleCreateAccount(ctx, store, createAccount1Cmd)
 			require.NoError(t, err)
 
 			createAccount2Cmd := CreateAccountCommand{
 				AccountID:      "test_acc2",
 				InitialBalance: 500,
 			}
-			err = handleCreateAccount(ctx, channelStore, createAccount2Cmd)
+			err = handleCreateAccount(ctx, store, createAccount2Cmd)
 			require.NoError(t, err)
 
 			insufficientFundsCmd := TransferMoneyCommand{
@@ -137,7 +134,7 @@ func TestTransferExample(t *testing.T) {
 				ToAccountID:   "test_acc2",
 				Amount:        1001, // More than available balance (1000)
 			}
-			err = handleTransferMoney(ctx, channelStore, insufficientFundsCmd)
+			err = handleTransferMoney(ctx, store, insufficientFundsCmd)
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), "insufficient funds")
 		})
@@ -150,7 +147,7 @@ func TestTransferExample(t *testing.T) {
 				AccountID:      "test_acc2",
 				InitialBalance: 500,
 			}
-			err := handleCreateAccount(ctx, channelStore, createAccount2Cmd)
+			err := handleCreateAccount(ctx, store, createAccount2Cmd)
 			require.NoError(t, err)
 
 			nonExistentFromCmd := TransferMoneyCommand{
@@ -159,7 +156,7 @@ func TestTransferExample(t *testing.T) {
 				ToAccountID:   "test_acc2",
 				Amount:        100,
 			}
-			err = handleTransferMoney(ctx, channelStore, nonExistentFromCmd)
+			err = handleTransferMoney(ctx, store, nonExistentFromCmd)
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), "insufficient funds")
 		})
@@ -172,7 +169,7 @@ func TestTransferExample(t *testing.T) {
 				AccountID:      "test_acc1",
 				InitialBalance: 1000,
 			}
-			err := handleCreateAccount(ctx, channelStore, createAccount1Cmd)
+			err := handleCreateAccount(ctx, store, createAccount1Cmd)
 			require.NoError(t, err)
 
 			nonExistentToCmd := TransferMoneyCommand{
@@ -181,7 +178,7 @@ func TestTransferExample(t *testing.T) {
 				ToAccountID:   "non_existent_account",
 				Amount:        100,
 			}
-			err = handleTransferMoney(ctx, channelStore, nonExistentToCmd)
+			err = handleTransferMoney(ctx, store, nonExistentToCmd)
 			assert.NoError(t, err) // This should succeed as the destination account gets created with 0 balance
 		})
 	})
@@ -206,29 +203,26 @@ func TestSequentialTransfers(t *testing.T) {
 	store, err := dcb.NewEventStore(ctx, pool)
 	require.NoError(t, err)
 
-	// Cast to EventStore for extended functionality
-	channelStore := store.(dcb.EventStore)
-
 	// Create accounts for testing
 	createAccount3Cmd := CreateAccountCommand{
 		AccountID:      "test_acc3",
 		InitialBalance: 2000,
 	}
-	err = handleCreateAccount(ctx, channelStore, createAccount3Cmd)
+	err = handleCreateAccount(ctx, store, createAccount3Cmd)
 	assert.NoError(t, err)
 
 	createAccount4Cmd := CreateAccountCommand{
 		AccountID:      "test_acc4",
 		InitialBalance: 0,
 	}
-	err = handleCreateAccount(ctx, channelStore, createAccount4Cmd)
+	err = handleCreateAccount(ctx, store, createAccount4Cmd)
 	assert.NoError(t, err)
 
 	createAccount5Cmd := CreateAccountCommand{
 		AccountID:      "test_acc5",
 		InitialBalance: 0,
 	}
-	err = handleCreateAccount(ctx, channelStore, createAccount5Cmd)
+	err = handleCreateAccount(ctx, store, createAccount5Cmd)
 	assert.NoError(t, err)
 
 	// First transfer should succeed
@@ -238,7 +232,7 @@ func TestSequentialTransfers(t *testing.T) {
 		ToAccountID:   "test_acc4",
 		Amount:        1500,
 	}
-	err1 := handleTransferMoney(ctx, channelStore, transfer1Cmd)
+	err1 := handleTransferMoney(ctx, store, transfer1Cmd)
 	assert.NoError(t, err1)
 
 	// Second transfer should fail due to insufficient funds
@@ -248,7 +242,7 @@ func TestSequentialTransfers(t *testing.T) {
 		ToAccountID:   "test_acc5",
 		Amount:        1000,
 	}
-	err2 := handleTransferMoney(ctx, channelStore, transfer2Cmd)
+	err2 := handleTransferMoney(ctx, store, transfer2Cmd)
 	assert.Error(t, err2)
 	assert.Contains(t, err2.Error(), "insufficient funds")
 }
@@ -269,21 +263,19 @@ func TestConcurrentTransfers_OptimisticLocking(t *testing.T) {
 	store, err := dcb.NewEventStore(ctx, pool)
 	g.Expect(err).To(BeNil())
 
-	channelStore := store.(dcb.EventStore)
-
 	// Create accounts
 	createAccount1Cmd := CreateAccountCommand{
 		AccountID:      "concurrent_acc1",
 		InitialBalance: 100,
 	}
-	err = handleCreateAccount(ctx, channelStore, createAccount1Cmd)
+	err = handleCreateAccount(ctx, store, createAccount1Cmd)
 	g.Expect(err).To(BeNil())
 
 	createAccount2Cmd := CreateAccountCommand{
 		AccountID:      "concurrent_acc2",
 		InitialBalance: 0,
 	}
-	err = handleCreateAccount(ctx, channelStore, createAccount2Cmd)
+	err = handleCreateAccount(ctx, store, createAccount2Cmd)
 	g.Expect(err).To(BeNil())
 
 	// Prepare concurrent transfer commands
@@ -306,7 +298,7 @@ func TestConcurrentTransfers_OptimisticLocking(t *testing.T) {
 		// Log the transfer attempt
 		t.Logf("Transfer %s: Starting transfer of %d from %s to %s", id, 100, "concurrent_acc1", "concurrent_acc2")
 
-		err := handleTransferMoney(ctx, channelStore, transferCmd(id))
+		err := handleTransferMoney(ctx, store, transferCmd(id))
 
 		if err != nil {
 			t.Logf("Transfer %s: FAILED - %v", id, err)
