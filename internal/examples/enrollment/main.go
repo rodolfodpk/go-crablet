@@ -135,7 +135,7 @@ func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCou
 		},
 	}
 
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
+	states, appendCondition, err := store.Project(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to check course existence: %w", err)
 	}
@@ -194,7 +194,7 @@ func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd Regist
 		},
 	}
 
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, projectors)
+	states, appendCondition, err := store.Project(ctx, projectors)
 	if err != nil {
 		return fmt.Errorf("failed to check student existence: %w", err)
 	}
@@ -304,7 +304,7 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollSt
 	}
 
 	// Project all states using the DCB decision model pattern
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, []dcb.StateProjector{
+	states, appendCondition, err := store.Project(ctx, []dcb.StateProjector{
 		{
 			ID:           "course",
 			Query:        courseProjector.Query,
@@ -392,7 +392,7 @@ func handleUnenrollStudent(ctx context.Context, store dcb.EventStore, cmd Unenro
 	}
 
 	// Project enrollment state
-	states, appendCondition, err := store.ProjectDecisionModel(ctx, []dcb.StateProjector{
+	states, appendCondition, err := store.Project(ctx, []dcb.StateProjector{
 		{
 			ID:           "enrollment",
 			Query:        enrollmentProjector.Query,

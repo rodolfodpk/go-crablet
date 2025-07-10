@@ -354,9 +354,9 @@ func BenchmarkReadChannel(b *testing.B, benchCtx *BenchmarkContext, queryIndex i
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		eventChan, err := benchCtx.ChannelStore.ReadChannel(ctx, query)
+		eventChan, err := benchCtx.ChannelStore.ReadStream(ctx, query)
 		if err != nil {
-			b.Fatalf("ReadChannel failed: %v", err)
+			b.Fatalf("ReadStream failed: %v", err)
 		}
 
 		count := 0
@@ -372,10 +372,6 @@ func BenchmarkReadChannel(b *testing.B, benchCtx *BenchmarkContext, queryIndex i
 
 // BenchmarkProject benchmarks decision model projection
 func BenchmarkProject(b *testing.B, benchCtx *BenchmarkContext, projectorCount int) {
-	if !benchCtx.HasChannel {
-		b.Skip("Channel streaming not available")
-	}
-
 	// Create context with timeout for each benchmark iteration
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -397,8 +393,8 @@ func BenchmarkProject(b *testing.B, benchCtx *BenchmarkContext, projectorCount i
 	}
 }
 
-// BenchmarkProjectChannel benchmarks channel-based decision model projection
-func BenchmarkProjectChannel(b *testing.B, benchCtx *BenchmarkContext, projectorCount int) {
+// BenchmarkProjectStream benchmarks channel-based decision model projection
+func BenchmarkProjectStream(b *testing.B, benchCtx *BenchmarkContext, projectorCount int) {
 	if !benchCtx.HasChannel {
 		b.Skip("Channel streaming not available")
 	}
@@ -417,17 +413,13 @@ func BenchmarkProjectChannel(b *testing.B, benchCtx *BenchmarkContext, projector
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		resultChan, _, err := benchCtx.ChannelStore.ProjectChannel(ctx, projectors)
+		resultChan, _, err := benchCtx.ChannelStore.ProjectStream(ctx, projectors)
 		if err != nil {
-			b.Fatalf("ProjectChannel failed: %v", err)
+			b.Fatalf("ProjectStream failed: %v", err)
 		}
 
-		count := 0
-		for range resultChan {
-			count++
-		}
-
-		if count == 0 && i == 0 {
+		finalStates := <-resultChan
+		if len(finalStates) == 0 && i == 0 {
 			b.Logf("Warning: No projection results found")
 		}
 	}
@@ -456,9 +448,9 @@ func BenchmarkMemoryUsage(b *testing.B, benchCtx *BenchmarkContext, operation st
 			}
 		case "stream":
 			query := dcb.NewQuery(dcb.NewTags(), "StudentEnrolledInCourse")
-			eventChan, err := benchCtx.ChannelStore.ReadChannel(ctx, query)
+			eventChan, err := benchCtx.ChannelStore.ReadStream(ctx, query)
 			if err != nil {
-				b.Fatalf("ReadChannel failed: %v", err)
+				b.Fatalf("ReadStream failed: %v", err)
 			}
 			for range eventChan {
 				// Just iterate through events
@@ -520,12 +512,12 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 	})
 
 	if benchCtx.HasChannel {
-		b.Run("ProjectChannel1", func(b *testing.B) {
-			BenchmarkProjectChannel(b, benchCtx, 1)
+		b.Run("ProjectStream1", func(b *testing.B) {
+			BenchmarkProjectStream(b, benchCtx, 1)
 		})
 
-		b.Run("ProjectChannel5", func(b *testing.B) {
-			BenchmarkProjectChannel(b, benchCtx, 5)
+		b.Run("ProjectStream5", func(b *testing.B) {
+			BenchmarkProjectStream(b, benchCtx, 5)
 		})
 	}
 

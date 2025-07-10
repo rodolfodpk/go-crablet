@@ -112,6 +112,27 @@ go-crablet uses configurable PostgreSQL transaction isolation levels:
 
 The isolation level can be configured when creating the EventStore via `EventStoreConfig.DefaultAppendIsolation`.
 
+## Configuration
+
+The EventStore can be configured with various settings:
+
+```go
+type EventStoreConfig struct {
+    MaxBatchSize           int            `json:"max_batch_size"`           // Maximum events per batch
+    LockTimeout            int            `json:"lock_timeout"`             // Lock timeout in milliseconds for advisory locks
+    StreamBuffer           int            `json:"stream_buffer"`            // Channel buffer size for streaming operations
+    DefaultAppendIsolation IsolationLevel `json:"default_append_isolation"` // Default isolation level for Append operations
+    ReadTimeout            int            `json:"read_timeout"`             // Read timeout in milliseconds (defensive against hanging reads)
+}
+```
+
+### Default Values
+- `MaxBatchSize`: 1000 events
+- `LockTimeout`: 5000ms (5 seconds)
+- `StreamBuffer`: 1000 events
+- `DefaultAppendIsolation`: Read Committed
+- `ReadTimeout`: 30000ms (30 seconds)
+
 ## Performance Comparison Across Isolation Levels
 
 Benchmark results from web-app load testing (30-second tests, multiple VUs):

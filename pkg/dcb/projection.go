@@ -379,11 +379,8 @@ func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProje
 		return nil, nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	// Use the caller's context directly for streaming
-	queryCtx := ctx
-
-	// Execute the query with timeout (same as ReadWithOptions)
-	rows, err := es.pool.Query(queryCtx, sqlQuery, args...)
+	// Execute the query using caller's context (caller controls timeout)
+	rows, err := es.pool.Query(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, nil, &ResourceError{
 			EventStoreError: EventStoreError{

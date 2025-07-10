@@ -31,11 +31,10 @@ func (es *eventStore) Read(ctx context.Context, query Query) ([]Event, error) {
 		return nil, err
 	}
 
-	// Execute the query with timeout
-	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	// Execute the query with configurable timeout (defensive against hanging reads)
+	queryCtx, cancel := context.WithTimeout(ctx, time.Duration(es.config.ReadTimeout)*time.Millisecond)
 	defer cancel()
 
-	// Execute the query
 	rows, err := es.pool.Query(queryCtx, sqlQuery, args...)
 	if err != nil {
 		return nil, &ResourceError{
@@ -131,7 +130,7 @@ func (es *eventStore) ReadStream(ctx context.Context, query Query) (<-chan Event
 			return
 		}
 
-		// Execute query
+		// Execute query using caller's context (caller controls timeout)
 		rows, err := es.pool.Query(ctx, sqlQuery, args...)
 		if err != nil {
 			log.Printf("Error executing query in ReadStream: %v", err)

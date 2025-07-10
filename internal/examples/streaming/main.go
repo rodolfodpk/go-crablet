@@ -68,7 +68,7 @@ func main() {
 
 // demonstrateCoreRead shows traditional Read into memory
 func demonstrateCoreRead(ctx context.Context, store dcb.EventStore) {
-	query := dcb.NewQuerySimple(dcb.NewTags(), "UserCreated", "UserUpdated")
+	query := dcb.NewQuery(dcb.NewTags(), "UserCreated", "UserUpdated")
 
 	// Read all events into memory
 	events, err := store.Read(ctx, query)
@@ -92,22 +92,22 @@ func demonstrateChannelStreaming(ctx context.Context, store dcb.EventStore) {
 		return
 	}
 
-	query := dcb.NewQuerySimple(dcb.NewTags(), "UserCreated", "UserUpdated")
+	query := dcb.NewQuery(dcb.NewTags(), "UserCreated", "UserUpdated")
 
 	// Stream events through channel
-	eventChan, err := store.ReadChannel(ctx, query)
+	eventChan, err := store.ReadStream(ctx, query)
 	if err != nil {
-		log.Printf("ReadChannel failed: %v", err)
+		log.Printf("ReadStream failed: %v", err)
 		return
 	}
 
 	count := 0
 	for event := range eventChan {
-		fmt.Printf("   - ReadChannel(): Event %d: Position=%d, Type=%s\n",
+		fmt.Printf("   - ReadStream(): Event %d: Position=%d, Type=%s\n",
 			count+1, event.Position, event.Type)
 		count++
 	}
-	fmt.Printf("   - ReadChannel(): Processed %d events using channels\n", count)
+	fmt.Printf("   - ReadStream(): Processed %d events using channels\n", count)
 }
 
 // demonstrateChannelProjection shows channel-based state projection
@@ -123,7 +123,7 @@ func demonstrateChannelProjection(ctx context.Context, store dcb.EventStore) {
 	projectors := []dcb.StateProjector{
 		{
 			ID:           "userCount",
-			Query:        dcb.NewQuerySimple(dcb.NewTags(), "UserCreated"),
+			Query:        dcb.NewQuery(dcb.NewTags(), "UserCreated"),
 			InitialState: 0,
 			TransitionFn: func(state any, event dcb.Event) any {
 				return state.(int) + 1
@@ -131,7 +131,7 @@ func demonstrateChannelProjection(ctx context.Context, store dcb.EventStore) {
 		},
 		{
 			ID:           "updateCount",
-			Query:        dcb.NewQuerySimple(dcb.NewTags(), "UserUpdated"),
+			Query:        dcb.NewQuery(dcb.NewTags(), "UserUpdated"),
 			InitialState: 0,
 			TransitionFn: func(state any, event dcb.Event) any {
 				return state.(int) + 1
@@ -140,13 +140,13 @@ func demonstrateChannelProjection(ctx context.Context, store dcb.EventStore) {
 	}
 
 	// Stream projection results through channel
-	resultChan, _, err := store.ProjectDecisionModelChannel(ctx, projectors)
+	resultChan, _, err := store.ProjectStream(ctx, projectors)
 	if err != nil {
-		log.Printf("ProjectDecisionModelChannel failed: %v", err)
+		log.Printf("ProjectStream failed: %v", err)
 		return
 	}
 
-	fmt.Println("   - ProjectDecisionModelChannel(): Final aggregated states:")
+	fmt.Println("   - ProjectStream(): Final aggregated states:")
 	finalStates := <-resultChan
 	for projectorID, state := range finalStates {
 		fmt.Printf("     Projector %s: State=%v\n", projectorID, state)
