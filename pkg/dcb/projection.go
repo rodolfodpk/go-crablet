@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 	"time"
 )
@@ -31,7 +32,7 @@ func convertRowToEvent(row rowEvent) Event {
 }
 
 // buildReadQuerySQL builds the SQL query for reading events
-func (es *eventStore) buildReadQuerySQL(query Query, cursor *Cursor, limit *int) (string, []interface{}, error) {
+func (es *eventStore) buildReadQuerySQL(query Query, after *Cursor, limit *int) (string, []interface{}, error) {
 	// Pre-allocate slices with reasonable capacity
 	conditions := make([]string, 0, 4) // Usually 1-4 conditions
 	args := make([]interface{}, 0, 8)  // Usually 2-8 args
@@ -72,11 +73,11 @@ func (es *eventStore) buildReadQuerySQL(query Query, cursor *Cursor, limit *int)
 	}
 
 	// Add cursor conditions (replaces FromPosition logic)
-	if cursor != nil {
+	if after != nil {
 		// Use the correct cursor logic from Oskar's article:
-		// (transaction_id = cursor.TransactionID AND position > cursor.Position) OR (transaction_id > cursor.TransactionID)
+		// (transaction_id = after.TransactionID AND position > after.Position) OR (transaction_id > after.TransactionID)
 		conditions = append(conditions, fmt.Sprintf("( (transaction_id = $%d AND position > $%d) OR (transaction_id > $%d) )", argIndex, argIndex+1, argIndex+2))
-		args = append(args, cursor.TransactionID, cursor.Position, cursor.TransactionID)
+		args = append(args, after.TransactionID, after.Position, after.TransactionID)
 		argIndex += 3
 	}
 
@@ -101,17 +102,53 @@ func (es *eventStore) buildReadQuerySQL(query Query, cursor *Cursor, limit *int)
 }
 
 // combineProjectorQueries combines queries from multiple projectors
+// Optimizes by merging QueryItems with the same tags but different event types
 func (es *eventStore) combineProjectorQueries(projectors []StateProjector) Query {
-	// Collect all query items from all projectors
-	var allItems []QueryItem
+	// Use a map to group QueryItems by their tags (as a key)
+	tagGroups := make(map[string]*queryItem)
 
 	for _, bp := range projectors {
-		// Add all items from this projector's query
-		allItems = append(allItems, bp.Query.getItems()...)
+		for _, item := range bp.Query.getItems() {
+			// Create a key from tags for grouping
+			tagKey := tagsToKey(item.getTags())
+
+			if existingItem, exists := tagGroups[tagKey]; exists {
+				// Merge event types with existing item
+				existingItem.EventTypes = append(existingItem.EventTypes, item.getEventTypes()...)
+			} else {
+				// Create new item
+				tagGroups[tagKey] = &queryItem{
+					EventTypes: append([]string{}, item.getEventTypes()...),
+					Tags:       append([]Tag{}, item.getTags()...),
+				}
+			}
+		}
+	}
+
+	// Convert map back to slice
+	var allItems []QueryItem
+	for _, item := range tagGroups {
+		allItems = append(allItems, item)
 	}
 
 	// Create a new query with all combined items
 	return &query{Items: allItems}
+}
+
+// tagsToKey creates a consistent key from tags for grouping
+func tagsToKey(tags []Tag) string {
+	if len(tags) == 0 {
+		return ""
+	}
+
+	// Sort tags by key for consistent ordering
+	tagPairs := make([]string, len(tags))
+	for i, tag := range tags {
+		tagPairs[i] = tag.GetKey() + ":" + tag.GetValue()
+	}
+	sort.Strings(tagPairs)
+
+	return strings.Join(tagPairs, ",")
 }
 
 // eventMatchesProjector checks if an event matches a projector's query
@@ -170,7 +207,7 @@ func (es *eventStore) eventMatchesProjector(event Event, projector StateProjecto
 // cursor == nil: project from beginning of stream
 // cursor != nil: project from specified cursor position
 // Returns final aggregated states and append condition for optimistic locking
-func (es *eventStore) Project(ctx context.Context, projectors []StateProjector, cursor *Cursor) (map[string]any, AppendCondition, error) {
+func (es *eventStore) Project(ctx context.Context, projectors []StateProjector, after *Cursor) (map[string]any, AppendCondition, error) {
 	// Validate projectors
 	for _, bp := range projectors {
 		if bp.ID == "" {
@@ -209,8 +246,8 @@ func (es *eventStore) Project(ctx context.Context, projectors []StateProjector, 
 	combinedQuery := es.combineProjectorQueries(projectors)
 
 	// Use cursor-based or full projection based on cursor parameter
-	if cursor != nil {
-		return es.projectDecisionModelWithQueryFromCursor(ctx, combinedQuery, projectors, cursor)
+	if after != nil {
+		return es.projectDecisionModelWithQueryFromCursor(ctx, combinedQuery, projectors, after)
 	}
 	return es.projectDecisionModelWithQuery(ctx, combinedQuery, projectors)
 }
@@ -321,7 +358,7 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 }
 
 // projectDecisionModelWithQueryFromCursor uses query-based approach for all datasets with cursor
-func (es *eventStore) projectDecisionModelWithQueryFromCursor(ctx context.Context, query Query, projectors []StateProjector, cursor *Cursor) (map[string]any, AppendCondition, error) {
+func (es *eventStore) projectDecisionModelWithQueryFromCursor(ctx context.Context, query Query, projectors []StateProjector, after *Cursor) (map[string]any, AppendCondition, error) {
 	// Validate query
 	if query == nil {
 		return nil, nil, &ValidationError{
@@ -335,7 +372,7 @@ func (es *eventStore) projectDecisionModelWithQueryFromCursor(ctx context.Contex
 	}
 
 	// Build SQL query
-	sqlQuery, args, err := es.buildReadQuerySQL(query, cursor, nil)
+	sqlQuery, args, err := es.buildReadQuerySQL(query, after, nil)
 	if err != nil {
 		return nil, nil, &ResourceError{
 			EventStoreError: EventStoreError{
@@ -445,7 +482,7 @@ func BuildAppendConditionFromQuery(query Query) AppendCondition {
 // This is optimized for large datasets and provides backpressure through channels
 // for efficient memory usage and Go-idiomatic streaming
 // Returns final aggregated states (same as batch version) via streaming
-func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProjector, cursor *Cursor) (<-chan map[string]any, <-chan AppendCondition, error) {
+func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProjector, after *Cursor) (<-chan map[string]any, <-chan AppendCondition, error) {
 	if len(projectors) == 0 {
 		return nil, nil, fmt.Errorf("at least one projector is required")
 	}
@@ -485,7 +522,7 @@ func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProje
 	}
 
 	// Build the SQL query with cursor
-	sqlQuery, args, err := es.buildReadQuerySQL(query, cursor, nil)
+	sqlQuery, args, err := es.buildReadQuerySQL(query, after, nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to build query: %w", err)
 	}

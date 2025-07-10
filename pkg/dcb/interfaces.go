@@ -60,7 +60,7 @@ type AppendCondition interface {
 	// isAppendCondition is a marker method to make this interface unexported
 	isAppendCondition()
 	// setAfterCursor sets the after cursor for proper (transaction_id, position) tracking
-	setAfterCursor(cursor *Cursor)
+	setAfterCursor(after *Cursor)
 	// getFailIfEventsMatch returns the internal query (used by event store)
 	getFailIfEventsMatch() *Query
 	// getAfterCursor returns the internal after cursor (used by event store)
@@ -71,16 +71,16 @@ type AppendCondition interface {
 type EventStore interface {
 
 	// Query reads events matching the query with optional cursor
-	// cursor == nil: query from beginning of stream
-	// cursor != nil: query from specified cursor position
-	Query(ctx context.Context, query Query, cursor *Cursor) ([]Event, error)
+	// after == nil: query from beginning of stream
+	// after != nil: query from specified cursor position
+	Query(ctx context.Context, query Query, after *Cursor) ([]Event, error)
 
 	// QueryStream creates a channel-based stream of events matching a query with optional cursor
-	// cursor == nil: stream from beginning of stream
-	// cursor != nil: stream from specified cursor position
+	// after == nil: stream from beginning of stream
+	// after != nil: stream from specified cursor position
 	// This is optimized for large datasets and provides backpressure through channels
 	// for efficient memory usage and Go-idiomatic streaming
-	QueryStream(ctx context.Context, query Query, cursor *Cursor) (<-chan Event, error)
+	QueryStream(ctx context.Context, query Query, after *Cursor) (<-chan Event, error)
 
 	// Append appends events to the store with optional condition
 	// condition == nil: unconditional append
@@ -88,16 +88,16 @@ type EventStore interface {
 	Append(ctx context.Context, events []InputEvent, condition *AppendCondition) error
 
 	// Project projects state from events matching projectors with optional cursor
-	// cursor == nil: project from beginning of stream
-	// cursor != nil: project from specified cursor position
+	// after == nil: project from beginning of stream
+	// after != nil: project from specified cursor position
 	// Returns final aggregated states and append condition for optimistic locking
-	Project(ctx context.Context, projectors []StateProjector, cursor *Cursor) (map[string]any, AppendCondition, error)
+	Project(ctx context.Context, projectors []StateProjector, after *Cursor) (map[string]any, AppendCondition, error)
 
 	// ProjectStream creates a channel-based stream of projected states with optional cursor
-	// cursor == nil: stream from beginning of stream
-	// cursor != nil: stream from specified cursor position
+	// after == nil: stream from beginning of stream
+	// after != nil: stream from specified cursor position
 	// Returns intermediate states and append conditions via channels for streaming projections
-	ProjectStream(ctx context.Context, projectors []StateProjector, cursor *Cursor) (<-chan map[string]any, <-chan AppendCondition, error)
+	ProjectStream(ctx context.Context, projectors []StateProjector, after *Cursor) (<-chan map[string]any, <-chan AppendCondition, error)
 
 	// GetConfig returns the current EventStore configuration
 	GetConfig() EventStoreConfig
@@ -242,8 +242,8 @@ type appendCondition struct {
 func (ac *appendCondition) isAppendCondition() {}
 
 // setAfterCursor sets the after cursor for proper (transaction_id, position) tracking
-func (ac *appendCondition) setAfterCursor(cursor *Cursor) {
-	ac.AfterCursor = cursor
+func (ac *appendCondition) setAfterCursor(after *Cursor) {
+	ac.AfterCursor = after
 }
 
 // getFailIfEventsMatch returns the internal query (used by event store)
