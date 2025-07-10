@@ -32,13 +32,18 @@ var _ = Describe("Concurrency and Locking", func() {
 			// Use a unique key for this test run
 			key := fmt.Sprintf("concurrent-%d", time.Now().UnixNano())
 
-			// Create a condition that looks for a specific event type that doesn't exist yet
-			query := NewQuery(NewTags("key", key), "ConcurrentEvent")
+			// First, create an existing event that will be used in the condition
+			existingEvent := NewInputEvent("ExistingEvent", NewTags("key", key), toJSON(map[string]string{"data": "existing"}))
+			err := store.Append(ctx, []InputEvent{existingEvent})
+			Expect(err).NotTo(HaveOccurred())
+
+			// Create a condition that looks for this existing event
+			query := NewQuery(NewTags("key", key), "ExistingEvent")
 			condition := NewAppendCondition(query)
 
-			// Create two different events to append - both should succeed initially
-			event1 := NewInputEvent("ConcurrentEvent", NewTags("key", key), toJSON(map[string]string{"data": "concurrent1"}))
-			event2 := NewInputEvent("ConcurrentEvent", NewTags("key", key), toJSON(map[string]string{"data": "concurrent2"}))
+			// Create two different events to append - both should fail because the condition matches
+			event1 := NewInputEvent("TestEvent1", NewTags("key", key), toJSON(map[string]string{"data": "concurrent1"}))
+			event2 := NewInputEvent("TestEvent2", NewTags("key", key), toJSON(map[string]string{"data": "concurrent2"}))
 
 			// Barrier to synchronize goroutines
 			start := make(chan struct{})
@@ -58,22 +63,11 @@ var _ = Describe("Concurrency and Locking", func() {
 			err1 := <-results
 			err2 := <-results
 
-			// One should succeed, one should fail with concurrency error
-			// Both are trying to append the same event type with the same condition
-			// The first one will succeed (no existing events), the second will fail
-			if err1 == nil {
-				Expect(err2).To(HaveOccurred())
-				Expect(err2.Error()).To(SatisfyAny(
-					ContainSubstring("append condition violated"),
-					ContainSubstring("SQLSTATE 40001"),
-				))
-			} else {
-				Expect(err1.Error()).To(SatisfyAny(
-					ContainSubstring("append condition violated"),
-					ContainSubstring("SQLSTATE 40001"),
-				))
-				Expect(err2).To(BeNil())
-			}
+			// Both should fail with concurrency error because the condition matches an existing event
+			Expect(err1).To(HaveOccurred())
+			Expect(err1.Error()).To(ContainSubstring("append condition violated"))
+			Expect(err2).To(HaveOccurred())
+			Expect(err2.Error()).To(ContainSubstring("append condition violated"))
 		})
 	})
 })
