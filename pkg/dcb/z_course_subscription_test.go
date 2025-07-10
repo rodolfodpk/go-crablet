@@ -510,7 +510,7 @@ var _ = Describe("Course Subscription Domain", func() {
 
 			// Read events
 			query := NewQuery(NewTags("course_id", "course-1"), "CourseDefined")
-			events, err := store.Read(ctx, query, nil)
+			events, err := store.Query(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events).To(HaveLen(1))
 			Expect(events[0].Type).To(Equal("CourseDefined"))
@@ -532,7 +532,7 @@ var _ = Describe("Course Subscription Domain", func() {
 
 			// Use ReadStream instead of ReadStream
 			query := NewQuery(NewTags(), "CourseDefined")
-			eventChan, err := store.ReadStream(ctx, query, nil)
+			eventChan, err := store.QueryStream(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			eventCount := 0
@@ -558,7 +558,7 @@ var _ = Describe("Course Subscription Domain", func() {
 
 			// Verify course was created
 			query := NewQuery(NewTags("course_id", "math-101"), "CourseDefined")
-			events, err := store.Read(ctx, query, nil)
+			events, err := store.Query(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events).To(HaveLen(1))
 		})
@@ -595,7 +595,7 @@ var _ = Describe("Course Subscription Domain", func() {
 
 			// Verify student was registered
 			query := NewQuery(NewTags("student_id", "student-123"), "StudentRegistered")
-			events, err := store.Read(ctx, query, nil)
+			events, err := store.Query(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events).To(HaveLen(1))
 		})
@@ -649,7 +649,7 @@ var _ = Describe("Course Subscription Domain", func() {
 
 			// Verify enrollment
 			query := NewQuery(NewTags("student_id", "student-123", "course_id", "math-101"), "StudentEnrolledInCourse")
-			events, err := store.Read(ctx, query, nil)
+			events, err := store.Query(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events).To(HaveLen(1))
 		})
@@ -810,7 +810,7 @@ var _ = Describe("Course Subscription Domain", func() {
 
 			// Verify drop event
 			query := NewQuery(NewTags("student_id", "student-123", "course_id", "math-101"), "StudentDroppedFromCourse")
-			events, err := store.Read(ctx, query, nil)
+			events, err := store.Query(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events).To(HaveLen(1))
 		})
@@ -866,7 +866,7 @@ var _ = Describe("Course Subscription Domain", func() {
 
 			// Verify capacity change event
 			query := NewQuery(NewTags("course_id", "math-101"), "CourseCapacityChanged")
-			events, err := store.Read(ctx, query, nil)
+			events, err := store.Query(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events).To(HaveLen(1))
 		})

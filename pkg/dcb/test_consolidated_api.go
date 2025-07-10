@@ -16,12 +16,12 @@ func TestConsolidatedAPI(t *testing.T) {
 
 	// Test Read with nil cursor (should work)
 	query := NewQuery(NewTags("test", "value"), "TestEvent")
-	_, _ = store.Read(ctx, query, nil)
+	_, _ = store.Query(ctx, query, nil)
 	// We expect an error since store is nil, but the signature should be correct
 
 	// Test Read with cursor
 	cursor := &Cursor{TransactionID: 1, Position: 1}
-	_, _ = store.Read(ctx, query, cursor)
+	_, _ = store.Query(ctx, query, cursor)
 	// We expect an error since store is nil, but the signature should be correct
 
 	// Test Append with nil condition

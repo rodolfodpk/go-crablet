@@ -44,7 +44,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 			// Test channel-based streaming
 			query := NewQuery(NewTags("test", "value"), "TestEvent")
-			eventChan, err := store.ReadStream(ctx, query, nil)
+			eventChan, err := store.QueryStream(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			count := 0
@@ -58,7 +58,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 		It("should handle empty result sets", func() {
 			query := NewQuery(NewTags("non-existent", "value"), "TestEvent")
-			eventChan, err := store.ReadStream(ctx, query, nil)
+			eventChan, err := store.QueryStream(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			count := 0
@@ -84,7 +84,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 			defer cancel()
 
 			query := NewQuery(NewTags("test", "value"), "TestEvent")
-			eventChan, err := store.ReadStream(cancelCtx, query, nil)
+			eventChan, err := store.QueryStream(cancelCtx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Cancel context after first event
@@ -113,7 +113,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 			// Test with small batch size
 			query := NewQuery(NewTags("test", "value"), "TestEvent")
-			eventChan, err := store.ReadStream(ctx, query, nil)
+			eventChan, err := store.QueryStream(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			count := 0

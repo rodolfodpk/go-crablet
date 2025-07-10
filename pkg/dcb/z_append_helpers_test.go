@@ -318,7 +318,7 @@ var _ = Describe("Append Helpers", func() {
 
 			// Verify the event was appended
 			query := NewQuery(NewTags("test", "default"), "TestEvent")
-			readEvents, err := store.Read(ctx, query, nil)
+			readEvents, err := store.Query(ctx, query, nil)
 			Expect(err).To(BeNil())
 			Expect(readEvents).To(HaveLen(1))
 		})

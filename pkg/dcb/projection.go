@@ -167,10 +167,10 @@ func (es *eventStore) eventMatchesProjector(event Event, projector StateProjecto
 }
 
 // Project projects state from events matching projectors with optional cursor
-// after == nil: project from beginning of stream
-// after != nil: project from specified cursor position (EXCLUSIVE - events after cursor, not including cursor)
+// cursor == nil: project from beginning of stream
+// cursor != nil: project from specified cursor position
 // Returns final aggregated states and append condition for optimistic locking
-func (es *eventStore) Project(ctx context.Context, projectors []StateProjector, after *Cursor) (map[string]any, AppendCondition, error) {
+func (es *eventStore) Project(ctx context.Context, projectors []StateProjector, cursor *Cursor) (map[string]any, AppendCondition, error) {
 	// Validate projectors
 	for _, bp := range projectors {
 		if bp.ID == "" {
@@ -209,8 +209,8 @@ func (es *eventStore) Project(ctx context.Context, projectors []StateProjector, 
 	combinedQuery := es.combineProjectorQueries(projectors)
 
 	// Use cursor-based or full projection based on cursor parameter
-	if after != nil {
-		return es.projectDecisionModelWithQueryFromCursor(ctx, combinedQuery, projectors, after)
+	if cursor != nil {
+		return es.projectDecisionModelWithQueryFromCursor(ctx, combinedQuery, projectors, cursor)
 	}
 	return es.projectDecisionModelWithQuery(ctx, combinedQuery, projectors)
 }
@@ -440,12 +440,12 @@ func BuildAppendConditionFromQuery(query Query) AppendCondition {
 }
 
 // ProjectStream projects multiple states using channel-based streaming with optional cursor
-// after == nil: stream from beginning of stream
-// after != nil: stream from specified cursor position
+// cursor == nil: stream from beginning of stream
+// cursor != nil: stream from specified cursor position
 // This is optimized for large datasets and provides backpressure through channels
 // for efficient memory usage and Go-idiomatic streaming
 // Returns final aggregated states (same as batch version) via streaming
-func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProjector, after *Cursor) (<-chan map[string]any, <-chan AppendCondition, error) {
+func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProjector, cursor *Cursor) (<-chan map[string]any, <-chan AppendCondition, error) {
 	if len(projectors) == 0 {
 		return nil, nil, fmt.Errorf("at least one projector is required")
 	}
@@ -485,7 +485,7 @@ func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProje
 	}
 
 	// Build the SQL query with cursor
-	sqlQuery, args, err := es.buildReadQuerySQL(query, after, nil)
+	sqlQuery, args, err := es.buildReadQuerySQL(query, cursor, nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to build query: %w", err)
 	}

@@ -26,7 +26,7 @@ var _ = Describe("Cursor-based operations", func() {
 
 			// Read all events first to get cursor
 			query := NewQuery(NewTags("test", "1"), "TestEvent")
-			firstEvents, err := store.Read(ctx, query, nil)
+			firstEvents, err := store.Query(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(firstEvents).To(HaveLen(1))
 
@@ -38,7 +38,7 @@ var _ = Describe("Cursor-based operations", func() {
 
 			// Read from cursor - should get events after the cursor
 			query2 := NewQuery(nil, "TestEvent") // Query all TestEvents
-			eventsFromCursor, err := store.Read(ctx, query2, cursor)
+			eventsFromCursor, err := store.Query(ctx, query2, cursor)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Should get the remaining events (2 and 3)
@@ -61,7 +61,7 @@ var _ = Describe("Cursor-based operations", func() {
 
 			// Read with nil cursor should work like regular Read
 			query := NewQuery(NewTags("test", "nil"), "TestEvent")
-			eventsFromCursor, err := store.Read(ctx, query, nil)
+			eventsFromCursor, err := store.Query(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(eventsFromCursor).To(HaveLen(1))
 		})
@@ -84,7 +84,7 @@ var _ = Describe("Cursor-based operations", func() {
 
 			// Read first event to get cursor
 			query := NewQuery(NewTags("user_id", "123"), "UserCreated")
-			firstEvents, err := store.Read(ctx, query, nil)
+			firstEvents, err := store.Query(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(firstEvents).To(HaveLen(1))
 
@@ -140,7 +140,7 @@ var _ = Describe("Cursor-based operations", func() {
 
 			// Read first event to get cursor
 			query := NewQuery(NewTags("user_id", "456"), "UserCreated")
-			firstEvents, err := store.Read(ctx, query, nil)
+			firstEvents, err := store.Query(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(firstEvents).To(HaveLen(1))
 
