@@ -330,9 +330,9 @@ func BuildAppendConditionFromQuery(query Query) AppendCondition {
 	return NewAppendCondition(query)
 }
 
-// ProjectDecisionModelChannel projects multiple states using channel-based streaming
-// This is optimized for small to medium datasets (< 500 events) and provides
-// a more Go-idiomatic interface using channels for state projection
+// ProjectStream projects multiple states using channel-based streaming
+// This is optimized for large datasets and provides backpressure through channels
+// for efficient memory usage and Go-idiomatic streaming
 // Returns final aggregated states (same as batch version) via streaming
 func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProjector) (<-chan map[string]any, <-chan AppendCondition, error) {
 	if len(projectors) == 0 {

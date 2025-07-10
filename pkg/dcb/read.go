@@ -85,8 +85,8 @@ func (es *eventStore) Read(ctx context.Context, query Query) ([]Event, error) {
 // ReadStream creates a channel-based stream of events matching a query
 // This replaces ReadWithOptions functionality - the caller manages complexity
 // like limits and cursors through channel consumption patterns
-// This is optimized for small to medium datasets (< 500 events) and provides
-// a more Go-idiomatic interface using channels
+// This is optimized for large datasets and provides backpressure through channels
+// for efficient memory usage and Go-idiomatic streaming
 func (es *eventStore) ReadStream(ctx context.Context, query Query) (<-chan Event, error) {
 	// Validate query
 	if query == nil {

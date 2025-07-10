@@ -74,8 +74,8 @@ type EventStore interface {
 	// ReadStream creates a channel-based stream of events matching a query
 	// This replaces ReadWithOptions functionality - the caller manages complexity
 	// like limits and cursors through channel consumption patterns
-	// This is optimized for small to medium datasets (< 500 events) and provides
-	// a more Go-idiomatic interface using channels
+	// This is optimized for large datasets and provides backpressure through channels
+	// for efficient memory usage and Go-idiomatic streaming
 	ReadStream(ctx context.Context, query Query) (<-chan Event, error)
 
 	// Append appends events to the store (always succeeds if no validation errors)
@@ -91,8 +91,8 @@ type EventStore interface {
 	Project(ctx context.Context, projectors []StateProjector) (map[string]any, AppendCondition, error)
 
 	// ProjectStream projects multiple states using channel-based streaming
-	// This is optimized for small to medium datasets (< 500 events) and provides
-	// a more Go-idiomatic interface using channels for state projection
+	// This is optimized for large datasets and provides backpressure through channels
+	// for efficient memory usage and Go-idiomatic streaming
 	// Returns final aggregated states (same as batch version) via streaming
 	ProjectStream(ctx context.Context, projectors []StateProjector) (<-chan map[string]any, <-chan AppendCondition, error)
 
