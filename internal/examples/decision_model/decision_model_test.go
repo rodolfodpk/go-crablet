@@ -138,7 +138,7 @@ func TestDecisionModelExample(t *testing.T) {
 			},
 		}
 
-		states, _, err := store.Project(ctx, projectors)
+		states, _, err := store.Project(ctx, projectors, nil)
 		require.NoError(t, err)
 
 		// Verify account state
@@ -183,7 +183,7 @@ func TestDecisionModelExample(t *testing.T) {
 				Query:        accountProjector.Query,
 				InitialState: accountProjector.InitialState,
 				TransitionFn: accountProjector.TransitionFn,
-			}})
+			}}, nil)
 			require.NoError(t, err)
 
 			// Test optimistic locking with append condition

@@ -13,19 +13,19 @@ var _ = Describe("Cursor-based operations", func() {
 		It("should read only new events after the cursor", func() {
 			ctx := context.Background()
 
-			// Create some test events
+			// Create some test events with unique tags
 			events := []InputEvent{
-				NewInputEvent("TestEvent", NewTags("test", "1"), []byte(`{"value": 1}`)),
-				NewInputEvent("TestEvent", NewTags("test", "2"), []byte(`{"value": 2}`)),
-				NewInputEvent("TestEvent", NewTags("test", "3"), []byte(`{"value": 3}`)),
+				NewInputEvent("TestEvent", NewTags("cursor_test", "1"), []byte(`{"value": 1}`)),
+				NewInputEvent("TestEvent", NewTags("cursor_test", "2"), []byte(`{"value": 2}`)),
+				NewInputEvent("TestEvent", NewTags("cursor_test", "3"), []byte(`{"value": 3}`)),
 			}
 
 			// Append events
 			err := store.Append(ctx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Read all events first to get cursor
-			query := NewQuery(NewTags("test", "1"), "TestEvent")
+			// Read first event to get cursor
+			query := NewQuery(NewTags("cursor_test", "1"), "TestEvent")
 			firstEvents, err := store.Query(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(firstEvents).To(HaveLen(1))
@@ -36,8 +36,8 @@ var _ = Describe("Cursor-based operations", func() {
 				Position:      firstEvents[0].Position,
 			}
 
-			// Read from cursor - should get events after the cursor
-			query2 := NewQuery(nil, "TestEvent") // Query all TestEvents
+			// Read from cursor - should get events after the cursor with same tag pattern
+			query2 := NewQuery(NewTags("cursor_test"), "TestEvent") // Query all cursor_test events
 			eventsFromCursor, err := store.Query(ctx, query2, cursor)
 			Expect(err).NotTo(HaveOccurred())
 
