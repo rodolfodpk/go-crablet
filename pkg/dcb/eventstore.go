@@ -28,7 +28,7 @@ func newEventStore(ctx context.Context, pool *pgxpool.Pool, config *EventStoreCo
 			LockTimeout:            5000,
 			StreamBuffer:           1000,
 			DefaultAppendIsolation: IsolationLevelReadCommitted,
-			ReadTimeout:            15000, // 15 seconds default
+			QueryTimeout:           15000, // 15 seconds default
 		}
 	}
 	return &eventStore{

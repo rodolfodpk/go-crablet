@@ -36,7 +36,7 @@ func (es *eventStore) Query(ctx context.Context, query Query, after *Cursor) ([]
 	}
 
 	// Execute query with timeout
-	ctx, cancel := context.WithTimeout(ctx, time.Duration(es.config.ReadTimeout)*time.Millisecond)
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(es.config.QueryTimeout)*time.Millisecond)
 	defer cancel()
 
 	rows, err := es.pool.Query(ctx, sqlQuery, args...)

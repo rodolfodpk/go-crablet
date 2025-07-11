@@ -155,7 +155,7 @@ type EventStoreConfig struct {
 	LockTimeout            int            `json:"lock_timeout"`             // Lock timeout in milliseconds for advisory locks
 	StreamBuffer           int            `json:"stream_buffer"`            // Channel buffer size for streaming operations
 	DefaultAppendIsolation IsolationLevel `json:"default_append_isolation"` // Default isolation level for Append operations
-	ReadTimeout            int            `json:"read_timeout"`             // Read timeout in milliseconds (defensive against hanging reads)
+	QueryTimeout           int            `json:"query_timeout"`            // Query timeout in milliseconds (defensive against hanging queries)
 }
 
 type inputEvent struct {

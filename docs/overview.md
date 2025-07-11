@@ -124,7 +124,7 @@ type EventStoreConfig struct {
     LockTimeout            int            `json:"lock_timeout"`             // Lock timeout in milliseconds for advisory locks
     StreamBuffer           int            `json:"stream_buffer"`            // Channel buffer size for streaming operations
     DefaultAppendIsolation IsolationLevel `json:"default_append_isolation"` // Default isolation level for Append operations
-    ReadTimeout            int            `json:"read_timeout"`             // Read timeout in milliseconds (defensive against hanging reads)
+    QueryTimeout           int            `json:"query_timeout"`            // Query timeout in milliseconds (defensive against hanging queries)
 }
 ```
 
@@ -133,7 +133,7 @@ type EventStoreConfig struct {
 - `LockTimeout`: 5000ms (5 seconds)
 - `StreamBuffer`: 1000 events
 - `DefaultAppendIsolation`: Read Committed
-- `ReadTimeout`: 15000ms (15 seconds)
+- `QueryTimeout`: 15000ms (15 seconds)
 
 ## Performance Comparison Across Isolation Levels
 
