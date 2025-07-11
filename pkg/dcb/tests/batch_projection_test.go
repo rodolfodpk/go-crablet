@@ -1,4 +1,4 @@
-package dcb
+package dcb_test
 
 import (
 	"context"
@@ -7,55 +7,50 @@ import (
 	"strconv"
 	"time"
 
+	"go-crablet/pkg/dcb"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Batch Projection", func() {
 	var (
-		store EventStore
+		store dcb.EventStore
 		ctx   context.Context
 	)
 
 	BeforeEach(func() {
-		// Use shared PostgreSQL container and truncate events between tests
-		store = NewEventStoreFromPool(pool)
-
-		// Create context with timeout for each test
+		store = dcb.NewEventStoreFromPool(pool)
 		ctx, _ = context.WithTimeout(context.Background(), 30*time.Second)
-
-		// Truncate events table before each test
 		err := truncateEventsTable(ctx, pool)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	Describe("combineProjectorQueries", func() {
+	Describe("CombineProjectorQueries", func() {
 		It("should combine multiple projector queries with OR logic", func() {
-			projectors := []StateProjector{
+			projectors := []dcb.StateProjector{
 				{ID: "projector1",
-					Query: NewQuery(NewTags("course_id", "c1"), "CourseDefined"),
+					Query: dcb.NewQuery(dcb.NewTags("course_id", "c1"), "CourseDefined"),
 				},
 				{ID: "projector2",
-					Query: NewQuery(NewTags("student_id", "s1"), "StudentRegistered"),
+					Query: dcb.NewQuery(dcb.NewTags("student_id", "s1"), "StudentRegistered"),
 				},
 				{ID: "projector3",
-					Query: NewQuery(NewTags("course_id", "c1", "student_id", "s1"), "StudentEnrolled"),
+					Query: dcb.NewQuery(dcb.NewTags("course_id", "c1", "student_id", "s1"), "StudentEnrolled"),
 				},
 			}
 
-			// Access the private method through the store implementation
-			es := store.(*eventStore)
-			combinedQuery := es.combineProjectorQueries(projectors)
+			combinedQuery := dcb.CombineProjectorQueries(projectors)
 
 			// The optimization may merge items with same tags, so we check the total count
 			// and that all expected event types are present
-			items := combinedQuery.getItems()
+			items := combinedQuery.GetItems()
 			Expect(items).To(HaveLen(3))
 
 			// Collect all event types from all items
 			var allEventTypes []string
 			for _, item := range items {
-				allEventTypes = append(allEventTypes, item.getEventTypes()...)
+				allEventTypes = append(allEventTypes, item.GetEventTypes()...)
 			}
 
 			// Check that all expected event types are present (order doesn't matter)
@@ -63,213 +58,176 @@ var _ = Describe("Batch Projection", func() {
 		})
 
 		It("should handle empty projectors list", func() {
-			es := store.(*eventStore)
-			combinedQuery := es.combineProjectorQueries([]StateProjector{})
+			combinedQuery := dcb.CombineProjectorQueries([]dcb.StateProjector{})
 
-			Expect(combinedQuery.getItems()).To(BeEmpty())
+			Expect(combinedQuery.GetItems()).To(BeEmpty())
 		})
 
 		It("should handle single projector", func() {
-			projectors := []StateProjector{
+			projectors := []dcb.StateProjector{
 				{ID: "single",
-					Query: NewQuery(NewTags("test", "value"), "TestEvent"),
+					Query: dcb.NewQuery(dcb.NewTags("test", "value"), "TestEvent"),
 				},
 			}
 
-			es := store.(*eventStore)
-			combinedQuery := es.combineProjectorQueries(projectors)
+			combinedQuery := dcb.CombineProjectorQueries(projectors)
 
-			Expect(combinedQuery.getItems()).To(HaveLen(1))
-			Expect(combinedQuery.getItems()[0].getEventTypes()).To(Equal([]string{"TestEvent"}))
+			Expect(combinedQuery.GetItems()).To(HaveLen(1))
+			Expect(combinedQuery.GetItems()[0].GetEventTypes()).To(Equal([]string{"TestEvent"}))
 		})
 	})
 
-	Describe("eventMatchesProjector", func() {
+	Describe("EventMatchesProjector", func() {
 		It("should match events with correct type and tags", func() {
-			es := store.(*eventStore)
-
-			projector := StateProjector{
-				Query: NewQuery(NewTags("course_id", "c1"), "CourseDefined"),
+			projector := dcb.StateProjector{
+				Query: dcb.NewQuery(dcb.NewTags("course_id", "c1"), "CourseDefined"),
 			}
 
-			event := Event{
+			event := dcb.Event{
 				Type: "CourseDefined",
-				Tags: []Tag{NewTag("course_id", "c1")},
+				Tags: []dcb.Tag{dcb.NewTag("course_id", "c1")},
 			}
 
-			matches := es.eventMatchesProjector(event, projector)
+			matches := dcb.EventMatchesProjector(event, projector)
 			Expect(matches).To(BeTrue())
 		})
 
 		It("should not match events with different types", func() {
-			es := store.(*eventStore)
-
-			projector := StateProjector{
-				Query: NewQuery(NewTags("course_id", "c1"), "CourseDefined"),
+			projector := dcb.StateProjector{
+				Query: dcb.NewQuery(dcb.NewTags("course_id", "c1"), "CourseDefined"),
 			}
 
-			event := Event{
+			event := dcb.Event{
 				Type: "StudentRegistered",
-				Tags: []Tag{NewTag("course_id", "c1")},
+				Tags: []dcb.Tag{dcb.NewTag("course_id", "c1")},
 			}
 
-			matches := es.eventMatchesProjector(event, projector)
+			matches := dcb.EventMatchesProjector(event, projector)
 			Expect(matches).To(BeFalse())
 		})
 
 		It("should not match events with different tags", func() {
-			es := store.(*eventStore)
-
-			projector := StateProjector{
-				Query: NewQuery(NewTags("course_id", "c1"), "CourseDefined"),
+			projector := dcb.StateProjector{
+				Query: dcb.NewQuery(dcb.NewTags("course_id", "c1"), "CourseDefined"),
 			}
 
-			event := Event{
+			event := dcb.Event{
 				Type: "CourseDefined",
-				Tags: []Tag{NewTag("course_id", "c2")},
+				Tags: []dcb.Tag{dcb.NewTag("course_id", "c2")},
 			}
 
-			matches := es.eventMatchesProjector(event, projector)
+			matches := dcb.EventMatchesProjector(event, projector)
 			Expect(matches).To(BeFalse())
 		})
 
 		It("should match events with subset of tags", func() {
-			es := store.(*eventStore)
-
-			projector := StateProjector{
-				Query: NewQuery(NewTags("course_id", "c1"), "CourseDefined"),
+			projector := dcb.StateProjector{
+				Query: dcb.NewQuery(dcb.NewTags("course_id", "c1"), "CourseDefined"),
 			}
 
-			event := Event{
+			event := dcb.Event{
 				Type: "CourseDefined",
-				Tags: []Tag{
-					NewTag("course_id", "c1"),
-					NewTag("student_id", "s1"),
+				Tags: []dcb.Tag{
+					dcb.NewTag("course_id", "c1"),
+					dcb.NewTag("student_id", "s1"),
 				},
 			}
 
-			matches := es.eventMatchesProjector(event, projector)
+			matches := dcb.EventMatchesProjector(event, projector)
 			Expect(matches).To(BeTrue())
 		})
 
 		It("should handle empty event types in projector", func() {
-			es := store.(*eventStore)
-
-			projector := StateProjector{
-				Query: NewQuery(NewTags("course_id", "c1")), // No event types
+			projector := dcb.StateProjector{
+				Query: dcb.NewQuery(dcb.NewTags("course_id", "c1")), // No event types
 			}
 
-			event := Event{
+			event := dcb.Event{
 				Type: "AnyEvent",
-				Tags: []Tag{NewTag("course_id", "c1")},
+				Tags: []dcb.Tag{dcb.NewTag("course_id", "c1")},
 			}
 
-			matches := es.eventMatchesProjector(event, projector)
+			matches := dcb.EventMatchesProjector(event, projector)
 			Expect(matches).To(BeTrue())
 		})
 
 		It("should handle empty tags in projector", func() {
-			es := store.(*eventStore)
-
-			projector := StateProjector{
-				Query: NewQuery([]Tag{}, "CourseDefined"), // No tags
+			projector := dcb.StateProjector{
+				Query: dcb.NewQuery([]dcb.Tag{}, "CourseDefined"), // No tags
 			}
 
-			event := Event{
+			event := dcb.Event{
 				Type: "CourseDefined",
-				Tags: []Tag{NewTag("course_id", "c1")},
+				Tags: []dcb.Tag{dcb.NewTag("course_id", "c1")},
 			}
 
-			matches := es.eventMatchesProjector(event, projector)
+			matches := dcb.EventMatchesProjector(event, projector)
 			Expect(matches).To(BeTrue())
 		})
 	})
 
-	// Note: buildAppendConditionFromProjectors was removed as it was not DCB-compliant
-	// The DCB-compliant approach is to use buildAppendConditionFromQuery with specific queries
-	// from Decision Models, as demonstrated in the tests below.
-
-	Describe("buildAppendConditionFromQuery (DCB-compliant)", func() {
+	Describe("BuildAppendConditionFromQuery (DCB-compliant)", func() {
 		It("should build append condition from specific query (DCB approach)", func() {
-			es := store.(*eventStore)
-
 			// DCB-compliant approach: use specific query from Decision Model
-			query := NewQuery(NewTags("course_id", "c1"), "CourseDefined")
-			appendCondition := es.buildAppendConditionFromQuery(query)
+			query := dcb.NewQuery(dcb.NewTags("course_id", "c1"), "CourseDefined")
+			appendCondition := dcb.BuildAppendConditionFromQuery(query)
 
 			// Should use the exact query from Decision Model
 			Expect(appendCondition).NotTo(BeNil())
-			// Note: We can't directly access fields anymore since AppendCondition is opaque
-			// This enforces DCB semantics where consumers only build and pass conditions
 		})
 
-		It("should handle complex query with multiple items (DCB approach)", func() {
-			es := store.(*eventStore)
-
+		It("should build append condition from enrollment query", func() {
 			// DCB-compliant approach: use specific query from Decision Model
-			query := NewQueryFromItems(
-				NewQueryItem([]string{"CourseDefined"}, []Tag{NewTag("course_id", "c1")}),
-				NewQueryItem([]string{"StudentEnrolled"}, []Tag{NewTag("course_id", "c1"), NewTag("student_id", "s1")}),
-			)
-			appendCondition := es.buildAppendConditionFromQuery(query)
+			query := dcb.NewQuery(dcb.NewTags("student_id", "s1"), "StudentRegistered")
+			appendCondition := dcb.BuildAppendConditionFromQuery(query)
 
-			// Should use the exact query from Decision Model
 			Expect(appendCondition).NotTo(BeNil())
-			// Note: We can't directly access fields anymore since AppendCondition is opaque
-			// This enforces DCB semantics where consumers only build and pass conditions
 		})
 
-		It("should demonstrate DCB principle: same query from Decision Model", func() {
-			es := store.(*eventStore)
+		It("should build append condition from complex query", func() {
+			// DCB-compliant approach: use specific query from Decision Model
+			enrollmentQuery := dcb.NewQuery(dcb.NewTags("course_id", "c1", "student_id", "s1"), "StudentEnrolled")
+			appendCondition := dcb.BuildAppendConditionFromQuery(enrollmentQuery)
 
-			// Simulate building a Decision Model for course enrollment
-			enrollmentQuery := NewQuery(NewTags("course_id", "c1", "student_id", "s1"), "StudentEnrolled")
-
-			// DCB principle: use the same query for append condition
-			appendCondition := es.buildAppendConditionFromQuery(enrollmentQuery)
-
-			// This ensures no new enrollment events exist for this student-course pair
 			Expect(appendCondition).NotTo(BeNil())
-			// Note: We can't directly access fields anymore since AppendCondition is opaque
-			// This enforces DCB semantics where consumers only build and pass conditions
 		})
 	})
 
 	Describe("Project with complex scenarios", func() {
 		It("should handle multiple projectors with overlapping queries", func() {
 			// Append test events
-			events := []InputEvent{
-				NewInputEvent("CourseDefined", []Tag{NewTag("course_id", "c1")}, toJSON(map[string]string{"name": "Math 101"})),
-				NewInputEvent("StudentRegistered", []Tag{NewTag("student_id", "s1")}, toJSON(map[string]string{"name": "Alice"})),
-				NewInputEvent("StudentEnrolled", []Tag{NewTag("course_id", "c1"), NewTag("student_id", "s1")}, toJSON(map[string]string{"enrolled_at": "2024-01-01"})),
-				NewInputEvent("StudentEnrolled", []Tag{NewTag("course_id", "c1"), NewTag("student_id", "s2")}, toJSON(map[string]string{"enrolled_at": "2024-01-02"})),
+			events := []dcb.InputEvent{
+				dcb.NewInputEvent("CourseDefined", []dcb.Tag{dcb.NewTag("course_id", "c1")}, dcb.ToJSON(map[string]string{"name": "Math 101"})),
+				dcb.NewInputEvent("StudentRegistered", []dcb.Tag{dcb.NewTag("student_id", "s1")}, dcb.ToJSON(map[string]string{"name": "Alice"})),
+				dcb.NewInputEvent("StudentEnrolled", []dcb.Tag{dcb.NewTag("course_id", "c1"), dcb.NewTag("student_id", "s1")}, dcb.ToJSON(map[string]string{"enrolled_at": "2024-01-01"})),
+				dcb.NewInputEvent("StudentEnrolled", []dcb.Tag{dcb.NewTag("course_id", "c1"), dcb.NewTag("student_id", "s2")}, dcb.ToJSON(map[string]string{"enrolled_at": "2024-01-02"})),
 			}
 			err := store.Append(ctx, events, nil)
 			Expect(err).To(BeNil())
 
 			// Define projectors
-			projectors := []StateProjector{
+			projectors := []dcb.StateProjector{
 				{
 					ID:           "course",
-					Query:        NewQuery([]Tag{NewTag("course_id", "c1")}, "CourseDefined"),
+					Query:        dcb.NewQuery([]dcb.Tag{dcb.NewTag("course_id", "c1")}, "CourseDefined"),
 					InitialState: 0,
-					TransitionFn: func(state any, event Event) any {
+					TransitionFn: func(state any, event dcb.Event) any {
 						return state.(int) + 1
 					},
 				},
 				{
 					ID:           "student",
-					Query:        NewQuery([]Tag{NewTag("student_id", "s1")}, "StudentRegistered"),
+					Query:        dcb.NewQuery([]dcb.Tag{dcb.NewTag("student_id", "s1")}, "StudentRegistered"),
 					InitialState: 0,
-					TransitionFn: func(state any, event Event) any {
+					TransitionFn: func(state any, event dcb.Event) any {
 						return state.(int) + 1
 					},
 				},
 				{
 					ID:           "enrollment",
-					Query:        NewQuery([]Tag{NewTag("course_id", "c1")}, "StudentEnrolled"),
+					Query:        dcb.NewQuery([]dcb.Tag{dcb.NewTag("course_id", "c1")}, "StudentEnrolled"),
 					InitialState: 0,
-					TransitionFn: func(state any, event Event) any {
+					TransitionFn: func(state any, event dcb.Event) any {
 						return state.(int) + 1
 					},
 				},
@@ -286,29 +244,29 @@ var _ = Describe("Batch Projection", func() {
 
 		It("should handle projectors with different initial states", func() {
 			// Setup test data
-			event1 := NewInputEvent("MoneyTransferred", NewTags("account_id", "acc1"), toJSON(map[string]string{"amount": "100"}))
-			event2 := NewInputEvent("MoneyTransferred", NewTags("account_id", "acc1"), toJSON(map[string]string{"amount": "50"}))
-			events := []InputEvent{event1, event2}
+			event1 := dcb.NewInputEvent("MoneyTransferred", dcb.NewTags("account_id", "acc1"), dcb.ToJSON(map[string]string{"amount": "100"}))
+			event2 := dcb.NewInputEvent("MoneyTransferred", dcb.NewTags("account_id", "acc1"), dcb.ToJSON(map[string]string{"amount": "50"}))
+			events := []dcb.InputEvent{event1, event2}
 
 			// Append events
 			err := store.Append(ctx, events, nil)
 			Expect(err).To(BeNil())
 
 			// Define projectors with different initial states
-			projectors := []StateProjector{
+			projectors := []dcb.StateProjector{
 				{
 					ID:           "count",
-					Query:        NewQuery([]Tag{NewTag("account_id", "acc1")}, "MoneyTransferred"),
+					Query:        dcb.NewQuery([]dcb.Tag{dcb.NewTag("account_id", "acc1")}, "MoneyTransferred"),
 					InitialState: 0,
-					TransitionFn: func(state any, event Event) any {
+					TransitionFn: func(state any, event dcb.Event) any {
 						return state.(int) + 1
 					},
 				},
 				{
 					ID:           "balance",
-					Query:        NewQuery([]Tag{NewTag("account_id", "acc1")}, "MoneyTransferred"),
+					Query:        dcb.NewQuery([]dcb.Tag{dcb.NewTag("account_id", "acc1")}, "MoneyTransferred"),
 					InitialState: 1000.0, // Starting balance
-					TransitionFn: func(state any, event Event) any {
+					TransitionFn: func(state any, event dcb.Event) any {
 						var data map[string]interface{}
 						json.Unmarshal(event.Data, &data)
 						amount := data["amount"].(string)
@@ -330,21 +288,21 @@ var _ = Describe("Batch Projection", func() {
 
 		It("should handle projectors with complex state transitions", func() {
 			// Create test events
-			event1 := NewInputEvent("MoneyTransferred", NewTags("account_id", "acc1"), toJSON(map[string]string{"amount": "100"}))
-			event2 := NewInputEvent("MoneyTransferred", NewTags("account_id", "acc1"), toJSON(map[string]string{"amount": "50"}))
-			events := []InputEvent{event1, event2}
+			event1 := dcb.NewInputEvent("MoneyTransferred", dcb.NewTags("account_id", "acc1"), dcb.ToJSON(map[string]string{"amount": "100"}))
+			event2 := dcb.NewInputEvent("MoneyTransferred", dcb.NewTags("account_id", "acc1"), dcb.ToJSON(map[string]string{"amount": "50"}))
+			events := []dcb.InputEvent{event1, event2}
 
 			// Append events
 			err := store.Append(ctx, events, nil)
 			Expect(err).To(BeNil())
 
 			// Define projector with complex state
-			projectors := []StateProjector{
+			projectors := []dcb.StateProjector{
 				{
 					ID:           "totalAmount",
-					Query:        NewQuery([]Tag{NewTag("account_id", "acc1")}, "MoneyTransferred"),
+					Query:        dcb.NewQuery([]dcb.Tag{dcb.NewTag("account_id", "acc1")}, "MoneyTransferred"),
 					InitialState: 0.0,
-					TransitionFn: func(state any, event Event) any {
+					TransitionFn: func(state any, event dcb.Event) any {
 						currentAmount := state.(float64)
 						var data map[string]interface{}
 						json.Unmarshal(event.Data, &data)
@@ -363,10 +321,10 @@ var _ = Describe("Batch Projection", func() {
 		})
 
 		It("should handle projectors with nil transition function", func() {
-			projectors := []StateProjector{
+			projectors := []dcb.StateProjector{
 				{
 					ID:           "invalid",
-					Query:        NewQuery([]Tag{NewTag("test", "value")}, "TestEvent"),
+					Query:        dcb.NewQuery([]dcb.Tag{dcb.NewTag("test", "value")}, "TestEvent"),
 					InitialState: 0,
 					TransitionFn: nil, // Nil transition function
 				},
@@ -378,12 +336,12 @@ var _ = Describe("Batch Projection", func() {
 		})
 
 		It("should handle projectors with empty query", func() {
-			projectors := []StateProjector{
+			projectors := []dcb.StateProjector{
 				{
 					ID:           "empty",
-					Query:        NewQueryEmpty(), // Empty query
+					Query:        dcb.NewQueryEmpty(), // Empty query
 					InitialState: 0,
-					TransitionFn: func(state any, event Event) any {
+					TransitionFn: func(state any, event dcb.Event) any {
 						return state.(int) + 1
 					},
 				},
@@ -396,39 +354,39 @@ var _ = Describe("Batch Projection", func() {
 
 		It("should handle projectors with different query types", func() {
 			// Create test events
-			event1 := NewInputEvent("OrderCreated", NewTags("order_id", "order1"), toJSON(map[string]string{"total": "100"}))
-			event2 := NewInputEvent("ItemAdded", NewTags("order_id", "order1"), toJSON(map[string]string{"item": "book", "price": "25"}))
-			event3 := NewInputEvent("ItemAdded", NewTags("order_id", "order1"), toJSON(map[string]string{"item": "pen", "price": "5"}))
-			event4 := NewInputEvent("OrderCompleted", NewTags("order_id", "order1"), toJSON(map[string]string{"status": "completed"}))
-			events := []InputEvent{event1, event2, event3, event4}
+			event1 := dcb.NewInputEvent("OrderCreated", dcb.NewTags("order_id", "order1"), dcb.ToJSON(map[string]string{"total": "100"}))
+			event2 := dcb.NewInputEvent("ItemAdded", dcb.NewTags("order_id", "order1"), dcb.ToJSON(map[string]string{"item": "book", "price": "25"}))
+			event3 := dcb.NewInputEvent("ItemAdded", dcb.NewTags("order_id", "order1"), dcb.ToJSON(map[string]string{"item": "pen", "price": "5"}))
+			event4 := dcb.NewInputEvent("OrderCompleted", dcb.NewTags("order_id", "order1"), dcb.ToJSON(map[string]string{"status": "completed"}))
+			events := []dcb.InputEvent{event1, event2, event3, event4}
 
 			// Append events
 			err := store.Append(ctx, events, nil)
 			Expect(err).To(BeNil())
 
 			// Define projectors with different query types
-			projectors := []StateProjector{
+			projectors := []dcb.StateProjector{
 				{
 					ID:           "orderCount",
-					Query:        NewQuery([]Tag{NewTag("order_id", "order1")}, "OrderCreated"),
+					Query:        dcb.NewQuery([]dcb.Tag{dcb.NewTag("order_id", "order1")}, "OrderCreated"),
 					InitialState: 0,
-					TransitionFn: func(state any, event Event) any {
+					TransitionFn: func(state any, event dcb.Event) any {
 						return state.(int) + 1
 					},
 				},
 				{
 					ID:           "itemCount",
-					Query:        NewQuery([]Tag{NewTag("order_id", "order1")}, "ItemAdded"),
+					Query:        dcb.NewQuery([]dcb.Tag{dcb.NewTag("order_id", "order1")}, "ItemAdded"),
 					InitialState: 0,
-					TransitionFn: func(state any, event Event) any {
+					TransitionFn: func(state any, event dcb.Event) any {
 						return state.(int) + 1
 					},
 				},
 				{
 					ID:           "completionCount",
-					Query:        NewQuery([]Tag{NewTag("order_id", "order1")}, "OrderCompleted"),
+					Query:        dcb.NewQuery([]dcb.Tag{dcb.NewTag("order_id", "order1")}, "OrderCompleted"),
 					InitialState: 0,
-					TransitionFn: func(state any, event Event) any {
+					TransitionFn: func(state any, event dcb.Event) any {
 						return state.(int) + 1
 					},
 				},
@@ -447,9 +405,9 @@ var _ = Describe("Batch Projection", func() {
 	Describe("Performance with large datasets", func() {
 		It("should handle large number of events efficiently", func() {
 			// Create large dataset
-			events := make([]InputEvent, 1000)
+			events := make([]dcb.InputEvent, 1000)
 			for i := 0; i < 1000; i++ {
-				event := NewInputEvent("TestEvent", NewTags("test", "value"), toJSON(map[string]string{"index": fmt.Sprintf("%d", i)}))
+				event := dcb.NewInputEvent("TestEvent", dcb.NewTags("test", "value"), dcb.ToJSON(map[string]string{"index": fmt.Sprintf("%d", i)}))
 				events[i] = event
 			}
 
@@ -458,12 +416,12 @@ var _ = Describe("Batch Projection", func() {
 			Expect(err).To(BeNil())
 
 			// Define projector
-			projectors := []StateProjector{
+			projectors := []dcb.StateProjector{
 				{
 					ID:           "count",
-					Query:        NewQuery([]Tag{NewTag("test", "value")}, "TestEvent"),
+					Query:        dcb.NewQuery([]dcb.Tag{dcb.NewTag("test", "value")}, "TestEvent"),
 					InitialState: 0,
-					TransitionFn: func(state any, event Event) any {
+					TransitionFn: func(state any, event dcb.Event) any {
 						return state.(int) + 1
 					},
 				},
@@ -479,19 +437,19 @@ var _ = Describe("Batch Projection", func() {
 
 	It("should handle multiple events for the same projector", func() {
 		// Append multiple events
-		events := []InputEvent{
-			NewInputEvent("EnrollmentStarted", NewTags("student_id", "123"), toJSON(map[string]string{"course": "math"})),
-			NewInputEvent("EnrollmentCompleted", NewTags("student_id", "123"), toJSON(map[string]string{"course": "math"})),
+		events := []dcb.InputEvent{
+			dcb.NewInputEvent("EnrollmentStarted", dcb.NewTags("student_id", "123"), dcb.ToJSON(map[string]string{"course": "math"})),
+			dcb.NewInputEvent("EnrollmentCompleted", dcb.NewTags("student_id", "123"), dcb.ToJSON(map[string]string{"course": "math"})),
 		}
 		err := store.Append(ctx, events, nil)
 		Expect(err).To(BeNil())
 
 		// Create projector
-		projector := StateProjector{
+		projector := dcb.StateProjector{
 			ID:           "enrollment",
-			Query:        NewQuery(NewTags("student_id", "123")),
+			Query:        dcb.NewQuery(dcb.NewTags("student_id", "123")),
 			InitialState: "not_enrolled",
-			TransitionFn: func(state any, event Event) any {
+			TransitionFn: func(state any, event dcb.Event) any {
 				switch event.Type {
 				case "EnrollmentStarted":
 					return "enrolling"
@@ -502,7 +460,7 @@ var _ = Describe("Batch Projection", func() {
 				}
 			},
 		}
-		projectors := []StateProjector{projector}
+		projectors := []dcb.StateProjector{projector}
 
 		// Test Project
 		states, _, err := store.Project(ctx, projectors, nil)
@@ -513,15 +471,15 @@ var _ = Describe("Batch Projection", func() {
 
 	It("should handle empty query results", func() {
 		// Create projector with query that won't match any events
-		projector := StateProjector{
+		projector := dcb.StateProjector{
 			ID:           "enrollment",
-			Query:        NewQuery(NewTags("student_id", "999")), // Non-existent student
+			Query:        dcb.NewQuery(dcb.NewTags("student_id", "999")), // Non-existent student
 			InitialState: "not_enrolled",
-			TransitionFn: func(state any, event Event) any {
+			TransitionFn: func(state any, event dcb.Event) any {
 				return "enrolled"
 			},
 		}
-		projectors := []StateProjector{projector}
+		projectors := []dcb.StateProjector{projector}
 
 		// Test Project
 		states, _, err := store.Project(ctx, projectors, nil)
@@ -532,15 +490,15 @@ var _ = Describe("Batch Projection", func() {
 
 	It("should handle invalid projector configuration", func() {
 		// Create projector with empty ID
-		projector := StateProjector{
+		projector := dcb.StateProjector{
 			ID:           "", // Invalid: empty ID
-			Query:        NewQuery(NewTags("student_id", "123")),
+			Query:        dcb.NewQuery(dcb.NewTags("student_id", "123")),
 			InitialState: "not_enrolled",
-			TransitionFn: func(state any, event Event) any {
+			TransitionFn: func(state any, event dcb.Event) any {
 				return "enrolled"
 			},
 		}
-		projectors := []StateProjector{projector}
+		projectors := []dcb.StateProjector{projector}
 
 		// Test Project
 		_, _, err := store.Project(ctx, projectors, nil)
@@ -550,13 +508,13 @@ var _ = Describe("Batch Projection", func() {
 
 	It("should handle nil transition function", func() {
 		// Create projector with nil transition function
-		projector := StateProjector{
+		projector := dcb.StateProjector{
 			ID:           "enrollment",
-			Query:        NewQuery(NewTags("student_id", "123")),
+			Query:        dcb.NewQuery(dcb.NewTags("student_id", "123")),
 			InitialState: "not_enrolled",
 			TransitionFn: nil, // Invalid: nil function
 		}
-		projectors := []StateProjector{projector}
+		projectors := []dcb.StateProjector{projector}
 
 		// Test Project
 		_, _, err := store.Project(ctx, projectors, nil)
@@ -566,37 +524,37 @@ var _ = Describe("Batch Projection", func() {
 
 	It("should handle multiple projectors with different queries", func() {
 		// Append events for different students
-		events := []InputEvent{
-			NewInputEvent("EnrollmentStarted", NewTags("student_id", "123"), toJSON(map[string]string{"course": "math"})),
-			NewInputEvent("EnrollmentStarted", NewTags("student_id", "456"), toJSON(map[string]string{"course": "science"})),
+		events := []dcb.InputEvent{
+			dcb.NewInputEvent("EnrollmentStarted", dcb.NewTags("student_id", "123"), dcb.ToJSON(map[string]string{"course": "math"})),
+			dcb.NewInputEvent("EnrollmentStarted", dcb.NewTags("student_id", "456"), dcb.ToJSON(map[string]string{"course": "science"})),
 		}
 		err := store.Append(ctx, events, nil)
 		Expect(err).To(BeNil())
 
 		// Create projectors for different students
-		projector1 := StateProjector{
+		projector1 := dcb.StateProjector{
 			ID:           "student_123",
-			Query:        NewQuery(NewTags("student_id", "123")),
+			Query:        dcb.NewQuery(dcb.NewTags("student_id", "123")),
 			InitialState: "not_enrolled",
-			TransitionFn: func(state any, event Event) any {
+			TransitionFn: func(state any, event dcb.Event) any {
 				if event.Type == "EnrollmentStarted" {
 					return "enrolling"
 				}
 				return state
 			},
 		}
-		projector2 := StateProjector{
+		projector2 := dcb.StateProjector{
 			ID:           "student_456",
-			Query:        NewQuery(NewTags("student_id", "456")),
+			Query:        dcb.NewQuery(dcb.NewTags("student_id", "456")),
 			InitialState: "not_enrolled",
-			TransitionFn: func(state any, event Event) any {
+			TransitionFn: func(state any, event dcb.Event) any {
 				if event.Type == "EnrollmentStarted" {
 					return "enrolling"
 				}
 				return state
 			},
 		}
-		projectors := []StateProjector{projector1, projector2}
+		projectors := []dcb.StateProjector{projector1, projector2}
 
 		// Test Project
 		states, _, err := store.Project(ctx, projectors, nil)
@@ -609,20 +567,20 @@ var _ = Describe("Batch Projection", func() {
 
 	It("should handle complex state transitions", func() {
 		// Append events with complex state transitions
-		events := []InputEvent{
-			NewInputEvent("EnrollmentStarted", NewTags("student_id", "123"), toJSON(map[string]string{"course": "math"})),
-			NewInputEvent("PaymentReceived", NewTags("student_id", "123"), toJSON(map[string]string{"amount": "100"})),
-			NewInputEvent("EnrollmentCompleted", NewTags("student_id", "123"), toJSON(map[string]string{"course": "math"})),
+		events := []dcb.InputEvent{
+			dcb.NewInputEvent("EnrollmentStarted", dcb.NewTags("student_id", "123"), dcb.ToJSON(map[string]string{"course": "math"})),
+			dcb.NewInputEvent("PaymentReceived", dcb.NewTags("student_id", "123"), dcb.ToJSON(map[string]string{"amount": "100"})),
+			dcb.NewInputEvent("EnrollmentCompleted", dcb.NewTags("student_id", "123"), dcb.ToJSON(map[string]string{"course": "math"})),
 		}
 		err := store.Append(ctx, events, nil)
 		Expect(err).To(BeNil())
 
 		// Create projector with complex state machine
-		projector := StateProjector{
+		projector := dcb.StateProjector{
 			ID:           "enrollment",
-			Query:        NewQuery(NewTags("student_id", "123")),
+			Query:        dcb.NewQuery(dcb.NewTags("student_id", "123")),
 			InitialState: "not_enrolled",
-			TransitionFn: func(state any, event Event) any {
+			TransitionFn: func(state any, event dcb.Event) any {
 				switch state {
 				case "not_enrolled":
 					if event.Type == "EnrollmentStarted" {
@@ -640,7 +598,7 @@ var _ = Describe("Batch Projection", func() {
 				return state
 			},
 		}
-		projectors := []StateProjector{projector}
+		projectors := []dcb.StateProjector{projector}
 
 		// Test Project
 		states, _, err := store.Project(ctx, projectors, nil)

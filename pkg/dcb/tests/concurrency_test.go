@@ -1,9 +1,11 @@
-package dcb
+package dcb_test
 
 import (
 	"context"
 	"fmt"
 	"time"
+
+	"go-crablet/pkg/dcb"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -11,18 +13,13 @@ import (
 
 var _ = Describe("Concurrency and Locking", func() {
 	var (
-		store EventStore
+		store dcb.EventStore
 		ctx   context.Context
 	)
 
 	BeforeEach(func() {
-		// Use shared PostgreSQL container and truncate events between tests
-		store = NewEventStoreFromPool(pool)
-
-		// Create context with timeout for each test
+		store = dcb.NewEventStoreFromPool(pool)
 		ctx, _ = context.WithTimeout(context.Background(), 30*time.Second)
-
-		// Truncate events table before each test
 		err := truncateEventsTable(ctx, pool)
 		Expect(err).NotTo(HaveOccurred())
 	})
@@ -33,25 +30,25 @@ var _ = Describe("Concurrency and Locking", func() {
 			key := fmt.Sprintf("concurrent-%d", time.Now().UnixNano())
 
 			// First, create an existing event that will be used in the condition
-			existingEvent := NewInputEvent("ExistingEvent", NewTags("key", key), toJSON(map[string]string{"data": "existing"}))
-			err := store.Append(ctx, []InputEvent{existingEvent}, nil)
+			existingEvent := dcb.NewInputEvent("ExistingEvent", dcb.NewTags("key", key), dcb.ToJSON(map[string]string{"data": "existing"}))
+			err := store.Append(ctx, []dcb.InputEvent{existingEvent}, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Create a condition that looks for this existing event
-			query := NewQuery(NewTags("key", key), "ExistingEvent")
-			condition := NewAppendCondition(query)
+			query := dcb.NewQuery(dcb.NewTags("key", key), "ExistingEvent")
+			condition := dcb.NewAppendCondition(query)
 
 			// Create two different events to append - both should fail because the condition matches
-			event1 := NewInputEvent("TestEvent1", NewTags("key", key), toJSON(map[string]string{"data": "concurrent1"}))
-			event2 := NewInputEvent("TestEvent2", NewTags("key", key), toJSON(map[string]string{"data": "concurrent2"}))
+			event1 := dcb.NewInputEvent("TestEvent1", dcb.NewTags("key", key), dcb.ToJSON(map[string]string{"data": "concurrent1"}))
+			event2 := dcb.NewInputEvent("TestEvent2", dcb.NewTags("key", key), dcb.ToJSON(map[string]string{"data": "concurrent2"}))
 
 			// Barrier to synchronize goroutines
 			start := make(chan struct{})
 			results := make(chan error, 2)
 
-			appendFn := func(event InputEvent) {
+			appendFn := func(event dcb.InputEvent) {
 				<-start
-				err := store.Append(ctx, []InputEvent{event}, &condition)
+				err := store.Append(ctx, []dcb.InputEvent{event}, &condition)
 				results <- err
 			}
 

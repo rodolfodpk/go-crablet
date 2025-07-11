@@ -67,6 +67,28 @@ go build ./...    # Build benchmark tools
 go run main.go    # Run performance benchmarks
 ```
 
+## Testing
+
+The project has a comprehensive test suite with clear organization:
+
+### Test Structure
+- **External Tests** (`pkg/dcb/tests/`): Tests that consume only the public API
+- **Internal Tests** (`pkg/dcb/`): Tests with access to internal implementation details
+
+### Running Tests
+```bash
+# Run all tests
+go test ./pkg/dcb/... -v
+
+# Run only external tests
+go test ./pkg/dcb/tests/... -v
+
+# Run with coverage
+go test ./pkg/dcb/... -coverprofile=coverage.out
+```
+
+For detailed testing information, see the [Testing Guide](testing.md).
+
 ## Troubleshooting
 
 - **Database connection error**: Make sure PostgreSQL is running with `docker-compose ps`

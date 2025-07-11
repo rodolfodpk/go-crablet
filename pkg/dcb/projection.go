@@ -39,22 +39,22 @@ func (es *eventStore) buildReadQuerySQL(query Query, after *Cursor, limit *int) 
 	argIndex := 1
 
 	// Add query conditions
-	if len(query.getItems()) > 0 {
-		orConditions := make([]string, 0, len(query.getItems()))
+	if len(query.GetItems()) > 0 {
+		orConditions := make([]string, 0, len(query.GetItems()))
 
-		for _, item := range query.getItems() {
+		for _, item := range query.GetItems() {
 			andConditions := make([]string, 0, 2) // Usually 1-2 conditions per item
 
 			// Add event type conditions
-			if len(item.getEventTypes()) > 0 {
+			if len(item.GetEventTypes()) > 0 {
 				andConditions = append(andConditions, fmt.Sprintf("type = ANY($%d::text[])", argIndex))
-				args = append(args, item.getEventTypes())
+				args = append(args, item.GetEventTypes())
 				argIndex++
 			}
 
 			// Add tag conditions - use contains operator for DCB semantics
-			if len(item.getTags()) > 0 {
-				tagsArray := TagsToArray(item.getTags())
+			if len(item.GetTags()) > 0 {
+				tagsArray := TagsToArray(item.GetTags())
 				andConditions = append(andConditions, fmt.Sprintf("tags @> $%d::text[]", argIndex))
 				args = append(args, tagsArray)
 				argIndex++
@@ -101,25 +101,25 @@ func (es *eventStore) buildReadQuerySQL(query Query, after *Cursor, limit *int) 
 	return sqlQuery.String(), args, nil
 }
 
-// combineProjectorQueries combines queries from multiple projectors
-// Optimizes by merging QueryItems with the same tags but different event types
-func (es *eventStore) combineProjectorQueries(projectors []StateProjector) Query {
+// CombineProjectorQueries optimizes by merging QueryItems with the same tags but different event types
+// This is useful for consumers who want to optimize their projector queries
+func CombineProjectorQueries(projectors []StateProjector) Query {
 	// Use a map to group QueryItems by their tags (as a key)
 	tagGroups := make(map[string]*queryItem)
 
 	for _, bp := range projectors {
-		for _, item := range bp.Query.getItems() {
+		for _, item := range bp.Query.GetItems() {
 			// Create a key from tags for grouping
-			tagKey := tagsToKey(item.getTags())
+			tagKey := tagsToKey(item.GetTags())
 
 			if existingItem, exists := tagGroups[tagKey]; exists {
 				// Merge event types with existing item
-				existingItem.EventTypes = append(existingItem.EventTypes, item.getEventTypes()...)
+				existingItem.EventTypes = append(existingItem.EventTypes, item.GetEventTypes()...)
 			} else {
 				// Create new item
 				tagGroups[tagKey] = &queryItem{
-					EventTypes: append([]string{}, item.getEventTypes()...),
-					Tags:       append([]Tag{}, item.getTags()...),
+					EventTypes: append([]string{}, item.GetEventTypes()...),
+					Tags:       append([]Tag{}, item.GetTags()...),
 				}
 			}
 		}
@@ -133,6 +133,11 @@ func (es *eventStore) combineProjectorQueries(projectors []StateProjector) Query
 
 	// Create a new query with all combined items
 	return &query{Items: allItems}
+}
+
+// Optimizes by merging QueryItems with the same tags but different event types
+func (es *eventStore) combineProjectorQueries(projectors []StateProjector) Query {
+	return CombineProjectorQueries(projectors)
 }
 
 // tagsToKey creates a consistent key from tags for grouping
@@ -151,19 +156,20 @@ func tagsToKey(tags []Tag) string {
 	return strings.Join(tagPairs, ",")
 }
 
-// eventMatchesProjector checks if an event matches a projector's query
-func (es *eventStore) eventMatchesProjector(event Event, projector StateProjector) bool {
+// EventMatchesProjector checks if an event matches a projector's query
+// This is useful for consumers who want to do their own event filtering or validation
+func EventMatchesProjector(event Event, projector StateProjector) bool {
 	// If projector has no query items, it matches all events
-	if len(projector.Query.getItems()) == 0 {
+	if len(projector.Query.GetItems()) == 0 {
 		return true
 	}
 
 	// Check if event matches any of the projector's query items
-	for _, item := range projector.Query.getItems() {
+	for _, item := range projector.Query.GetItems() {
 		// Check event types if specified
-		if len(item.getEventTypes()) > 0 {
+		if len(item.GetEventTypes()) > 0 {
 			eventTypeMatches := false
-			for _, eventType := range item.getEventTypes() {
+			for _, eventType := range item.GetEventTypes() {
 				if event.Type == eventType {
 					eventTypeMatches = true
 					break
@@ -175,7 +181,7 @@ func (es *eventStore) eventMatchesProjector(event Event, projector StateProjecto
 		}
 
 		// Check tags if specified
-		if len(item.getTags()) > 0 {
+		if len(item.GetTags()) > 0 {
 			// Convert tags to map for easy lookup
 			eventTags := make(map[string]string)
 			for _, tag := range event.Tags {
@@ -184,7 +190,7 @@ func (es *eventStore) eventMatchesProjector(event Event, projector StateProjecto
 
 			// Check if ALL required tags match
 			allTagsMatch := true
-			for _, requiredTag := range item.getTags() {
+			for _, requiredTag := range item.GetTags() {
 				if eventTags[requiredTag.GetKey()] != requiredTag.GetValue() {
 					allTagsMatch = false
 					break
@@ -201,6 +207,11 @@ func (es *eventStore) eventMatchesProjector(event Event, projector StateProjecto
 
 	// No items matched
 	return false
+}
+
+// eventMatchesProjector checks if an event matches a projector's query
+func (es *eventStore) eventMatchesProjector(event Event, projector StateProjector) bool {
+	return EventMatchesProjector(event, projector)
 }
 
 // Project projects state from events matching projectors with optional cursor
@@ -230,7 +241,7 @@ func (es *eventStore) Project(ctx context.Context, projectors []StateProjector, 
 				Value: "nil",
 			}
 		}
-		if len(bp.Query.getItems()) == 0 {
+		if len(bp.Query.GetItems()) == 0 {
 			return nil, nil, &ValidationError{
 				EventStoreError: EventStoreError{
 					Op:  "Project",
@@ -505,7 +516,7 @@ func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProje
 	query := es.combineProjectorQueries(projectors)
 
 	// Validate that the combined query is not empty (same validation as Read method)
-	if len(query.getItems()) == 0 {
+	if len(query.GetItems()) == 0 {
 		return nil, nil, &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  "ProjectStream",

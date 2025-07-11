@@ -1,10 +1,12 @@
-package dcb
+package dcb_test
 
 import (
 	"context"
 	"fmt"
 	"sync"
 	"time"
+
+	"go-crablet/pkg/dcb"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -35,14 +37,14 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				event := NewInputEvent("TestEvent", NewTags("test", "1"), []byte(`{"data": "success"}`))
-				err := store.Append(context.Background(), []InputEvent{event}, nil)
+				event := dcb.NewInputEvent("TestEvent", dcb.NewTags("test", "1"), []byte(`{"data": "success"}`))
+				err := store.Append(context.Background(), []dcb.InputEvent{event}, nil)
 				if err != nil {
 					errors <- err
 					return
 				}
 				// Read the event to get its position
-				query := NewQuery(NewTags("test", "1"), "TestEvent")
+				query := dcb.NewQuery(dcb.NewTags("test", "1"), "TestEvent")
 				events, err := store.Query(context.Background(), query, nil)
 				if err != nil {
 					errors <- err
@@ -58,8 +60,8 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			go func() {
 				defer wg.Done()
 				// This will create a gap in the sequence
-				event := NewInputEvent("TestEvent", NewTags("test", "2"), []byte(`{"data": "will_rollback"}`))
-				err := store.Append(context.Background(), []InputEvent{event}, nil)
+				event := dcb.NewInputEvent("TestEvent", dcb.NewTags("test", "2"), []byte(`{"data": "will_rollback"}`))
+				err := store.Append(context.Background(), []dcb.InputEvent{event}, nil)
 				if err != nil {
 					// Simulate rollback by not sending result
 					return
@@ -72,14 +74,14 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				event := NewInputEvent("TestEvent", NewTags("test", "3"), []byte(`{"data": "success"}`))
-				err := store.Append(context.Background(), []InputEvent{event}, nil)
+				event := dcb.NewInputEvent("TestEvent", dcb.NewTags("test", "3"), []byte(`{"data": "success"}`))
+				err := store.Append(context.Background(), []dcb.InputEvent{event}, nil)
 				if err != nil {
 					errors <- err
 					return
 				}
 				// Read the event to get its position
-				query := NewQuery(NewTags("test", "3"), "TestEvent")
+				query := dcb.NewQuery(dcb.NewTags("test", "3"), "TestEvent")
 				events, err := store.Query(context.Background(), query, nil)
 				if err != nil {
 					errors <- err
@@ -129,14 +131,14 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 				// Simulate slow processing
 				time.Sleep(100 * time.Millisecond)
 
-				event := NewInputEvent("SlowEvent", NewTags("test", "slow"), []byte(`{"data": "slow"}`))
-				err := store.Append(context.Background(), []InputEvent{event}, nil)
+				event := dcb.NewInputEvent("SlowEvent", dcb.NewTags("test", "slow"), []byte(`{"data": "slow"}`))
+				err := store.Append(context.Background(), []dcb.InputEvent{event}, nil)
 				if err != nil {
 					return
 				}
 
 				// Read the event to get its position and transaction ID
-				query := NewQuery(NewTags("test", "slow"), "SlowEvent")
+				query := dcb.NewQuery(dcb.NewTags("test", "slow"), "SlowEvent")
 				events, err := store.Query(context.Background(), query, nil)
 				if err != nil {
 					return
@@ -164,14 +166,14 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 				// Simulate fast processing
 				time.Sleep(10 * time.Millisecond)
 
-				event := NewInputEvent("FastEvent", NewTags("test", "fast"), []byte(`{"data": "fast"}`))
-				err := store.Append(context.Background(), []InputEvent{event}, nil)
+				event := dcb.NewInputEvent("FastEvent", dcb.NewTags("test", "fast"), []byte(`{"data": "fast"}`))
+				err := store.Append(context.Background(), []dcb.InputEvent{event}, nil)
 				if err != nil {
 					return
 				}
 
 				// Read the event to get its position and transaction ID
-				query := NewQuery(NewTags("test", "fast"), "FastEvent")
+				query := dcb.NewQuery(dcb.NewTags("test", "fast"), "FastEvent")
 				events, err := store.Query(context.Background(), query, nil)
 				if err != nil {
 					return
@@ -198,14 +200,14 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 
 				time.Sleep(50 * time.Millisecond)
 
-				event := NewInputEvent("MediumEvent", NewTags("test", "medium"), []byte(`{"data": "medium"}`))
-				err := store.Append(context.Background(), []InputEvent{event}, nil)
+				event := dcb.NewInputEvent("MediumEvent", dcb.NewTags("test", "medium"), []byte(`{"data": "medium"}`))
+				err := store.Append(context.Background(), []dcb.InputEvent{event}, nil)
 				if err != nil {
 					return
 				}
 
 				// Read the event to get its position and transaction ID
-				query := NewQuery(NewTags("test", "medium"), "MediumEvent")
+				query := dcb.NewQuery(dcb.NewTags("test", "medium"), "MediumEvent")
 				events, err := store.Query(context.Background(), query, nil)
 				if err != nil {
 					return
@@ -297,18 +299,18 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			// Scenario: Show that transaction IDs preserve causality regardless of commit timing
 
 			// Read events ordered by transaction_id, position
-			query := NewQuery(NewTags("test"), "TestEvent")
+			query := dcb.NewQuery(dcb.NewTags("test"), "TestEvent")
 			events, err := store.Query(context.Background(), query, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			if len(events) < 2 {
 				// Add some test events if needed
-				event1 := NewInputEvent("TestEvent", NewTags("test", "order1"), []byte(`{"data": "1"}`))
-				event2 := NewInputEvent("TestEvent", NewTags("test", "order2"), []byte(`{"data": "2"}`))
+				event1 := dcb.NewInputEvent("TestEvent", dcb.NewTags("test", "order1"), []byte(`{"data": "1"}`))
+				event2 := dcb.NewInputEvent("TestEvent", dcb.NewTags("test", "order2"), []byte(`{"data": "2"}`))
 
-				err = store.Append(context.Background(), []InputEvent{event1}, nil)
+				err = store.Append(context.Background(), []dcb.InputEvent{event1}, nil)
 				Expect(err).ToNot(HaveOccurred())
-				err = store.Append(context.Background(), []InputEvent{event2}, nil)
+				err = store.Append(context.Background(), []dcb.InputEvent{event2}, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				events, err = store.Query(context.Background(), query, nil)
@@ -330,7 +332,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 				}
 			}
 
-			fmt.Printf("Events ordered by transaction_id, position:\n")
+			fmt.Printf("dcb.Events ordered by transaction_id, position:\n")
 			for i, event := range events {
 				fmt.Printf("  %d: TX=%d, Position=%d, Type=%s\n",
 					i+1, event.TransactionID, event.Position, event.Type)
@@ -343,16 +345,16 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 
 			// Add some test events with unique tags to avoid conflicts with other tests
 			uniqueTag := fmt.Sprintf("poll-test-%d", time.Now().UnixNano())
-			event1 := NewInputEvent("TestEvent", NewTags("unique", uniqueTag), []byte(`{"data": "1"}`))
-			event2 := NewInputEvent("TestEvent", NewTags("unique", uniqueTag), []byte(`{"data": "2"}`))
+			event1 := dcb.NewInputEvent("TestEvent", dcb.NewTags("unique", uniqueTag), []byte(`{"data": "1"}`))
+			event2 := dcb.NewInputEvent("TestEvent", dcb.NewTags("unique", uniqueTag), []byte(`{"data": "2"}`))
 
-			err := store.Append(context.Background(), []InputEvent{event1}, nil)
+			err := store.Append(context.Background(), []dcb.InputEvent{event1}, nil)
 			Expect(err).ToNot(HaveOccurred())
-			err = store.Append(context.Background(), []InputEvent{event2}, nil)
+			err = store.Append(context.Background(), []dcb.InputEvent{event2}, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			// Read the events to get their positions and transaction IDs
-			query := NewQueryFromItems(NewQueryItem([]string{"TestEvent"}, NewTags("unique", uniqueTag)))
+			query := dcb.NewQueryFromItems(dcb.NewQueryItem([]string{"TestEvent"}, dcb.NewTags("unique", uniqueTag)))
 			events, err := store.Query(context.Background(), query, nil)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(events).To(HaveLen(2))
@@ -363,7 +365,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			// ORDER BY transaction_id ASC, position ASC
 
 			// This is equivalent to our cursor-based approach
-			cursor := Cursor{
+			cursor := dcb.Cursor{
 				TransactionID: events[0].TransactionID,
 				Position:      events[0].Position,
 			}
@@ -373,7 +375,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			// Collect events after the cursor
-			var eventsAfterCursor []Event
+			var eventsAfterCursor []dcb.Event
 			for event := range eventsChan {
 				// Skip events before or at the cursor
 				if event.TransactionID < cursor.TransactionID ||
@@ -398,11 +400,11 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 
 			// Create multiple events in a single transaction
 			uniqueTag := fmt.Sprintf("multi-event-%d", time.Now().UnixNano())
-			events := []InputEvent{
-				NewInputEvent("MultiEvent", NewTags("unique", uniqueTag, "seq", "1"), []byte(`{"data": "first"}`)),
-				NewInputEvent("MultiEvent", NewTags("unique", uniqueTag, "seq", "2"), []byte(`{"data": "second"}`)),
-				NewInputEvent("MultiEvent", NewTags("unique", uniqueTag, "seq", "3"), []byte(`{"data": "third"}`)),
-				NewInputEvent("MultiEvent", NewTags("unique", uniqueTag, "seq", "4"), []byte(`{"data": "fourth"}`)),
+			events := []dcb.InputEvent{
+				dcb.NewInputEvent("MultiEvent", dcb.NewTags("unique", uniqueTag, "seq", "1"), []byte(`{"data": "first"}`)),
+				dcb.NewInputEvent("MultiEvent", dcb.NewTags("unique", uniqueTag, "seq", "2"), []byte(`{"data": "second"}`)),
+				dcb.NewInputEvent("MultiEvent", dcb.NewTags("unique", uniqueTag, "seq", "3"), []byte(`{"data": "third"}`)),
+				dcb.NewInputEvent("MultiEvent", dcb.NewTags("unique", uniqueTag, "seq", "4"), []byte(`{"data": "fourth"}`)),
 			}
 
 			// Append all events in a single transaction
@@ -410,7 +412,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			// Read the events back
-			query := NewQueryFromItems(NewQueryItem([]string{"MultiEvent"}, NewTags("unique", uniqueTag)))
+			query := dcb.NewQueryFromItems(dcb.NewQueryItem([]string{"MultiEvent"}, dcb.NewTags("unique", uniqueTag)))
 			readEvents, err := store.Query(context.Background(), query, nil)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(readEvents).To(HaveLen(4))
@@ -432,7 +434,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 
 			// Test cursor-based polling with multiple events in the same transaction
 			// Start cursor at the first event
-			cursor := Cursor{
+			cursor := dcb.Cursor{
 				TransactionID: readEvents[0].TransactionID,
 				Position:      readEvents[0].Position,
 			}
@@ -442,7 +444,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			// Collect events after the cursor
-			var eventsAfterCursor []Event
+			var eventsAfterCursor []dcb.Event
 			for event := range eventsChan {
 				// Skip events before or at the cursor
 				if event.TransactionID < cursor.TransactionID ||
@@ -459,7 +461,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			Expect(eventsAfterCursor[2].Position).To(Equal(readEvents[3].Position))
 
 			// Test cursor in the middle of the transaction
-			middleCursor := Cursor{
+			middleCursor := dcb.Cursor{
 				TransactionID: readEvents[1].TransactionID,
 				Position:      readEvents[1].Position,
 			}
@@ -469,7 +471,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			// Collect events after the middle cursor
-			var eventsAfterMiddle []Event
+			var eventsAfterMiddle []dcb.Event
 			for event := range eventsChan2 {
 				// Skip events before or at the middle cursor
 				if event.TransactionID < middleCursor.TransactionID ||
@@ -484,7 +486,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			Expect(eventsAfterMiddle[0].Position).To(Equal(readEvents[2].Position))
 			Expect(eventsAfterMiddle[1].Position).To(Equal(readEvents[3].Position))
 
-			fmt.Printf("Cursor polling: after first event=%d, after second event=%d\n",
+			fmt.Printf("dcb.Cursor polling: after first event=%d, after second event=%d\n",
 				len(eventsAfterCursor), len(eventsAfterMiddle))
 		})
 	})

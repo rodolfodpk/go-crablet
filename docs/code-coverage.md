@@ -25,8 +25,14 @@ Current test coverage status and improvement guidelines for the go-crablet libra
 ## 🧪 **Testing Commands**
 
 ```bash
-# Run tests with coverage
-go test -coverprofile=coverage.out ./pkg/dcb
+# Run all tests with coverage
+go test -coverprofile=coverage.out ./pkg/dcb/...
+
+# Run only external tests
+go test -coverprofile=coverage.out ./pkg/dcb/tests/...
+
+# Run only internal tests
+go test -coverprofile=coverage.out ./pkg/dcb/...
 
 # View detailed coverage
 go tool cover -func=coverage.out
@@ -35,22 +41,41 @@ go tool cover -func=coverage.out
 go tool cover -html=coverage.out -o coverage.html
 
 # Run with race detection
-go test -race ./pkg/dcb
+go test -race ./pkg/dcb/...
 ```
+
+## 🏗️ **Test Organization**
+
+The project uses a well-organized testing structure:
+
+### **External Tests** (`pkg/dcb/tests/`)
+- Tests that consume only the public API
+- Verify library works correctly from consumer perspective
+- 13 test files covering all major functionality
+- Infrastructure: `setup_test.go`
+
+### **Internal Tests** (`pkg/dcb/`)
+- Tests with access to internal implementation details
+- Focus on validation and internal logic
+- Infrastructure: `setup_test.go`
+
+For detailed testing information, see the [Testing Guide](testing.md).
 
 ## 📈 **Improvement Guidelines**
 
 ### **Adding Tests**
-1. Follow existing test patterns
+1. Follow existing test patterns in `pkg/dcb/tests/`
 2. Test success and failure cases
 3. Include edge cases and boundary conditions
 4. Test concurrent operations where applicable
+5. Use unique test data to avoid interference
 
 ### **Test Quality**
-- Descriptive test names
+- Descriptive test names following "should [behavior] when [condition]" pattern
 - Clear arrange/act/assert structure
 - Comprehensive assertions
 - Proper resource cleanup
+- Test isolation (no dependencies between tests)
 
 ## 🔍 **Coverage Exclusions**
 
@@ -66,6 +91,8 @@ go test -race ./pkg/dcb
 - Decision model projection
 - Input validation and error handling
 - Streaming operations and resource cleanup
+- Cursor-based operations
+- Batch projection functionality
 
 ## 📊 **Monitoring**
 
@@ -80,6 +107,28 @@ go test -race ./pkg/dcb
     fi
 ```
 
+## 🧪 **Test Categories**
+
+### **Unit Tests**
+- Individual function testing
+- Validation logic
+- Constructor functions
+
+### **Integration Tests**
+- Database operations
+- Event store interactions
+- Projection functionality
+
+### **End-to-End Tests**
+- Complete workflows
+- Business scenarios
+- Real-world usage patterns
+
+### **Concurrency Tests**
+- Race condition testing
+- Concurrent operations
+- Lock mechanisms
+
 ---
 
-**Focus**: Improve streaming operation coverage and maintain high coverage for new features. 
+**Focus**: Improve streaming operation coverage and maintain high coverage for new features. All tests must pass before merging changes. 

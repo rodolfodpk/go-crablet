@@ -1,8 +1,10 @@
-package dcb
+package dcb_test
 
 import (
 	"errors"
 	"fmt"
+
+	"go-crablet/pkg/dcb"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -11,7 +13,7 @@ import (
 var _ = Describe("Event Store: Error Types", func() {
 	Describe("EventStoreError", func() {
 		It("implements error interface", func() {
-			var err error = &EventStoreError{
+			var err error = &dcb.EventStoreError{
 				Op:  "test",
 				Err: errors.New("test error"),
 			}
@@ -19,7 +21,7 @@ var _ = Describe("Event Store: Error Types", func() {
 		})
 
 		It("handles nil underlying error", func() {
-			var err error = &EventStoreError{
+			var err error = &dcb.EventStoreError{
 				Op: "test",
 			}
 			Expect(err.Error()).To(Equal("test"))
@@ -27,7 +29,7 @@ var _ = Describe("Event Store: Error Types", func() {
 
 		It("implements error unwrapping", func() {
 			underlying := errors.New("underlying error")
-			err := &EventStoreError{
+			err := &dcb.EventStoreError{
 				Op:  "test",
 				Err: underlying,
 			}
@@ -37,8 +39,8 @@ var _ = Describe("Event Store: Error Types", func() {
 
 	Describe("ValidationError", func() {
 		It("includes field and value in error message", func() {
-			err := &ValidationError{
-				EventStoreError: EventStoreError{
+			err := &dcb.ValidationError{
+				EventStoreError: dcb.EventStoreError{
 					Op:  "validate",
 					Err: fmt.Errorf("invalid value"),
 				},
@@ -53,8 +55,8 @@ var _ = Describe("Event Store: Error Types", func() {
 
 		It("implements error unwrapping", func() {
 			underlying := errors.New("underlying error")
-			err := &ValidationError{
-				EventStoreError: EventStoreError{
+			err := &dcb.ValidationError{
+				EventStoreError: dcb.EventStoreError{
 					Op:  "validate",
 					Err: underlying,
 				},
@@ -67,8 +69,8 @@ var _ = Describe("Event Store: Error Types", func() {
 
 	Describe("ConcurrencyError", func() {
 		It("includes expected and actual positions in error message", func() {
-			err := &ConcurrencyError{
-				EventStoreError: EventStoreError{
+			err := &dcb.ConcurrencyError{
+				EventStoreError: dcb.EventStoreError{
 					Op:  "append",
 					Err: fmt.Errorf("concurrent modification"),
 				},
@@ -83,8 +85,8 @@ var _ = Describe("Event Store: Error Types", func() {
 
 		It("implements error unwrapping", func() {
 			underlying := errors.New("underlying error")
-			err := &ConcurrencyError{
-				EventStoreError: EventStoreError{
+			err := &dcb.ConcurrencyError{
+				EventStoreError: dcb.EventStoreError{
 					Op:  "append",
 					Err: underlying,
 				},
@@ -97,8 +99,8 @@ var _ = Describe("Event Store: Error Types", func() {
 
 	Describe("ResourceError", func() {
 		It("includes resource name in error message", func() {
-			err := &ResourceError{
-				EventStoreError: EventStoreError{
+			err := &dcb.ResourceError{
+				EventStoreError: dcb.EventStoreError{
 					Op:  "connect",
 					Err: fmt.Errorf("connection failed"),
 				},
@@ -111,8 +113,8 @@ var _ = Describe("Event Store: Error Types", func() {
 
 		It("implements error unwrapping", func() {
 			underlying := errors.New("underlying error")
-			err := &ResourceError{
-				EventStoreError: EventStoreError{
+			err := &dcb.ResourceError{
+				EventStoreError: dcb.EventStoreError{
 					Op:  "connect",
 					Err: underlying,
 				},
@@ -125,8 +127,8 @@ var _ = Describe("Event Store: Error Types", func() {
 	Describe("Error Type Assertions", func() {
 		It("allows type assertions for specific error types", func() {
 			// Create a validation error
-			validationErr := &ValidationError{
-				EventStoreError: EventStoreError{
+			validationErr := &dcb.ValidationError{
+				EventStoreError: dcb.EventStoreError{
 					Op:  "validate",
 					Err: fmt.Errorf("invalid value"),
 				},
@@ -136,7 +138,7 @@ var _ = Describe("Event Store: Error Types", func() {
 
 			// Test type assertion
 			var err error = validationErr
-			_, ok := err.(*ValidationError)
+			_, ok := err.(*dcb.ValidationError)
 			Expect(ok).To(BeTrue())
 		})
 	})

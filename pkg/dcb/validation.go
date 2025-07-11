@@ -8,14 +8,14 @@ import (
 // validateQueryTags validates the query tags and returns a ValidationError if invalid
 func validateQueryTags(query Query) error {
 	// Handle empty query (matches all events)
-	if len(query.getItems()) == 0 {
+	if len(query.GetItems()) == 0 {
 		return nil
 	}
 
 	// Validate each query item
-	for itemIndex, item := range query.getItems() {
+	for itemIndex, item := range query.GetItems() {
 		// Validate individual tags if present
-		for i, t := range item.getTags() {
+		for i, t := range item.GetTags() {
 			if t.GetKey() == "" {
 				return &ValidationError{
 					EventStoreError: EventStoreError{
@@ -38,7 +38,7 @@ func validateQueryTags(query Query) error {
 		}
 
 		// Validate event types if present
-		for i, eventType := range item.getEventTypes() {
+		for i, eventType := range item.GetEventTypes() {
 			if eventType == "" {
 				return &ValidationError{
 					EventStoreError: EventStoreError{

@@ -1,10 +1,12 @@
-package dcb
+package dcb_test
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"go-crablet/pkg/dcb"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -95,8 +97,8 @@ type EnrollmentState struct {
 }
 
 // Event Constructors
-func NewCourseDefinedEvent(courseID, name, instructor string, capacity int) InputEvent {
-	return NewInputEventUnsafe("CourseDefined", NewTags("course_id", courseID), toJSON(CourseDefined{
+func NewCourseDefinedEvent(courseID, name, instructor string, capacity int) dcb.InputEvent {
+	return dcb.NewInputEventUnsafe("CourseDefined", dcb.NewTags("course_id", courseID), toJSON(CourseDefined{
 		CourseID:   courseID,
 		Name:       name,
 		Capacity:   capacity,
@@ -104,56 +106,56 @@ func NewCourseDefinedEvent(courseID, name, instructor string, capacity int) Inpu
 	}))
 }
 
-func NewStudentRegisteredEvent(studentID, name, email string) InputEvent {
-	return NewInputEventUnsafe("StudentRegistered", NewTags("student_id", studentID), toJSON(StudentRegistered{
+func NewStudentRegisteredEvent(studentID, name, email string) dcb.InputEvent {
+	return dcb.NewInputEventUnsafe("StudentRegistered", dcb.NewTags("student_id", studentID), toJSON(StudentRegistered{
 		StudentID: studentID,
 		Name:      name,
 		Email:     email,
 	}))
 }
 
-func NewStudentEnrolledEvent(studentID, courseID, enrolledAt string) InputEvent {
-	return NewInputEventUnsafe("StudentEnrolledInCourse", NewTags("student_id", studentID, "course_id", courseID), toJSON(StudentEnrolledInCourse{
+func NewStudentEnrolledEvent(studentID, courseID, enrolledAt string) dcb.InputEvent {
+	return dcb.NewInputEventUnsafe("StudentEnrolledInCourse", dcb.NewTags("student_id", studentID, "course_id", courseID), toJSON(StudentEnrolledInCourse{
 		StudentID:  studentID,
 		CourseID:   courseID,
 		EnrolledAt: enrolledAt,
 	}))
 }
 
-func NewStudentDroppedEvent(studentID, courseID, droppedAt string) InputEvent {
-	return NewInputEventUnsafe("StudentDroppedFromCourse", NewTags("student_id", studentID, "course_id", courseID), toJSON(StudentDroppedFromCourse{
+func NewStudentDroppedEvent(studentID, courseID, droppedAt string) dcb.InputEvent {
+	return dcb.NewInputEventUnsafe("StudentDroppedFromCourse", dcb.NewTags("student_id", studentID, "course_id", courseID), toJSON(StudentDroppedFromCourse{
 		StudentID: studentID,
 		CourseID:  courseID,
 		DroppedAt: droppedAt,
 	}))
 }
 
-func NewCourseCapacityChangedEvent(courseID string, newCapacity int) InputEvent {
-	return NewInputEventUnsafe("CourseCapacityChanged", NewTags("course_id", courseID), toJSON(CourseCapacityChanged{
+func NewCourseCapacityChangedEvent(courseID string, newCapacity int) dcb.InputEvent {
+	return dcb.NewInputEventUnsafe("CourseCapacityChanged", dcb.NewTags("course_id", courseID), toJSON(CourseCapacityChanged{
 		CourseID:    courseID,
 		NewCapacity: newCapacity,
 	}))
 }
 
 // Projectors
-func CourseExistsProjector(courseID string) StateProjector {
-	return StateProjector{
-		Query:        NewQuery(NewTags("course_id", courseID), "CourseDefined"),
+func CourseExistsProjector(courseID string) dcb.StateProjector {
+	return dcb.StateProjector{
+		Query:        dcb.NewQuery(dcb.NewTags("course_id", courseID), "CourseDefined"),
 		InitialState: false,
-		TransitionFn: func(state any, event Event) any {
+		TransitionFn: func(state any, event dcb.Event) any {
 			return true
 		},
 	}
 }
 
-func CourseStateProjector(courseID string) StateProjector {
-	return StateProjector{
-		Query: NewQuery(
-			NewTags("course_id", courseID),
+func CourseStateProjector(courseID string) dcb.StateProjector {
+	return dcb.StateProjector{
+		Query: dcb.NewQuery(
+			dcb.NewTags("course_id", courseID),
 			"CourseDefined", "CourseCapacityChanged", "StudentEnrolledInCourse", "StudentDroppedFromCourse",
 		),
 		InitialState: &CourseState{CourseID: courseID, Exists: false},
-		TransitionFn: func(state any, event Event) any {
+		TransitionFn: func(state any, event dcb.Event) any {
 			course := state.(*CourseState)
 			switch event.Type {
 			case "CourseDefined":
@@ -177,11 +179,11 @@ func CourseStateProjector(courseID string) StateProjector {
 	}
 }
 
-func CourseEnrollmentCountProjector(courseID string) StateProjector {
-	return StateProjector{
-		Query:        NewQuery(NewTags("course_id", courseID), "StudentEnrolledInCourse", "StudentDroppedFromCourse"),
+func CourseEnrollmentCountProjector(courseID string) dcb.StateProjector {
+	return dcb.StateProjector{
+		Query:        dcb.NewQuery(dcb.NewTags("course_id", courseID), "StudentEnrolledInCourse", "StudentDroppedFromCourse"),
 		InitialState: 0,
-		TransitionFn: func(state any, event Event) any {
+		TransitionFn: func(state any, event dcb.Event) any {
 			count := state.(int)
 			switch event.Type {
 			case "StudentEnrolledInCourse":
@@ -194,21 +196,21 @@ func CourseEnrollmentCountProjector(courseID string) StateProjector {
 	}
 }
 
-func StudentExistsProjector(studentID string) StateProjector {
-	return StateProjector{
-		Query:        NewQuery(NewTags("student_id", studentID), "StudentRegistered"),
+func StudentExistsProjector(studentID string) dcb.StateProjector {
+	return dcb.StateProjector{
+		Query:        dcb.NewQuery(dcb.NewTags("student_id", studentID), "StudentRegistered"),
 		InitialState: false,
-		TransitionFn: func(state any, event Event) any {
+		TransitionFn: func(state any, event dcb.Event) any {
 			return true
 		},
 	}
 }
 
-func StudentStateProjector(studentID string) StateProjector {
-	return StateProjector{
-		Query:        NewQuery(NewTags("student_id", studentID), "StudentRegistered"),
+func StudentStateProjector(studentID string) dcb.StateProjector {
+	return dcb.StateProjector{
+		Query:        dcb.NewQuery(dcb.NewTags("student_id", studentID), "StudentRegistered"),
 		InitialState: &StudentState{StudentID: studentID, Exists: false},
-		TransitionFn: func(state any, event Event) any {
+		TransitionFn: func(state any, event dcb.Event) any {
 			student := state.(*StudentState)
 			switch event.Type {
 			case "StudentRegistered":
@@ -223,11 +225,11 @@ func StudentStateProjector(studentID string) StateProjector {
 	}
 }
 
-func StudentEnrollmentCountProjector(studentID string) StateProjector {
-	return StateProjector{
-		Query:        NewQuery(NewTags("student_id", studentID), "StudentEnrolledInCourse", "StudentDroppedFromCourse"),
+func StudentEnrollmentCountProjector(studentID string) dcb.StateProjector {
+	return dcb.StateProjector{
+		Query:        dcb.NewQuery(dcb.NewTags("student_id", studentID), "StudentEnrolledInCourse", "StudentDroppedFromCourse"),
 		InitialState: 0,
-		TransitionFn: func(state any, event Event) any {
+		TransitionFn: func(state any, event dcb.Event) any {
 			count := state.(int)
 			switch event.Type {
 			case "StudentEnrolledInCourse":
@@ -240,11 +242,11 @@ func StudentEnrollmentCountProjector(studentID string) StateProjector {
 	}
 }
 
-func StudentEnrollmentStateProjector(studentID, courseID string) StateProjector {
-	return StateProjector{
-		Query:        NewQuery(NewTags("student_id", studentID, "course_id", courseID), "StudentEnrolledInCourse", "StudentDroppedFromCourse"),
+func StudentEnrollmentStateProjector(studentID, courseID string) dcb.StateProjector {
+	return dcb.StateProjector{
+		Query:        dcb.NewQuery(dcb.NewTags("student_id", studentID, "course_id", courseID), "StudentEnrolledInCourse", "StudentDroppedFromCourse"),
 		InitialState: &EnrollmentState{StudentID: studentID, CourseID: courseID, IsEnrolled: false},
-		TransitionFn: func(state any, event Event) any {
+		TransitionFn: func(state any, event dcb.Event) any {
 			enrollment := state.(*EnrollmentState)
 			switch event.Type {
 			case "StudentEnrolledInCourse":
@@ -258,8 +260,8 @@ func StudentEnrollmentStateProjector(studentID, courseID string) StateProjector 
 }
 
 // Command handlers - following the command pattern from examples
-func handleCreateCourse(ctx context.Context, store EventStore, cmd CreateCourseCommand) error {
-	projectors := []StateProjector{
+func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCourseCommand) error {
+	projectors := []dcb.StateProjector{
 		{
 			ID:           "courseExists",
 			Query:        CourseExistsProjector(cmd.CourseID).Query,
@@ -277,8 +279,8 @@ func handleCreateCourse(ctx context.Context, store EventStore, cmd CreateCourseC
 		return fmt.Errorf("course with id \"%s\" already exists", cmd.CourseID)
 	}
 
-	condition := NewAppendCondition(NewQuery(NewTags("course_id", cmd.CourseID), "CourseDefined"))
-	err = store.Append(ctx, []InputEvent{NewCourseDefinedEvent(cmd.CourseID, cmd.Name, cmd.Instructor, cmd.Capacity)}, &condition)
+	condition := dcb.NewAppendCondition(dcb.NewQuery(dcb.NewTags("course_id", cmd.CourseID), "CourseDefined"))
+	err = store.Append(ctx, []dcb.InputEvent{NewCourseDefinedEvent(cmd.CourseID, cmd.Name, cmd.Instructor, cmd.Capacity)}, &condition)
 	if err != nil {
 		return fmt.Errorf("failed to create course: %w", err)
 	}
@@ -286,8 +288,8 @@ func handleCreateCourse(ctx context.Context, store EventStore, cmd CreateCourseC
 	return nil
 }
 
-func handleRegisterStudent(ctx context.Context, store EventStore, cmd RegisterStudentCommand) error {
-	projectors := []StateProjector{
+func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd RegisterStudentCommand) error {
+	projectors := []dcb.StateProjector{
 		{
 			ID:           "studentExists",
 			Query:        StudentExistsProjector(cmd.StudentID).Query,
@@ -305,8 +307,8 @@ func handleRegisterStudent(ctx context.Context, store EventStore, cmd RegisterSt
 		return fmt.Errorf("student with id \"%s\" already exists", cmd.StudentID)
 	}
 
-	condition := NewAppendCondition(NewQuery(NewTags("student_id", cmd.StudentID), "StudentRegistered"))
-	err = store.Append(ctx, []InputEvent{NewStudentRegisteredEvent(cmd.StudentID, cmd.Name, cmd.Email)}, &condition)
+	condition := dcb.NewAppendCondition(dcb.NewQuery(dcb.NewTags("student_id", cmd.StudentID), "StudentRegistered"))
+	err = store.Append(ctx, []dcb.InputEvent{NewStudentRegisteredEvent(cmd.StudentID, cmd.Name, cmd.Email)}, &condition)
 	if err != nil {
 		return fmt.Errorf("failed to register student: %w", err)
 	}
@@ -314,8 +316,8 @@ func handleRegisterStudent(ctx context.Context, store EventStore, cmd RegisterSt
 	return nil
 }
 
-func handleEnrollStudent(ctx context.Context, store EventStore, cmd EnrollStudentCommand) error {
-	projectors := []StateProjector{
+func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollStudentCommand) error {
+	projectors := []dcb.StateProjector{
 		{
 			ID:           "courseExists",
 			Query:        CourseExistsProjector(cmd.CourseID).Query,
@@ -388,10 +390,10 @@ func handleEnrollStudent(ctx context.Context, store EventStore, cmd EnrollStuden
 
 	// DCB-compliant approach: use specific query for enrollment append condition
 	// Only check for duplicate enrollment events, not all projector queries
-	enrollmentQuery := NewQuery(NewTags("student_id", cmd.StudentID, "course_id", cmd.CourseID), "StudentEnrolledInCourse")
-	appendCondition := NewAppendCondition(enrollmentQuery)
+	enrollmentQuery := dcb.NewQuery(dcb.NewTags("student_id", cmd.StudentID, "course_id", cmd.CourseID), "StudentEnrolledInCourse")
+	appendCondition := dcb.NewAppendCondition(enrollmentQuery)
 
-	err = store.Append(ctx, []InputEvent{NewStudentEnrolledEvent(cmd.StudentID, cmd.CourseID, time.Now().Format(time.RFC3339))}, &appendCondition)
+	err = store.Append(ctx, []dcb.InputEvent{NewStudentEnrolledEvent(cmd.StudentID, cmd.CourseID, time.Now().Format(time.RFC3339))}, &appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to enroll student: %w", err)
 	}
@@ -399,8 +401,8 @@ func handleEnrollStudent(ctx context.Context, store EventStore, cmd EnrollStuden
 	return nil
 }
 
-func handleDropStudent(ctx context.Context, store EventStore, cmd DropStudentCommand) error {
-	projectors := []StateProjector{
+func handleDropStudent(ctx context.Context, store dcb.EventStore, cmd DropStudentCommand) error {
+	projectors := []dcb.StateProjector{
 		{
 			ID:           "studentEnrollmentState",
 			Query:        StudentEnrollmentStateProjector(cmd.StudentID, cmd.CourseID).Query,
@@ -423,9 +425,9 @@ func handleDropStudent(ctx context.Context, store EventStore, cmd DropStudentCom
 	// DCB-compliant approach: for drop operations, we don't need FailIfEventsMatch
 	// because we've already verified the student is enrolled through the projection
 	// We only need optimistic locking to ensure no concurrent changes
-	appendCondition := NewAppendCondition(nil) // No need to check for existing events
+	appendCondition := dcb.NewAppendCondition(nil) // No need to check for existing events
 
-	err = store.Append(ctx, []InputEvent{NewStudentDroppedEvent(cmd.StudentID, cmd.CourseID, time.Now().Format(time.RFC3339))}, &appendCondition)
+	err = store.Append(ctx, []dcb.InputEvent{NewStudentDroppedEvent(cmd.StudentID, cmd.CourseID, time.Now().Format(time.RFC3339))}, &appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to drop student: %w", err)
 	}
@@ -433,12 +435,12 @@ func handleDropStudent(ctx context.Context, store EventStore, cmd DropStudentCom
 	return nil
 }
 
-func handleChangeCourseCapacity(ctx context.Context, store EventStore, cmd ChangeCourseCapacityCommand) error {
+func handleChangeCourseCapacity(ctx context.Context, store dcb.EventStore, cmd ChangeCourseCapacityCommand) error {
 	courseID := cmd.CourseID
 	newCapacity := cmd.NewCapacity
 
 	// Project course state
-	projectors := []StateProjector{
+	projectors := []dcb.StateProjector{
 		{
 			ID:           "courseState",
 			Query:        CourseStateProjector(courseID).Query,
@@ -466,8 +468,8 @@ func handleChangeCourseCapacity(ctx context.Context, store EventStore, cmd Chang
 	event := NewCourseCapacityChangedEvent(courseID, newCapacity)
 
 	// Append with optimistic locking using the same query
-	appendCondition := NewAppendCondition(NewQuery(NewTags("course_id", courseID), "CourseCapacityChanged"))
-	err = store.Append(ctx, []InputEvent{event}, &appendCondition)
+	appendCondition := dcb.NewAppendCondition(dcb.NewQuery(dcb.NewTags("course_id", courseID), "CourseCapacityChanged"))
+	err = store.Append(ctx, []dcb.InputEvent{event}, &appendCondition)
 	if err != nil {
 		return err
 	}
@@ -478,14 +480,14 @@ func handleChangeCourseCapacity(ctx context.Context, store EventStore, cmd Chang
 // Test Suite
 var _ = Describe("Course Subscription Domain", func() {
 	var (
-		store EventStore
+		store dcb.EventStore
 		ctx   context.Context
 	)
 
 	BeforeEach(func() {
 		// Use shared PostgreSQL container and truncate events between tests
-		store = NewEventStoreFromPool(pool)
-		store = store.(EventStore)
+		store = dcb.NewEventStoreFromPool(pool)
+		store = store.(dcb.EventStore)
 
 		// Create context with timeout for each test
 		ctx, _ = context.WithTimeout(context.Background(), 30*time.Second)
@@ -504,12 +506,12 @@ var _ = Describe("Course Subscription Domain", func() {
 				Instructor: "Dr. Smith",
 				Capacity:   25,
 			}
-			store := store.(EventStore)
+			store := store.(dcb.EventStore)
 			err := handleCreateCourse(ctx, store, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Read events
-			query := NewQuery(NewTags("course_id", "course-1"), "CourseDefined")
+			query := dcb.NewQuery(dcb.NewTags("course_id", "course-1"), "CourseDefined")
 			events, err := store.Query(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events).To(HaveLen(1))
@@ -518,7 +520,7 @@ var _ = Describe("Course Subscription Domain", func() {
 
 		It("should use ReadStream for large datasets", func() {
 			// Create multiple courses using command pattern
-			store := store.(EventStore)
+			store := store.(dcb.EventStore)
 			for i := 1; i <= 5; i++ {
 				createCourseCmd := CreateCourseCommand{
 					CourseID:   fmt.Sprintf("course-%d", i),
@@ -531,7 +533,7 @@ var _ = Describe("Course Subscription Domain", func() {
 			}
 
 			// Use ReadStream instead of ReadStream
-			query := NewQuery(NewTags(), "CourseDefined")
+			query := dcb.NewQuery(dcb.NewTags(), "CourseDefined")
 			eventChan, err := store.QueryStream(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -552,12 +554,12 @@ var _ = Describe("Course Subscription Domain", func() {
 				Capacity:   30,
 			}
 
-			store := store.(EventStore)
+			store := store.(dcb.EventStore)
 			err := handleCreateCourse(ctx, store, cmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Verify course was created
-			query := NewQuery(NewTags("course_id", "math-101"), "CourseDefined")
+			query := dcb.NewQuery(dcb.NewTags("course_id", "math-101"), "CourseDefined")
 			events, err := store.Query(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events).To(HaveLen(1))
@@ -571,7 +573,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Capacity:   30,
 			}
 
-			store := store.(EventStore)
+			store := store.(dcb.EventStore)
 			// Create course first time
 			err := handleCreateCourse(ctx, store, cmd)
 			Expect(err).NotTo(HaveOccurred())
@@ -589,12 +591,12 @@ var _ = Describe("Course Subscription Domain", func() {
 				Email:     "alice@example.com",
 			}
 
-			store := store.(EventStore)
+			store := store.(dcb.EventStore)
 			err := handleRegisterStudent(ctx, store, cmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Verify student was registered
-			query := NewQuery(NewTags("student_id", "student-123"), "StudentRegistered")
+			query := dcb.NewQuery(dcb.NewTags("student_id", "student-123"), "StudentRegistered")
 			events, err := store.Query(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events).To(HaveLen(1))
@@ -607,7 +609,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Email:     "alice@example.com",
 			}
 
-			store := store.(EventStore)
+			store := store.(dcb.EventStore)
 			// Register student first time
 			err := handleRegisterStudent(ctx, store, cmd)
 			Expect(err).NotTo(HaveOccurred())
@@ -626,7 +628,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Instructor: "Dr. Johnson",
 				Capacity:   30,
 			}
-			store := store.(EventStore)
+			store := store.(dcb.EventStore)
 			err := handleCreateCourse(ctx, store, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -648,7 +650,7 @@ var _ = Describe("Course Subscription Domain", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Verify enrollment
-			query := NewQuery(NewTags("student_id", "student-123", "course_id", "math-101"), "StudentEnrolledInCourse")
+			query := dcb.NewQuery(dcb.NewTags("student_id", "student-123", "course_id", "math-101"), "StudentEnrolledInCourse")
 			events, err := store.Query(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events).To(HaveLen(1))
@@ -661,7 +663,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Name:      "Alice Johnson",
 				Email:     "alice@example.com",
 			}
-			store := store.(EventStore)
+			store := store.(dcb.EventStore)
 			err := handleRegisterStudent(ctx, store, registerStudentCmd)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -683,7 +685,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Instructor: "Dr. Johnson",
 				Capacity:   30,
 			}
-			store := store.(EventStore)
+			store := store.(dcb.EventStore)
 			err := handleCreateCourse(ctx, store, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -705,7 +707,7 @@ var _ = Describe("Course Subscription Domain", func() {
 				Instructor: "Dr. Johnson",
 				Capacity:   30,
 			}
-			store := store.(EventStore)
+			store := store.(dcb.EventStore)
 			err := handleCreateCourse(ctx, store, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -809,7 +811,7 @@ var _ = Describe("Course Subscription Domain", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Verify drop event
-			query := NewQuery(NewTags("student_id", "student-123", "course_id", "math-101"), "StudentDroppedFromCourse")
+			query := dcb.NewQuery(dcb.NewTags("student_id", "student-123", "course_id", "math-101"), "StudentDroppedFromCourse")
 			events, err := store.Query(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events).To(HaveLen(1))
@@ -865,7 +867,7 @@ var _ = Describe("Course Subscription Domain", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Verify capacity change event
-			query := NewQuery(NewTags("course_id", "math-101"), "CourseCapacityChanged")
+			query := dcb.NewQuery(dcb.NewTags("course_id", "math-101"), "CourseCapacityChanged")
 			events, err := store.Query(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(events).To(HaveLen(1))
@@ -924,7 +926,7 @@ var _ = Describe("Course Subscription Domain", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Project course state
-			projectors := []StateProjector{
+			projectors := []dcb.StateProjector{
 				{
 					ID:           "courseState",
 					Query:        CourseStateProjector("math-101").Query,
@@ -959,22 +961,22 @@ func intPtr(i int) *int {
 	return &i
 }
 
-func createCourseDefinedEvent(courseID string, name string, capacity int) InputEvent {
+func createCourseDefinedEvent(courseID string, name string, capacity int) dcb.InputEvent {
 	return NewCourseDefinedEvent(courseID, name, "Instructor", capacity)
 }
 
-func createStudentRegisteredEvent(studentID string, name string) InputEvent {
+func createStudentRegisteredEvent(studentID string, name string) dcb.InputEvent {
 	return NewStudentRegisteredEvent(studentID, name, "email@example.com")
 }
 
-func createStudentEnrolledInCourseEvent(studentID string, courseID string) InputEvent {
+func createStudentEnrolledInCourseEvent(studentID string, courseID string) dcb.InputEvent {
 	return NewStudentEnrolledEvent(studentID, courseID, time.Now().Format(time.RFC3339))
 }
 
-func createStudentDroppedFromCourseEvent(studentID string, courseID string) InputEvent {
+func createStudentDroppedFromCourseEvent(studentID string, courseID string) dcb.InputEvent {
 	return NewStudentDroppedEvent(studentID, courseID, time.Now().Format(time.RFC3339))
 }
 
-func createCourseCapacityChangedEvent(courseID string, newCapacity int) InputEvent {
+func createCourseCapacityChangedEvent(courseID string, newCapacity int) dcb.InputEvent {
 	return NewCourseCapacityChangedEvent(courseID, newCapacity)
 }

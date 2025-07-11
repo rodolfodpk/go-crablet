@@ -12,7 +12,7 @@ import (
 // cursor == nil: query from beginning of stream
 // cursor != nil: query from specified cursor position
 func (es *eventStore) Query(ctx context.Context, query Query, after *Cursor) ([]Event, error) {
-	if len(query.getItems()) == 0 {
+	if len(query.GetItems()) == 0 {
 		return nil, &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  "query",
@@ -87,7 +87,7 @@ func (es *eventStore) Query(ctx context.Context, query Query, after *Cursor) ([]
 // This is optimized for large datasets and provides backpressure through channels
 // for efficient memory usage and Go-idiomatic streaming
 func (es *eventStore) QueryStream(ctx context.Context, query Query, after *Cursor) (<-chan Event, error) {
-	if len(query.getItems()) == 0 {
+	if len(query.GetItems()) == 0 {
 		return nil, &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  "query_stream",

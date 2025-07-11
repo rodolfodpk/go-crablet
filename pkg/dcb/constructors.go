@@ -2,6 +2,8 @@ package dcb
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -156,4 +158,13 @@ func NewAppendCondition(failIfEventsMatch Query) AppendCondition {
 	return &appendCondition{
 		FailIfEventsMatch: failIfEventsMatch.(*query),
 	}
+}
+
+// ToJSON marshals a value to JSON bytes, panicking on error (for convenience in tests and examples).
+func ToJSON(v any) []byte {
+	data, err := json.Marshal(v)
+	if err != nil {
+		panic(fmt.Sprintf("failed to marshal to JSON: %v", err))
+	}
+	return data
 }

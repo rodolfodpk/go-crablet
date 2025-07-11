@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"testing"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	. "github.com/onsi/ginkgo/v2"
@@ -222,4 +224,10 @@ func filterPsqlCommands(sql string) string {
 	}
 
 	return strings.Join(filteredLines, "\n")
+}
+
+// TestDCB is the main test entry point for the Ginkgo test suite
+func TestDCB(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "DCB Test Suite")
 }

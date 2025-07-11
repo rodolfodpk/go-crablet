@@ -1,8 +1,11 @@
-package dcb
+package dcb_test
 
 import (
 	"context"
+	"fmt"
 	"time"
+
+	"go-crablet/pkg/dcb"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -14,10 +17,10 @@ var _ = Describe("Cursor-based operations", func() {
 			ctx := context.Background()
 
 			// Create some test events with unique tags
-			events := []InputEvent{
-				NewInputEvent("TestEvent", NewTags("cursor_test", "1"), []byte(`{"value": 1}`)),
-				NewInputEvent("TestEvent", NewTags("cursor_test", "2"), []byte(`{"value": 2}`)),
-				NewInputEvent("TestEvent", NewTags("cursor_test", "3"), []byte(`{"value": 3}`)),
+			events := []dcb.InputEvent{
+				dcb.NewInputEvent("TestEvent", dcb.NewTags("cursor_test", "1"), []byte(`{"value": 1}`)),
+				dcb.NewInputEvent("TestEvent", dcb.NewTags("cursor_test", "2"), []byte(`{"value": 2}`)),
+				dcb.NewInputEvent("TestEvent", dcb.NewTags("cursor_test", "3"), []byte(`{"value": 3}`)),
 			}
 
 			// Append events
@@ -25,19 +28,19 @@ var _ = Describe("Cursor-based operations", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Read first event to get cursor
-			query := NewQuery(NewTags("cursor_test", "1"), "TestEvent")
+			query := dcb.NewQuery(dcb.NewTags("cursor_test", "1"), "TestEvent")
 			firstEvents, err := store.Query(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(firstEvents).To(HaveLen(1))
 
 			// Create cursor from first event
-			cursor := &Cursor{
+			cursor := &dcb.Cursor{
 				TransactionID: firstEvents[0].TransactionID,
 				Position:      firstEvents[0].Position,
 			}
 
 			// Read from cursor - should get events after the cursor with same tag pattern
-			query2 := NewQuery(NewTags("cursor_test"), "TestEvent") // Query all cursor_test events
+			query2 := dcb.NewQuery(dcb.NewTags("cursor_test"), "TestEvent") // Query all cursor_test events
 			eventsFromCursor, err := store.Query(ctx, query2, cursor)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -51,8 +54,8 @@ var _ = Describe("Cursor-based operations", func() {
 			ctx := context.Background()
 
 			// Create some test events
-			events := []InputEvent{
-				NewInputEvent("TestEvent", NewTags("test", "nil"), []byte(`{"value": 1}`)),
+			events := []dcb.InputEvent{
+				dcb.NewInputEvent("TestEvent", dcb.NewTags("test", "nil"), []byte(`{"value": 1}`)),
 			}
 
 			// Append events
@@ -60,7 +63,7 @@ var _ = Describe("Cursor-based operations", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Read with nil cursor should work like regular Read
-			query := NewQuery(NewTags("test", "nil"), "TestEvent")
+			query := dcb.NewQuery(dcb.NewTags("test", "nil"), "TestEvent")
 			eventsFromCursor, err := store.Query(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(eventsFromCursor).To(HaveLen(1))
@@ -71,11 +74,14 @@ var _ = Describe("Cursor-based operations", func() {
 		It("should project only new events after the cursor", func() {
 			ctx := context.Background()
 
+			// Use unique tags to avoid interference from other tests
+			uniqueID := fmt.Sprintf("cursor_test_%d", time.Now().UnixNano())
+
 			// Create some test events
-			events := []InputEvent{
-				NewInputEvent("UserCreated", NewTags("user_id", "123"), []byte(`{"name": "John"}`)),
-				NewInputEvent("UserUpdated", NewTags("user_id", "123"), []byte(`{"name": "John Doe"}`)),
-				NewInputEvent("UserUpdated", NewTags("user_id", "123"), []byte(`{"name": "John Doe Smith"}`)),
+			events := []dcb.InputEvent{
+				dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", uniqueID), []byte(`{"name": "John"}`)),
+				dcb.NewInputEvent("UserUpdated", dcb.NewTags("user_id", uniqueID), []byte(`{"name": "John Doe"}`)),
+				dcb.NewInputEvent("UserUpdated", dcb.NewTags("user_id", uniqueID), []byte(`{"name": "John Doe Smith"}`)),
 			}
 
 			// Append events
@@ -83,25 +89,25 @@ var _ = Describe("Cursor-based operations", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Read first event to get cursor
-			query := NewQuery(NewTags("user_id", "123"), "UserCreated")
+			query := dcb.NewQuery(dcb.NewTags("user_id", uniqueID), "UserCreated")
 			firstEvents, err := store.Query(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(firstEvents).To(HaveLen(1))
 
 			// Create cursor from first event
-			cursor := &Cursor{
+			cursor := &dcb.Cursor{
 				TransactionID: firstEvents[0].TransactionID,
 				Position:      firstEvents[0].Position,
 			}
 
 			// Create projector
-			projector := StateProjector{
+			projector := dcb.StateProjector{
 				ID:    "user",
-				Query: NewQuery(NewTags("user_id", "123")),
+				Query: dcb.NewQuery(dcb.NewTags("user_id", uniqueID)),
 				InitialState: map[string]interface{}{
 					"name": "",
 				},
-				TransitionFn: func(state any, event Event) any {
+				TransitionFn: func(state any, event dcb.Event) any {
 					userState := state.(map[string]interface{})
 					if event.Type == "UserCreated" || event.Type == "UserUpdated" {
 						// Parse event data to get name
@@ -112,12 +118,12 @@ var _ = Describe("Cursor-based operations", func() {
 			}
 
 			// Project from cursor
-			states, appendCondition, err := store.Project(ctx, []StateProjector{projector}, cursor)
+			states, appendCondition, err := store.Project(ctx, []dcb.StateProjector{projector}, cursor)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(states).To(HaveKey("user"))
 			Expect(appendCondition).NotTo(BeNil())
 
-			// Should have processed events after the cursor
+			// Should have processed events after the cursor (2 UserUpdated events)
 			userState := states["user"].(map[string]interface{})
 			Expect(userState["name"]).To(Equal("updated"))
 		})
@@ -128,10 +134,13 @@ var _ = Describe("Cursor-based operations", func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
+			// Use unique tags to avoid interference from other tests
+			uniqueID := fmt.Sprintf("stream_cursor_test_%d", time.Now().UnixNano())
+
 			// Create some test events
-			events := []InputEvent{
-				NewInputEvent("UserCreated", NewTags("user_id", "456"), []byte(`{"name": "Jane"}`)),
-				NewInputEvent("UserUpdated", NewTags("user_id", "456"), []byte(`{"name": "Jane Doe"}`)),
+			events := []dcb.InputEvent{
+				dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", uniqueID), []byte(`{"name": "Jane"}`)),
+				dcb.NewInputEvent("UserUpdated", dcb.NewTags("user_id", uniqueID), []byte(`{"name": "Jane Doe"}`)),
 			}
 
 			// Append events
@@ -139,25 +148,25 @@ var _ = Describe("Cursor-based operations", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Read first event to get cursor
-			query := NewQuery(NewTags("user_id", "456"), "UserCreated")
+			query := dcb.NewQuery(dcb.NewTags("user_id", uniqueID), "UserCreated")
 			firstEvents, err := store.Query(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(firstEvents).To(HaveLen(1))
 
 			// Create cursor from first event
-			cursor := &Cursor{
+			cursor := &dcb.Cursor{
 				TransactionID: firstEvents[0].TransactionID,
 				Position:      firstEvents[0].Position,
 			}
 
 			// Create projector
-			projector := StateProjector{
+			projector := dcb.StateProjector{
 				ID:    "user",
-				Query: NewQuery(NewTags("user_id", "456")),
+				Query: dcb.NewQuery(dcb.NewTags("user_id", uniqueID)),
 				InitialState: map[string]interface{}{
 					"name": "",
 				},
-				TransitionFn: func(state any, event Event) any {
+				TransitionFn: func(state any, event dcb.Event) any {
 					userState := state.(map[string]interface{})
 					if event.Type == "UserCreated" || event.Type == "UserUpdated" {
 						userState["name"] = "streamed"
@@ -167,12 +176,12 @@ var _ = Describe("Cursor-based operations", func() {
 			}
 
 			// Stream projection from cursor
-			statesChan, appendConditionChan, err := store.ProjectStream(ctx, []StateProjector{projector}, cursor)
+			statesChan, appendConditionChan, err := store.ProjectStream(ctx, []dcb.StateProjector{projector}, cursor)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Collect results
 			var finalStates map[string]any
-			var finalAppendCondition AppendCondition
+			var finalAppendCondition dcb.AppendCondition
 
 			select {
 			case states := <-statesChan:
