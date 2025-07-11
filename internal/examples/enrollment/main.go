@@ -304,7 +304,7 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollSt
 	}
 
 	// Project all states using the DCB decision model pattern
-	states, _, err := store.Project(ctx, []dcb.StateProjector{
+	states, appendCond, err := store.Project(ctx, []dcb.StateProjector{
 		{
 			ID:           "course",
 			Query:        courseProjector.Query,
@@ -361,8 +361,8 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollSt
 		),
 	}
 
-	// Append events atomically for this command
-	err = store.Append(ctx, events, nil)
+	// Append events atomically for this command with optimistic concurrency control
+	err = store.Append(ctx, events, &appendCond)
 	if err != nil {
 		return fmt.Errorf("failed to enroll student: %w", err)
 	}
@@ -392,7 +392,7 @@ func handleUnenrollStudent(ctx context.Context, store dcb.EventStore, cmd Unenro
 	}
 
 	// Project enrollment state
-	states, _, err := store.Project(ctx, []dcb.StateProjector{
+	states, appendCond, err := store.Project(ctx, []dcb.StateProjector{
 		{
 			ID:           "enrollment",
 			Query:        enrollmentProjector.Query,
@@ -423,8 +423,8 @@ func handleUnenrollStudent(ctx context.Context, store dcb.EventStore, cmd Unenro
 		),
 	}
 
-	// Append events atomically for this command
-	err = store.Append(ctx, events, nil)
+	// Append events atomically for this command with optimistic concurrency control
+	err = store.Append(ctx, events, &appendCond)
 	if err != nil {
 		return fmt.Errorf("failed to unenroll student: %w", err)
 	}
