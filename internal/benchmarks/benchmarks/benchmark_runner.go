@@ -47,7 +47,7 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
 		LockTimeout:            5000,
 		StreamBuffer:           1000,
 		DefaultAppendIsolation: dcb.IsolationLevelReadCommitted,
-		ReadTimeout:            15000,
+		QueryTimeout:           15000,
 	}
 
 	repeatableReadConfig := dcb.EventStoreConfig{
@@ -55,7 +55,7 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
 		LockTimeout:            5000,
 		StreamBuffer:           1000,
 		DefaultAppendIsolation: dcb.IsolationLevelRepeatableRead,
-		ReadTimeout:            15000,
+		QueryTimeout:           15000,
 	}
 
 	store, err := dcb.NewEventStoreWithConfig(ctx, pool, readCommittedConfig)
