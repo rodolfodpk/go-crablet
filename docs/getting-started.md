@@ -98,6 +98,7 @@ For detailed testing information, see the [Testing Guide](testing.md).
   docker-compose up -d
   ```
   This will remove the old database and re-create it with the correct schema.
+- **Table structure error**: If you see errors like `table nonexistent_events does not exist` or `missing required column 'occurred_at'`, the EventStore is validating your table structure. Ensure your table has all required columns with correct types.
 - **Go module error**: Run `go mod download` to download dependencies
 - **Permission error**: Make sure Docker is running and you have permissions
 

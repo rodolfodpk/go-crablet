@@ -3,7 +3,6 @@ package dcb
 import (
 	"context"
 	"fmt"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -235,8 +234,8 @@ var _ = Describe("Validation", func() {
 
 	Describe("validateBatchSize", func() {
 		BeforeEach(func() {
-			// Create context with timeout for each test
-			ctx, _ = context.WithTimeout(context.Background(), 30*time.Second)
+			// Create context for each test
+			ctx = context.Background()
 
 			// Use shared PostgreSQL container and truncate events between tests
 			// Truncate events table before each test

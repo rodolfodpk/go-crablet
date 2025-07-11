@@ -489,8 +489,8 @@ var _ = Describe("Course Subscription Domain", func() {
 		store = dcb.NewEventStoreFromPool(pool)
 		store = store.(dcb.EventStore)
 
-		// Create context with timeout for each test
-		ctx, _ = context.WithTimeout(context.Background(), 30*time.Second)
+		// Create context for each test
+		ctx = context.Background()
 
 		// Truncate events table before each test
 		err := truncateEventsTable(ctx, pool)

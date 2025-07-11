@@ -14,7 +14,7 @@ type Event struct {
 	Data          []byte    `json:"data"`
 	TransactionID uint64    `json:"transaction_id"`
 	Position      int64     `json:"position"`
-	CreatedAt     time.Time `json:"created_at"`
+	OccurredAt    time.Time `json:"occurred_at"`
 }
 
 // InputEvent represents an event to be appended to the store
@@ -157,6 +157,8 @@ type EventStoreConfig struct {
 	StreamBuffer           int            `json:"stream_buffer"`            // Channel buffer size for streaming operations
 	DefaultAppendIsolation IsolationLevel `json:"default_append_isolation"` // Default isolation level for Append operations
 	QueryTimeout           int            `json:"query_timeout"`            // Query timeout in milliseconds (defensive against hanging queries)
+	AppendTimeout          int            `json:"append_timeout"`           // Append timeout in milliseconds (defensive against hanging appends)
+	TargetEventsTable      string         `json:"target_events_table"`      // Target events table name (default: "events")
 }
 
 type inputEvent struct {

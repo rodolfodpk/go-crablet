@@ -111,6 +111,7 @@ config := dcb.EventStoreConfig{
     StreamBuffer:           1000,
     DefaultAppendIsolation: dcb.IsolationLevelReadCommitted,
     QueryTimeout:           15000, // ms
+    AppendTimeout:          10000, // ms
 }
 store, err := dcb.NewEventStoreWithConfig(ctx, pool, config)
 ```

@@ -125,6 +125,8 @@ type EventStoreConfig struct {
     StreamBuffer           int            `json:"stream_buffer"`            // Channel buffer size for streaming operations
     DefaultAppendIsolation IsolationLevel `json:"default_append_isolation"` // Default isolation level for Append operations
     QueryTimeout           int            `json:"query_timeout"`            // Query timeout in milliseconds (defensive against hanging queries)
+    AppendTimeout          int            `json:"append_timeout"`           // Append timeout in milliseconds (defensive against hanging appends)
+    TargetEventsTable      string         `json:"target_events_table"`      // Target events table name (default: "events")
 }
 ```
 
@@ -134,6 +136,8 @@ type EventStoreConfig struct {
 - `StreamBuffer`: 1000 events
 - `DefaultAppendIsolation`: Read Committed
 - `QueryTimeout`: 15000ms (15 seconds)
+- `AppendTimeout`: 10000ms (10 seconds)
+- `TargetEventsTable`: "events"
 
 ## Performance Comparison Across Isolation Levels
 
@@ -159,10 +163,163 @@ Benchmark results from web-app load testing (30-second tests, multiple VUs):
 - **Append (nil condition)**: Use for simple event appends where no conditions are needed
 - **Append (with condition)**: Use for conditional appends requiring optimistic locking
 
+## Table Validation
+
+When creating an EventStore with a custom `TargetEventsTable`, the library validates that the table exists and has the correct structure:
+
+- **Required columns**: `type`, `tags`, `data`, `transaction_id`, `position`, `occurred_at`
+- **Data types**: Validates column types and nullable constraints
+- **Error handling**: Returns `TableStructureError` with detailed information about validation failures
+
+Example validation errors:
+- `table nonexistent_events does not exist`
+- `missing required column 'occurred_at'`
+- `column 'tags' should be ARRAY type, got TEXT`
+
+## Command Execution
+
+go-crablet supports command execution with automatic event generation based on current state:
+
+```go
+type Command interface {
+    GetType() string
+    GetData() []byte
+    GetMetadata() map[string]interface{}
+}
+
+type CommandHandler interface {
+    Handle(ctx context.Context, decisionModels map[string]any, command Command) []InputEvent
+}
+
+// ExecuteCommand executes a command and generates events based on current state
+ExecuteCommand(ctx context.Context, command Command, handler CommandHandler, condition *AppendCondition) error
+```
+
+### Command Execution Flow
+
+1. **Store command** in the `commands` table with transaction ID
+2. **Get current state** using existing projectors (if condition provided)
+3. **Generate events** using the command handler
+4. **Append events** atomically within the same transaction
+
+### Basic Usage
+
+```go
+// Create command
+cmd := NewCommand("CreateUser", ToJSON(userData), map[string]interface{}{
+    "correlation_id": "corr_789",
+    "source": "web_api",
+})
+
+// Define command handler
+type CreateUserHandler struct{}
+
+func (h *CreateUserHandler) Handle(ctx context.Context, decisionModels map[string]any, command Command) []InputEvent {
+    // Extract command data
+    var cmdData CreateUserCommand
+    json.Unmarshal(command.GetData(), &cmdData)
+    
+    // Check current state
+    if userState, ok := decisionModels["user_state"].(UserState); ok {
+        if userState.UserExists(cmdData.Email) {
+            return []InputEvent{
+                NewInputEvent("UserCreationFailed", 
+                    NewTags("email", cmdData.Email, "reason", "user_exists"), 
+                    ToJSON(map[string]string{"error": "User already exists"})),
+            }
+        }
+    }
+    
+    // Generate success events
+    return []InputEvent{
+        NewInputEvent("UserCreated", 
+            NewTags("email", cmdData.Email), 
+            ToJSON(userCreatedData)),
+    }
+}
+
+// Execute command
+handler := &CreateUserHandler{}
+err := eventStore.ExecuteCommand(ctx, cmd, handler, &condition)
+```
+
+### Type Safety for Decision Models
+
+The `decisionModels` parameter is `map[string]any` for flexibility, but you can add type safety:
+
+#### Option 1: Type Assertion in Handler
+```go
+func (h *MyHandler) Handle(ctx context.Context, decisionModels map[string]any, command Command) []InputEvent {
+    // Type-safe access with assertion
+    if userState, ok := decisionModels["user_state"].(UserState); ok {
+        if userState.UserExists(email) {
+            // Type-safe access
+        }
+    }
+    return events
+}
+```
+
+#### Option 2: Typed Wrapper
+```go
+// Define your typed decision models
+type MyDecisionModels struct {
+    UserState   UserState
+    CourseState CourseState
+}
+
+// Create typed wrapper
+func (h *MyHandler) getTypedModels(raw map[string]any) MyDecisionModels {
+    return MyDecisionModels{
+        UserState:   raw["user_state"].(UserState),
+        CourseState: raw["course_state"].(CourseState),
+    }
+}
+
+// Use typed models in handler
+func (h *MyHandler) Handle(ctx context.Context, decisionModels map[string]any, command Command) []InputEvent {
+    typed := h.getTypedModels(decisionModels)
+    return h.handleTyped(typed, command)
+}
+
+func (h *MyHandler) handleTyped(models MyDecisionModels, command Command) []InputEvent {
+    // Full type safety with IDE support
+    if models.UserState.UserExists(email) {
+        // IDE autocomplete works!
+    }
+    return events
+}
+```
+
+#### Option 3: Generic Helper
+```go
+// Generic helper for type-safe access
+func getState[T any](decisionModels map[string]any, key string) (T, bool) {
+    if value, exists := decisionModels[key]; exists {
+        if typedValue, ok := value.(T); ok {
+            return typedValue, true
+        }
+    }
+    var zero T
+    return zero, false
+}
+
+// Usage in handler
+func (h *MyHandler) Handle(ctx context.Context, decisionModels map[string]any, command Command) []InputEvent {
+    if userState, ok := getState[UserState](decisionModels, "user_state"); ok {
+        if userState.UserExists(email) {
+            // Type-safe access
+        }
+    }
+    return events
+}
+```
+
 ## Implementation Details
 
-- **Database**: PostgreSQL with events table and append functions
+- **Database**: PostgreSQL with events table, commands table, and append functions
 - **Streaming**: Multiple approaches for different dataset sizes
 - **Extensions**: Channel-based streaming for Go-idiomatic processing
+- **Commands**: Atomic command execution with event generation
 
 See [examples](examples.md) for complete working examples including course subscriptions and money transfers, and [getting-started](getting-started.md) for setup instructions.

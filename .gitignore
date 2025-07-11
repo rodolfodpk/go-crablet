@@ -25,6 +25,7 @@ k6-results/
 *-test-*.json
 benchmark-results/
 test-results/
+benchmark-results-*/
 
 # Benchmark cache and SQLite databases
 internal/benchmarks/cache/

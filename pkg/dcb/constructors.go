@@ -31,7 +31,9 @@ func NewEventStoreFromPool(pool *pgxpool.Pool) EventStore {
 		LockTimeout:            5000,
 		StreamBuffer:           1000,
 		DefaultAppendIsolation: IsolationLevelReadCommitted,
-		QueryTimeout:           15000, // 15 seconds default
+		QueryTimeout:           15000,    // 15 seconds default
+		AppendTimeout:          10000,    // 10 seconds default
+		TargetEventsTable:      "events", // Set default table name
 	}
 	return &eventStore{
 		pool:   pool,

@@ -13,7 +13,7 @@ import (
 // DumpEvents prints all events in the database
 func DumpEvents(ctx context.Context, pool *pgxpool.Pool) {
 	rows, err := pool.Query(ctx, `
-		SELECT type, tags, data, position, created_at
+		SELECT type, tags, data, position, occurred_at
 		FROM events 
 		ORDER BY position
 	`)
@@ -24,7 +24,7 @@ func DumpEvents(ctx context.Context, pool *pgxpool.Pool) {
 	defer rows.Close()
 
 	fmt.Printf("%-8s %-20s %-30s %-50s %-15s\n",
-		"Position", "Type", "Tags", "Data", "Created At")
+		"Position", "Type", "Tags", "Data", "Occurred At")
 	fmt.Println(strings.Repeat("-", 130))
 
 	for rows.Next() {
@@ -32,9 +32,9 @@ func DumpEvents(ctx context.Context, pool *pgxpool.Pool) {
 		var tags []string
 		var data []byte
 		var position int64
-		var createdAt time.Time
+		var occurredAt time.Time
 
-		err := rows.Scan(&eventType, &tags, &data, &position, &createdAt)
+		err := rows.Scan(&eventType, &tags, &data, &position, &occurredAt)
 		if err != nil {
 			log.Printf("Failed to scan event: %v", err)
 			continue
@@ -53,6 +53,6 @@ func DumpEvents(ctx context.Context, pool *pgxpool.Pool) {
 		}
 
 		fmt.Printf("%-8d %-20s %-30s %-50s %-15s\n",
-			position, eventType, tagsStr, dataStr, createdAt.Format("2006-01-02 15:04:05"))
+			position, eventType, tagsStr, dataStr, occurredAt.Format("2006-01-02 15:04:05"))
 	}
 }

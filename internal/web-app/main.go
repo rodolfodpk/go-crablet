@@ -31,9 +31,8 @@ type Server struct {
 }
 
 func main() {
-	// Create context with timeout for the entire application
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	// Create context for the entire application (no timeout for server lifetime)
+	ctx := context.Background()
 
 	// Get database configuration from environment
 	dbHost := os.Getenv("DB_HOST")
@@ -153,6 +152,11 @@ func main() {
 
 	// Setup routes with optimized handlers
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		// Add timeout to health check context
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		r = r.WithContext(ctx)
+
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-cache")
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
@@ -164,8 +168,12 @@ func main() {
 			return
 		}
 
+		// Add timeout to cleanup context
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
 		// Truncate the events table and reset the position sequence
-		_, err := pool.Exec(r.Context(), `
+		_, err := pool.Exec(ctx, `
 			TRUNCATE TABLE events RESTART IDENTITY CASCADE;
 		`)
 
@@ -420,8 +428,9 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	query := convertQuery(req.Query)
 
-	// Execute read (Read has been renamed to Query)
-	ctx := r.Context()
+	// Execute read with timeout
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
 	result, err := s.storeReadCommitted.Query(ctx, query, nil)
 
 	duration := time.Since(start)
@@ -487,11 +496,15 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 	// Check if any events have lock: tags to determine if we should use advisory locks
 	useAdvisoryLocks := hasLockTags(inputEvents)
 
+	// Execute append with timeout
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
 	// Determine append method based on lock tags
 	var appendErr error
 	if useAdvisoryLocks {
 		// Use advisory lock function when lock: tags are present
-		appendErr = s.appendWithAdvisoryLocks(r.Context(), inputEvents, condition)
+		appendErr = s.appendWithAdvisoryLocks(ctx, inputEvents, condition)
 	} else {
 		// Use standard append methods
 		isolation := r.Header.Get("X-Append-If-Isolation")
@@ -507,10 +520,10 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 
 		if condition != nil {
 			// Use Append with conditions
-			appendErr = store.Append(r.Context(), inputEvents, &condition)
+			appendErr = store.Append(ctx, inputEvents, &condition)
 		} else {
 			// Simple append without conditions
-			appendErr = store.Append(r.Context(), inputEvents, nil)
+			appendErr = store.Append(ctx, inputEvents, nil)
 		}
 	}
 	duration := time.Since(start)

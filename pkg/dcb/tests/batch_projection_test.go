@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"time"
 
 	"go-crablet/pkg/dcb"
 
@@ -21,7 +20,7 @@ var _ = Describe("Batch Projection", func() {
 
 	BeforeEach(func() {
 		store = dcb.NewEventStoreFromPool(pool)
-		ctx, _ = context.WithTimeout(context.Background(), 30*time.Second)
+		ctx = context.Background()
 		err := truncateEventsTable(ctx, pool)
 		Expect(err).NotTo(HaveOccurred())
 	})

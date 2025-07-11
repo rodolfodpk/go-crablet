@@ -6,10 +6,25 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
+
+// withTimeout creates a new context with timeout, respecting caller's timeout if set
+// If caller provides context with deadline: use caller's timeout
+// If caller provides context without deadline: use default from config
+func (es *eventStore) withTimeout(ctx context.Context, defaultTimeoutMs int) (context.Context, context.CancelFunc) {
+	if deadline, ok := ctx.Deadline(); ok {
+		// Caller already set a timeout, use it
+		// Use context.Background() as parent to avoid inheriting cancellation from original context
+		return context.WithDeadline(context.Background(), deadline)
+	}
+	// No caller timeout, use default
+	// Use context.Background() as parent to avoid inheriting cancellation from original context
+	return context.WithTimeout(context.Background(), time.Duration(defaultTimeoutMs)*time.Millisecond)
+}
 
 // Append appends events to the store with optional condition
 // condition == nil: unconditional append
@@ -136,8 +151,11 @@ func (es *eventStore) appendEventsWithCondition(ctx context.Context, events []In
 		}
 	}
 
-	// Start transaction with specified isolation level
-	tx, err := es.pool.BeginTx(ctx, pgx.TxOptions{
+	// Start transaction with hybrid timeout (respects caller timeout if set, otherwise uses default)
+	appendCtx, cancel := es.withTimeout(ctx, es.config.AppendTimeout)
+	defer cancel()
+
+	tx, err := es.pool.BeginTx(appendCtx, pgx.TxOptions{
 		IsoLevel: toPgxIsoLevel(es.config.DefaultAppendIsolation),
 	})
 	if err != nil {
@@ -151,10 +169,10 @@ func (es *eventStore) appendEventsWithCondition(ctx context.Context, events []In
 	}
 	defer tx.Rollback(ctx)
 
-	// Execute PostgreSQL function within transaction
+	// Execute append operation using PostgreSQL function with table name parameter
 	_, err = tx.Exec(ctx, `
-		SELECT append_events_with_condition($1, $2, $3, $4)
-	`, types, tags, data, conditionJSON)
+		SELECT append_events_with_condition($1, $2, $3, $4, $5)
+	`, es.config.TargetEventsTable, types, tags, data, conditionJSON)
 
 	if err != nil {
 		// Check if it's a condition violation error
@@ -275,8 +293,11 @@ func (es *eventStore) appendEventsBatch(ctx context.Context, events []InputEvent
 		data[i] = event.GetData()
 	}
 
-	// Execute PostgreSQL function for batch insert
-	tx, err := es.pool.BeginTx(ctx, pgx.TxOptions{
+	// Execute PostgreSQL function for batch insert with hybrid timeout
+	appendCtx, cancel := es.withTimeout(ctx, es.config.AppendTimeout)
+	defer cancel()
+
+	tx, err := es.pool.BeginTx(appendCtx, pgx.TxOptions{
 		IsoLevel: toPgxIsoLevel(es.config.DefaultAppendIsolation),
 	})
 	if err != nil {
@@ -290,7 +311,8 @@ func (es *eventStore) appendEventsBatch(ctx context.Context, events []InputEvent
 	}
 	defer tx.Rollback(ctx)
 
-	_, err = tx.Exec(ctx, `SELECT append_events_batch($1, $2, $3)`, types, tags, data)
+	// Execute batch append using PostgreSQL function with table name parameter
+	_, err = tx.Exec(ctx, `SELECT append_events_batch($1, $2, $3, $4)`, es.config.TargetEventsTable, types, tags, data)
 	if err != nil {
 		return &ResourceError{
 			EventStoreError: EventStoreError{

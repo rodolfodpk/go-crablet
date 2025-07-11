@@ -3,7 +3,6 @@ package dcb_test
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"go-crablet/pkg/dcb"
 
@@ -20,7 +19,7 @@ var _ = Describe("Append Helpers", func() {
 
 	BeforeEach(func() {
 		store = dcb.NewEventStoreFromPool(pool)
-		ctx, _ = context.WithTimeout(context.Background(), 30*time.Second)
+		ctx = context.Background()
 		err := truncateEventsTable(ctx, pool)
 		Expect(err).NotTo(HaveOccurred())
 	})

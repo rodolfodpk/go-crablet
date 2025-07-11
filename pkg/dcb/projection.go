@@ -16,7 +16,7 @@ type rowEvent struct {
 	Data          []byte
 	Position      int64
 	TransactionID uint64
-	CreatedAt     time.Time
+	OccurredAt    time.Time
 }
 
 // convertRowToEvent converts a database row to an Event
@@ -27,7 +27,7 @@ func convertRowToEvent(row rowEvent) Event {
 		Data:          row.Data,
 		Position:      row.Position,
 		TransactionID: row.TransactionID,
-		CreatedAt:     row.CreatedAt,
+		OccurredAt:    row.OccurredAt,
 	}
 }
 
@@ -83,7 +83,7 @@ func (es *eventStore) buildReadQuerySQL(query Query, after *Cursor, limit *int) 
 
 	// Build final query efficiently
 	var sqlQuery strings.Builder
-	sqlQuery.WriteString("SELECT type, tags, data, transaction_id, position, created_at FROM events")
+	sqlQuery.WriteString(fmt.Sprintf("SELECT type, tags, data, transaction_id, position, occurred_at FROM %s", es.config.TargetEventsTable))
 
 	if len(conditions) > 0 {
 		sqlQuery.WriteString(" WHERE ")
@@ -314,7 +314,7 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 	// Process events
 	for rows.Next() {
 		var row rowEvent
-		err := rows.Scan(&row.Type, &row.Tags, &row.Data, &row.TransactionID, &row.Position, &row.CreatedAt)
+		err := rows.Scan(&row.Type, &row.Tags, &row.Data, &row.TransactionID, &row.Position, &row.OccurredAt)
 		if err != nil {
 			return nil, nil, &ResourceError{
 				EventStoreError: EventStoreError{
@@ -419,7 +419,7 @@ func (es *eventStore) projectDecisionModelWithQueryFromCursor(ctx context.Contex
 	// Process events
 	for rows.Next() {
 		var row rowEvent
-		err := rows.Scan(&row.Type, &row.Tags, &row.Data, &row.TransactionID, &row.Position, &row.CreatedAt)
+		err := rows.Scan(&row.Type, &row.Tags, &row.Data, &row.TransactionID, &row.Position, &row.OccurredAt)
 		if err != nil {
 			return nil, nil, &ResourceError{
 				EventStoreError: EventStoreError{
@@ -538,8 +538,11 @@ func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProje
 		return nil, nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	// Execute the query using caller's context (caller controls timeout)
-	rows, err := es.pool.Query(ctx, sqlQuery, args...)
+	// Execute the query with hybrid timeout (respects caller timeout if set, otherwise uses default)
+	queryCtx, cancel := es.withTimeout(ctx, es.config.QueryTimeout)
+	// Don't defer cancel() here - let the goroutine handle it
+
+	rows, err := es.pool.Query(queryCtx, sqlQuery, args...)
 	if err != nil {
 		return nil, nil, &ResourceError{
 			EventStoreError: EventStoreError{
@@ -566,6 +569,7 @@ func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProje
 			rows.Close()
 			close(resultChan)
 			close(appendConditionChan)
+			cancel() // Cancel the context when goroutine is done
 		}()
 
 		// Initialize projector states
@@ -581,10 +585,10 @@ func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProje
 		var latestCursor *Cursor
 		var hasEvents bool
 
-		// Process events
+		// Process events using the same context as the database query
 		for rows.Next() {
 			select {
-			case <-ctx.Done():
+			case <-queryCtx.Done():
 				// Context cancelled - exit cleanly
 				return
 			default:
@@ -595,7 +599,7 @@ func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProje
 					&row.Data,
 					&row.TransactionID,
 					&row.Position,
-					&row.CreatedAt,
+					&row.OccurredAt,
 				)
 				if err != nil {
 					// Log error and exit
@@ -647,14 +651,14 @@ func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProje
 		// Send final aggregated states (same as batch version)
 		select {
 		case resultChan <- projectorStates:
-		case <-ctx.Done():
+		case <-queryCtx.Done():
 			// Context cancelled while trying to send final states
 		}
 
 		// Send complete AppendCondition with cursor
 		select {
 		case appendConditionChan <- appendCondition:
-		case <-ctx.Done():
+		case <-queryCtx.Done():
 			// Context cancelled while trying to send AppendCondition
 		}
 	}()

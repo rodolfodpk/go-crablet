@@ -38,7 +38,7 @@ var _ = BeforeSuite(func() {
 
 	// Initialize test database using testcontainers
 	var err error
-	pool, container, err = setupPostgresContainer(ctx)
+	pool, container, err = setupPostgresContainer(context.Background()) // Use context.Background() for pool creation
 	Expect(err).NotTo(HaveOccurred())
 
 	// Read and execute schema.sql (path from pkg/dcb/tests to root)

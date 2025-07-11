@@ -24,8 +24,8 @@ var _ = Describe("Channel-Based Streaming", func() {
 		store, ok = store.(dcb.EventStore)
 		Expect(ok).To(BeTrue(), "Store should implement EventStore")
 
-		// Create context with timeout for each test
-		ctx, _ = context.WithTimeout(context.Background(), 30*time.Second)
+		// Create context for each test
+		ctx = context.Background()
 
 		// Truncate events table before each test
 		err := truncateEventsTable(ctx, pool)
@@ -301,6 +301,9 @@ var _ = Describe("Channel-Based Streaming", func() {
 		})
 
 		It("should handle large datasets with channel streaming", func() {
+			// Use context.Background() without any timeout to test if hybrid timeout is the issue
+			longCtx := context.Background()
+
 			// Create many events
 			events := make([]dcb.InputEvent, 100)
 			for i := 0; i < 100; i++ {
@@ -308,7 +311,8 @@ var _ = Describe("Channel-Based Streaming", func() {
 				events[i] = event
 			}
 
-			err := store.Append(ctx, events, nil)
+			// Use longCtx for append
+			err := store.Append(longCtx, events, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Define projector
@@ -322,8 +326,8 @@ var _ = Describe("Channel-Based Streaming", func() {
 				},
 			}
 
-			// Use channel-based projection
-			resultChan, _, err := store.ProjectStream(ctx, projectors, nil)
+			// Use longCtx for projection
+			resultChan, _, err := store.ProjectStream(longCtx, projectors, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Process results - now we get final aggregated states

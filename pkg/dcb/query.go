@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 )
 
 // Query reads events matching the query with optional cursor
@@ -37,8 +36,8 @@ func (es *eventStore) Query(ctx context.Context, query Query, after *Cursor) ([]
 		}
 	}
 
-	// Execute query with timeout
-	ctx, cancel := context.WithTimeout(ctx, time.Duration(es.config.QueryTimeout)*time.Millisecond)
+	// Execute query with hybrid timeout (respects caller timeout if set, otherwise uses default)
+	ctx, cancel := es.withTimeout(ctx, es.config.QueryTimeout)
 	defer cancel()
 
 	rows, err := es.pool.Query(ctx, sqlQuery, args...)
@@ -60,7 +59,7 @@ func (es *eventStore) Query(ctx context.Context, query Query, after *Cursor) ([]
 			&row.Data,
 			&row.TransactionID,
 			&row.Position,
-			&row.CreatedAt,
+			&row.OccurredAt,
 		)
 		if err != nil {
 			return nil, &EventStoreError{
@@ -117,8 +116,11 @@ func (es *eventStore) QueryStream(ctx context.Context, query Query, after *Curso
 			return
 		}
 
-		// Execute query
-		rows, err := es.pool.Query(ctx, sqlQuery, args...)
+		// Execute query with hybrid timeout (respects caller timeout if set, otherwise uses default)
+		queryCtx, cancel := es.withTimeout(ctx, es.config.QueryTimeout)
+		defer cancel()
+
+		rows, err := es.pool.Query(queryCtx, sqlQuery, args...)
 		if err != nil {
 			return
 		}
@@ -133,7 +135,7 @@ func (es *eventStore) QueryStream(ctx context.Context, query Query, after *Curso
 				&row.Data,
 				&row.TransactionID,
 				&row.Position,
-				&row.CreatedAt,
+				&row.OccurredAt,
 			)
 			if err != nil {
 				return

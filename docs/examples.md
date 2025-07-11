@@ -197,7 +197,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
                     if err := json.Unmarshal(event.Data, &data); err == nil {
                         acc.Owner = data.Owner
                         acc.Balance = data.InitialBalance
-                        acc.CreatedAt = data.OpenedAt
+                        acc.OccurredAt = data.OpenedAt
                         acc.UpdatedAt = data.OpenedAt
                     }
                 case "MoneyTransferred":
@@ -263,7 +263,19 @@ store.Append(ctx, events, &condition)
 - **Append (nil condition)**: Fastest, safe for simple appends
 - **Append (with condition)**: Good for conditional appends, prevents phantom reads with optimistic locking
 
-The isolation level can be configured when creating the EventStore via `EventStoreConfig.DefaultAppendIsolation`.
+The isolation level and other settings can be configured when creating the EventStore via `EventStoreConfig`:
+
+```go
+config := dcb.EventStoreConfig{
+    MaxBatchSize:           1000,
+    LockTimeout:            5000, // ms
+    StreamBuffer:           1000,
+    DefaultAppendIsolation: dcb.IsolationLevelReadCommitted,
+    QueryTimeout:           15000, // ms
+    AppendTimeout:          10000, // ms
+}
+store, err := dcb.NewEventStoreWithConfig(ctx, pool, config)
+```
 
 ## Query Building with Helper Functions
 

@@ -19,6 +19,7 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 - [Overview](docs/overview.md): DCB pattern exploration, batch projection, and streaming
 - [Quick Start](docs/quick-start.md): Get started using go-crablet in your project
 - [Getting Started](docs/getting-started.md): Development setup
+- [Bounded Contexts](docs/bounded-contexts.md): Bounded context isolation and append condition scoping
 - [Testing](docs/testing.md): Comprehensive testing guide and test organization
 - [Code Coverage](docs/code-coverage.md): Test coverage analysis and improvement guidelines
 

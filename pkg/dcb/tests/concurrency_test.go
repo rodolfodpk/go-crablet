@@ -19,7 +19,7 @@ var _ = Describe("Concurrency and Locking", func() {
 
 	BeforeEach(func() {
 		store = dcb.NewEventStoreFromPool(pool)
-		ctx, _ = context.WithTimeout(context.Background(), 30*time.Second)
+		ctx = context.Background()
 		err := truncateEventsTable(ctx, pool)
 		Expect(err).NotTo(HaveOccurred())
 	})
