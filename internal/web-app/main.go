@@ -420,9 +420,9 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	query := convertQuery(req.Query)
 
-	// Execute read (ReadWithOptions has been removed, use Read instead)
+	// Execute read (Read has been renamed to Query)
 	ctx := r.Context()
-	result, err := s.storeReadCommitted.Read(ctx, query)
+	result, err := s.storeReadCommitted.Query(ctx, query, nil)
 
 	duration := time.Since(start)
 	durationMicroseconds := duration.Microseconds()
@@ -506,11 +506,11 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if condition != nil {
-			// Use AppendIf with conditions
-			appendErr = store.AppendIf(r.Context(), inputEvents, condition)
+			// Use Append with conditions
+			appendErr = store.Append(r.Context(), inputEvents, &condition)
 		} else {
 			// Simple append without conditions
-			appendErr = store.Append(r.Context(), inputEvents)
+			appendErr = store.Append(r.Context(), inputEvents, nil)
 		}
 	}
 	duration := time.Since(start)

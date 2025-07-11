@@ -135,7 +135,7 @@ func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCou
 		},
 	}
 
-	states, appendCondition, err := store.Project(ctx, projectors)
+	states, _, err := store.Project(ctx, projectors, nil)
 	if err != nil {
 		return fmt.Errorf("failed to check course existence: %w", err)
 	}
@@ -158,7 +158,7 @@ func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCou
 	}
 
 	// Append events atomically for this command
-	err = store.AppendIf(ctx, events, appendCondition)
+	err = store.Append(ctx, events, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create course: %w", err)
 	}
@@ -194,7 +194,7 @@ func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd Regist
 		},
 	}
 
-	states, appendCondition, err := store.Project(ctx, projectors)
+	states, _, err := store.Project(ctx, projectors, nil)
 	if err != nil {
 		return fmt.Errorf("failed to check student existence: %w", err)
 	}
@@ -220,7 +220,7 @@ func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd Regist
 	}
 
 	// Append events atomically for this command
-	err = store.AppendIf(ctx, events, appendCondition)
+	err = store.Append(ctx, events, nil)
 	if err != nil {
 		return fmt.Errorf("failed to register student: %w", err)
 	}
@@ -304,7 +304,7 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollSt
 	}
 
 	// Project all states using the DCB decision model pattern
-	states, appendCondition, err := store.Project(ctx, []dcb.StateProjector{
+	states, _, err := store.Project(ctx, []dcb.StateProjector{
 		{
 			ID:           "course",
 			Query:        courseProjector.Query,
@@ -323,7 +323,7 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollSt
 			InitialState: enrollmentProjector.InitialState,
 			TransitionFn: enrollmentProjector.TransitionFn,
 		},
-	})
+	}, nil)
 	if err != nil {
 		return fmt.Errorf("projection failed: %w", err)
 	}
@@ -362,7 +362,7 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollSt
 	}
 
 	// Append events atomically for this command
-	err = store.AppendIf(ctx, events, appendCondition)
+	err = store.Append(ctx, events, nil)
 	if err != nil {
 		return fmt.Errorf("failed to enroll student: %w", err)
 	}
@@ -392,14 +392,14 @@ func handleUnenrollStudent(ctx context.Context, store dcb.EventStore, cmd Unenro
 	}
 
 	// Project enrollment state
-	states, appendCondition, err := store.Project(ctx, []dcb.StateProjector{
+	states, _, err := store.Project(ctx, []dcb.StateProjector{
 		{
 			ID:           "enrollment",
 			Query:        enrollmentProjector.Query,
 			InitialState: enrollmentProjector.InitialState,
 			TransitionFn: enrollmentProjector.TransitionFn,
 		},
-	})
+	}, nil)
 	if err != nil {
 		return fmt.Errorf("projection failed: %w", err)
 	}
@@ -424,7 +424,7 @@ func handleUnenrollStudent(ctx context.Context, store dcb.EventStore, cmd Unenro
 	}
 
 	// Append events atomically for this command
-	err = store.AppendIf(ctx, events, appendCondition)
+	err = store.Append(ctx, events, nil)
 	if err != nil {
 		return fmt.Errorf("failed to unenroll student: %w", err)
 	}

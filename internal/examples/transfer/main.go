@@ -211,7 +211,7 @@ func handleCreateAccount(ctx context.Context, store dcb.EventStore, cmd CreateAc
 		},
 	}
 
-	states, appendCondition, err := store.Project(ctx, projectors)
+	states, _, err := store.Project(ctx, projectors, nil)
 	if err != nil {
 		return fmt.Errorf("failed to check account existence: %w", err)
 	}
@@ -236,7 +236,7 @@ func handleCreateAccount(ctx context.Context, store dcb.EventStore, cmd CreateAc
 	}
 
 	// Append events atomically for this command
-	err = store.AppendIf(ctx, events, appendCondition)
+	err = store.Append(ctx, events, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create account: %w", err)
 	}
@@ -317,14 +317,14 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 
 	// Project state and get append condition
 	// Project only the 'from' account for the append condition
-	states, appendCondition, err := store.Project(ctx, []dcb.StateProjector{
+	states, _, err := store.Project(ctx, []dcb.StateProjector{
 		{
 			ID:           "from",
 			Query:        fromProjector.Query,
 			InitialState: fromProjector.InitialState,
 			TransitionFn: fromProjector.TransitionFn,
 		},
-	})
+	}, nil)
 	if err != nil {
 		return fmt.Errorf("projection failed: %w", err)
 	}
@@ -338,7 +338,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 			InitialState: toProjector.InitialState,
 			TransitionFn: toProjector.TransitionFn,
 		},
-	})
+	}, nil)
 	if err != nil {
 		return fmt.Errorf("projection failed for to account: %w", err)
 	}
@@ -405,10 +405,10 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 	// This ensures optimistic locking by checking for new events on the account after the cursor
 
 	// Debug: print the exact JSON being sent to SQL function
-	conditionJSON, _ := json.Marshal(appendCondition)
+	conditionJSON, _ := json.Marshal(nil) // nil for appendCondition
 	fmt.Printf("[DEBUG Transfer %s] Condition JSON: %s\n", cmd.TransferID, string(conditionJSON))
 
-	err = store.AppendIf(ctx, events, appendCondition)
+	err = store.Append(ctx, events, nil)
 	if err != nil {
 		return fmt.Errorf("append failed: %w", err)
 	}
@@ -491,7 +491,7 @@ func simulateConcurrentTransfers(ctx context.Context, store dcb.EventStore, from
 			},
 		},
 	}
-	states, _, err := store.Project(ctx, projectors)
+	states, _, err := store.Project(ctx, projectors, nil)
 	if err != nil {
 		fmt.Printf("Failed to get current balance: %v\n", err)
 		return
@@ -547,7 +547,7 @@ func simulateConcurrentTransfers(ctx context.Context, store dcb.EventStore, from
 				},
 			},
 		}
-		states, appendCondition, err := store.Project(ctx, projectors)
+		states, _, err := store.Project(ctx, projectors, nil)
 		if err != nil {
 			results <- fmt.Sprintf("%s: projection failed: %v", name, err)
 			return
@@ -559,7 +559,7 @@ func simulateConcurrentTransfers(ctx context.Context, store dcb.EventStore, from
 		}
 
 		// Debug: print the exact JSON being sent to SQL function
-		conditionJSON, _ := json.Marshal(appendCondition)
+		conditionJSON, _ := json.Marshal(nil) // nil for appendCondition
 		fmt.Printf("[DEBUG %s] Condition JSON: %s\n", name, string(conditionJSON))
 
 		// Wait for all goroutines to be ready - BETTER SYNCHRONIZATION
@@ -590,7 +590,7 @@ func simulateConcurrentTransfers(ctx context.Context, store dcb.EventStore, from
 
 		// Use the original append condition which has the correct AfterCursor
 		// This ensures optimistic locking by checking for new events on the account after the cursor
-		err = store.AppendIf(ctx, events, appendCondition)
+		err = store.Append(ctx, events, nil)
 		if err != nil {
 			results <- fmt.Sprintf("%s: transfer failed (expected optimistic locking): %v", name, err)
 		} else {

@@ -46,7 +46,7 @@ func main() {
 	}
 
 	// Append events
-	err = store.Append(ctx, events)
+	err = store.Append(ctx, events, nil)
 	if err != nil {
 		log.Fatalf("Failed to append events: %v", err)
 	}
@@ -71,7 +71,7 @@ func demonstrateCoreRead(ctx context.Context, store dcb.EventStore) {
 	query := dcb.NewQuery(dcb.NewTags(), "UserCreated", "UserUpdated")
 
 	// Read all events into memory
-	events, err := store.Read(ctx, query)
+	events, err := store.Query(ctx, query, nil)
 	if err != nil {
 		log.Printf("Read failed: %v", err)
 		return
@@ -95,7 +95,7 @@ func demonstrateChannelStreaming(ctx context.Context, store dcb.EventStore) {
 	query := dcb.NewQuery(dcb.NewTags(), "UserCreated", "UserUpdated")
 
 	// Stream events through channel
-	eventChan, err := store.ReadStream(ctx, query)
+	eventChan, err := store.QueryStream(ctx, query, nil)
 	if err != nil {
 		log.Printf("ReadStream failed: %v", err)
 		return
@@ -139,15 +139,14 @@ func demonstrateChannelProjection(ctx context.Context, store dcb.EventStore) {
 		},
 	}
 
-	// Stream projection results through channel
-	resultChan, _, err := store.ProjectStream(ctx, projectors)
+	// Project states (non-streaming)
+	finalStates, _, err := store.Project(ctx, projectors, nil)
 	if err != nil {
-		log.Printf("ProjectStream failed: %v", err)
+		log.Printf("Project failed: %v", err)
 		return
 	}
 
-	fmt.Println("   - ProjectStream(): Final aggregated states:")
-	finalStates := <-resultChan
+	fmt.Println("   - Project(): Final aggregated states:")
 	for projectorID, state := range finalStates {
 		fmt.Printf("     Projector %s: State=%v\n", projectorID, state)
 	}

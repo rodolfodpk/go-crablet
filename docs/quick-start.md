@@ -70,9 +70,9 @@ func main() {
     }
     log.Printf("Event appended successfully")
 
-    // Read events
+    // Query events (use Query instead of Read)
     query := dcb.NewQuery(dcb.NewTags("user_id", "123"), "UserCreated")
-    events, err := store.Read(ctx, query, nil)
+    events, err := store.Query(ctx, query, nil)
     if err != nil {
         log.Fatal(err)
     }
@@ -102,10 +102,17 @@ After completing this quick start:
 
 ## Configuration
 
-The event store can be configured with various options:
+The event store can be configured with various options using `EventStoreConfig`:
 
 ```go
-store, err := dcb.NewEventStore(pool, dcb.WithMaxConnections(10))
+config := dcb.EventStoreConfig{
+    MaxBatchSize:           1000,
+    LockTimeout:            5000, // ms
+    StreamBuffer:           1000,
+    DefaultAppendIsolation: dcb.IsolationLevelReadCommitted,
+    ReadTimeout:            15000, // ms
+}
+store, err := dcb.NewEventStoreWithConfig(ctx, pool, config)
 ```
 
 See the [API documentation](https://godoc.org/github.com/rodolfodpk/go-crablet/pkg/dcb) for all available options. 

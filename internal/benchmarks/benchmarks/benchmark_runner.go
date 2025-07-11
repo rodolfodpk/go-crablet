@@ -7,9 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"go-crablet/pkg/dcb"
-
 	"go-crablet/internal/benchmarks/setup"
+	"go-crablet/pkg/dcb"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -24,51 +23,50 @@ type BenchmarkContext struct {
 	Projectors   []dcb.StateProjector
 }
 
-// SetupBenchmarkContext creates a benchmark context with test data
+// SetupBenchmarkContext creates a new benchmark context with the specified dataset size
 func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
-	// Create context with timeout for benchmark setup
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	// Create context with timeout for setup
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	// Use the existing docker-compose setup
-	// The docker-compose.yaml file should be running with the schema.sql already applied
-	dsn := "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable"
-
-	// Wait for database to be ready
-	maxRetries := 30
-	for i := 0; i < maxRetries; i++ {
-		pool, err := pgxpool.New(ctx, dsn)
-		if err == nil {
-			// Test the connection
-			err = pool.Ping(ctx)
-			if err == nil {
-				pool.Close()
-				break
-			}
-			pool.Close()
-		}
-
-		if i == maxRetries-1 {
-			b.Fatalf("Failed to connect to database after %d retries. Make sure docker-compose is running: docker-compose up -d", maxRetries)
-		}
-
-		time.Sleep(1 * time.Second)
-	}
-
 	// Connect to database
-	pool, err := pgxpool.New(ctx, dsn)
+	pool, err := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")
 	if err != nil {
 		b.Fatalf("Failed to connect to database: %v", err)
 	}
 
-	// Create event store
-	store, err := dcb.NewEventStore(ctx, pool)
+	// Truncate events table before running benchmarks
+	_, err = pool.Exec(ctx, "TRUNCATE TABLE events RESTART IDENTITY CASCADE")
+	if err != nil {
+		b.Fatalf("Failed to truncate events table: %v", err)
+	}
+
+	// Create event stores with different configurations
+	readCommittedConfig := dcb.EventStoreConfig{
+		MaxBatchSize:           1000,
+		LockTimeout:            5000,
+		StreamBuffer:           1000,
+		DefaultAppendIsolation: dcb.IsolationLevelReadCommitted,
+		ReadTimeout:            15000,
+	}
+
+	repeatableReadConfig := dcb.EventStoreConfig{
+		MaxBatchSize:           1000,
+		LockTimeout:            5000,
+		StreamBuffer:           1000,
+		DefaultAppendIsolation: dcb.IsolationLevelRepeatableRead,
+		ReadTimeout:            15000,
+	}
+
+	store, err := dcb.NewEventStoreWithConfig(ctx, pool, readCommittedConfig)
 	if err != nil {
 		b.Fatalf("Failed to create event store: %v", err)
 	}
 
-	// Check if EventStore is available
-	store, hasChannel := store.(dcb.EventStore)
+	channelStore, err := dcb.NewEventStoreWithConfig(ctx, pool, repeatableReadConfig)
+	if err != nil {
+		b.Fatalf("Failed to create channel event store: %v", err)
+	}
 
 	// Get dataset configuration
 	config, exists := setup.DatasetSizes[datasetSize]
@@ -76,36 +74,46 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
 		b.Fatalf("Unknown dataset size: %s", datasetSize)
 	}
 
-	// Get dataset from cache (or generate and cache it)
-	dataset, err := setup.GetCachedDataset(config)
-	if err != nil {
-		b.Fatalf("Failed to get cached dataset: %v", err)
+	// Create dataset
+	dataset := setup.GenerateDataset(config)
+
+	// Create queries for benchmarking
+	queries := []dcb.Query{
+		dcb.NewQuery(dcb.NewTags("test", "single")),
+		dcb.NewQuery(dcb.NewTags("test", "batch")),
+		dcb.NewQuery(dcb.NewTags("test", "appendif")),
+		dcb.NewQuery(dcb.NewTags("test", "conflict")),
+		dcb.NewQuery(dcb.NewTags("test", "appendifconflict")),
 	}
 
-	// Load dataset into store
-	if err := setup.LoadDatasetIntoStore(ctx, store, dataset); err != nil {
-		b.Fatalf("Failed to load dataset: %v", err)
+	// Create projectors for benchmarking
+	projectors := []dcb.StateProjector{
+		{
+			ID:           "count",
+			Query:        dcb.NewQuery(dcb.NewTags("test", "single")),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
+			},
+		},
+		{
+			ID:           "sum",
+			Query:        dcb.NewQuery(dcb.NewTags("test", "batch")),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
+			},
+		},
 	}
 
-	// Generate queries and projectors
-	queries := setup.GenerateRandomQueries(dataset, 100)
-	projectors := setup.CreateBenchmarkProjectors(dataset)
-
-	benchCtx := &BenchmarkContext{
+	return &BenchmarkContext{
 		Store:        store,
-		ChannelStore: store,
-		HasChannel:   hasChannel,
+		ChannelStore: channelStore,
+		HasChannel:   true,
 		Dataset:      dataset,
 		Queries:      queries,
 		Projectors:   projectors,
 	}
-
-	// Cleanup function
-	b.Cleanup(func() {
-		pool.Close()
-	})
-
-	return benchCtx
 }
 
 // BenchmarkAppendSingle benchmarks single event append
@@ -124,7 +132,7 @@ func BenchmarkAppendSingle(b *testing.B, benchCtx *BenchmarkContext) {
 			dcb.NewTags("test", "single", "unique_id", uniqueID),
 			[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, uniqueID)))
 
-		err := benchCtx.Store.Append(ctx, []dcb.InputEvent{event})
+		err := benchCtx.Store.Append(ctx, []dcb.InputEvent{event}, nil)
 		if err != nil {
 			b.Fatalf("Append failed: %v", err)
 		}
@@ -151,7 +159,7 @@ func BenchmarkAppendBatch(b *testing.B, benchCtx *BenchmarkContext, batchSize in
 				[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, eventID)))
 		}
 
-		err := benchCtx.Store.Append(ctx, events)
+		err := benchCtx.Store.Append(ctx, events, nil)
 		if err != nil {
 			b.Fatalf("Batch append failed: %v", err)
 		}
@@ -183,7 +191,7 @@ func BenchmarkAppendIf(b *testing.B, benchCtx *BenchmarkContext, batchSize int) 
 			dcb.NewQuery(dcb.NewTags("test", "conflict"), "ConflictingEvent"),
 		)
 
-		err := benchCtx.Store.AppendIf(ctx, events, condition)
+		err := benchCtx.Store.Append(ctx, events, &condition)
 		if err != nil {
 			b.Fatalf("AppendIf failed: %v", err)
 		}
@@ -216,7 +224,7 @@ func BenchmarkAppendIfWithCondition(b *testing.B, benchCtx *BenchmarkContext, ba
 			dcb.NewQuery(dcb.NewTags("test", "conflict"), "ConflictingEvent"),
 		)
 
-		err := benchCtx.Store.AppendIf(ctx, events, condition)
+		err := benchCtx.Store.Append(ctx, events, &condition)
 		if err != nil {
 			b.Fatalf("AppendIf failed: %v", err)
 		}
@@ -239,7 +247,7 @@ func BenchmarkAppendIfWithConflict(b *testing.B, benchCtx *BenchmarkContext, bat
 			dcb.NewTags("test", "conflict", "unique_id", uniqueID),
 			[]byte(fmt.Sprintf(`{"value": "conflict", "unique_id": "%s"}`, uniqueID)))
 
-		err := benchCtx.Store.Append(ctx, []dcb.InputEvent{conflictEvent})
+		err := benchCtx.Store.Append(ctx, []dcb.InputEvent{conflictEvent}, nil)
 		if err != nil {
 			b.Fatalf("Failed to create conflict event: %v", err)
 		}
@@ -258,7 +266,7 @@ func BenchmarkAppendIfWithConflict(b *testing.B, benchCtx *BenchmarkContext, bat
 		)
 
 		// This should fail due to the conflicting event
-		err = benchCtx.Store.AppendIf(ctx, events, condition)
+		err = benchCtx.Store.Append(ctx, events, &condition)
 		if err == nil {
 			b.Fatalf("AppendIf should have failed due to conflict")
 		}
@@ -282,7 +290,7 @@ func BenchmarkAppendIfWithConflictCondition(b *testing.B, benchCtx *BenchmarkCon
 			dcb.NewTags("test", "conflict", "unique_id", uniqueID),
 			[]byte(fmt.Sprintf(`{"value": "conflict", "unique_id": "%s"}`, uniqueID)))
 
-		err := benchCtx.Store.Append(ctx, []dcb.InputEvent{conflictEvent})
+		err := benchCtx.Store.Append(ctx, []dcb.InputEvent{conflictEvent}, nil)
 		if err != nil {
 			b.Fatalf("Failed to create conflict event: %v", err)
 		}
@@ -301,7 +309,7 @@ func BenchmarkAppendIfWithConflictCondition(b *testing.B, benchCtx *BenchmarkCon
 		)
 
 		// This should fail due to the conflicting event
-		err = benchCtx.Store.AppendIf(ctx, events, condition)
+		err = benchCtx.Store.Append(ctx, events, &condition)
 		if err == nil {
 			b.Fatalf("AppendIf should have failed due to conflict")
 		}
@@ -324,22 +332,16 @@ func BenchmarkRead(b *testing.B, benchCtx *BenchmarkContext, queryIndex int) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		_, err := benchCtx.Store.Read(ctx, query)
+		events, err := benchCtx.Store.Query(ctx, query, nil)
 		if err != nil {
 			b.Fatalf("Read failed: %v", err)
 		}
+		_ = events // Prevent compiler optimization
 	}
 }
 
-// BenchmarkReadStream has been removed - use Read instead for batch reading
-// ReadStream was replaced with ReadChannel for streaming operations
-
-// BenchmarkReadChannel benchmarks event streaming with channels
+// BenchmarkReadChannel benchmarks channel-based event reading
 func BenchmarkReadChannel(b *testing.B, benchCtx *BenchmarkContext, queryIndex int) {
-	if !benchCtx.HasChannel {
-		b.Skip("Channel streaming not available")
-	}
-
 	// Create context with timeout for each benchmark iteration
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -354,7 +356,7 @@ func BenchmarkReadChannel(b *testing.B, benchCtx *BenchmarkContext, queryIndex i
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		eventChan, err := benchCtx.ChannelStore.ReadStream(ctx, query)
+		eventChan, err := benchCtx.ChannelStore.QueryStream(ctx, query, nil)
 		if err != nil {
 			b.Fatalf("ReadStream failed: %v", err)
 		}
@@ -363,14 +365,11 @@ func BenchmarkReadChannel(b *testing.B, benchCtx *BenchmarkContext, queryIndex i
 		for range eventChan {
 			count++
 		}
-
-		if count == 0 && i == 0 {
-			b.Logf("Warning: No events found for query")
-		}
+		_ = count // Prevent compiler optimization
 	}
 }
 
-// BenchmarkProject benchmarks decision model projection
+// BenchmarkProject benchmarks state projection
 func BenchmarkProject(b *testing.B, benchCtx *BenchmarkContext, projectorCount int) {
 	// Create context with timeout for each benchmark iteration
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -386,19 +385,16 @@ func BenchmarkProject(b *testing.B, benchCtx *BenchmarkContext, projectorCount i
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		_, _, err := benchCtx.Store.Project(ctx, projectors)
+		states, _, err := benchCtx.Store.Project(ctx, projectors, nil)
 		if err != nil {
 			b.Fatalf("Project failed: %v", err)
 		}
+		_ = states // Prevent compiler optimization
 	}
 }
 
-// BenchmarkProjectStream benchmarks channel-based decision model projection
+// BenchmarkProjectStream benchmarks channel-based state projection
 func BenchmarkProjectStream(b *testing.B, benchCtx *BenchmarkContext, projectorCount int) {
-	if !benchCtx.HasChannel {
-		b.Skip("Channel streaming not available")
-	}
-
 	// Create context with timeout for each benchmark iteration
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -413,15 +409,16 @@ func BenchmarkProjectStream(b *testing.B, benchCtx *BenchmarkContext, projectorC
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		resultChan, _, err := benchCtx.ChannelStore.ProjectStream(ctx, projectors)
+		stateChan, _, err := benchCtx.ChannelStore.ProjectStream(ctx, projectors, nil)
 		if err != nil {
 			b.Fatalf("ProjectStream failed: %v", err)
 		}
 
-		finalStates := <-resultChan
-		if len(finalStates) == 0 && i == 0 {
-			b.Logf("Warning: No projection results found")
+		count := 0
+		for range stateChan {
+			count++
 		}
+		_ = count // Prevent compiler optimization
 	}
 }
 
@@ -431,9 +428,9 @@ func BenchmarkMemoryUsage(b *testing.B, benchCtx *BenchmarkContext, operation st
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	var m1, m2 runtime.MemStats
-	runtime.GC()
-	runtime.ReadMemStats(&m1)
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	initialAlloc := m.Alloc
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -441,95 +438,144 @@ func BenchmarkMemoryUsage(b *testing.B, benchCtx *BenchmarkContext, operation st
 	for i := 0; i < b.N; i++ {
 		switch operation {
 		case "read":
-			query := dcb.NewQuery(dcb.NewTags(), "StudentEnrolledInCourse")
-			_, err := benchCtx.Store.Read(ctx, query)
+			events, err := benchCtx.Store.Query(ctx, benchCtx.Queries[0], nil)
 			if err != nil {
 				b.Fatalf("Read failed: %v", err)
 			}
-		case "stream":
-			query := dcb.NewQuery(dcb.NewTags(), "StudentEnrolledInCourse")
-			eventChan, err := benchCtx.ChannelStore.ReadStream(ctx, query)
+			_ = events
+		case "read_stream":
+			eventChan, err := benchCtx.ChannelStore.QueryStream(ctx, benchCtx.Queries[0], nil)
 			if err != nil {
 				b.Fatalf("ReadStream failed: %v", err)
 			}
+			count := 0
 			for range eventChan {
-				// Just iterate through events
+				count++
 			}
-		case "projection":
-			_, _, err := benchCtx.ChannelStore.Project(ctx, benchCtx.Projectors)
+			_ = count
+		case "project":
+			states, _, err := benchCtx.Store.Project(ctx, benchCtx.Projectors, nil)
 			if err != nil {
 				b.Fatalf("Project failed: %v", err)
 			}
+			_ = states
+		case "project_stream":
+			stateChan, _, err := benchCtx.ChannelStore.ProjectStream(ctx, benchCtx.Projectors, nil)
+			if err != nil {
+				b.Fatalf("ProjectStream failed: %v", err)
+			}
+			count := 0
+			for range stateChan {
+				count++
+			}
+			_ = count
 		default:
 			b.Fatalf("Unknown operation: %s", operation)
 		}
 	}
 
-	runtime.ReadMemStats(&m2)
-	b.ReportMetric(float64(m2.Alloc-m1.Alloc)/float64(b.N), "bytes/op")
+	runtime.ReadMemStats(&m)
+	finalAlloc := m.Alloc
+	b.ReportMetric(float64(finalAlloc-initialAlloc), "bytes/op")
 }
 
-// RunAllBenchmarks runs a comprehensive set of benchmarks
+// RunAllBenchmarks runs all benchmarks with the specified dataset size
 func RunAllBenchmarks(b *testing.B, datasetSize string) {
 	benchCtx := SetupBenchmarkContext(b, datasetSize)
 
+	// Append benchmarks
 	b.Run("AppendSingle", func(b *testing.B) {
 		BenchmarkAppendSingle(b, benchCtx)
 	})
 
-	b.Run("AppendBatch10", func(b *testing.B) {
+	b.Run("AppendBatch_10", func(b *testing.B) {
 		BenchmarkAppendBatch(b, benchCtx, 10)
 	})
 
-	b.Run("AppendBatch100", func(b *testing.B) {
+	b.Run("AppendBatch_100", func(b *testing.B) {
 		BenchmarkAppendBatch(b, benchCtx, 100)
 	})
 
-	b.Run("AppendBatch1000", func(b *testing.B) {
+	b.Run("AppendBatch_1000", func(b *testing.B) {
 		BenchmarkAppendBatch(b, benchCtx, 1000)
 	})
 
-	b.Run("ReadSimple", func(b *testing.B) {
+	// Conditional append benchmarks
+	b.Run("AppendIf_10", func(b *testing.B) {
+		BenchmarkAppendIf(b, benchCtx, 10)
+	})
+
+	b.Run("AppendIf_100", func(b *testing.B) {
+		BenchmarkAppendIf(b, benchCtx, 100)
+	})
+
+	b.Run("AppendIf_1000", func(b *testing.B) {
+		BenchmarkAppendIf(b, benchCtx, 1000)
+	})
+
+	// Conflict benchmarks
+	b.Run("AppendIfWithConflict_10", func(b *testing.B) {
+		BenchmarkAppendIfWithConflict(b, benchCtx, 10)
+	})
+
+	b.Run("AppendIfWithConflict_100", func(b *testing.B) {
+		BenchmarkAppendIfWithConflict(b, benchCtx, 100)
+	})
+
+	// Read benchmarks
+	b.Run("Read_Single", func(b *testing.B) {
 		BenchmarkRead(b, benchCtx, 0)
 	})
 
-	b.Run("ReadComplex", func(b *testing.B) {
+	b.Run("Read_Batch", func(b *testing.B) {
 		BenchmarkRead(b, benchCtx, 1)
 	})
 
-	if benchCtx.HasChannel {
-		b.Run("ReadChannel", func(b *testing.B) {
-			BenchmarkReadChannel(b, benchCtx, 0)
-		})
-	}
+	b.Run("Read_AppendIf", func(b *testing.B) {
+		BenchmarkRead(b, benchCtx, 2)
+	})
 
-	b.Run("Project1", func(b *testing.B) {
+	// Channel read benchmarks
+	b.Run("ReadChannel_Single", func(b *testing.B) {
+		BenchmarkReadChannel(b, benchCtx, 0)
+	})
+
+	b.Run("ReadChannel_Batch", func(b *testing.B) {
+		BenchmarkReadChannel(b, benchCtx, 1)
+	})
+
+	// Projection benchmarks
+	b.Run("Project_1", func(b *testing.B) {
 		BenchmarkProject(b, benchCtx, 1)
 	})
 
-	b.Run("Project5", func(b *testing.B) {
-		BenchmarkProject(b, benchCtx, 5)
+	b.Run("Project_2", func(b *testing.B) {
+		BenchmarkProject(b, benchCtx, 2)
 	})
 
-	if benchCtx.HasChannel {
-		b.Run("ProjectStream1", func(b *testing.B) {
-			BenchmarkProjectStream(b, benchCtx, 1)
-		})
+	// Channel projection benchmarks
+	b.Run("ProjectStream_1", func(b *testing.B) {
+		BenchmarkProjectStream(b, benchCtx, 1)
+	})
 
-		b.Run("ProjectStream5", func(b *testing.B) {
-			BenchmarkProjectStream(b, benchCtx, 5)
-		})
-	}
+	b.Run("ProjectStream_2", func(b *testing.B) {
+		BenchmarkProjectStream(b, benchCtx, 2)
+	})
 
-	b.Run("MemoryRead", func(b *testing.B) {
+	// Memory usage benchmarks
+	b.Run("MemoryUsage_Read", func(b *testing.B) {
 		BenchmarkMemoryUsage(b, benchCtx, "read")
 	})
 
-	b.Run("MemoryStream", func(b *testing.B) {
-		BenchmarkMemoryUsage(b, benchCtx, "stream")
+	b.Run("MemoryUsage_ReadStream", func(b *testing.B) {
+		BenchmarkMemoryUsage(b, benchCtx, "read_stream")
 	})
 
-	b.Run("MemoryProjection", func(b *testing.B) {
-		BenchmarkMemoryUsage(b, benchCtx, "projection")
+	b.Run("MemoryUsage_Project", func(b *testing.B) {
+		BenchmarkMemoryUsage(b, benchCtx, "project")
+	})
+
+	b.Run("MemoryUsage_ProjectStream", func(b *testing.B) {
+		BenchmarkMemoryUsage(b, benchCtx, "project_stream")
 	})
 }

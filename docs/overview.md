@@ -18,32 +18,32 @@ go-crablet is a Go library for event sourcing, exploring concepts inspired by th
 
 ```go
 type EventStore interface {
-    	// Read reads events matching the query with optional cursor
-	// cursor == nil: read from beginning of stream
-	// cursor != nil: read from specified cursor position (EXCLUSIVE - events after cursor, not including cursor)
-    Read(ctx context.Context, query Query, cursor *Cursor) ([]Event, error)
+    // Query reads events matching the query with optional cursor
+    // cursor == nil: query from beginning of stream
+    // cursor != nil: query from specified cursor position (EXCLUSIVE - events after cursor, not including cursor)
+    Query(ctx context.Context, query Query, cursor *Cursor) ([]Event, error)
 
-    	// ReadStream creates a channel-based stream of events matching a query with optional cursor
-	// cursor == nil: stream from beginning of stream
-	// cursor != nil: stream from specified cursor position (EXCLUSIVE - events after cursor, not including cursor)
+    // QueryStream creates a channel-based stream of events matching a query with optional cursor
+    // cursor == nil: stream from beginning of stream
+    // cursor != nil: stream from specified cursor position (EXCLUSIVE - events after cursor, not including cursor)
     // This is optimized for large datasets and provides backpressure through channels
     // for efficient memory usage and Go-idiomatic streaming
-    ReadStream(ctx context.Context, query Query, cursor *Cursor) (<-chan Event, error)
+    QueryStream(ctx context.Context, query Query, cursor *Cursor) (<-chan Event, error)
 
     // Append appends events to the store with optional condition
     // condition == nil: unconditional append
     // condition != nil: conditional append (optimistic locking)
     Append(ctx context.Context, events []InputEvent, condition *AppendCondition) error
 
-    	// Project projects multiple states using projectors with optional cursor
-	// cursor == nil: project from beginning of stream
-	// cursor != nil: project from specified cursor position (EXCLUSIVE - events after cursor, not including cursor)
+    // Project projects multiple states using projectors with optional cursor
+    // cursor == nil: project from beginning of stream
+    // cursor != nil: project from specified cursor position (EXCLUSIVE - events after cursor, not including cursor)
     // Returns final aggregated states and append condition for optimistic locking
     Project(ctx context.Context, projectors []StateProjector, cursor *Cursor) (map[string]any, AppendCondition, error)
 
-    	// ProjectStream projects multiple states using channel-based streaming with optional cursor
-	// cursor == nil: stream from beginning of stream
-	// cursor != nil: stream from specified cursor position (EXCLUSIVE - events after cursor, not including cursor)
+    // ProjectStream projects multiple states using channel-based streaming with optional cursor
+    // cursor == nil: stream from beginning of stream
+    // cursor != nil: stream from specified cursor position (EXCLUSIVE - events after cursor, not including cursor)
     // This is optimized for large datasets and provides backpressure through channels
     // for efficient memory usage and Go-idiomatic streaming
     ProjectStream(ctx context.Context, projectors []StateProjector, cursor *Cursor) (<-chan map[string]any, <-chan AppendCondition, error)
@@ -158,14 +158,6 @@ Benchmark results from web-app load testing (30-second tests, multiple VUs):
 
 - **Append (nil condition)**: Use for simple event appends where no conditions are needed
 - **Append (with condition)**: Use for conditional appends requiring optimistic locking
-
-## Implementation Details
-
-- **Database**: PostgreSQL with events table and append functions
-- **Streaming**: Multiple approaches for different dataset sizes
-- **Extensions**: Channel-based streaming for Go-idiomatic processing
-
-See [examples](examples.md) for complete working examples including course subscriptions and money transfers, and [getting-started](getting-started.md) for setup instructions.
 
 ## Implementation Details
 

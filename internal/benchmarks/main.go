@@ -165,7 +165,7 @@ func benchmarkSingleAppend(ctx context.Context, store dcb.EventStore) {
 
 	start := time.Now()
 	// Use batch append with a single event to demonstrate the pattern
-	err := store.Append(ctx, []dcb.InputEvent{event})
+	err := store.Append(ctx, []dcb.InputEvent{event}, nil)
 	duration := time.Since(start)
 
 	if err != nil {
@@ -189,7 +189,7 @@ func benchmarkBatchAppend(ctx context.Context, store dcb.EventStore) {
 		}
 
 		start := time.Now()
-		err := store.Append(ctx, events)
+		err := store.Append(ctx, events, nil)
 		duration := time.Since(start)
 
 		if err != nil {
@@ -218,7 +218,7 @@ func benchmarkConcurrentAppend(ctx context.Context, store dcb.EventStore) {
 				for j := 0; j < eventsPerGoroutine; j++ {
 					events[j] = dcb.NewInputEvent("TestEvent", dcb.NewTags("test", "concurrent", "goroutine", fmt.Sprintf("%d", id), "index", fmt.Sprintf("%d", j)), []byte(`{"value": "test"}`))
 				}
-				err := store.Append(ctx, events)
+				err := store.Append(ctx, events, nil)
 				if err != nil {
 					fmt.Printf("    Goroutine %d error: %v\n", id, err)
 				}
@@ -260,7 +260,7 @@ func setupTestData(ctx context.Context, store dcb.EventStore) {
 			courseEvents[j] = dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", courseID), []byte(fmt.Sprintf(`{"courseId": "%s", "name": "Course %d", "capacity": 100, "instructor": "Instructor %d"}`, courseID, i+j, i+j)))
 		}
 
-		err := store.Append(ctx, courseEvents)
+		err := store.Append(ctx, courseEvents, nil)
 		if err != nil {
 			fmt.Printf("Error creating courses batch %d-%d: %v\n", i, end-1, err)
 			return
@@ -280,7 +280,7 @@ func setupTestData(ctx context.Context, store dcb.EventStore) {
 			studentEvents[j] = dcb.NewInputEvent("StudentRegistered", dcb.NewTags("student_id", studentID), []byte(fmt.Sprintf(`{"studentId": "%s", "name": "Student %d", "email": "student%d@example.com"}`, studentID, i+j, i+j)))
 		}
 
-		err := store.Append(ctx, studentEvents)
+		err := store.Append(ctx, studentEvents, nil)
 		if err != nil {
 			fmt.Printf("Error creating students batch %d-%d: %v\n", i, end-1, err)
 			return
@@ -301,7 +301,7 @@ func setupTestData(ctx context.Context, store dcb.EventStore) {
 			enrollmentEvents[j] = dcb.NewInputEvent("StudentEnrolledInCourse", dcb.NewTags("student_id", studentID, "course_id", courseID), []byte(fmt.Sprintf(`{"studentId": "%s", "courseId": "%s", "enrolledAt": "2024-01-01"}`, studentID, courseID)))
 		}
 
-		err := store.Append(ctx, enrollmentEvents)
+		err := store.Append(ctx, enrollmentEvents, nil)
 		if err != nil {
 			fmt.Printf("Error creating enrollments batch %d-%d: %v\n", i, end-1, err)
 			return
@@ -317,7 +317,7 @@ func benchmarkSimpleQueries(ctx context.Context, store dcb.EventStore) {
 	// Query courses by category (DCB-focused: specific category instead of all courses)
 	start := time.Now()
 	query := dcb.NewQuery(dcb.NewTags("category", "Computer Science"), "CourseDefined")
-	events, err := store.Read(ctx, query)
+	events, err := store.Query(ctx, query, nil)
 	duration := time.Since(start)
 
 	if err != nil {
@@ -329,7 +329,7 @@ func benchmarkSimpleQueries(ctx context.Context, store dcb.EventStore) {
 	// Query by specific course ID (DCB-focused: targeted query)
 	start = time.Now()
 	query = dcb.NewQuery(dcb.NewTags("course_id", "course-1"), "CourseDefined")
-	events, err = store.Read(ctx, query)
+	events, err = store.Query(ctx, query, nil)
 	duration = time.Since(start)
 
 	if err != nil {
@@ -348,7 +348,7 @@ func benchmarkComplexQueries(ctx context.Context, store dcb.EventStore) {
 		dcb.NewQueryItem([]string{"CourseDefined"}, dcb.NewTags("course_id", "course-1")),
 		dcb.NewQueryItem([]string{"StudentRegistered"}, dcb.NewTags("student_id", "student-1")),
 	)
-	events, err := store.Read(ctx, query)
+	events, err := store.Query(ctx, query, nil)
 	duration := time.Since(start)
 
 	if err != nil {
@@ -360,7 +360,7 @@ func benchmarkComplexQueries(ctx context.Context, store dcb.EventStore) {
 	// Query enrollments by grade (DCB-focused: specific grade instead of all enrollments)
 	start = time.Now()
 	query = dcb.NewQuery(dcb.NewTags("grade", "A"), "StudentEnrolledInCourse")
-	events, err = store.Read(ctx, query)
+	events, err = store.Query(ctx, query, nil)
 	duration = time.Since(start)
 
 	if err != nil {
@@ -381,7 +381,7 @@ func benchmarkIteratorVsChannel(ctx context.Context, store dcb.EventStore) {
 
 	// Channel approach
 	start := time.Now()
-	eventChan, err := store.ReadStream(ctx, query)
+	eventChan, err := store.QueryStream(ctx, query, nil)
 	if err != nil {
 		fmt.Printf("  Channel: Error creating stream: %v\n", err)
 	} else {
@@ -416,7 +416,7 @@ func benchmarkSingleProjector(ctx context.Context, store dcb.EventStore) {
 	}
 
 	start := time.Now()
-	states, _, err := store.Project(ctx, []dcb.StateProjector{projector})
+	states, _, err := store.Project(ctx, []dcb.StateProjector{projector}, nil)
 	duration := time.Since(start)
 
 	if err != nil {
@@ -458,7 +458,7 @@ func benchmarkMultipleProjectors(ctx context.Context, store dcb.EventStore) {
 	}
 
 	start := time.Now()
-	states, _, err := store.Project(ctx, projectors)
+	states, _, err := store.Project(ctx, projectors, nil)
 	duration := time.Since(start)
 
 	if err != nil {
@@ -487,7 +487,7 @@ func benchmarkChannelProjection(ctx context.Context, store dcb.EventStore) {
 	}
 
 	start := time.Now()
-	resultChan, _, err := store.ProjectStream(ctx, projectors)
+	resultChan, _, err := store.ProjectStream(ctx, projectors, nil)
 	if err != nil {
 		fmt.Printf("  Error: %v\n", err)
 		return

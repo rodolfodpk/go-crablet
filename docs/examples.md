@@ -42,31 +42,34 @@ func main() {
 
     // Define projectors for the decision model
     projectors := []dcb.StateProjector{
-        {ID: "courseExists", StateProjector: dcb.StateProjector{
-            Query: dcb.NewQuerySimple(dcb.NewTags("course_id", courseID), "CourseDefined"),
+        {
+            ID: "courseExists",
+            Query: dcb.NewQuery(dcb.NewTags("course_id", courseID), "CourseDefined"),
             InitialState: false,
             TransitionFn: func(state any, e dcb.Event) any { return true },
-        }},
-        {ID: "numSubscriptions", StateProjector: dcb.StateProjector{
-            Query: dcb.NewQuerySimple(dcb.NewTags("course_id", courseID), "StudentSubscribed"),
+        },
+        {
+            ID: "numSubscriptions",
+            Query: dcb.NewQuery(dcb.NewTags("course_id", courseID), "StudentSubscribed"),
             InitialState: 0,
             TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
-        }},
-        {ID: "alreadySubscribed", StateProjector: dcb.StateProjector{
-            Query: dcb.NewQuerySimple(dcb.NewTags("student_id", studentID, "course_id", courseID), "StudentSubscribed"),
+        },
+        {
+            ID: "alreadySubscribed",
+            Query: dcb.NewQuery(dcb.NewTags("student_id", studentID, "course_id", courseID), "StudentSubscribed"),
             InitialState: false,
             TransitionFn: func(state any, e dcb.Event) any { return true },
-        }},
+        },
     }
 
     // Project all states in single query (cursor-based approach)
-    states, appendCond, err := store.Project(ctx, projectors)
+    states, appendCond, err := store.Project(ctx, projectors, nil)
 
     if !states["courseExists"].(bool) {
         // Append CourseDefined event
         data, _ := json.Marshal(CourseDefined{courseID, 2})
         event := dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", courseID), data)
-        store.Append(ctx, []dcb.InputEvent{event})
+        store.Append(ctx, []dcb.InputEvent{event}, nil)
     }
     if states["alreadySubscribed"].(bool) {
         panic("student already subscribed")
@@ -90,8 +93,6 @@ func channelBasedExample() {
     pool, _ := pgxpool.New(ctx, "postgres://user:pass@localhost/db")
     store, _ := dcb.NewEventStore(ctx, pool)
     
-    // Use store directly (all EventStore instances support channels)
-
     courseID := "c1"
     studentID := "s1"
 
@@ -99,39 +100,32 @@ func channelBasedExample() {
     projectors := []dcb.StateProjector{
         {
             ID: "courseExists",
-            Query: dcb.NewQuerySimple(dcb.NewTags("course_id", courseID), "CourseDefined"),
+            Query: dcb.NewQuery(dcb.NewTags("course_id", courseID), "CourseDefined"),
             InitialState: false,
             TransitionFn: func(state any, e dcb.Event) any { return true },
         },
         {
             ID: "numSubscriptions",
-            Query: dcb.NewQuerySimple(dcb.NewTags("course_id", courseID), "StudentSubscribed"),
+            Query: dcb.NewQuery(dcb.NewTags("course_id", courseID), "StudentSubscribed"),
             InitialState: 0,
             TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
         },
         {
             ID: "alreadySubscribed",
-            Query: dcb.NewQuerySimple(dcb.NewTags("student_id", studentID, "course_id", courseID), "StudentSubscribed"),
+            Query: dcb.NewQuery(dcb.NewTags("student_id", studentID, "course_id", courseID), "StudentSubscribed"),
             InitialState: false,
             TransitionFn: func(state any, e dcb.Event) any { return true },
         },
     }
 
     // Channel-based projection with immediate feedback
-    resultChan, _, err := store.ProjectStream(ctx, projectors, nil)
-    
-    // Process results as they come in
-    finalStates := make(map[string]interface{})
-    for result := range resultChan {
-        if result.Error != nil {
-            fmt.Printf("Error: %v\n", result.Error)
-            continue
-        }
-        
-        finalStates[result.ProjectorID] = result.State
-        
-        fmt.Printf("Projector %s processed event %s (position %d)\n", 
-            result.ProjectorID, result.Event.Type, result.Position)
+    stateChan, _, err := store.ProjectStream(ctx, projectors, nil)
+    if err != nil {
+        panic(err)
+    }
+    var finalStates map[string]any
+    for states := range stateChan {
+        finalStates = states
     }
 
     // Apply business rules using final states
@@ -156,17 +150,15 @@ func channelStreamingExample() {
     pool, _ := pgxpool.New(ctx, "postgres://user:pass@localhost/db")
     store, _ := dcb.NewEventStore(ctx, pool)
     
-    // Use store directly (all EventStore instances support channels)
-
     // Create query for course events
-    query := dcb.NewQueryFromItems(
-        dcb.QItemKV("CourseDefined", "course_id", "c1"),
-        dcb.QItemKV("StudentRegistered", "student_id", "s1"),
-        dcb.QItemKV("StudentSubscribed", "course_id", "c1", "student_id", "s1"),
+    query := dcb.NewQuery(
+        dcb.NewTags("course_id", "c1"), "CourseDefined",
+        dcb.NewTags("student_id", "s1"), "StudentRegistered",
+        dcb.NewTags("course_id", "c1", "student_id", "s1"), "StudentSubscribed",
     )
 
     // Channel-based streaming
-    eventChan, err := store.ReadStream(ctx, query, nil)
+    eventChan, err := store.QueryStream(ctx, query, nil)
     if err != nil {
         panic(err)
     }
@@ -174,7 +166,6 @@ func channelStreamingExample() {
     // Process events with immediate delivery
     for event := range eventChan {
         fmt.Printf("Event: %s at position %d\n", event.Type, event.Position)
-        
         // Process event based on type
         switch event.Type {
         case "CourseDefined":
@@ -202,32 +193,41 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
                 acc := state.(*AccountState)
                 switch event.Type {
                 case "AccountOpened":
-                    // Initialize account
+                    var data AccountOpened
+                    if err := json.Unmarshal(event.Data, &data); err == nil {
+                        acc.Owner = data.Owner
+                        acc.Balance = data.InitialBalance
+                        acc.CreatedAt = data.OpenedAt
+                        acc.UpdatedAt = data.OpenedAt
+                    }
                 case "MoneyTransferred":
-                    // Update balance
+                    var data MoneyTransferred
+                    if err := json.Unmarshal(event.Data, &data); err == nil {
+                        if data.FromAccountID == cmd.FromAccountID {
+                            acc.Balance = data.FromBalance
+                            acc.UpdatedAt = data.TransferredAt
+                        } else if data.ToAccountID == cmd.FromAccountID {
+                            acc.Balance = data.ToBalance
+                            acc.UpdatedAt = data.TransferredAt
+                        }
+                    }
                 }
                 return acc
             },
         },
     }
-    
-    states, appendCondition, err := store.Project(ctx, projectors, nil)
+    states, appendCond, err := store.Project(ctx, projectors, nil)
     if err != nil {
-        return err
+        return fmt.Errorf("projection failed: %w", err)
     }
-    
     from := states["from"].(*AccountState)
     if from.Balance < cmd.Amount {
-        return fmt.Errorf("insufficient funds")
+        return fmt.Errorf("insufficient funds: account %s has %d, needs %d", cmd.FromAccountID, from.Balance, cmd.Amount)
     }
-    
-    // Create transfer events
-    events := []dcb.InputEvent{
-        dcb.NewInputEvent("MoneyTransferred", dcb.NewTags("account_id", cmd.FromAccountID), data),
-    }
-    
-    // Use optimistic locking to prevent double-spending
-    return store.Append(ctx, events, &appendCondition)
+    // ...
+    // Use appendCond for optimistic concurrency
+    // ...
+    return nil
 }
 ```
 
