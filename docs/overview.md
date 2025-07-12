@@ -51,12 +51,12 @@ The `CommandExecutor` is an **optional** wrapper around `EventStore` that provid
 ```go
 type CommandExecutor interface {
     // Execute command and generate events atomically
-    ExecuteCommand(ctx context.Context, command Command, handler CommandHandler, condition *AppendCondition) error
+    ExecuteCommand(ctx context.Context, command Command, handler CommandHandler, condition *AppendCondition) ([]InputEvent, error)
 }
 
 type CommandHandler interface {
     // Process command and return events to append
-    Handle(ctx context.Context, store EventStore, command Command) []InputEvent
+    Handle(ctx context.Context, store EventStore, command Command) ([]InputEvent, error)
 }
 ```
 
@@ -357,10 +357,12 @@ cmd := dcb.NewCommand("CreateUser", dcb.ToJSON(userData), map[string]interface{}
 })
 
 // Define command handler function
-func handleCreateUser(ctx context.Context, store dcb.EventStore, command dcb.Command) []dcb.InputEvent {
+func handleCreateUser(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, error) {
     // Extract command data
     var cmdData CreateUserCommand
-    json.Unmarshal(command.GetData(), &cmdData)
+    if err := json.Unmarshal(command.GetData(), &cmdData); err != nil {
+        return nil, fmt.Errorf("failed to unmarshal command: %w", err)
+    }
 
     // Perform projection to check current state
     projectors := []dcb.StateProjector{
@@ -374,16 +376,12 @@ func handleCreateUser(ctx context.Context, store dcb.EventStore, command dcb.Com
 
     states, _, err := store.Project(ctx, projectors, nil)
     if err != nil {
-        return nil
+        return nil, fmt.Errorf("failed to project user state: %w", err)
     }
 
     // Check business rules using projected state
     if states["userExists"].(bool) {
-        return []dcb.InputEvent{
-            dcb.NewInputEvent("UserCreationFailed",
-                dcb.NewTags("email", cmdData.Email, "reason", "user_exists"),
-                dcb.ToJSON(map[string]string{"error": "User already exists"})),
-        }
+        return nil, fmt.Errorf("user with email %s already exists", cmdData.Email)
     }
 
     // Generate success events
@@ -391,11 +389,11 @@ func handleCreateUser(ctx context.Context, store dcb.EventStore, command dcb.Com
         dcb.NewInputEvent("UserCreated",
             dcb.NewTags("email", cmdData.Email),
             dcb.ToJSON(userCreatedData)),
-    }
+    }, nil
 }
 
 // Execute command using function-based handler
-err := commandExecutor.ExecuteCommand(ctx, cmd, dcb.CommandHandlerFunc(handleCreateUser), nil)
+_, err := commandExecutor.ExecuteCommand(ctx, cmd, dcb.CommandHandlerFunc(handleCreateUser), nil)
 ```
 
 ### Command Tracking
@@ -420,7 +418,7 @@ Since handlers receive the `EventStore`, they can implement their own projection
 
 #### Option 1: Direct Projection in Handler Function
 ```go
-func handleUserAction(ctx context.Context, store dcb.EventStore, command dcb.Command) []dcb.InputEvent {
+func handleUserAction(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, error) {
     // Define projectors for this specific command
     projectors := []dcb.StateProjector{
         {
@@ -438,16 +436,16 @@ func handleUserAction(ctx context.Context, store dcb.EventStore, command dcb.Com
 
     states, _, err := store.Project(ctx, projectors, nil)
     if err != nil {
-        return nil
+        return nil, fmt.Errorf("failed to project user state: %w", err)
     }
 
     userState := states["userState"].(*UserState)
     // Use projected state for business logic
-    return events
+    return events, nil
 }
 
 // Usage with CommandExecutor
-err := commandExecutor.ExecuteCommand(ctx, cmd, dcb.CommandHandlerFunc(handleUserAction), nil)
+_, err := commandExecutor.ExecuteCommand(ctx, cmd, dcb.CommandHandlerFunc(handleUserAction), nil)
 ```
 
 #### Option 2: Reusable Projector Functions
@@ -467,11 +465,14 @@ func UserStateProjector(userID string) dcb.StateProjector {
 }
 
 // Use in handler function
-func handleUserAction(ctx context.Context, store dcb.EventStore, command dcb.Command) []dcb.InputEvent {
+func handleUserAction(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, error) {
     projectors := []dcb.StateProjector{UserStateProjector(userID)}
     states, _, err := store.Project(ctx, projectors, nil)
+    if err != nil {
+        return nil, fmt.Errorf("failed to project user state: %w", err)
+    }
     // ... use projected state
-    return events
+    return events, nil
 }
 ```
 

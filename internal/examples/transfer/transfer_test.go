@@ -79,7 +79,7 @@ var _ = Describe("TransferExample", func() {
 			handler := dcb.CommandHandlerFunc(handleCommand)
 			commandExecutor := dcb.NewCommandExecutor(store)
 
-			err = commandExecutor.ExecuteCommand(ctx, command, handler, nil)
+			_, err = commandExecutor.ExecuteCommand(ctx, command, handler, nil)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -95,7 +95,7 @@ var _ = Describe("TransferExample", func() {
 			handler := dcb.CommandHandlerFunc(handleCommand)
 			commandExecutor := dcb.NewCommandExecutor(store)
 
-			err = commandExecutor.ExecuteCommand(ctx, command, handler, nil)
+			_, err = commandExecutor.ExecuteCommand(ctx, command, handler, nil)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -112,7 +112,7 @@ var _ = Describe("TransferExample", func() {
 			handler := dcb.CommandHandlerFunc(handleCommand)
 			commandExecutor := dcb.NewCommandExecutor(store)
 
-			err = commandExecutor.ExecuteCommand(ctx, command1, handler, nil)
+			_, err = commandExecutor.ExecuteCommand(ctx, command1, handler, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			createAccount2Cmd := CreateAccountCommand{
@@ -123,7 +123,7 @@ var _ = Describe("TransferExample", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			command2 := dcb.NewCommand(CommandTypeCreateAccount, cmdData2, nil)
-			err = commandExecutor.ExecuteCommand(ctx, command2, handler, nil)
+			_, err = commandExecutor.ExecuteCommand(ctx, command2, handler, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			transferCmd := TransferMoneyCommand{
@@ -136,7 +136,7 @@ var _ = Describe("TransferExample", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			transferCommand := dcb.NewCommand(CommandTypeTransferMoney, transferData, nil)
-			err = commandExecutor.ExecuteCommand(ctx, transferCommand, handler, nil)
+			_, err = commandExecutor.ExecuteCommand(ctx, transferCommand, handler, nil)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -153,7 +153,7 @@ var _ = Describe("TransferExample", func() {
 				handler := dcb.CommandHandlerFunc(handleCommand)
 				commandExecutor := dcb.NewCommandExecutor(store)
 
-				err = commandExecutor.ExecuteCommand(ctx, command, handler, nil)
+				_, err = commandExecutor.ExecuteCommand(ctx, command, handler, nil)
 				Expect(err).NotTo(HaveOccurred())
 
 				duplicateCmd := CreateAccountCommand{
@@ -164,7 +164,7 @@ var _ = Describe("TransferExample", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				duplicateCommand := dcb.NewCommand(CommandTypeCreateAccount, duplicateData, nil)
-				err = commandExecutor.ExecuteCommand(ctx, duplicateCommand, handler, nil)
+				_, err = commandExecutor.ExecuteCommand(ctx, duplicateCommand, handler, nil)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("already exists"))
 			})
@@ -181,7 +181,7 @@ var _ = Describe("TransferExample", func() {
 				handler := dcb.CommandHandlerFunc(handleCommand)
 				commandExecutor := dcb.NewCommandExecutor(store)
 
-				err = commandExecutor.ExecuteCommand(ctx, command1, handler, nil)
+				_, err = commandExecutor.ExecuteCommand(ctx, command1, handler, nil)
 				Expect(err).NotTo(HaveOccurred())
 
 				createAccount2Cmd := CreateAccountCommand{
@@ -192,7 +192,7 @@ var _ = Describe("TransferExample", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				command2 := dcb.NewCommand(CommandTypeCreateAccount, cmdData2, nil)
-				err = commandExecutor.ExecuteCommand(ctx, command2, handler, nil)
+				_, err = commandExecutor.ExecuteCommand(ctx, command2, handler, nil)
 				Expect(err).NotTo(HaveOccurred())
 
 				insufficientFundsCmd := TransferMoneyCommand{
@@ -205,7 +205,7 @@ var _ = Describe("TransferExample", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				insufficientCommand := dcb.NewCommand(CommandTypeTransferMoney, insufficientData, nil)
-				err = commandExecutor.ExecuteCommand(ctx, insufficientCommand, handler, nil)
+				_, err = commandExecutor.ExecuteCommand(ctx, insufficientCommand, handler, nil)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("insufficient funds"))
 			})
@@ -222,7 +222,7 @@ var _ = Describe("TransferExample", func() {
 				handler := dcb.CommandHandlerFunc(handleCommand)
 				commandExecutor := dcb.NewCommandExecutor(store)
 
-				err = commandExecutor.ExecuteCommand(ctx, command, handler, nil)
+				_, err = commandExecutor.ExecuteCommand(ctx, command, handler, nil)
 				Expect(err).NotTo(HaveOccurred())
 
 				nonExistentFromCmd := TransferMoneyCommand{
@@ -235,7 +235,7 @@ var _ = Describe("TransferExample", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				nonExistentCommand := dcb.NewCommand(CommandTypeTransferMoney, nonExistentData, nil)
-				err = commandExecutor.ExecuteCommand(ctx, nonExistentCommand, handler, nil)
+				_, err = commandExecutor.ExecuteCommand(ctx, nonExistentCommand, handler, nil)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("insufficient funds"))
 			})
@@ -252,7 +252,7 @@ var _ = Describe("TransferExample", func() {
 				handler := dcb.CommandHandlerFunc(handleCommand)
 				commandExecutor := dcb.NewCommandExecutor(store)
 
-				err = commandExecutor.ExecuteCommand(ctx, command, handler, nil)
+				_, err = commandExecutor.ExecuteCommand(ctx, command, handler, nil)
 				Expect(err).NotTo(HaveOccurred())
 
 				nonExistentToCmd := TransferMoneyCommand{
@@ -265,7 +265,7 @@ var _ = Describe("TransferExample", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				nonExistentCommand := dcb.NewCommand(CommandTypeTransferMoney, nonExistentData, nil)
-				err = commandExecutor.ExecuteCommand(ctx, nonExistentCommand, handler, nil)
+				_, err = commandExecutor.ExecuteCommand(ctx, nonExistentCommand, handler, nil)
 				Expect(err).NotTo(HaveOccurred())
 			})
 		})
@@ -288,7 +288,7 @@ var _ = Describe("TransferExample", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			command3 := dcb.NewCommand(CommandTypeCreateAccount, cmdData3, nil)
-			err = commandExecutor.ExecuteCommand(ctx, command3, handler, nil)
+			_, err = commandExecutor.ExecuteCommand(ctx, command3, handler, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			createAccount4Cmd := CreateAccountCommand{
@@ -299,7 +299,7 @@ var _ = Describe("TransferExample", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			command4 := dcb.NewCommand(CommandTypeCreateAccount, cmdData4, nil)
-			err = commandExecutor.ExecuteCommand(ctx, command4, handler, nil)
+			_, err = commandExecutor.ExecuteCommand(ctx, command4, handler, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			createAccount5Cmd := CreateAccountCommand{
@@ -310,7 +310,7 @@ var _ = Describe("TransferExample", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			command5 := dcb.NewCommand(CommandTypeCreateAccount, cmdData5, nil)
-			err = commandExecutor.ExecuteCommand(ctx, command5, handler, nil)
+			_, err = commandExecutor.ExecuteCommand(ctx, command5, handler, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			transfer1Cmd := TransferMoneyCommand{
@@ -323,7 +323,7 @@ var _ = Describe("TransferExample", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			transferCommand1 := dcb.NewCommand(CommandTypeTransferMoney, transferData1, nil)
-			err = commandExecutor.ExecuteCommand(ctx, transferCommand1, handler, nil)
+			_, err = commandExecutor.ExecuteCommand(ctx, transferCommand1, handler, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			transfer2Cmd := TransferMoneyCommand{
@@ -336,7 +336,7 @@ var _ = Describe("TransferExample", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			transferCommand2 := dcb.NewCommand(CommandTypeTransferMoney, transferData2, nil)
-			err = commandExecutor.ExecuteCommand(ctx, transferCommand2, handler, nil)
+			_, err = commandExecutor.ExecuteCommand(ctx, transferCommand2, handler, nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("insufficient funds"))
 		})

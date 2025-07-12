@@ -55,7 +55,7 @@ type EventStore interface {
 // CommandExecutor executes commands and generates events
 // This is the high-level interface for command-driven event generation
 type CommandExecutor interface {
-	ExecuteCommand(ctx context.Context, command Command, handler CommandHandler, condition *AppendCondition) error
+	ExecuteCommand(ctx context.Context, command Command, handler CommandHandler, condition *AppendCondition) ([]InputEvent, error)
 }
 
 // =============================================================================
@@ -64,13 +64,13 @@ type CommandExecutor interface {
 
 // CommandHandler handles command execution and generates events
 type CommandHandler interface {
-	Handle(ctx context.Context, store EventStore, command Command) []InputEvent
+	Handle(ctx context.Context, store EventStore, command Command) ([]InputEvent, error)
 }
 
 // CommandHandlerFunc allows using functions as CommandHandler implementations
-type CommandHandlerFunc func(ctx context.Context, store EventStore, command Command) []InputEvent
+type CommandHandlerFunc func(ctx context.Context, store EventStore, command Command) ([]InputEvent, error)
 
-func (f CommandHandlerFunc) Handle(ctx context.Context, store EventStore, command Command) []InputEvent {
+func (f CommandHandlerFunc) Handle(ctx context.Context, store EventStore, command Command) ([]InputEvent, error) {
 	return f(ctx, store, command)
 }
 
