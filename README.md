@@ -1,5 +1,4 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/rodolfodpk/go-crablet)](https://goreportcard.com/report/github.com/rodolfodpk/go-crablet)
-[![Code Coverage](https://img.shields.io/badge/code%20coverage-86.0%25-green?logo=go)](https://github.com/rodolfodpk/go-crablet/actions/workflows/coverage.yml)
 [![GoDoc](https://godoc.org/github.com/rodolfodpk/go-crablet?status.svg)](https://godoc.org/github.com/rodolfodpk/go-crablet)
 [![License](https://img.shields.io/github/license/rodolfodpk/go-crablet)](https://github.com/rodolfodpk/go-crablet/blob/main/LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/rodolfodpk/go-crablet)](https://github.com/rodolfodpk/go-crablet/blob/main/go.mod)
@@ -35,7 +34,6 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 - [Getting Started](docs/getting-started.md): Development setup
 - [Command Execution Flow](docs/command-execution-flow.md): Sequence diagram and command processing flow
 - [Testing](docs/testing.md): Comprehensive testing guide and test organization
-- [Code Coverage](docs/code-coverage.md): Test coverage analysis and improvement guidelines
 - [Performance Analysis](docs/performance-improvements.md): Detailed performance analysis
 
 ## 💡 Examples
