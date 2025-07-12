@@ -52,14 +52,12 @@ jobs:
         COVERAGE=$(cat coverage_percentage.txt)
         echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
         echo "Coverage: $COVERAGE%"
-        echo "Internal coverage: $(cat pkg/dcb/internal_coverage.txt | grep total)"
-        echo "External coverage: $(cat pkg/dcb/external_coverage.txt | grep total)"
     
     - name: Update README badge
       if: github.ref == 'refs/heads/main'
       run: |
         # Determine badge color based on coverage
-        COVERAGE=$(cat pkg/dcb/coverage_percentage.txt)
+        COVERAGE=$(cat coverage_percentage.txt)
         if (( $(echo "$COVERAGE >= 90" | bc -l) )); then
           COLOR="brightgreen"
         elif (( $(echo "$COVERAGE >= 80" | bc -l) )); then
