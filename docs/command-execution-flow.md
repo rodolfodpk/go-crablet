@@ -37,8 +37,8 @@ sequenceDiagram
             CommandExecutor->>EventStore: Append(events)
             Note right of EventStore: Validate events<br/>Check MaxBatchSize limit
 
-            EventStore->>Database: Acquire advisory lock
-            Note right of Database: Lock on transaction_id<br/>Prevents concurrent modifications
+            EventStore->>Database: Acquire advisory lock (optional)
+            Note right of Database: Lock on lock: prefixed tags<br/>Prevents concurrent modifications<br/>Currently unused in Go implementation
 
             EventStore->>Events Table: Insert events
             Note right of Events Table: Insert with:<br/>- type, tags, data<br/>- transaction_id, position<br/>- occurred_at timestamp
@@ -46,7 +46,7 @@ sequenceDiagram
             EventStore->>Commands Table: Insert command record
             Note right of Commands Table: Store command metadata:<br/>- transaction_id<br/>- type, data, metadata<br/>- occurred_at
 
-            EventStore->>Database: Release advisory lock
+            EventStore->>Database: Release advisory lock (optional)
             EventStore->>Database: Commit transaction
             EventStore-->>CommandExecutor: Return success
 
@@ -79,13 +79,14 @@ type Command interface {
 - **Purpose**: Core event sourcing operations
 - **Responsibilities**:
   - Validate event batches
-  - Manage advisory locks for consistency
+  - Manage advisory locks for consistency (optional feature)
   - Persist events to database
   - Store command metadata for audit trail
 
 ### 4. Database Operations
 - **Transaction Management**: Ensures atomicity
-- **Advisory Locks**: Prevents concurrent modifications to same transaction
+- **Optimistic Locking**: Primary mechanism using transaction IDs and append conditions
+- **Advisory Locks**: Optional additional locking via `lock:` prefixed tags (optional feature, currently unused)
 - **Event Storage**: Persists events with metadata
 - **Command Tracking**: Stores command execution history
 
@@ -95,10 +96,10 @@ type Command interface {
 2. **Transaction Start**: Begin database transaction with appropriate isolation
 3. **Command Execution**: Execute command logic to generate events
 4. **Event Validation**: Check event batch size and structure
-5. **Lock Acquisition**: Acquire advisory lock for transaction consistency
+5. **Lock Acquisition**: Acquire advisory lock for transaction consistency (optional)
 6. **Event Persistence**: Insert events into events table
 7. **Command Tracking**: Store command metadata in commands table
-8. **Lock Release**: Release advisory lock
+8. **Lock Release**: Release advisory lock (optional)
 9. **Transaction Commit**: Commit all changes atomically
 10. **Response**: Return success/error to client
 
@@ -112,7 +113,7 @@ type Command interface {
 ## Benefits
 
 - **Atomicity**: All operations succeed or fail together
-- **Consistency**: Advisory locks prevent concurrent conflicts
+- **Consistency**: Advisory locks prevent concurrent conflicts (optional feature)
 - **Audit Trail**: Complete command and event history
 - **Error Recovery**: Automatic rollback on failures
 - **Performance**: Optimized for typical event sourcing workloads

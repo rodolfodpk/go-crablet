@@ -96,13 +96,14 @@ type Command interface {
 }
 ```
 
-## Transaction ID Ordering
+## Transaction ID Ordering and Locking
 
 go-crablet uses PostgreSQL's `xid8` transaction IDs for event ordering and optimistic locking:
 
 - **True ordering**: No gaps or out-of-order events
-- **Optimistic locking**: Uses transaction IDs for conflict detection
+- **Optimistic locking**: Uses transaction IDs for conflict detection (primary mechanism)
 - **Cursor-based**: Combines `(transaction_id, position)` for precise positioning
+- **Advisory locks**: Optional additional locking via `lock:` prefixed tags in event tags
 
 ## DCB Decision Model Pattern
 
@@ -143,8 +144,32 @@ if states["numSubscriptions"].(int) < 2 {
 }
 ```
 
-## Transaction Isolation
+## Transaction Isolation and Locking
 
+### Primary: Optimistic Locking
+go-crablet primarily uses **optimistic locking** via transaction IDs and append conditions:
+- **Conflict detection**: Uses `AppendCondition` to check for existing events before appending
+- **Concurrent safety**: Only one append can succeed when conditions match existing events
+- **No blocking**: Failed appends return immediately with `ConcurrencyError`
+
+### Optional: Advisory Locks
+For additional concurrency control, you can use PostgreSQL advisory locks via event tags:
+- **Tag-based locking**: Add tags with `lock:` prefix (e.g., `"lock:user-123"`, `"lock:account-456"`)
+- **Automatic acquisition**: Database functions automatically acquire locks on these keys
+- **Deadlock prevention**: Locks are sorted and acquired in consistent order
+- **Transaction-scoped**: Locks are automatically released when transaction commits/rolls back
+
+**Example with advisory locks:**
+```go
+// This event will acquire advisory lock on "user-123"
+event := dcb.NewInputEvent("UserAction", 
+    dcb.NewTags("user_id", "123", "lock:user-123"), 
+    dcb.ToJSON(data))
+```
+
+**Note**: Advisory locks are currently available in the database functions but not actively used by the Go implementation.
+
+### Isolation Levels
 Configurable PostgreSQL isolation levels via `EventStoreConfig.DefaultAppendIsolation` (default: Read Committed).
 
 ## Configuration
@@ -154,7 +179,7 @@ The EventStore can be configured with various settings:
 ```go
 type EventStoreConfig struct {
     MaxBatchSize           int            `json:"max_batch_size"`           // Maximum events per append call
-    LockTimeout            int            `json:"lock_timeout"`             // Lock timeout in milliseconds for advisory locks
+    LockTimeout            int            `json:"lock_timeout"`             // Lock timeout in milliseconds for advisory locks (optional feature)
     StreamBuffer           int            `json:"stream_buffer"`            // Channel buffer size for streaming operations
     DefaultAppendIsolation IsolationLevel `json:"default_append_isolation"` // Default isolation level for Append operations
     QueryTimeout           int            `json:"query_timeout"`            // Query timeout in milliseconds (defensive against hanging queries)
@@ -164,7 +189,7 @@ type EventStoreConfig struct {
 
 ### Default Values
 - `MaxBatchSize`: 1000 events (limits events per append call)
-- `LockTimeout`: 5000ms (5 seconds)
+- `LockTimeout`: 5000ms (5 seconds) - **Optional feature, currently unused**
 - `StreamBuffer`: 1000 events
 - `DefaultAppendIsolation`: Read Committed
 - `QueryTimeout`: 15000ms (15 seconds)
@@ -461,5 +486,6 @@ func (h *MyHandler) Handle(ctx context.Context, store dcb.EventStore, command dc
 - **Optimistic Locking**: Cursor-based append conditions for concurrent safety
 - **Command Tracking**: Commands automatically stored in `commands` table with transaction ID linking
 - **Command Execution**: Atomic command execution with handler-based event generation using `CommandExecutor`
+- **Lock Acquisition**: Advisory locks available via `lock:` prefixed tags in event tags (optional feature, currently unused in Go implementation)
 
 See [examples](examples.md) for complete working examples including course subscriptions and money transfers, and [getting-started](getting-started.md) for setup instructions.
