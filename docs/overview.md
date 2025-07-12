@@ -182,7 +182,6 @@ type EventStoreConfig struct {
     DefaultAppendIsolation IsolationLevel `json:"default_append_isolation"` // Default isolation level for Append operations
     QueryTimeout           int            `json:"query_timeout"`            // Query timeout in milliseconds (defensive against hanging queries)
     AppendTimeout          int            `json:"append_timeout"`           // Append timeout in milliseconds (defensive against hanging appends)
-    TargetEventsTable      string         `json:"target_events_table"`      // Target events table name (default: "events")
 }
 ```
 
@@ -193,7 +192,6 @@ type EventStoreConfig struct {
 - `DefaultAppendIsolation`: Read Committed
 - `QueryTimeout`: 15000ms (15 seconds)
 - `AppendTimeout`: 10000ms (10 seconds)
-- `TargetEventsTable`: "events"
 
 ## Performance Comparison Across Isolation Levels
 
@@ -221,14 +219,14 @@ Benchmark results from web-app load testing (30-second tests, multiple VUs):
 
 ## Table Validation
 
-When creating an EventStore with a custom `TargetEventsTable`, the library validates that the table exists and has the correct structure:
+The library validates that the `events` table exists and has the correct structure:
 
 - **Required columns**: `type`, `tags`, `data`, `transaction_id`, `position`, `occurred_at`
 - **Data types**: Validates column types and nullable constraints
 - **Error handling**: Returns `TableStructureError` with detailed information about validation failures
 
 Example validation errors:
-- `table nonexistent_events does not exist`
+- `table events does not exist`
 - `missing required column 'occurred_at'`
 - `column 'tags' should be ARRAY type, got TEXT`
 
@@ -316,7 +314,6 @@ Every executed command is automatically stored in the `commands` table with:
 - **Command type**: Identifies the command type
 - **Command data**: Serialized command payload
 - **Metadata**: Additional context (correlation ID, source, etc.)
-- **Target events table**: Which events table the command affects
 - **Timestamp**: When the command was executed
 
 This enables:
