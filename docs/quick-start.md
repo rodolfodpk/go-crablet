@@ -12,8 +12,8 @@ go get github.com/rodolfodpk/go-crablet
 
 ## Prerequisites
 
-- PostgreSQL database (version 12 or higher)
-- Go 1.21 or higher
+- PostgreSQL database (version 17.5 recommended, 12 or higher supported)
+- Go 1.24.5 or higher
 
 ## Database Setup
 

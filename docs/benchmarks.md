@@ -8,7 +8,7 @@ This document contains performance benchmark results for the go-crablet event so
 - **Database**: PostgreSQL with connection pool (5-20 connections)
 - **Web Server**: Go HTTP server on port 8080
 - **Load Testing**: k6 with various scenarios
-- **Go Version**: 1.24.4
+- **Go Version**: 1.24.5
 - **Test Data**: SQLite-cached datasets for fast benchmark execution
 
 ## Test Data System
