@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -71,7 +72,14 @@ var _ = Describe("TransferExample", func() {
 				AccountID:      "test_acc1",
 				InitialBalance: 1000,
 			}
-			err := handleCreateAccount(ctx, store, createAccount1Cmd)
+			cmdData, err := json.Marshal(createAccount1Cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			command := dcb.NewCommand(CommandTypeCreateAccount, cmdData, nil)
+			handler := dcb.CommandHandlerFunc(handleCommand)
+			commandExecutor := dcb.NewCommandExecutor(store)
+
+			err = commandExecutor.ExecuteCommand(ctx, command, handler, nil)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -80,7 +88,14 @@ var _ = Describe("TransferExample", func() {
 				AccountID:      "test_acc2",
 				InitialBalance: 500,
 			}
-			err := handleCreateAccount(ctx, store, createAccount2Cmd)
+			cmdData, err := json.Marshal(createAccount2Cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			command := dcb.NewCommand(CommandTypeCreateAccount, cmdData, nil)
+			handler := dcb.CommandHandlerFunc(handleCommand)
+			commandExecutor := dcb.NewCommandExecutor(store)
+
+			err = commandExecutor.ExecuteCommand(ctx, command, handler, nil)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -90,14 +105,25 @@ var _ = Describe("TransferExample", func() {
 				AccountID:      "test_acc1",
 				InitialBalance: 1000,
 			}
-			err := handleCreateAccount(ctx, store, createAccount1Cmd)
+			cmdData1, err := json.Marshal(createAccount1Cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			command1 := dcb.NewCommand(CommandTypeCreateAccount, cmdData1, nil)
+			handler := dcb.CommandHandlerFunc(handleCommand)
+			commandExecutor := dcb.NewCommandExecutor(store)
+
+			err = commandExecutor.ExecuteCommand(ctx, command1, handler, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			createAccount2Cmd := CreateAccountCommand{
 				AccountID:      "test_acc2",
 				InitialBalance: 500,
 			}
-			err = handleCreateAccount(ctx, store, createAccount2Cmd)
+			cmdData2, err := json.Marshal(createAccount2Cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			command2 := dcb.NewCommand(CommandTypeCreateAccount, cmdData2, nil)
+			err = commandExecutor.ExecuteCommand(ctx, command2, handler, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			transferCmd := TransferMoneyCommand{
@@ -106,7 +132,11 @@ var _ = Describe("TransferExample", func() {
 				ToAccountID:   "test_acc2",
 				Amount:        300,
 			}
-			err = handleTransferMoney(ctx, store, transferCmd)
+			transferData, err := json.Marshal(transferCmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			transferCommand := dcb.NewCommand(CommandTypeTransferMoney, transferData, nil)
+			err = commandExecutor.ExecuteCommand(ctx, transferCommand, handler, nil)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -116,14 +146,25 @@ var _ = Describe("TransferExample", func() {
 					AccountID:      "test_acc1",
 					InitialBalance: 1000,
 				}
-				err := handleCreateAccount(ctx, store, createAccountCmd)
+				cmdData, err := json.Marshal(createAccountCmd)
+				Expect(err).NotTo(HaveOccurred())
+
+				command := dcb.NewCommand(CommandTypeCreateAccount, cmdData, nil)
+				handler := dcb.CommandHandlerFunc(handleCommand)
+				commandExecutor := dcb.NewCommandExecutor(store)
+
+				err = commandExecutor.ExecuteCommand(ctx, command, handler, nil)
 				Expect(err).NotTo(HaveOccurred())
 
 				duplicateCmd := CreateAccountCommand{
 					AccountID:      "test_acc1",
 					InitialBalance: 2000,
 				}
-				err = handleCreateAccount(ctx, store, duplicateCmd)
+				duplicateData, err := json.Marshal(duplicateCmd)
+				Expect(err).NotTo(HaveOccurred())
+
+				duplicateCommand := dcb.NewCommand(CommandTypeCreateAccount, duplicateData, nil)
+				err = commandExecutor.ExecuteCommand(ctx, duplicateCommand, handler, nil)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("already exists"))
 			})
@@ -133,14 +174,25 @@ var _ = Describe("TransferExample", func() {
 					AccountID:      "test_acc1",
 					InitialBalance: 1000,
 				}
-				err := handleCreateAccount(ctx, store, createAccount1Cmd)
+				cmdData1, err := json.Marshal(createAccount1Cmd)
+				Expect(err).NotTo(HaveOccurred())
+
+				command1 := dcb.NewCommand(CommandTypeCreateAccount, cmdData1, nil)
+				handler := dcb.CommandHandlerFunc(handleCommand)
+				commandExecutor := dcb.NewCommandExecutor(store)
+
+				err = commandExecutor.ExecuteCommand(ctx, command1, handler, nil)
 				Expect(err).NotTo(HaveOccurred())
 
 				createAccount2Cmd := CreateAccountCommand{
 					AccountID:      "test_acc2",
 					InitialBalance: 500,
 				}
-				err = handleCreateAccount(ctx, store, createAccount2Cmd)
+				cmdData2, err := json.Marshal(createAccount2Cmd)
+				Expect(err).NotTo(HaveOccurred())
+
+				command2 := dcb.NewCommand(CommandTypeCreateAccount, cmdData2, nil)
+				err = commandExecutor.ExecuteCommand(ctx, command2, handler, nil)
 				Expect(err).NotTo(HaveOccurred())
 
 				insufficientFundsCmd := TransferMoneyCommand{
@@ -149,7 +201,11 @@ var _ = Describe("TransferExample", func() {
 					ToAccountID:   "test_acc2",
 					Amount:        1001,
 				}
-				err = handleTransferMoney(ctx, store, insufficientFundsCmd)
+				insufficientData, err := json.Marshal(insufficientFundsCmd)
+				Expect(err).NotTo(HaveOccurred())
+
+				insufficientCommand := dcb.NewCommand(CommandTypeTransferMoney, insufficientData, nil)
+				err = commandExecutor.ExecuteCommand(ctx, insufficientCommand, handler, nil)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("insufficient funds"))
 			})
@@ -159,7 +215,14 @@ var _ = Describe("TransferExample", func() {
 					AccountID:      "test_acc2",
 					InitialBalance: 500,
 				}
-				err := handleCreateAccount(ctx, store, createAccount2Cmd)
+				cmdData, err := json.Marshal(createAccount2Cmd)
+				Expect(err).NotTo(HaveOccurred())
+
+				command := dcb.NewCommand(CommandTypeCreateAccount, cmdData, nil)
+				handler := dcb.CommandHandlerFunc(handleCommand)
+				commandExecutor := dcb.NewCommandExecutor(store)
+
+				err = commandExecutor.ExecuteCommand(ctx, command, handler, nil)
 				Expect(err).NotTo(HaveOccurred())
 
 				nonExistentFromCmd := TransferMoneyCommand{
@@ -168,7 +231,11 @@ var _ = Describe("TransferExample", func() {
 					ToAccountID:   "test_acc2",
 					Amount:        100,
 				}
-				err = handleTransferMoney(ctx, store, nonExistentFromCmd)
+				nonExistentData, err := json.Marshal(nonExistentFromCmd)
+				Expect(err).NotTo(HaveOccurred())
+
+				nonExistentCommand := dcb.NewCommand(CommandTypeTransferMoney, nonExistentData, nil)
+				err = commandExecutor.ExecuteCommand(ctx, nonExistentCommand, handler, nil)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("insufficient funds"))
 			})
@@ -178,7 +245,14 @@ var _ = Describe("TransferExample", func() {
 					AccountID:      "test_acc1",
 					InitialBalance: 1000,
 				}
-				err := handleCreateAccount(ctx, store, createAccount1Cmd)
+				cmdData, err := json.Marshal(createAccount1Cmd)
+				Expect(err).NotTo(HaveOccurred())
+
+				command := dcb.NewCommand(CommandTypeCreateAccount, cmdData, nil)
+				handler := dcb.CommandHandlerFunc(handleCommand)
+				commandExecutor := dcb.NewCommandExecutor(store)
+
+				err = commandExecutor.ExecuteCommand(ctx, command, handler, nil)
 				Expect(err).NotTo(HaveOccurred())
 
 				nonExistentToCmd := TransferMoneyCommand{
@@ -187,7 +261,11 @@ var _ = Describe("TransferExample", func() {
 					ToAccountID:   "non_existent_account",
 					Amount:        100,
 				}
-				err = handleTransferMoney(ctx, store, nonExistentToCmd)
+				nonExistentData, err := json.Marshal(nonExistentToCmd)
+				Expect(err).NotTo(HaveOccurred())
+
+				nonExistentCommand := dcb.NewCommand(CommandTypeTransferMoney, nonExistentData, nil)
+				err = commandExecutor.ExecuteCommand(ctx, nonExistentCommand, handler, nil)
 				Expect(err).NotTo(HaveOccurred())
 			})
 		})
@@ -199,25 +277,40 @@ var _ = Describe("TransferExample", func() {
 		})
 
 		It("should handle sequential transfers and detect insufficient funds", func() {
+			handler := dcb.CommandHandlerFunc(handleCommand)
+			commandExecutor := dcb.NewCommandExecutor(store)
+
 			createAccount3Cmd := CreateAccountCommand{
 				AccountID:      "test_acc3",
 				InitialBalance: 2000,
 			}
-			err := handleCreateAccount(ctx, store, createAccount3Cmd)
+			cmdData3, err := json.Marshal(createAccount3Cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			command3 := dcb.NewCommand(CommandTypeCreateAccount, cmdData3, nil)
+			err = commandExecutor.ExecuteCommand(ctx, command3, handler, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			createAccount4Cmd := CreateAccountCommand{
 				AccountID:      "test_acc4",
 				InitialBalance: 0,
 			}
-			err = handleCreateAccount(ctx, store, createAccount4Cmd)
+			cmdData4, err := json.Marshal(createAccount4Cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			command4 := dcb.NewCommand(CommandTypeCreateAccount, cmdData4, nil)
+			err = commandExecutor.ExecuteCommand(ctx, command4, handler, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			createAccount5Cmd := CreateAccountCommand{
 				AccountID:      "test_acc5",
 				InitialBalance: 0,
 			}
-			err = handleCreateAccount(ctx, store, createAccount5Cmd)
+			cmdData5, err := json.Marshal(createAccount5Cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			command5 := dcb.NewCommand(CommandTypeCreateAccount, cmdData5, nil)
+			err = commandExecutor.ExecuteCommand(ctx, command5, handler, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			transfer1Cmd := TransferMoneyCommand{
@@ -226,8 +319,12 @@ var _ = Describe("TransferExample", func() {
 				ToAccountID:   "test_acc4",
 				Amount:        1500,
 			}
-			err1 := handleTransferMoney(ctx, store, transfer1Cmd)
-			Expect(err1).NotTo(HaveOccurred())
+			transferData1, err := json.Marshal(transfer1Cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			transferCommand1 := dcb.NewCommand(CommandTypeTransferMoney, transferData1, nil)
+			err = commandExecutor.ExecuteCommand(ctx, transferCommand1, handler, nil)
+			Expect(err).NotTo(HaveOccurred())
 
 			transfer2Cmd := TransferMoneyCommand{
 				TransferID:    "test_transfer_6",
@@ -235,9 +332,13 @@ var _ = Describe("TransferExample", func() {
 				ToAccountID:   "test_acc5",
 				Amount:        1000,
 			}
-			err2 := handleTransferMoney(ctx, store, transfer2Cmd)
-			Expect(err2).To(HaveOccurred())
-			Expect(err2.Error()).To(ContainSubstring("insufficient funds"))
+			transferData2, err := json.Marshal(transfer2Cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			transferCommand2 := dcb.NewCommand(CommandTypeTransferMoney, transferData2, nil)
+			err = commandExecutor.ExecuteCommand(ctx, transferCommand2, handler, nil)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("insufficient funds"))
 		})
 	})
 })
