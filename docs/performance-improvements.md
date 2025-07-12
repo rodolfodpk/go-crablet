@@ -12,7 +12,7 @@ The go-crablet system has undergone several performance optimizations, resulting
 - **Success Rate**: 100% across all scenarios ✅
 - **Error Rate**: 0% across all tests ✅
 - **Concurrency Errors**: 0% (optimistic locking working well) ✅
-- **System Stability**: Handles up to 100 concurrent VUs without degradation ✅
+- **System Stability**: Handles up to 100 VUs with performance degradation at higher concurrency levels ✅
 
 ### Detailed Benchmark Results
 
@@ -287,7 +287,7 @@ func (es *eventStore) Append(ctx context.Context, events []InputEvent, condition
 - **Good Concurrency Handling**: Zero concurrency errors
 - **Robust Error Management**: Comprehensive error handling with guaranteed rollback
 - **Consistent Performance**: Stable performance across different isolation levels
-- **Scalable Architecture**: Handles up to 100 VUs without degradation
+- **High Concurrency**: Handles up to 100 VUs with performance degradation at higher loads
 
 ### Areas for Improvement
 - **Throughput**: Could be improved with horizontal scaling

@@ -106,7 +106,7 @@ The event store can be configured with various options using `EventStoreConfig`:
 
 ```go
 config := dcb.EventStoreConfig{
-    MaxBatchSize:           1000, // Limits events per append call and projection windows
+    MaxBatchSize:           1000, // Limits events per append call
     LockTimeout:            5000, // ms
     StreamBuffer:           1000,
     DefaultAppendIsolation: dcb.IsolationLevelReadCommitted,

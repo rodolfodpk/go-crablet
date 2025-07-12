@@ -83,7 +83,7 @@ Benchmark results show excellent reliability with 100% success rates across all 
 - **Batch with Condition (Success)**: 100% success
 - **Large Batch with Condition**: 100% success
 - **Complex Condition (Multiple Types)**: 100% success
-- **High Concurrency Test**: 100% success
+- **High Concurrency Test**: 100% success rate but performance degradation at 100 VUs (p99: 3.47s, rate: 62.6 req/s)
 
 ### 3. Isolation Level Benchmark
 - **Total Duration**: 4m 20s
@@ -169,7 +169,7 @@ Benchmark results show excellent reliability with 100% success rates across all 
 - **Excellent Concurrency Handling**: Zero concurrency errors
 - **Robust Error Management**: Comprehensive error handling with guaranteed rollback
 - **Performance Consistency**: Stable performance across different isolation levels
-- **Scalable Architecture**: Handles up to 100 VUs without degradation
+- **High Concurrency**: Handles up to 100 VUs with performance degradation at higher loads
 
 ### Areas for Optimization
 - **Throughput**: Could be improved with horizontal scaling

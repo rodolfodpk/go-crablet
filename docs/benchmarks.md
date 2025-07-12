@@ -173,7 +173,7 @@ The benchmark system uses SQLite to cache pre-generated test datasets, providing
 1. **Avoid Large Event Groups**: Keep event counts under 1000 per append call for best performance
 2. **Conditional Operations**: Use sparingly due to significant overhead
 3. **Memory Monitoring**: Monitor memory usage for large projection operations
-4. **Connection Limits**: Consider increasing pool size for high-concurrency scenarios
+4. **Connection Limits**: Consider increasing pool size for high-concurrency scenarios (tested up to 100 VUs)
 
 ### Benchmark Testing
 1. **Use SQLite Cache**: Pre-generate datasets for fast benchmark execution
