@@ -249,6 +249,120 @@ The library uses two main tables:
 - **`events` table**: Stores all events with transaction IDs for ordering
 - **`commands` table**: Tracks executed commands with metadata and links to events via transaction ID
 
+#### Events Table Structure
+
+```sql
+CREATE TABLE events (
+    transaction_id BIGINT NOT NULL,           -- PostgreSQL xid8 transaction ID for ordering
+    position       BIGINT NOT NULL,           -- Position within transaction (0-based)
+    type           TEXT NOT NULL,             -- Event type (e.g., "UserCreated", "OrderPlaced")
+    tags           TEXT[] NOT NULL,           -- Array of tags for querying (e.g., ["user_id:123", "order_id:456"])
+    data           JSONB NOT NULL,            -- Event payload as JSON
+    occurred_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(), -- Event timestamp
+    
+    PRIMARY KEY (transaction_id, position),   -- Composite primary key for ordering
+    UNIQUE (transaction_id, position)         -- Ensure no duplicate positions within transaction
+);
+
+-- Indexes for efficient querying
+CREATE INDEX idx_events_type ON events(type);
+CREATE INDEX idx_events_tags ON events USING GIN(tags);
+CREATE INDEX idx_events_occurred_at ON events(occurred_at);
+CREATE INDEX idx_events_transaction_id ON events(transaction_id);
+```
+
+**Key Features:**
+- **Transaction-based ordering**: `transaction_id` ensures true event ordering without gaps
+- **Position within transaction**: `position` allows multiple events per transaction
+- **Tag-based querying**: `tags` array enables flexible, cross-entity queries
+- **JSONB data**: Rich event payloads with PostgreSQL JSONB performance
+- **Automatic timestamps**: `occurred_at` provides event timing information
+
+#### Commands Table Structure
+
+```sql
+CREATE TABLE commands (
+    transaction_id BIGINT NOT NULL,           -- Links to events via transaction ID
+    type           TEXT NOT NULL,             -- Command type (e.g., "CreateUser", "TransferMoney")
+    data           JSONB NOT NULL,            -- Command payload as JSON
+    metadata       JSONB NOT NULL DEFAULT '{}', -- Additional context (correlation ID, source, etc.)
+    occurred_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(), -- Command execution timestamp
+    
+    PRIMARY KEY (transaction_id),             -- One command per transaction
+    FOREIGN KEY (transaction_id) REFERENCES events(transaction_id) ON DELETE CASCADE
+);
+
+-- Indexes for efficient querying
+CREATE INDEX idx_commands_type ON commands(type);
+CREATE INDEX idx_commands_occurred_at ON commands(occurred_at);
+CREATE INDEX idx_commands_metadata ON commands USING GIN(metadata);
+```
+
+**Key Features:**
+- **Transaction linking**: `transaction_id` links commands to their generated events
+- **Command metadata**: `metadata` stores correlation IDs, source information, etc.
+- **Audit trail**: Complete command execution history
+- **Cascade deletion**: Commands deleted when related events are deleted
+
+#### Example Data
+
+**Events Table:**
+```sql
+-- User creation events
+INSERT INTO events VALUES 
+(123456789, 0, 'UserCreated', ARRAY['user_id:123', 'email:alice@example.com'], 
+ '{"user_id": "123", "email": "alice@example.com", "name": "Alice Smith"}', 
+ '2025-07-12 15:30:00+00');
+
+-- Course enrollment events  
+INSERT INTO events VALUES 
+(123456790, 0, 'StudentEnrolled', ARRAY['user_id:123', 'course_id:CS101'], 
+ '{"user_id": "123", "course_id": "CS101", "enrolled_at": "2025-07-12 15:35:00"}', 
+ '2025-07-12 15:35:00+00');
+```
+
+**Commands Table:**
+```sql
+-- Command that generated the user creation events
+INSERT INTO commands VALUES 
+(123456789, 'CreateUser', 
+ '{"email": "alice@example.com", "name": "Alice Smith"}',
+ '{"correlation_id": "corr_123", "source": "web_api", "user_agent": "Mozilla/5.0"}',
+ '2025-07-12 15:30:00+00');
+```
+
+#### Querying Patterns
+
+**Event Queries:**
+```sql
+-- Query events by type
+SELECT * FROM events WHERE type = 'UserCreated';
+
+-- Query events by tags
+SELECT * FROM events WHERE tags @> ARRAY['user_id:123'];
+
+-- Query events by time range
+SELECT * FROM events WHERE occurred_at BETWEEN '2025-07-12 00:00:00' AND '2025-07-12 23:59:59';
+
+-- Query events with multiple tag conditions
+SELECT * FROM events WHERE tags @> ARRAY['user_id:123'] AND tags @> ARRAY['course_id:CS101'];
+```
+
+**Command Queries:**
+```sql
+-- Query commands by type
+SELECT * FROM commands WHERE type = 'CreateUser';
+
+-- Query commands by metadata
+SELECT * FROM commands WHERE metadata->>'correlation_id' = 'corr_123';
+
+-- Query commands with their generated events
+SELECT c.*, e.* 
+FROM commands c 
+JOIN events e ON c.transaction_id = e.transaction_id 
+WHERE c.type = 'CreateUser';
+```
+
 ### Basic Usage
 
 ```go
