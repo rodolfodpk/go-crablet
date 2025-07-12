@@ -5,6 +5,7 @@ go-crablet is a Go library for event sourcing, exploring concepts inspired by th
 - Project multiple states and check business invariants in a single query
 - Use tag-based, OR-combined queries for cross-entity consistency
 - Enforce optimistic concurrency with combined append conditions
+- Execute commands with automatic event generation using the CommandExecutor pattern
 
 ## Key Concepts
 
@@ -13,8 +14,11 @@ go-crablet is a Go library for event sourcing, exploring concepts inspired by th
 - **Tag-based Queries**: Flexible, cross-entity queries using tags
 - **Streaming**: Process events efficiently for large datasets
 - **Transaction-based Ordering**: Uses PostgreSQL transaction IDs for true event ordering
+- **Command Execution**: Atomic command execution with automatic event generation and command tracking
 
-## Core Interface
+## Core Interfaces
+
+### EventStore Interface
 
 ```go
 type EventStore interface {
@@ -50,11 +54,40 @@ type EventStore interface {
 
     // GetConfig returns the current EventStore configuration
     GetConfig() EventStoreConfig
+
+    // GetPool returns the underlying database pool
+    GetPool() *pgxpool.Pool
+}
+```
+
+### CommandExecutor Interface
+
+```go
+type CommandExecutor interface {
+    // ExecuteCommand executes a command and generates events atomically
+    // The handler receives the EventStore to perform its own projections and business logic
+    ExecuteCommand(ctx context.Context, command Command, handler CommandHandler, condition *AppendCondition) error
 }
 
+type CommandHandler interface {
+    // Handle processes a command and generates events
+    // The handler has access to the EventStore for projection and business logic
+    Handle(ctx context.Context, store EventStore, command Command) []InputEvent
+}
+```
+
+### Supporting Types
+
+```go
 type Cursor struct {
     TransactionID uint64 `json:"transaction_id"`
     Position      int64  `json:"position"`
+}
+
+type Command interface {
+    GetType() string
+    GetData() []byte
+    GetMetadata() map[string]interface{}
 }
 ```
 
@@ -178,35 +211,31 @@ Example validation errors:
 
 ## Command Execution
 
-go-crablet supports command execution with automatic event generation based on current state:
-
-```go
-type Command interface {
-    GetType() string
-    GetData() []byte
-    GetMetadata() map[string]interface{}
-}
-
-type CommandHandler interface {
-    Handle(ctx context.Context, decisionModels map[string]any, command Command) []InputEvent
-}
-
-// ExecuteCommand executes a command and generates events based on current state
-ExecuteCommand(ctx context.Context, command Command, handler CommandHandler, condition *AppendCondition) error
-```
+go-crablet supports atomic command execution with automatic event generation and command tracking. The `CommandExecutor` provides a clean abstraction for command-driven event sourcing:
 
 ### Command Execution Flow
 
-1. **Store command** in the `commands` table with transaction ID
-2. **Get current state** using existing projectors (if condition provided)
-3. **Generate events** using the command handler
-4. **Append events** atomically within the same transaction
+1. **Execute command** using the `CommandExecutor`
+2. **Handler performs projection** using the provided `EventStore`
+3. **Generate events** based on business logic and projected state
+4. **Store command** in the `commands` table with transaction ID (automatic)
+5. **Append events** atomically within the same transaction
+
+### Database Tables
+
+The library uses two main tables:
+
+- **`events` table**: Stores all events with transaction IDs for ordering
+- **`commands` table**: Tracks executed commands with metadata and links to events via transaction ID
 
 ### Basic Usage
 
 ```go
+// Create command executor
+commandExecutor := dcb.NewCommandExecutor(eventStore)
+
 // Create command
-cmd := NewCommand("CreateUser", ToJSON(userData), map[string]interface{}{
+cmd := dcb.NewCommand("CreateUser", dcb.ToJSON(userData), map[string]interface{}{
     "correlation_id": "corr_789",
     "source": "web_api",
 })
@@ -214,112 +243,130 @@ cmd := NewCommand("CreateUser", ToJSON(userData), map[string]interface{}{
 // Define command handler
 type CreateUserHandler struct{}
 
-func (h *CreateUserHandler) Handle(ctx context.Context, decisionModels map[string]any, command Command) []InputEvent {
+func (h *CreateUserHandler) Handle(ctx context.Context, store dcb.EventStore, command dcb.Command) []dcb.InputEvent {
     // Extract command data
     var cmdData CreateUserCommand
     json.Unmarshal(command.GetData(), &cmdData)
     
-    // Check current state
-    if userState, ok := decisionModels["user_state"].(UserState); ok {
-        if userState.UserExists(cmdData.Email) {
-            return []InputEvent{
-                NewInputEvent("UserCreationFailed", 
-                    NewTags("email", cmdData.Email, "reason", "user_exists"), 
-                    ToJSON(map[string]string{"error": "User already exists"})),
-            }
+    // Perform projection to check current state
+    projectors := []dcb.StateProjector{
+        {
+            ID: "userExists",
+            Query: dcb.NewQuery(dcb.NewTags("email", cmdData.Email), "UserCreated"),
+            InitialState: false,
+            TransitionFn: func(state any, event dcb.Event) any { return true },
+        },
+    }
+    
+    states, _, err := store.Project(ctx, projectors, nil)
+    if err != nil {
+        return nil
+    }
+    
+    // Check business rules using projected state
+    if states["userExists"].(bool) {
+        return []dcb.InputEvent{
+            dcb.NewInputEvent("UserCreationFailed", 
+                dcb.NewTags("email", cmdData.Email, "reason", "user_exists"), 
+                dcb.ToJSON(map[string]string{"error": "User already exists"})),
         }
     }
     
     // Generate success events
-    return []InputEvent{
-        NewInputEvent("UserCreated", 
-            NewTags("email", cmdData.Email), 
-            ToJSON(userCreatedData)),
+    return []dcb.InputEvent{
+        dcb.NewInputEvent("UserCreated", 
+            dcb.NewTags("email", cmdData.Email), 
+            dcb.ToJSON(userCreatedData)),
     }
 }
 
 // Execute command
 handler := &CreateUserHandler{}
-err := eventStore.ExecuteCommand(ctx, cmd, handler, &condition)
+err := commandExecutor.ExecuteCommand(ctx, cmd, handler, nil)
 ```
 
-### Type Safety for Decision Models
+### Command Tracking
 
-The `decisionModels` parameter is `map[string]any` for flexibility, but you can add type safety:
+Every executed command is automatically stored in the `commands` table with:
 
-#### Option 1: Type Assertion in Handler
+- **Transaction ID**: Links the command to its generated events
+- **Command type**: Identifies the command type
+- **Command data**: Serialized command payload
+- **Metadata**: Additional context (correlation ID, source, etc.)
+- **Target events table**: Which events table the command affects
+- **Timestamp**: When the command was executed
+
+This enables:
+- **Audit trails**: Track which commands led to which events
+- **Debugging**: Correlate commands with their outcomes
+- **Monitoring**: Analyze command execution patterns
+- **CQRS**: Separate command and query concerns
+
+### Type Safety for Projections
+
+Since handlers receive the `EventStore`, they can implement their own projection logic with full type safety:
+
+#### Option 1: Direct Projection in Handler
 ```go
-func (h *MyHandler) Handle(ctx context.Context, decisionModels map[string]any, command Command) []InputEvent {
-    // Type-safe access with assertion
-    if userState, ok := decisionModels["user_state"].(UserState); ok {
-        if userState.UserExists(email) {
-            // Type-safe access
-        }
+func (h *MyHandler) Handle(ctx context.Context, store dcb.EventStore, command dcb.Command) []dcb.InputEvent {
+    // Define projectors for this specific command
+    projectors := []dcb.StateProjector{
+        {
+            ID: "userState",
+            Query: dcb.NewQuery(dcb.NewTags("user_id", userID), "UserCreated", "UserUpdated"),
+            InitialState: &UserState{},
+            TransitionFn: func(state any, event dcb.Event) any {
+                // Type-safe state transitions
+                userState := state.(*UserState)
+                // ... update user state
+                return userState
+            },
+        },
     }
+    
+    states, _, err := store.Project(ctx, projectors, nil)
+    if err != nil {
+        return nil
+    }
+    
+    userState := states["userState"].(*UserState)
+    // Use projected state for business logic
     return events
 }
 ```
 
-#### Option 2: Typed Wrapper
+#### Option 2: Reusable Projector Functions
 ```go
-// Define your typed decision models
-type MyDecisionModels struct {
-    UserState   UserState
-    CourseState CourseState
-}
-
-// Create typed wrapper
-func (h *MyHandler) getTypedModels(raw map[string]any) MyDecisionModels {
-    return MyDecisionModels{
-        UserState:   raw["user_state"].(UserState),
-        CourseState: raw["course_state"].(CourseState),
+// Define reusable projectors
+func UserStateProjector(userID string) dcb.StateProjector {
+    return dcb.StateProjector{
+        ID: "userState",
+        Query: dcb.NewQuery(dcb.NewTags("user_id", userID), "UserCreated", "UserUpdated"),
+        InitialState: &UserState{},
+        TransitionFn: func(state any, event dcb.Event) any {
+            userState := state.(*UserState)
+            // ... state transition logic
+            return userState
+        },
     }
 }
 
-// Use typed models in handler
-func (h *MyHandler) Handle(ctx context.Context, decisionModels map[string]any, command Command) []InputEvent {
-    typed := h.getTypedModels(decisionModels)
-    return h.handleTyped(typed, command)
-}
-
-func (h *MyHandler) handleTyped(models MyDecisionModels, command Command) []InputEvent {
-    // Full type safety with IDE support
-    if models.UserState.UserExists(email) {
-        // IDE autocomplete works!
-    }
-    return events
-}
-```
-
-#### Option 3: Generic Helper
-```go
-// Generic helper for type-safe access
-func getState[T any](decisionModels map[string]any, key string) (T, bool) {
-    if value, exists := decisionModels[key]; exists {
-        if typedValue, ok := value.(T); ok {
-            return typedValue, true
-        }
-    }
-    var zero T
-    return zero, false
-}
-
-// Usage in handler
-func (h *MyHandler) Handle(ctx context.Context, decisionModels map[string]any, command Command) []InputEvent {
-    if userState, ok := getState[UserState](decisionModels, "user_state"); ok {
-        if userState.UserExists(email) {
-            // Type-safe access
-        }
-    }
-    return events
+// Use in handler
+func (h *MyHandler) Handle(ctx context.Context, store dcb.EventStore, command dcb.Command) []dcb.InputEvent {
+    projectors := []dcb.StateProjector{UserStateProjector(userID)}
+    states, _, err := store.Project(ctx, projectors, nil)
+    // ... use projected state
 }
 ```
 
 ## Implementation Details
 
-- **Database**: PostgreSQL with events table, commands table, and append functions
-- **Streaming**: Multiple approaches for different dataset sizes
-- **Extensions**: Channel-based streaming for Go-idiomatic processing
-- **Commands**: Atomic command execution with event generation
+- **Database**: PostgreSQL with `events` table, `commands` table, and append functions
+- **Event Storage**: Events stored with transaction IDs for true ordering and optimistic locking
+- **Command Tracking**: Commands automatically stored in `commands` table with transaction ID linking
+- **Streaming**: Multiple approaches for different dataset sizes (cursor-based and channel-based)
+- **Projections**: DCB decision model pattern with state projectors
+- **Command Execution**: Atomic command execution with automatic event generation using `CommandExecutor`
+- **Optimistic Locking**: Cursor-based append conditions for concurrent safety
 
 See [examples](examples.md) for complete working examples including course subscriptions and money transfers, and [getting-started](getting-started.md) for setup instructions.

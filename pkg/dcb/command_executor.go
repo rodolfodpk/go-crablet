@@ -66,18 +66,8 @@ func (ce *commandExecutor) ExecuteCommand(ctx context.Context, command Command, 
 	}
 	defer tx.Rollback(ctx)
 
-	// 1. Get current decision models FIRST
-	var decisionModels map[string]any
-	if condition != nil {
-		// For now, we'll need to pass projectors separately or get them from context
-		// This is a placeholder - we'll need to implement this properly
-		// decisionModels, _, err = ce.eventStore.Project(ctx, projectors, condition.getAfterCursor())
-		// For now, use empty decision models
-		decisionModels = make(map[string]any)
-	}
-
-	// 2. Generate events BEFORE storing anything
-	events := handler.Handle(ctx, decisionModels, command)
+	// 1. Generate events using the handler with access to EventStore
+	events := handler.Handle(ctx, ce.eventStore, command)
 
 	// 3. Validate generated events
 	if len(events) == 0 {

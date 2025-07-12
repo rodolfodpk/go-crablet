@@ -66,12 +66,12 @@ type TransferMoneyCommand struct {
 // TransferCommandHandler implements CommandHandler interface
 type TransferCommandHandler struct{}
 
-func (h *TransferCommandHandler) Handle(ctx context.Context, decisionModels map[string]any, command dcb.Command) []dcb.InputEvent {
+func (h *TransferCommandHandler) Handle(ctx context.Context, store dcb.EventStore, command dcb.Command) []dcb.InputEvent {
 	switch command.GetType() {
 	case CommandTypeCreateAccount:
 		return h.handleCreateAccount(command)
 	case CommandTypeTransferMoney:
-		return h.handleTransferMoney(ctx, command, decisionModels)
+		return h.handleTransferMoney(ctx, store, command)
 	default:
 		log.Printf("Unknown command type: %s", command.GetType())
 		return nil
@@ -106,21 +106,108 @@ func (h *TransferCommandHandler) handleCreateAccount(command dcb.Command) []dcb.
 	}
 }
 
-func (h *TransferCommandHandler) handleTransferMoney(ctx context.Context, command dcb.Command, decisionModels map[string]any) []dcb.InputEvent {
+func (h *TransferCommandHandler) handleTransferMoney(ctx context.Context, store dcb.EventStore, command dcb.Command) []dcb.InputEvent {
 	var cmd TransferMoneyCommand
 	if err := json.Unmarshal(command.GetData(), &cmd); err != nil {
 		log.Printf("Failed to unmarshal transfer money command: %v", err)
 		return nil
 	}
 
-	// Get projected states from decision models
-	fromAccount, fromOk := decisionModels["fromAccount"].(*AccountState)
-	toAccount, toOk := decisionModels["toAccount"].(*AccountState)
+	// Define projectors for account states (DCB pattern)
+	projectors := []dcb.StateProjector{
+		{
+			ID:           "fromAccount",
+			Query:        dcb.NewQuery(dcb.NewTags("account_id", cmd.FromAccountID), "AccountOpened"),
+			InitialState: &AccountState{AccountID: cmd.FromAccountID},
+			TransitionFn: func(state any, event dcb.Event) any {
+				acc := state.(*AccountState)
+				switch event.Type {
+				case "AccountOpened":
+					var data AccountOpened
+					if err := json.Unmarshal(event.Data, &data); err == nil {
+						acc.Owner = data.Owner
+						acc.Balance = data.InitialBalance
+						acc.CreatedAt = data.OpenedAt
+						acc.UpdatedAt = data.OpenedAt
+					}
+				}
+				return acc
+			},
+		},
+		{
+			ID:           "toAccount",
+			Query:        dcb.NewQuery(dcb.NewTags("account_id", cmd.ToAccountID), "AccountOpened"),
+			InitialState: &AccountState{AccountID: cmd.ToAccountID},
+			TransitionFn: func(state any, event dcb.Event) any {
+				acc := state.(*AccountState)
+				switch event.Type {
+				case "AccountOpened":
+					var data AccountOpened
+					if err := json.Unmarshal(event.Data, &data); err == nil {
+						acc.Owner = data.Owner
+						acc.Balance = data.InitialBalance
+						acc.CreatedAt = data.OpenedAt
+						acc.UpdatedAt = data.OpenedAt
+					}
+				}
+				return acc
+			},
+		},
+		{
+			ID:           "allTransfers",
+			Query:        dcb.NewQuery(nil, "MoneyTransferred"),
+			InitialState: []MoneyTransferred{},
+			TransitionFn: func(state any, event dcb.Event) any {
+				transfers := state.([]MoneyTransferred)
+				if event.Type == "MoneyTransferred" {
+					var data MoneyTransferred
+					if err := json.Unmarshal(event.Data, &data); err == nil {
+						transfers = append(transfers, data)
+					}
+				}
+				return transfers
+			},
+		},
+	}
 
-	if !fromOk || !toOk {
-		log.Printf("Failed to get account states from decision models")
+	// Project the account states
+	states, _, err := store.Project(ctx, projectors, nil)
+	if err != nil {
+		log.Printf("Failed to project account states: %v", err)
 		return nil
 	}
+
+	fromAccount, fromOk := states["fromAccount"].(*AccountState)
+	toAccount, toOk := states["toAccount"].(*AccountState)
+	allTransfers, transfersOk := states["allTransfers"].([]MoneyTransferred)
+
+	if !fromOk || !toOk || !transfersOk {
+		log.Printf("Failed to get account states from projection")
+		return nil
+	}
+
+	// Apply transfer history to calculate current balances
+	for _, transfer := range allTransfers {
+		if transfer.FromAccountID == cmd.FromAccountID {
+			fromAccount.Balance = transfer.FromBalance
+			fromAccount.UpdatedAt = transfer.TransferredAt
+		} else if transfer.ToAccountID == cmd.FromAccountID {
+			fromAccount.Balance = transfer.ToBalance
+			fromAccount.UpdatedAt = transfer.TransferredAt
+		}
+
+		if transfer.FromAccountID == cmd.ToAccountID {
+			toAccount.Balance = transfer.FromBalance
+			toAccount.UpdatedAt = transfer.TransferredAt
+		} else if transfer.ToAccountID == cmd.ToAccountID {
+			toAccount.Balance = transfer.ToBalance
+			toAccount.UpdatedAt = transfer.TransferredAt
+		}
+	}
+
+	// Debug logging
+	log.Printf("DEBUG: From account %s balance: %d, To account %s balance: %d, Transfer amount: %d",
+		cmd.FromAccountID, fromAccount.Balance, cmd.ToAccountID, toAccount.Balance, cmd.Amount)
 
 	// Business rule: check sufficient funds
 	if fromAccount.Balance < cmd.Amount {

@@ -9,87 +9,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Event represents a single event in the store
-type Event struct {
-	Type          string    `json:"type"`
-	Tags          []Tag     `json:"tags"`
-	Data          []byte    `json:"data"`
-	TransactionID uint64    `json:"transaction_id"`
-	Position      int64     `json:"position"`
-	OccurredAt    time.Time `json:"occurred_at"`
-}
-
-// InputEvent represents an event to be appended to the store
-// This is now an opaque type: construct only via NewInputEvent
-// and access fields only via methods
-
-type InputEvent interface {
-	isInputEvent()
-	GetType() string
-	GetTags() []Tag
-	GetData() []byte
-}
-
-// Tag represents a key-value pair for event categorization
-// This is now an opaque type: construct only via NewTag
-// and access fields only via methods
-type Tag interface {
-	isTag()
-	GetKey() string
-	GetValue() string
-}
-
-// Command represents a command that triggers event generation
-type Command interface {
-	GetType() string
-	GetData() []byte
-	GetMetadata() map[string]interface{}
-}
-
-// CommandHandler handles command execution and generates events
-type CommandHandler interface {
-	Handle(ctx context.Context, decisionModels map[string]any, command Command) []InputEvent
-}
-
-// CommandExecutor executes commands and generates events
-type CommandExecutor interface {
-	ExecuteCommand(ctx context.Context, command Command, handler CommandHandler, condition *AppendCondition) error
-}
-
-// Query represents a composite query with multiple conditions combined with OR logic
-// This is opaque to consumers - they can only construct it via helper functions
-// Now exposes GetItems for public access
-type Query interface {
-	// isQuery is a marker method to make this interface unexported
-	isQuery()
-	// getItems returns the internal query items (used by event store)
-	GetItems() []QueryItem
-}
-
-// Cursor represents a position in the event stream
-// When used in Read/Project operations, events are returned EXCLUSIVE of this position
-// (i.e., events after this cursor, not including the cursor position itself)
-type Cursor struct {
-	TransactionID uint64 `json:"transaction_id"`
-	Position      int64  `json:"position"`
-}
-
-// AppendCondition represents conditions for optimistic locking during append operations
-// This is opaque to consumers - they can only construct it via helper functions
-type AppendCondition interface {
-	// isAppendCondition is a marker method to make this interface unexported
-	isAppendCondition()
-	// setAfterCursor sets the after cursor for proper (transaction_id, position) tracking
-	setAfterCursor(after *Cursor)
-	// getFailIfEventsMatch returns the internal query (used by event store)
-	getFailIfEventsMatch() *Query
-	// getAfterCursor returns the internal after cursor (used by event store)
-	getAfterCursor() *Cursor
-}
+// =============================================================================
+// CORE ABSTRACTIONS (High-level, most relevant)
+// =============================================================================
 
 // EventStore is the core interface for appending and reading events
+// This is the primary abstraction that users interact with
 type EventStore interface {
-
 	// Query reads events matching the query with optional cursor
 	// after == nil: query from beginning of stream
 	// after != nil: query from specified cursor position
@@ -126,6 +52,104 @@ type EventStore interface {
 	GetPool() *pgxpool.Pool
 }
 
+// CommandExecutor executes commands and generates events
+// This is the high-level interface for command-driven event generation
+type CommandExecutor interface {
+	ExecuteCommand(ctx context.Context, command Command, handler CommandHandler, condition *AppendCondition) error
+}
+
+// =============================================================================
+// SUPPORTING INTERFACES (Used by core abstractions)
+// =============================================================================
+
+// CommandHandler handles command execution and generates events
+type CommandHandler interface {
+	Handle(ctx context.Context, store EventStore, command Command) []InputEvent
+}
+
+// Query represents a composite query with multiple conditions combined with OR logic
+// This is opaque to consumers - they can only construct it via helper functions
+// Now exposes GetItems for public access
+type Query interface {
+	// isQuery is a marker method to make this interface unexported
+	isQuery()
+	// getItems returns the internal query items (used by event store)
+	GetItems() []QueryItem
+}
+
+// AppendCondition represents conditions for optimistic locking during append operations
+// This is opaque to consumers - they can only construct it via helper functions
+type AppendCondition interface {
+	// isAppendCondition is a marker method to make this interface unexported
+	isAppendCondition()
+	// setAfterCursor sets the after cursor for proper (transaction_id, position) tracking
+	setAfterCursor(after *Cursor)
+	// getFailIfEventsMatch returns the internal query (used by event store)
+	getFailIfEventsMatch() *Query
+	// getAfterCursor returns the internal after cursor (used by event store)
+	getAfterCursor() *Cursor
+}
+
+// InputEvent represents an event to be appended to the store
+// This is now an opaque type: construct only via NewInputEvent
+// and access fields only via methods
+type InputEvent interface {
+	isInputEvent()
+	GetType() string
+	GetTags() []Tag
+	GetData() []byte
+}
+
+// Command represents a command that triggers event generation
+type Command interface {
+	GetType() string
+	GetData() []byte
+	GetMetadata() map[string]interface{}
+}
+
+// Tag represents a key-value pair for event categorization
+// This is now an opaque type: construct only via NewTag
+// and access fields only via methods
+type Tag interface {
+	isTag()
+	GetKey() string
+	GetValue() string
+}
+
+// QueryItem represents a single atomic query condition
+// This is opaque to consumers - they can only construct it via helper functions
+// Now exposes GetEventTypes and GetTags for public access
+type QueryItem interface {
+	// isQueryItem is a marker method to make this interface unexported
+	isQueryItem()
+	// getEventTypes returns the internal event types (used by event store)
+	GetEventTypes() []string
+	// getTags returns the internal tags (used by event store)
+	GetTags() []Tag
+}
+
+// =============================================================================
+// CONCRETE TYPES AND STRUCTS
+// =============================================================================
+
+// Event represents a single event in the store
+type Event struct {
+	Type          string    `json:"type"`
+	Tags          []Tag     `json:"tags"`
+	Data          []byte    `json:"data"`
+	TransactionID uint64    `json:"transaction_id"`
+	Position      int64     `json:"position"`
+	OccurredAt    time.Time `json:"occurred_at"`
+}
+
+// Cursor represents a position in the event stream
+// When used in Read/Project operations, events are returned EXCLUSIVE of this position
+// (i.e., events after this cursor, not including the cursor position itself)
+type Cursor struct {
+	TransactionID uint64 `json:"transaction_id"`
+	Position      int64  `json:"position"`
+}
+
 // StateProjector defines how to project a state from events
 type StateProjector struct {
 	ID           string                           `json:"id"`
@@ -134,7 +158,9 @@ type StateProjector struct {
 	TransitionFn func(state any, event Event) any `json:"-"`
 }
 
-// BatchProjector is no longer needed.
+// =============================================================================
+// CONFIGURATION TYPES
+// =============================================================================
 
 // IsolationLevel represents PostgreSQL transaction isolation levels as a type-safe enum
 // Only valid values can be constructed via constants or ParseIsolationLevel
@@ -183,6 +209,10 @@ type EventStoreConfig struct {
 	TargetEventsTable      string         `json:"target_events_table"`      // Target events table name (default: "events")
 }
 
+// =============================================================================
+// INTERNAL IMPLEMENTATIONS (Private)
+// =============================================================================
+
 type inputEvent struct {
 	eventType string
 	tags      []Tag
@@ -222,18 +252,6 @@ func (t *tag) MarshalJSON() ([]byte, error) {
 		Key:   t.key,
 		Value: t.value,
 	})
-}
-
-// QueryItem represents a single atomic query condition
-// This is opaque to consumers - they can only construct it via helper functions
-// Now exposes GetEventTypes and GetTags for public access
-type QueryItem interface {
-	// isQueryItem is a marker method to make this interface unexported
-	isQueryItem()
-	// getEventTypes returns the internal event types (used by event store)
-	GetEventTypes() []string
-	// getTags returns the internal tags (used by event store)
-	GetTags() []Tag
 }
 
 // query is the internal implementation
