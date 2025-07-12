@@ -18,15 +18,23 @@ build:
 test:
 	$(GO) test -v ./pkg/...
 
-# Run tests with coverage
+# Run tests with coverage (internal tests only)
 test-coverage:
 	$(GO) test -v -coverprofile=coverage.out ./pkg/...
 	$(GO) tool cover -html=coverage.out
 
+# Run comprehensive coverage (internal + external tests)
+coverage:
+	./scripts/generate-coverage.sh
+
+# Run comprehensive coverage and update badge
+coverage-badge:
+	./scripts/generate-coverage.sh update-badge
+
 # Clean build artifacts
 clean:
 	rm -rf bin/
-	rm -f coverage.out
+	rm -f coverage.out coverage_combined.out coverage_internal.out coverage_external.out coverage.html
 	rm -rf $(BENCHMARK_RESULTS_DIR)
 
 # Start Docker containers
@@ -82,7 +90,9 @@ help:
 	@echo "  all            - Build all packages (default)"
 	@echo "  build          - Build all packages"
 	@echo "  test           - Run tests"
-	@echo "  test-coverage  - Run tests with coverage report"
+	@echo "  test-coverage  - Run tests with coverage report (internal tests only)"
+	@echo "  coverage       - Run comprehensive coverage (internal + external tests)"
+	@echo "  coverage-badge - Run comprehensive coverage and update badge"
 	@echo "  clean          - Remove build artifacts"
 	@echo "  docker-up      - Start Docker containers"
 	@echo "  docker-down    - Stop Docker containers"

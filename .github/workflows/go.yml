@@ -36,15 +36,23 @@ jobs:
       - name: Build
         run: go build ./...
 
-      - name: Run tests with coverage
+      - name: Run tests with merged coverage
+        run: ./scripts/generate-coverage.sh
+
+      - name: Enforce coverage threshold
         run: |
-          go test -v -coverprofile=coverage.out ./pkg/...
-          go tool cover -func=coverage.out
+          COVERAGE=$(go tool cover -func=coverage_combined.out | grep total: | awk '{print $3}' | sed 's/%//')
+          THRESHOLD=80
+          echo "Coverage: $COVERAGE%"
+          if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
+            echo "❌ Coverage $COVERAGE% is below threshold $THRESHOLD%"
+            exit 1
+          fi
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
-          file: ./coverage.out
+          files: ./coverage_combined.out
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: unittests
