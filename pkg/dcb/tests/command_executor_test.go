@@ -38,7 +38,7 @@ var _ = Describe("CommandExecutor", func() {
 				})
 
 				// Execute command using function-based handler
-				err = commandExecutor.ExecuteCommand(ctx, command, dcb.CommandHandlerFunc(handleTestCommand), nil)
+				_, err = commandExecutor.ExecuteCommand(ctx, command, dcb.CommandHandlerFunc(handleTestCommand), nil)
 				Expect(err).NotTo(HaveOccurred())
 
 				// Verify events were created
@@ -63,7 +63,7 @@ var _ = Describe("CommandExecutor", func() {
 
 		Context("with nil command", func() {
 			It("should return validation error", func() {
-				err := commandExecutor.ExecuteCommand(ctx, nil, dcb.CommandHandlerFunc(handleTestCommand), nil)
+				_, err := commandExecutor.ExecuteCommand(ctx, nil, dcb.CommandHandlerFunc(handleTestCommand), nil)
 				Expect(err).To(HaveOccurred())
 				Expect(err).To(BeAssignableToTypeOf(&dcb.ValidationError{}))
 			})
@@ -72,7 +72,7 @@ var _ = Describe("CommandExecutor", func() {
 		Context("with nil handler", func() {
 			It("should return validation error", func() {
 				command := dcb.NewCommand("test", []byte("{}"), nil)
-				err := commandExecutor.ExecuteCommand(ctx, command, nil, nil)
+				_, err := commandExecutor.ExecuteCommand(ctx, command, nil, nil)
 				Expect(err).To(HaveOccurred())
 				Expect(err).To(BeAssignableToTypeOf(&dcb.ValidationError{}))
 			})
@@ -81,7 +81,7 @@ var _ = Describe("CommandExecutor", func() {
 		Context("with handler that returns no events", func() {
 			It("should return validation error", func() {
 				command := dcb.NewCommand("empty_command", []byte("{}"), nil)
-				err := commandExecutor.ExecuteCommand(ctx, command, dcb.CommandHandlerFunc(handleEmptyCommand), nil)
+				_, err := commandExecutor.ExecuteCommand(ctx, command, dcb.CommandHandlerFunc(handleEmptyCommand), nil)
 				Expect(err).To(HaveOccurred())
 				Expect(err).To(BeAssignableToTypeOf(&dcb.ValidationError{}))
 			})
@@ -90,24 +90,29 @@ var _ = Describe("CommandExecutor", func() {
 })
 
 // Test command handler functions
-func handleTestCommand(ctx context.Context, eventStore dcb.EventStore, command dcb.Command) []dcb.InputEvent {
+func handleTestCommand(ctx context.Context, eventStore dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, error) {
 	var cmdData map[string]interface{}
-	json.Unmarshal(command.GetData(), &cmdData)
+	if err := json.Unmarshal(command.GetData(), &cmdData); err != nil {
+		return nil, err
+	}
 
 	eventData := map[string]interface{}{
 		"message": cmdData["message"],
 		"echoed":  true,
 	}
 
-	eventBytes, _ := json.Marshal(eventData)
+	eventBytes, err := json.Marshal(eventData)
+	if err != nil {
+		return nil, err
+	}
 
 	return []dcb.InputEvent{
 		dcb.NewInputEvent("test_event", []dcb.Tag{
 			dcb.NewTag("test_tag", "test_value"),
 		}, eventBytes),
-	}
+	}, nil
 }
 
-func handleEmptyCommand(ctx context.Context, eventStore dcb.EventStore, command dcb.Command) []dcb.InputEvent {
-	return nil // Return empty events to test validation
+func handleEmptyCommand(ctx context.Context, eventStore dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, error) {
+	return nil, nil // Return empty events to test validation
 }
