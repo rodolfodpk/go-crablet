@@ -23,16 +23,37 @@ jobs:
     
     - name: Run tests with coverage
       run: |
+        # Run internal tests with coverage
         cd pkg/dcb
-        go test -coverprofile=coverage.out -covermode=atomic
-        go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//' > coverage_percentage.txt
+        go test -coverprofile=internal.out -covermode=atomic
+        
+        # Run external tests with coverage of the main package (from project root)
+        cd ../..
+        go test ./pkg/dcb/tests -coverprofile=external.out -coverpkg=./pkg/dcb/... -covermode=atomic
+        
+        # Extract coverage percentages
+        INTERNAL_COVERAGE=$(go tool cover -func=pkg/dcb/internal.out | grep total | awk '{print $3}' | sed 's/%//')
+        EXTERNAL_COVERAGE=$(go tool cover -func=external.out | grep total | awk '{print $3}' | sed 's/%//')
+        
+        # Use the higher coverage (external tests are more comprehensive)
+        if (( $(echo "$EXTERNAL_COVERAGE > $INTERNAL_COVERAGE" | bc -l) )); then
+          echo "$EXTERNAL_COVERAGE" > coverage_percentage.txt
+        else
+          echo "$INTERNAL_COVERAGE" > coverage_percentage.txt
+        fi
+        
+        echo "Internal coverage: $INTERNAL_COVERAGE%"
+        echo "External coverage: $EXTERNAL_COVERAGE%"
+        echo "Selected coverage: $(cat coverage_percentage.txt)%"
     
     - name: Extract coverage percentage
       id: coverage
       run: |
-        COVERAGE=$(cat pkg/dcb/coverage_percentage.txt)
+        COVERAGE=$(cat coverage_percentage.txt)
         echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
         echo "Coverage: $COVERAGE%"
+        echo "Internal coverage: $(cat pkg/dcb/internal_coverage.txt | grep total)"
+        echo "External coverage: $(cat pkg/dcb/external_coverage.txt | grep total)"
     
     - name: Update README badge
       if: github.ref == 'refs/heads/main'
@@ -67,4 +88,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: coverage-report
-        path: pkg/dcb/coverage.out 
+        path: |
+          pkg/dcb/internal.out
+          external.out
+          coverage_percentage.txt 
