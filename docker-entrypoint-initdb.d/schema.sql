@@ -1,9 +1,9 @@
 -- Create the database (PostgreSQL doesn't support IF NOT EXISTS for CREATE DATABASE)
 -- This will be run in the default postgres database
-SELECT 'CREATE DATABASE dcb_app' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'dcb_app')\gexec
+SELECT 'CREATE DATABASE crablet' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'crablet')\gexec
 
 -- Use the database
-\c dcb_app;
+\c crablet;
 
 -- Agnostic event store for DCB, storing events of any type with TEXT[] tags and data.
 -- Using transaction_id for proper ordering guarantees (see: https://event-driven.io/en/ordering_in_postgres_outbox/)

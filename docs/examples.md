@@ -239,7 +239,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 
 ## Key Points We're Exploring
 
-- **All invariants are checked in a single query** (batch projection)
+- **All invariants are checked in a single query** (multiple state projection)
 - **The append condition is the OR-combination of all projector queries**
 - **Only one database round trip is needed for all business rules**
 - **No aggregates or legacy event sourcing patterns required**
@@ -267,7 +267,7 @@ The isolation level and other settings can be configured when creating the Event
 
 ```go
 config := dcb.EventStoreConfig{
-    MaxBatchSize:           1000,
+    MaxBatchSize:           1000, // Limits events per append call and projection windows
     LockTimeout:            5000, // ms
     StreamBuffer:           1000,
     DefaultAppendIsolation: dcb.IsolationLevelReadCommitted,

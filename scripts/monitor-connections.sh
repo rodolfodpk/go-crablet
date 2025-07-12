@@ -8,8 +8,8 @@ set -e
 # Configuration
 DB_HOST=${DB_HOST:-localhost}
 DB_PORT=${DB_PORT:-5432}
-DB_NAME=${DB_NAME:-dcb_app}
-DB_USER=${DB_USER:-postgres}
+DB_NAME=${DB_NAME:-crablet}
+DB_USER=${DB_USER:-crablet}
 MONITOR_INTERVAL=${MONITOR_INTERVAL:-5}
 
 echo "🔍 Database Connection Pool Monitor"

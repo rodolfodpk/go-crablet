@@ -53,15 +53,15 @@ func main() {
 	}
 	dbUser := os.Getenv("DB_USER")
 	if dbUser == "" {
-		dbUser = "postgres"
+		dbUser = "crablet"
 	}
 	dbPassword := os.Getenv("DB_PASSWORD")
 	if dbPassword == "" {
-		dbPassword = "postgres"
+		dbPassword = "crablet"
 	}
 	dbName := os.Getenv("DB_NAME")
 	if dbName == "" {
-		dbName = "dcb_app"
+		dbName = "crablet"
 	}
 
 	// Get connection pool configuration from environment

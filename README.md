@@ -25,7 +25,8 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 
 **Key Performance Characteristics:**
 - **High Throughput**: Optimized for event sourcing workloads
-- **Low Latency**: Fast individual and batch operations
+- **Low Latency**: Fast individual operations (2,000+ ops/sec)
+- **Multiple Events**: Efficient handling of multiple events in single append calls
 - **Concurrent Safe**: Handles moderate concurrency with optimistic locking
 - **Memory Efficient**: Optimized allocation patterns
 
@@ -52,7 +53,7 @@ Ready-to-run examples demonstrating different aspects of the DCB pattern:
 - **[Course Enrollment](internal/examples/enrollment/main.go)**: Student course enrollment with capacity limits
 - **[Streaming](internal/examples/streaming/main.go)**: Event streaming and projection approaches
 - **[Decision Model](internal/examples/decision_model/main.go)**: DCB decision model with multiple projectors
-- **[Multiple Events](internal/examples/batch/main.go)**: Batch event appends
+- **[Multiple Events](internal/examples/batch/main.go)**: Multiple events in single append calls
 
 Run any example with: `go run internal/examples/[example-name]/main.go`
 

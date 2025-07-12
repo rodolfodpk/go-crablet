@@ -36,5 +36,5 @@ All examples are located in `internal/examples/` and demonstrate different aspec
 - `internal/examples/readstream/main.go` - Event streaming basics
 - `internal/examples/streaming_projection/main.go` - Streaming projections
 - `internal/examples/cursor_streaming/main.go` - Large dataset processing
-- `internal/examples/batch/main.go` - Single commands that generate and append multiple events atomically
+- `internal/examples/batch/main.go` - Multiple events in single append calls
 - `internal/examples/channel_projection/main.go`

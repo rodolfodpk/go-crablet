@@ -1,4 +1,4 @@
-.PHONY: all build test clean docker-up docker-down lint help benchmark benchmark-all benchmark-quick benchmark-append benchmark-isolation benchmark-concurrency benchmark-results
+.PHONY: all build test clean docker-up docker-down lint help benchmark benchmark-all benchmark-quick benchmark-append benchmark-isolation benchmark-concurrency benchmark-results deps fmt examples generate-datasets web-app-start web-app-stop
 
 # Variables
 BINARY_NAME=crablet
@@ -48,6 +48,33 @@ docker-down:
 # Run linter
 lint:
 	golangci-lint run
+
+# Format code
+fmt:
+	$(GO) fmt ./...
+
+# Download dependencies
+deps:
+	$(GO) mod download
+	$(GO) mod tidy
+
+# Generate SQLite test datasets
+generate-datasets:
+	@echo "🔧 Generating SQLite test datasets..."
+	@cd internal/benchmarks/tools && $(GO) run prepare_datasets_main.go
+	@echo "✅ Test datasets generated in cache/"
+
+# Start web app server
+web-app-start:
+	@echo "🚀 Starting web app server..."
+	@cd internal/web-app && ./web-app &
+	@echo "✅ Web app started on http://localhost:8080"
+
+# Stop web app server
+web-app-stop:
+	@echo "🛑 Stopping web app server..."
+	@pkill -f "web-app" || true
+	@echo "✅ Web app stopped"
 
 # Generate documentation
 docs:
@@ -115,7 +142,12 @@ help:
 	@echo "  docker-up      - Start Docker containers"
 	@echo "  docker-down    - Stop Docker containers"
 	@echo "  lint           - Run linter"
+	@echo "  fmt            - Format code"
+	@echo "  deps           - Download and tidy dependencies"
 	@echo "  docs           - Generate and serve documentation"
+	@echo "  generate-datasets - Generate SQLite test datasets"
+	@echo "  web-app-start  - Start web app server"
+	@echo "  web-app-stop   - Stop web app server"
 	@echo "  benchmark      - Run all benchmarks (alias for benchmark-all)"
 	@echo "  benchmark-all  - Run all benchmark tests"
 	@echo "  benchmark-quick - Run quick functionality test"

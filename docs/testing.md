@@ -14,7 +14,7 @@ External tests consume only the public API and verify the library works correctl
 
 **Test Files:**
 - `append_helpers_test.go` - Tests for append helper functions
-- `batch_projection_test.go` - Tests for batch projection functionality
+- `batch_projection_test.go` - Tests for multiple state projection functionality
 - `channel_streaming_test.go` - Tests for channel-based streaming
 - `concurrency_test.go` - Tests for concurrent operations
 - `constructors_test.go` - Tests for constructor functions
@@ -57,7 +57,7 @@ go test ./pkg/dcb/tests/... -v -run "Cursor"
 # Run validation tests
 go test ./pkg/dcb/... -v -run "Validation"
 
-# Run batch projection tests
+# Run multiple state projection tests
 go test ./pkg/dcb/tests/... -v -run "Batch"
 ```
 
@@ -122,7 +122,7 @@ Test interactions between components:
 ### 3. End-to-End Tests
 Test complete workflows:
 - Course subscription scenarios
-- Batch projection operations
+- Multiple state projection operations
 - Streaming operations
 
 ### 4. Concurrency Tests

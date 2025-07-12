@@ -50,7 +50,7 @@ This is a Go event sourcing library **exploring** the Dynamic Consistency Bounda
 - No expensive dataset regeneration during benchmarks
 
 ### Database Setup
-- PostgreSQL: Production database (localhost:5432/dcb_app)
+- PostgreSQL: Production database (localhost:5432/crablet)
 - SQLite: Benchmark cache (cache/benchmark_datasets.db)
 
 ### Common Commands

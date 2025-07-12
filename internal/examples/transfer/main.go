@@ -382,7 +382,7 @@ func main() {
 	// Show commands that were executed
 	fmt.Println("\n=== Commands Executed ===")
 	rows, err := pool.Query(ctx, `
-		SELECT transaction_id, type, data, metadata, target_events_table, occurred_at
+		SELECT transaction_id, type, data, metadata, occurred_at
 		FROM commands
 		ORDER BY occurred_at ASC
 	`)
@@ -393,23 +393,22 @@ func main() {
 		commandCount := 0
 		for rows.Next() {
 			var (
-				txID              uint64
-				cmdType           string
-				cmdData           []byte
-				cmdMetadata       []byte
-				targetEventsTable string
-				occurredAt        time.Time
+				txID        uint64
+				cmdType     string
+				cmdData     []byte
+				cmdMetadata []byte
+				occurredAt  time.Time
 			)
 
-			err := rows.Scan(&txID, &cmdType, &cmdData, &cmdMetadata, &targetEventsTable, &occurredAt)
+			err := rows.Scan(&txID, &cmdType, &cmdData, &cmdMetadata, &occurredAt)
 			if err != nil {
 				log.Printf("Failed to scan command row: %v", err)
 				continue
 			}
 
 			commandCount++
-			fmt.Printf("  %d. Type: %s, Transaction: %d, Table: %s, At: %s\n",
-				commandCount, cmdType, txID, targetEventsTable, occurredAt.Format("15:04:05.000"))
+			fmt.Printf("  %d. Type: %s, Transaction: %d, At: %s\n",
+				commandCount, cmdType, txID, occurredAt.Format("15:04:05.000"))
 		}
 		fmt.Printf("Total commands executed: %d\n", commandCount)
 	}

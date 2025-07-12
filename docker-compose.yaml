@@ -7,9 +7,9 @@ services:
     image: postgres:17.5
     container_name: ${POSTGRES_CONTAINER_NAME:-postgres_db}
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-dcb_app}
+      POSTGRES_USER: ${POSTGRES_USER:-crablet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-crablet}
+      POSTGRES_DB: ${POSTGRES_DB:-crablet}
       # Authentication settings for benchmarks
       POSTGRES_HOST_AUTH_METHOD: trust
       # Suppress application-level exceptions from being logged

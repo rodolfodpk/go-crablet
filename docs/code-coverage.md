@@ -92,7 +92,7 @@ For detailed testing information, see the [Testing Guide](testing.md).
 - Input validation and error handling
 - Streaming operations and resource cleanup
 - Cursor-based operations
-- Batch projection functionality
+- Multiple state projection functionality
 
 ## 📊 **Monitoring**
 

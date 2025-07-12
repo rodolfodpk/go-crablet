@@ -176,7 +176,7 @@ The EventStore can be configured with various settings:
 
 ```go
 type EventStoreConfig struct {
-    MaxBatchSize           int            `json:"max_batch_size"`           // Maximum events per batch
+    MaxBatchSize           int            `json:"max_batch_size"`           // Maximum events per append call and projection window
     LockTimeout            int            `json:"lock_timeout"`             // Lock timeout in milliseconds for advisory locks
     StreamBuffer           int            `json:"stream_buffer"`            // Channel buffer size for streaming operations
     DefaultAppendIsolation IsolationLevel `json:"default_append_isolation"` // Default isolation level for Append operations
@@ -187,7 +187,7 @@ type EventStoreConfig struct {
 ```
 
 ### Default Values
-- `MaxBatchSize`: 1000 events
+- `MaxBatchSize`: 1000 events (limits append calls and projection windows)
 - `LockTimeout`: 5000ms (5 seconds)
 - `StreamBuffer`: 1000 events
 - `DefaultAppendIsolation`: Read Committed

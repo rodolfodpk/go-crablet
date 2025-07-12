@@ -34,35 +34,35 @@ The benchmark system uses SQLite to cache pre-generated test datasets, providing
 ### Append Performance (Latest Results - July 2025)
 
 #### Single Event Appends
-- **Small Dataset**: **2,192 ops/sec** (1.09ms per operation)
-- **Tiny Dataset**: **2,476 ops/sec** (1.05ms per operation)
+- **Small Dataset**: **2,206 ops/sec** (1.06ms per operation)
+- **Tiny Dataset**: **2,174 ops/sec** (1.05ms per operation)
 - **Memory Usage**: ~1.9KB per operation, 53 allocations
 
-#### Batch Append Performance
-- **Batch Size 10**: ~1,600-2,000 ops/sec (1.2-1.4ms per batch)
-- **Batch Size 100**: ~1,000-1,200 ops/sec (3.3-4.2ms per batch)
-- **Batch Size 1000**: ~100 ops/sec (22-23ms per batch)
-- **Memory Scaling**: Linear with batch size (~1.7MB for 1000 events)
+#### Multiple Events Performance
+- **10 Events**: ~1,725-1,844 ops/sec (1.15-1.25ms per append call)
+- **100 Events**: ~943-1,286 ops/sec (3.23-3.56ms per append call)
+- **1000 Events**: ~100 ops/sec (22.3-26.1ms per append call)
+- **Memory Scaling**: Linear with event count (~1.7MB for 1000 events)
 
 #### Conditional Append (AppendIf)
-- **Small batches**: ~8-9 ops/sec (260-330ms per operation)
-- **With conflicts**: ~8 ops/sec (250-310ms per operation)
-- **Overhead**: Significant due to version checking and conflict resolution
+- **Small event groups**: ~314-320 ops/sec (7.37-7.54ms per operation)
+- **With conflicts**: ~796-1,023 ops/sec (7.21-8.02ms per operation)
+- **Overhead**: Moderate due to version checking and conflict resolution
 
 ### Read Performance
-- **Single Read**: ~400-700 ops/sec (1.4-5.1ms per operation)
-- **Batch Read**: ~6-7 ops/sec (340-355ms per operation)
+- **Single Read**: ~5,216-6,066 ops/sec (427-458μs per operation)
+- **Large Queries**: ~3-9 ops/sec (273-960ms per operation)
 - **Channel Streaming**: Similar performance to regular reads
 - **Memory Usage**: ~1-2MB for large datasets
 
 ### Projection Performance
-- **Single Projection**: ~5,000-6,500 ops/sec (0.4-0.6ms per operation)
+- **Single Projection**: ~5,480-6,396 ops/sec (365-390μs per operation)
 - **Large Projections**: ~7-8 ops/sec (290-320ms per operation)
 - **Memory Usage**: ~100-140MB for large projections
 
 ### Memory and Resource Usage
 - **Single Operations**: ~1-2KB per operation
-- **Batch Operations**: ~1.7MB for 1000-event batches
+- **Multiple Events**: ~1.7MB for 1000 events in single append call
 - **Connection Pool**: Efficient utilization with multiple pools
 - **No Memory Leaks**: Clean resource management observed
 
@@ -129,7 +129,7 @@ The benchmark system uses SQLite to cache pre-generated test datasets, providing
 **Operation Mix**:
 - **Simple Appends**: 100% success rate
 - **Conditional Appends**: 100% success rate with proper conflict handling
-- **Batch Operations**: Reliable performance
+- **Multiple Events Operations**: Reliable performance
 - **Read Operations**: 99% success rate for duration checks
 
 **Performance Metrics**:
@@ -141,7 +141,7 @@ The benchmark system uses SQLite to cache pre-generated test datasets, providing
 
 ### Strengths
 1. **Excellent Single Operations**: 2,000+ ops/sec for individual events
-2. **Good Batch Performance**: Scales well up to medium batch sizes (100 events)
+2. **Good Multiple Events Performance**: Scales well up to medium event counts (100 events)
 3. **Fast Response Times**: 1-2ms for individual operations
 4. **Efficient Memory Usage**: Reasonable allocation patterns
 5. **Stable Performance**: Consistent results across test runs
@@ -149,13 +149,13 @@ The benchmark system uses SQLite to cache pre-generated test datasets, providing
 
 ### Performance Considerations
 1. **Conditional Append Overhead**: Significant performance impact due to version checking
-2. **Large Batch Operations**: Performance degrades with very large batches (1000+ events)
+2. **Large Event Groups**: Performance degrades with very large event counts (1000+ events)
 3. **Web App Performance**: Excellent performance with SQLite test data system
 4. **Benchmark Efficiency**: Fast execution with cached datasets
 
 ### System Capabilities
 - ✅ **Fast Single Operations**: Excellent performance for individual events
-- ✅ **Good Batch Handling**: Efficient processing of medium-sized batches
+- ✅ **Good Multiple Events Handling**: Efficient processing of medium-sized event groups
 - ✅ **Memory Efficient**: Optimized memory usage patterns
 - ✅ **Connection Management**: Efficient database connection pooling
 - ✅ **No Deadlocks**: Clean execution without blocking issues
@@ -164,13 +164,13 @@ The benchmark system uses SQLite to cache pre-generated test datasets, providing
 ## Configuration Recommendations
 
 ### For Production Use
-1. **Batch Sizes**: Use batches of 10-100 events for optimal performance
+1. **Event Group Sizes**: Use 10-100 events per append call for optimal performance
 2. **Conditional Appends**: Consider performance impact when using AppendIf operations
 3. **Connection Pool**: Current 5-20 connection pool works well for moderate loads
-4. **Monitoring**: Monitor response times and adjust batch sizes accordingly
+4. **Monitoring**: Monitor response times and adjust event group sizes accordingly
 
 ### Performance Tuning
-1. **Avoid Large Batches**: Keep batch sizes under 1000 events for best performance
+1. **Avoid Large Event Groups**: Keep event counts under 1000 per append call for best performance
 2. **Conditional Operations**: Use sparingly due to significant overhead
 3. **Memory Monitoring**: Monitor memory usage for large projection operations
 4. **Connection Limits**: Consider increasing pool size for high-concurrency scenarios
@@ -185,10 +185,12 @@ The benchmark system uses SQLite to cache pre-generated test datasets, providing
 
 The go-crablet library demonstrates excellent performance characteristics for typical event sourcing workloads:
 
-- **Single Operations**: 2,000+ ops/sec with 1-2ms latency
-- **Batch Operations**: Good performance up to medium batch sizes
+- **Single Operations**: 2,200+ ops/sec with 1-1.06ms latency
+- **Multiple Events**: Good performance up to medium event counts per append call
+- **Read Operations**: 5,200+ ops/sec with sub-millisecond latency
+- **Projection Performance**: 5,500+ ops/sec with microsecond latency
 - **Memory Efficiency**: Optimized allocation patterns
 - **Reliability**: Stable performance across different operation types
 - **Fast Testing**: SQLite caching system enables efficient benchmark execution
 
-The library is well-suited for real-time event processing with fast individual operations and efficient batch handling. The new SQLite test data system provides consistent, fast benchmark execution for both Go library and web-app testing. 
+The library is well-suited for real-time event processing with fast individual operations and efficient handling of multiple events in single append calls. The new SQLite test data system provides consistent, fast benchmark execution for both Go library and web-app testing. 
