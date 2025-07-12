@@ -10,26 +10,31 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 
 ## 🚀 Key Features
 
+**Core API - EventStore:**
 - **DCB-inspired decision models**: Project multiple states and check business invariants in a single query
 - **Optimistic concurrency**: Append events only if no conflicting events exist within the same query scope
 - **Memory-efficient streaming**: Process events row-by-row for large event streams
 - **PostgreSQL-backed**: Uses PostgreSQL for robust, concurrent event storage
+- **Robust error handling**: Two-tier error handling with guaranteed transaction rollback
+
+**Optional API - CommandExecutor:**
 - **Atomic command execution**: Execute commands with handler-based event generation using the CommandExecutor pattern
 - **Command tracking**: Automatic storage of commands in the `commands` table with transaction ID linking
-- **Robust error handling**: Two-tier error handling with guaranteed transaction rollback
-- **Performance optimized**: JSONB status responses and efficient batch operations
 
 ## 📊 Performance
 
-**Benchmark Results:**
-- **Success Rate**: 100% across all scenarios ✅
-- **Error Rate**: 0% across all tests ✅
-- **Concurrency Errors**: 0% (optimistic locking working well) ✅
-- **Throughput**: 30-65 req/s depending on operation complexity
-- **Latency**: 108ms-1.69s average across different isolation levels
-- **Load Testing**: Handles up to 100 concurrent VUs without degradation
+**Key Performance Characteristics:**
+- **High Throughput**: Optimized for event sourcing workloads
+- **Low Latency**: Fast individual and batch operations
+- **Concurrent Safe**: Handles moderate concurrency with optimistic locking
+- **Memory Efficient**: Optimized allocation patterns
 
-*Performance results are from a single-instance setup and may vary in production environments.*
+**Performance Testing:**
+- **[Performance Benchmarks](docs/benchmarks.md)**: Detailed benchmark results and analysis
+- **[Web-App Benchmarks](internal/web-app/README.md)**: HTTP/REST API performance testing
+- **[Go Benchmarks](internal/benchmarks/README.md)**: Core library performance testing
+
+*For benchmark execution commands, see [Development Guide](docs/getting-started.md).*
 
 ## 📚 Documentation
 - [Overview](docs/overview.md): DCB pattern exploration, batch projection, and streaming
@@ -39,34 +44,17 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 - [Code Coverage](docs/code-coverage.md): Test coverage analysis and improvement guidelines
 - [Performance Analysis](docs/performance-improvements.md): Detailed performance analysis
 
-## 🏃‍♂️ Performance Benchmarks
-
-Comprehensive performance testing and analysis for different API protocols:
-
-- **[Web-App](internal/web-app/README.md)**: HTTP/REST API with comprehensive benchmarking, isolation level testing, and detailed performance results
-- **[Benchmark Results](internal/web-app/BENCHMARK_RESULTS.md)**: Latest benchmark results with detailed analysis
-- **[Go Benchmarks](internal/benchmarks/README.md)**: Core library performance testing and analysis
-
 ## 💡 Examples
 
 Ready-to-run examples demonstrating different aspects of the DCB pattern:
 
-- **[Transfer Example](internal/examples/transfer/main.go)**: **Account transfer with command executor** - Money transfer between accounts using the command executor pattern for atomic command execution and event generation
-- **[Course Enrollment](internal/examples/enrollment/main.go)**: **Course subscription demonstration** - Student course enrollment with capacity limits and business rules
-- **[Streaming](internal/examples/streaming/main.go)**: **Streaming approaches** - Demonstrates core EventStore reading, channel-based streaming, and channel-based projection
-- **[Decision Model](internal/examples/decision_model/main.go)**: **DCB decision model** - Exploring Dynamic Consistency Boundary concepts with multiple projectors
-- **[Multiple Events](internal/examples/batch/main.go)**: **Multiple event appends** - Single commands that generate and append multiple events atomically
+- **[Transfer Example](internal/examples/transfer/main.go)**: Account transfer with command executor
+- **[Course Enrollment](internal/examples/enrollment/main.go)**: Student course enrollment with capacity limits
+- **[Streaming](internal/examples/streaming/main.go)**: Event streaming and projection approaches
+- **[Decision Model](internal/examples/decision_model/main.go)**: DCB decision model with multiple projectors
+- **[Multiple Events](internal/examples/batch/main.go)**: Batch event appends
 
 Run any example with: `go run internal/examples/[example-name]/main.go`
-
-## 🎯 System Characteristics
-
-The system demonstrates good reliability and stability:
-- **Reliable operation** (100% success rate across all scenarios)
-- **Robust error handling** with guaranteed transaction rollback
-- **Consistent performance** across different isolation levels
-- **Good concurrency management** with zero concurrency errors
-- **Comprehensive test coverage** across all scenarios
 
 ## 📖 References
 

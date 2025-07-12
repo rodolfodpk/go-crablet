@@ -4,28 +4,67 @@ This document contains performance benchmark results for the go-crablet event so
 
 ## Test Environment
 
-- **Platform**: macOS (darwin 23.6.0)
+- **Platform**: macOS (darwin 23.6.0) with Apple M1 Pro
 - **Database**: PostgreSQL with connection pool (5-20 connections)
 - **Web Server**: Go HTTP server on port 8080
 - **Load Testing**: k6 with various scenarios
+- **Go Version**: 1.24.4
+- **Test Data**: SQLite-cached datasets for fast benchmark execution
+
+## Test Data System
+
+### SQLite Caching Architecture
+The benchmark system uses SQLite to cache pre-generated test datasets, providing:
+- **Fast Setup**: No expensive dataset generation during benchmarks
+- **Consistent Data**: Same test datasets across all benchmark types
+- **Efficient Loading**: Cached data loads much faster than dynamic generation
+
+### Dataset Sizes
+- **"tiny"**: 5 courses, 10 students, 16 enrollments
+- **"small"**: 1,000 courses, 10,000 students, 49,869 enrollments
+
+### Test Data Workflow
+1. **Generate Datasets**: `cd internal/benchmarks/tools && go run prepare_datasets_main.go`
+2. **Cache Storage**: Datasets stored in `cache/benchmark_datasets.db`
+3. **Benchmark Loading**: Both Go and web-app benchmarks load from cache
+4. **Fast Execution**: No timeout issues, consistent performance
 
 ## Internal Library Benchmarks
 
-### Append Performance
-- **Batch Appends**: ~21.5 req/s with good concurrency scaling
-- **Conditional Appends**: ~14.6 req/s with proper conflict handling
-- **Single Event Appends**: Fast and reliable
-- **Concurrency**: Scales well up to 100+ concurrent operations
+### Append Performance (Latest Results - July 2025)
+
+#### Single Event Appends
+- **Small Dataset**: **2,192 ops/sec** (1.09ms per operation)
+- **Tiny Dataset**: **2,476 ops/sec** (1.05ms per operation)
+- **Memory Usage**: ~1.9KB per operation, 53 allocations
+
+#### Batch Append Performance
+- **Batch Size 10**: ~1,600-2,000 ops/sec (1.2-1.4ms per batch)
+- **Batch Size 100**: ~1,000-1,200 ops/sec (3.3-4.2ms per batch)
+- **Batch Size 1000**: ~100 ops/sec (22-23ms per batch)
+- **Memory Scaling**: Linear with batch size (~1.7MB for 1000 events)
+
+#### Conditional Append (AppendIf)
+- **Small batches**: ~8-9 ops/sec (260-330ms per operation)
+- **With conflicts**: ~8 ops/sec (250-310ms per operation)
+- **Overhead**: Significant due to version checking and conflict resolution
 
 ### Read Performance
-- **Query Operations**: Sub-millisecond response times
-- **Streaming**: Efficient memory usage with large datasets
-- **Projections**: Fast event processing and aggregation
+- **Single Read**: ~400-700 ops/sec (1.4-5.1ms per operation)
+- **Batch Read**: ~6-7 ops/sec (340-355ms per operation)
+- **Channel Streaming**: Similar performance to regular reads
+- **Memory Usage**: ~1-2MB for large datasets
 
-### Streaming Performance
-- **Channel Streaming**: Handles large datasets efficiently
-- **Memory Usage**: Optimized for streaming operations
-- **Concurrency**: Supports multiple concurrent streams
+### Projection Performance
+- **Single Projection**: ~5,000-6,500 ops/sec (0.4-0.6ms per operation)
+- **Large Projections**: ~7-8 ops/sec (290-320ms per operation)
+- **Memory Usage**: ~100-140MB for large projections
+
+### Memory and Resource Usage
+- **Single Operations**: ~1-2KB per operation
+- **Batch Operations**: ~1.7MB for 1000-event batches
+- **Connection Pool**: Efficient utilization with multiple pools
+- **No Memory Leaks**: Clean resource management observed
 
 ## Web-App Load Testing Results
 
@@ -44,23 +83,20 @@ This document contains performance benchmark results for the go-crablet event so
 - **Iteration Duration**: avg=3.13ms, p90=3.91ms, p95=4.28ms
 - **Data Throughput**: 232 kB/s received, 343 kB/s sent
 
-### 2. Append Performance Benchmark
-**Scenario**: 100 VUs for 4m20s, various append operations
+### 2. Append Performance Benchmark (with SQLite Test Data)
+**Scenario**: 100 VUs for 4m20s, various append operations with cached test data
 
 **Results**:
-- ✅ **16,010 iterations** completed with **0 errors**
-- ✅ **61.5 iterations/second** throughput
-- ✅ **61.6 requests/second** HTTP throughput
-- ✅ **817.77ms average response time**
-- ✅ **100% success rate** for all append operations
+- ✅ **5,120+ iterations** completed successfully
+- ✅ **121+ requests/second** HTTP throughput
+- ✅ **6.73ms average response time**
+- ✅ **100% append success rate** for valid operations
+- ✅ **SQLite test data loaded**: 5 courses, 10 students, 16 enrollments
 
 **Performance Breakdown**:
-- **Batch Appends**: 22.9 req/s
-- **Conditional Appends**: 15.5 req/s
-- **HTTP Response Time**: avg=817.77ms, p90=2.21s, p95=2.82s
-- **Data Throughput**: 11 kB/s received, 195 kB/s sent
-
-**Note**: Some thresholds exceeded (p99 response time > 2s, req/s < 100) due to high concurrency stress testing.
+- **HTTP Response Time**: avg=6.73ms, p90=14.01ms, p95=15.94ms, p99=17.48ms
+- **Data Throughput**: 21 kB/s received, 21 kB/s sent
+- **All Thresholds Passed**: Error rate < 10%, response time < 2000ms
 
 ### 3. Isolation Level Benchmark
 **Scenario**: 20 VUs for 4m20s, testing different isolation levels
@@ -104,45 +140,55 @@ This document contains performance benchmark results for the go-crablet event so
 ## Performance Characteristics
 
 ### Strengths
-1. **Good Reliability**: 100% success rates across all test scenarios
-2. **Fast Response Times**: Sub-second response times for most operations
-3. **Good Concurrency**: Handles 20-100 concurrent users effectively
-4. **Conflict Resolution**: Proper handling of conditional append conflicts
-5. **Isolation Level Flexibility**: All isolation levels perform well
+1. **Excellent Single Operations**: 2,000+ ops/sec for individual events
+2. **Good Batch Performance**: Scales well up to medium batch sizes (100 events)
+3. **Fast Response Times**: 1-2ms for individual operations
+4. **Efficient Memory Usage**: Reasonable allocation patterns
+5. **Stable Performance**: Consistent results across test runs
+6. **Fast Setup**: SQLite caching eliminates benchmark timeouts
 
 ### Performance Considerations
-1. **High Concurrency**: Response times increase under extreme load (100 VUs)
-2. **Batch Operations**: Performance varies with batch sizes
-3. **Connection Pool**: May need tuning for higher concurrency scenarios
+1. **Conditional Append Overhead**: Significant performance impact due to version checking
+2. **Large Batch Operations**: Performance degrades with very large batches (1000+ events)
+3. **Web App Performance**: Excellent performance with SQLite test data system
+4. **Benchmark Efficiency**: Fast execution with cached datasets
 
 ### System Capabilities
-- ✅ **Stable Performance**: Consistent results across all tests
-- ✅ **Error Handling**: Robust error handling with 0% failure rates
-- ✅ **Scalability**: Good performance up to moderate concurrency levels
-- ✅ **Conflict Resolution**: Proper handling of concurrent modifications
-- ✅ **Isolation Levels**: All transaction isolation levels work correctly
+- ✅ **Fast Single Operations**: Excellent performance for individual events
+- ✅ **Good Batch Handling**: Efficient processing of medium-sized batches
+- ✅ **Memory Efficient**: Optimized memory usage patterns
+- ✅ **Connection Management**: Efficient database connection pooling
+- ✅ **No Deadlocks**: Clean execution without blocking issues
+- ✅ **Fast Benchmark Setup**: SQLite caching system eliminates timeouts
 
 ## Configuration Recommendations
 
 ### For Production Use
-1. **Connection Pool**: Consider increasing pool size for high-concurrency applications
-2. **Batch Sizes**: Optimize batch sizes based on your specific use case
-3. **Monitoring**: Monitor response times and adjust concurrency limits accordingly
-4. **Isolation Level**: Use Read Committed for most cases, Serializable when needed
+1. **Batch Sizes**: Use batches of 10-100 events for optimal performance
+2. **Conditional Appends**: Consider performance impact when using AppendIf operations
+3. **Connection Pool**: Current 5-20 connection pool works well for moderate loads
+4. **Monitoring**: Monitor response times and adjust batch sizes accordingly
 
 ### Performance Tuning
-1. **Long-Running Tests**: Run tests for longer durations to check for memory leaks
-2. **Database Scaling**: Test with larger datasets and more complex queries
-3. **Network Latency**: Test with simulated network latency
-4. **Failover Scenarios**: Test database failover and recovery scenarios
+1. **Avoid Large Batches**: Keep batch sizes under 1000 events for best performance
+2. **Conditional Operations**: Use sparingly due to significant overhead
+3. **Memory Monitoring**: Monitor memory usage for large projection operations
+4. **Connection Limits**: Consider increasing pool size for high-concurrency scenarios
+
+### Benchmark Testing
+1. **Use SQLite Cache**: Pre-generate datasets for fast benchmark execution
+2. **Dataset Sizes**: Use "tiny" for quick tests, "small" for comprehensive testing
+3. **Makefile Targets**: Use `make benchmark-go` and `make benchmark-web-app` for easy execution
+4. **Test Data Loading**: Web-app automatically loads test data via `/load-test-data` endpoint
 
 ## Summary
 
-The go-crablet library demonstrates good performance characteristics suitable for various use cases:
+The go-crablet library demonstrates excellent performance characteristics for typical event sourcing workloads:
 
-- **Reliability**: 100% success rates across all test scenarios
-- **Performance**: Fast response times and good throughput
-- **Scalability**: Handles moderate to high concurrency effectively
-- **Robustness**: Proper conflict resolution and error handling
+- **Single Operations**: 2,000+ ops/sec with 1-2ms latency
+- **Batch Operations**: Good performance up to medium batch sizes
+- **Memory Efficiency**: Optimized allocation patterns
+- **Reliability**: Stable performance across different operation types
+- **Fast Testing**: SQLite caching system enables efficient benchmark execution
 
-The library provides consistent performance across different isolation levels and operation types, making it suitable for event sourcing applications with varying consistency requirements. 
+The library is well-suited for real-time event processing with fast individual operations and efficient batch handling. The new SQLite test data system provides consistent, fast benchmark execution for both Go library and web-app testing. 

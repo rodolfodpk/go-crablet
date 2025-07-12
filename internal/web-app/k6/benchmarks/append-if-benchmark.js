@@ -316,6 +316,16 @@ export function setup() {
         throw new Error(`Cleanup failed: status ${cleanupRes.status}`);
     }
 
+    // Test 7: Load test data from SQLite cache
+    const datasetSize = __ENV.DATASET_SIZE || 'tiny';
+    const loadDataRes = http.post(`${BASE_URL}/load-test-data?size=${datasetSize}`, null, params);
+    if (loadDataRes.status !== 200) {
+        throw new Error(`Load test data failed: status ${loadDataRes.status} body: ${loadDataRes.body}`);
+    }
+
+    const loadData = JSON.parse(loadDataRes.body);
+    console.log(`📊 Test data loaded: ${loadData.courses} courses, ${loadData.students} students, ${loadData.enrollments} enrollments`);
+
     console.log('✅ Basic functionality and appendIf conditions validated - proceeding with appendIf benchmark');
 }
 

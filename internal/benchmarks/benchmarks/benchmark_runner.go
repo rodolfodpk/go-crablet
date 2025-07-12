@@ -29,6 +29,11 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
+	// Initialize the SQLite cache
+	if err := setup.InitGlobalCache(); err != nil {
+		b.Fatalf("Failed to initialize cache: %v", err)
+	}
+
 	// Connect to database
 	pool, err := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")
 	if err != nil {
@@ -74,8 +79,11 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
 		b.Fatalf("Unknown dataset size: %s", datasetSize)
 	}
 
-	// Create dataset
-	dataset := setup.GenerateDataset(config)
+	// Get dataset from cache (or generate if not cached)
+	dataset, err := setup.GetCachedDataset(config)
+	if err != nil {
+		b.Fatalf("Failed to get cached dataset: %v", err)
+	}
 
 	// Create queries for benchmarking
 	queries := []dcb.Query{

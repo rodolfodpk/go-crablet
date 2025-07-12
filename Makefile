@@ -56,7 +56,7 @@ docs:
 # Benchmark targets
 benchmark: benchmark-all
 
-benchmark-all: benchmark-quick benchmark-append benchmark-isolation benchmark-concurrency benchmark-results
+benchmark-all: benchmark-quick benchmark-append benchmark-isolation benchmark-concurrency benchmark-go benchmark-web-app benchmark-web-app-appendif benchmark-results
 
 benchmark-quick:
 	@echo "🚀 Running Quick Test Benchmark..."
@@ -78,6 +78,24 @@ benchmark-concurrency:
 	@echo "🚀 Running Concurrency Test..."
 	@cd internal/web-app && k6 run k6/tests/k6-concurrency-test.js > ../../$(BENCHMARK_RESULTS_DIR)/concurrency_test_$(TIMESTAMP).txt 2>&1 || true
 	@echo "✅ Concurrency test completed"
+
+benchmark-go:
+	@echo "🚀 Running Go Library Benchmarks..."
+	@mkdir -p $(BENCHMARK_RESULTS_DIR)
+	@cd internal/benchmarks/benchmarks && $(GO) test -bench=. -benchmem -benchtime=2s -timeout=5m . > ../../../$(BENCHMARK_RESULTS_DIR)/go_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@echo "✅ Go benchmarks completed"
+
+benchmark-web-app:
+	@echo "🚀 Running Web-App Benchmarks with SQLite Test Data..."
+	@mkdir -p $(BENCHMARK_RESULTS_DIR)
+	@cd internal/web-app/k6/benchmarks && k6 run --out json=../../../../$(BENCHMARK_RESULTS_DIR)/web_app_benchmarks_$(TIMESTAMP).json append-benchmark.js > ../../../../$(BENCHMARK_RESULTS_DIR)/web_app_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@echo "✅ Web-app benchmarks completed"
+
+benchmark-web-app-appendif:
+	@echo "🚀 Running Web-App AppendIf Benchmarks with SQLite Test Data..."
+	@mkdir -p $(BENCHMARK_RESULTS_DIR)
+	@cd internal/web-app/k6/benchmarks && k6 run --out json=../../../../$(BENCHMARK_RESULTS_DIR)/web_app_appendif_$(TIMESTAMP).json append-if-benchmark.js > ../../../../$(BENCHMARK_RESULTS_DIR)/web_app_appendif_$(TIMESTAMP).txt 2>&1 || true
+	@echo "✅ Web-app appendIf benchmarks completed"
 
 benchmark-results:
 	@echo "📊 Collecting benchmark results..."
@@ -104,5 +122,8 @@ help:
 	@echo "  benchmark-append - Run append performance benchmark"
 	@echo "  benchmark-isolation - Run isolation level benchmark"
 	@echo "  benchmark-concurrency - Run concurrency test"
+	@echo "  benchmark-go - Run Go library benchmarks"
+	@echo "  benchmark-web-app - Run web-app benchmarks with SQLite test data"
+	@echo "  benchmark-web-app-appendif - Run web-app appendIf benchmarks with SQLite test data"
 	@echo "  benchmark-results - Show benchmark results"
 	@echo "  help           - Show this help message" 

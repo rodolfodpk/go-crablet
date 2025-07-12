@@ -11,9 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"go-crablet/internal/benchmarks/setup"
 	"go-crablet/pkg/dcb"
-
-	"sync/atomic"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -30,10 +29,6 @@ var (
 	// Set to true to log concurrency errors (expected behavior)
 	// Set to false to suppress them (they're normal in high-concurrency scenarios)
 	logConcurrencyErrors = os.Getenv("LOG_CONCURRENCY_ERRORS") == "true"
-
-	// Concurrency error monitoring
-	concurrencyErrorCount int64
-	totalAppendCount      int64
 )
 
 type Server struct {
@@ -207,29 +202,65 @@ func main() {
 		log.Printf("Database cleaned up successfully")
 	})
 
-	http.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
+	http.HandleFunc("/load-test-data", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
-		total := atomic.LoadInt64(&totalAppendCount)
-		errors := atomic.LoadInt64(&concurrencyErrorCount)
-		rate := 0.0
-		if total > 0 {
-			rate = float64(errors) / float64(total) * 100.0
+		// Add timeout to load test data context
+		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		defer cancel()
+
+		// Get dataset size from query parameter
+		datasetSize := r.URL.Query().Get("size")
+		if datasetSize == "" {
+			datasetSize = "tiny" // Default to tiny dataset
+		}
+
+		// Validate dataset size
+		config, exists := setup.DatasetSizes[datasetSize]
+		if !exists {
+			http.Error(w, fmt.Sprintf("Invalid dataset size: %s. Available: tiny, small", datasetSize), http.StatusBadRequest)
+			return
+		}
+
+		// Initialize SQLite cache
+		if err := setup.InitGlobalCache(); err != nil {
+			log.Printf("Failed to initialize cache: %v", err)
+			http.Error(w, fmt.Sprintf("Failed to initialize cache: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Get dataset from cache (or generate if not cached)
+		dataset, err := setup.GetCachedDataset(config)
+		if err != nil {
+			log.Printf("Failed to get cached dataset: %v", err)
+			http.Error(w, fmt.Sprintf("Failed to get cached dataset: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Load dataset into PostgreSQL
+		if err := setup.LoadDatasetIntoStore(ctx, server.storeReadCommitted, dataset); err != nil {
+			log.Printf("Failed to load dataset into store: %v", err)
+			http.Error(w, fmt.Sprintf("Failed to load dataset into store: %v", err), http.StatusInternalServerError)
+			return
 		}
 
 		response := map[string]interface{}{
-			"total_append_requests":      total,
-			"concurrency_errors":         errors,
-			"concurrency_error_rate_pct": rate,
-			"timestamp":                  time.Now().Unix(),
+			"success": true,
+			"message": fmt.Sprintf("Test data loaded successfully: %d courses, %d students, %d enrollments",
+				len(dataset.Courses), len(dataset.Students), len(dataset.Enrollments)),
+			"dataset_size": datasetSize,
+			"courses":      len(dataset.Courses),
+			"students":     len(dataset.Students),
+			"enrollments":  len(dataset.Enrollments),
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-cache")
 		json.NewEncoder(w).Encode(response)
+		log.Printf("Test data loaded successfully: %s dataset", datasetSize)
 	})
 
 	http.HandleFunc("/read", server.handleRead)
@@ -538,9 +569,6 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
-	// Track total append requests
-	atomic.AddInt64(&totalAppendCount, 1)
-
 	// Determine append method based on lock tags
 	var appendErr error
 	if useAdvisoryLocks {
@@ -576,9 +604,6 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 
 	if appendErr != nil {
 		if _, ok := appendErr.(*dcb.ConcurrencyError); ok {
-			// Track concurrency errors
-			atomic.AddInt64(&concurrencyErrorCount, 1)
-
 			// Log concurrency errors only if configured to do so
 			if logConcurrencyErrors {
 				log.Printf("Concurrency condition failed (expected): %v", appendErr)
