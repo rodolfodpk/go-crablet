@@ -21,16 +21,8 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 - **Atomic command execution**: Execute commands with handler-based event generation using the CommandExecutor pattern
 - **Command tracking**: Automatic storage of commands in the `commands` table with transaction ID linking
 
-## 📊 Performance
+## 📊 Performance Testing
 
-**Key Performance Characteristics:**
-- **High Throughput**: Optimized for event sourcing workloads
-- **Low Latency**: Fast individual operations (2,000+ ops/sec)
-- **Multiple Events**: Efficient handling of multiple events in single append calls
-- **Concurrent Safe**: Handles moderate concurrency with optimistic locking
-- **Memory Efficient**: Optimized allocation patterns
-
-**Performance Testing:**
 - **[Performance Benchmarks](docs/benchmarks.md)**: Detailed benchmark results and analysis
 - **[Web-App Benchmarks](internal/web-app/README.md)**: HTTP/REST API performance testing
 - **[Go Benchmarks](internal/benchmarks/README.md)**: Core library performance testing
