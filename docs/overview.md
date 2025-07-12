@@ -24,60 +24,42 @@ The `EventStore` is the primary interface that users interact with directly:
 
 ```go
 type EventStore interface {
-    // Query reads events matching the query with optional cursor
-    // cursor == nil: query from beginning of stream
-    // cursor != nil: query from specified cursor position (EXCLUSIVE - events after cursor, not including cursor)
+    // Query events with optional cursor (nil = from beginning, non-nil = after cursor)
     Query(ctx context.Context, query Query, cursor *Cursor) ([]Event, error)
-
-    // QueryStream creates a channel-based stream of events matching a query with optional cursor
-    // cursor == nil: stream from beginning of stream
-    // cursor != nil: stream from specified cursor position (EXCLUSIVE - events after cursor, not including cursor)
-    // This is optimized for large datasets and provides backpressure through channels
-    // for efficient memory usage and Go-idiomatic streaming
+    
+    // Stream events for large datasets with backpressure
     QueryStream(ctx context.Context, query Query, cursor *Cursor) (<-chan Event, error)
-
-    // Append appends events to the store with optional condition
-    // condition == nil: unconditional append
-    // condition != nil: conditional append (optimistic locking)
+    
+    // Append events with optional optimistic locking condition
     Append(ctx context.Context, events []InputEvent, condition *AppendCondition) error
-
-    // Project projects multiple states using projectors with optional cursor
-    // cursor == nil: project from beginning of stream
-    // cursor != nil: project from specified cursor position (EXCLUSIVE - events after cursor, not including cursor)
-    // Returns final aggregated states and append condition for optimistic locking
+    
+    // Project multiple states in single query (DCB pattern)
     Project(ctx context.Context, projectors []StateProjector, cursor *Cursor) (map[string]any, AppendCondition, error)
-
-    // ProjectStream projects multiple states using channel-based streaming with optional cursor
-    // cursor == nil: stream from beginning of stream
-    // cursor != nil: stream from specified cursor position (EXCLUSIVE - events after cursor, not including cursor)
-    // This is optimized for large datasets and provides backpressure through channels
-    // for efficient memory usage and Go-idiomatic streaming
+    
+    // Stream projections for large datasets
     ProjectStream(ctx context.Context, projectors []StateProjector, cursor *Cursor) (<-chan map[string]any, <-chan AppendCondition, error)
-
-    // GetConfig returns the current EventStore configuration
+    
     GetConfig() EventStoreConfig
-
-    // GetPool returns the underlying database pool
     GetPool() *pgxpool.Pool
 }
 ```
+```
 
-### CommandExecutor Interface
+### CommandExecutor Interface (Optional API)
 
-The `CommandExecutor` is an optional wrapper around `EventStore` that provides command-driven event generation:
+The `CommandExecutor` is an **optional** wrapper around `EventStore` that provides command-driven event generation. It's not required for basic event sourcing - you can use the `EventStore` directly:
 
 ```go
 type CommandExecutor interface {
-    // ExecuteCommand executes a command and generates events atomically
-    // The handler receives the EventStore to perform its own projections and business logic
+    // Execute command and generate events atomically
     ExecuteCommand(ctx context.Context, command Command, handler CommandHandler, condition *AppendCondition) error
 }
 
 type CommandHandler interface {
-    // Handle processes a command and generates events
-    // The handler has access to the EventStore for projection and business logic
+    // Process command and return events to append
     Handle(ctx context.Context, store EventStore, command Command) []InputEvent
 }
+```
 ```
 
 ### Usage Pattern
@@ -88,14 +70,14 @@ Users typically follow this pattern:
 // 1. Create EventStore (primary interface)
 store, err := dcb.NewEventStore(ctx, pool)
 
-// 2. Optionally create CommandExecutor from EventStore
+// 2. Optionally create CommandExecutor from EventStore (not required)
 commandExecutor := dcb.NewCommandExecutor(store)
 
 // 3. Use either interface as needed
-// Direct EventStore usage:
+// Direct EventStore usage (core API):
 err = store.Append(ctx, events, condition)
 
-// Command-driven usage:
+// Command-driven usage (optional convenience API):
 err = commandExecutor.ExecuteCommand(ctx, command, handler, condition)
 ```
 
@@ -161,14 +143,9 @@ if states["numSubscriptions"].(int) < 2 {
 }
 ```
 
-## Transaction Isolation Levels
+## Transaction Isolation
 
-go-crablet uses configurable PostgreSQL transaction isolation levels:
-
-- **Append (unconditional)**: Uses the default isolation level configured in `EventStoreConfig` (typically Read Committed)
-- **Append (conditional)**: Uses the default isolation level configured in `EventStoreConfig` (typically Repeatable Read)
-
-The isolation level can be configured when creating the EventStore via `EventStoreConfig.DefaultAppendIsolation`.
+Configurable PostgreSQL isolation levels via `EventStoreConfig.DefaultAppendIsolation` (default: Read Committed).
 
 ## Configuration
 
@@ -193,29 +170,9 @@ type EventStoreConfig struct {
 - `QueryTimeout`: 15000ms (15 seconds)
 - `AppendTimeout`: 10000ms (10 seconds)
 
-## Performance Comparison Across Isolation Levels
+## Performance
 
-Benchmark results from web-app load testing (30-second tests, multiple VUs):
-
-| Metric | Append (unconditional) | Append (conditional) |
-|--------|------------------------|---------------------------|
-| **Throughput** | 79.2 req/s | 61.7 req/s |
-| **Avg Response Time** | 24.87ms | 12.82ms |
-| **p95 Response Time** | 49.16ms | 21.86ms |
-| **Success Rate** | 100% | 100% |
-| **VUs** | 10 | 10 |
-| **Use Case** | Simple appends | Conditional appends |
-
-### Key Performance Insights
-
-- **Conditional append is fastest**: Conditional appends with Repeatable Read isolation actually perform better than simple appends
-- **Excellent reliability**: Both isolation levels achieve 100% success rate
-- **Optimized implementation**: Cursor-based optimistic locking and SQL functions are highly efficient
-
-### When to Use Each Method
-
-- **Append (nil condition)**: Use for simple event appends where no conditions are needed
-- **Append (with condition)**: Use for conditional appends requiring optimistic locking
+See [benchmarks documentation](benchmarks.md) for detailed performance analysis and isolation level comparisons.
 
 ## Table Validation
 
@@ -230,9 +187,9 @@ Example validation errors:
 - `missing required column 'occurred_at'`
 - `column 'tags' should be ARRAY type, got TEXT`
 
-## Command Execution
+## Command Execution (Optional Feature)
 
-go-crablet supports atomic command execution with handler-based event generation and command tracking. The `CommandExecutor` provides a clean abstraction for command-driven event sourcing:
+go-crablet supports atomic command execution with handler-based event generation and command tracking. The `CommandExecutor` provides an **optional** convenience layer for command-driven event sourcing. You can use the `EventStore` directly for basic event sourcing without the command pattern:
 
 ### Command Execution Flow
 
@@ -246,8 +203,8 @@ go-crablet supports atomic command execution with handler-based event generation
 
 The library uses two main tables:
 
-- **`events` table**: Stores all events with transaction IDs for ordering
-- **`commands` table**: Tracks executed commands with metadata and links to events via transaction ID
+- **`events` table**: Stores all events with transaction IDs for ordering (required for all usage)
+- **`commands` table**: Tracks executed commands with metadata and links to events via transaction ID (only used when CommandExecutor is used)
 
 #### Events Table Structure
 
@@ -265,10 +222,10 @@ CREATE TABLE events (
 );
 
 -- Indexes for efficient querying
-CREATE INDEX idx_events_type ON events(type);
-CREATE INDEX idx_events_tags ON events USING GIN(tags);
-CREATE INDEX idx_events_occurred_at ON events(occurred_at);
-CREATE INDEX idx_events_transaction_id ON events(transaction_id);
+-- CREATE INDEX idx_events_type ON events(type);                    -- Not currently used
+CREATE INDEX idx_events_tags ON events USING GIN(tags);            -- Used for tag-based queries
+-- CREATE INDEX idx_events_occurred_at ON events(occurred_at);      -- Not currently used
+CREATE INDEX idx_events_transaction_position_btree ON events(transaction_id, position); -- Used for ordering and cursors
 ```
 
 **Key Features:**
@@ -276,7 +233,7 @@ CREATE INDEX idx_events_transaction_id ON events(transaction_id);
 - **Position within transaction**: `position` allows multiple events per transaction
 - **Tag-based querying**: `tags` array enables flexible, cross-entity queries
 - **JSONB data**: Rich event payloads with PostgreSQL JSONB performance
-- **Automatic timestamps**: `occurred_at` provides event timing information
+- **Audit timestamps**: `occurred_at` provides event timing for audit purposes (not used for ordering/filtering)
 
 #### Commands Table Structure
 
@@ -288,21 +245,21 @@ CREATE TABLE commands (
     metadata       JSONB NOT NULL DEFAULT '{}', -- Additional context (correlation ID, source, etc.)
     occurred_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(), -- Command execution timestamp
     
-    PRIMARY KEY (transaction_id),             -- One command per transaction
-    FOREIGN KEY (transaction_id) REFERENCES events(transaction_id) ON DELETE CASCADE
+    PRIMARY KEY (transaction_id)              -- One command per transaction
 );
+```
 
 -- Indexes for efficient querying
-CREATE INDEX idx_commands_type ON commands(type);
-CREATE INDEX idx_commands_occurred_at ON commands(occurred_at);
-CREATE INDEX idx_commands_metadata ON commands USING GIN(metadata);
+-- CREATE INDEX idx_commands_type ON commands(type);                -- Not currently used
+-- CREATE INDEX idx_commands_occurred_at ON commands(occurred_at);  -- Not currently used
+-- CREATE INDEX idx_commands_metadata ON commands USING GIN(metadata); -- Not currently used
 ```
 
 **Key Features:**
-- **Transaction linking**: `transaction_id` links commands to their generated events
+- **Transaction linking**: `transaction_id` links commands to their generated events (logical relationship)
 - **Command metadata**: `metadata` stores correlation IDs, source information, etc.
-- **Audit trail**: Complete command execution history
-- **Cascade deletion**: Commands deleted when related events are deleted
+- **Audit trail**: Complete command execution history with timestamps
+- **Independent tables**: Commands and events are inserted atomically in the same transaction
 
 #### Example Data
 
@@ -341,11 +298,11 @@ SELECT * FROM events WHERE type = 'UserCreated';
 -- Query events by tags
 SELECT * FROM events WHERE tags @> ARRAY['user_id:123'];
 
--- Query events by time range
-SELECT * FROM events WHERE occurred_at BETWEEN '2025-07-12 00:00:00' AND '2025-07-12 23:59:59';
-
 -- Query events with multiple tag conditions
 SELECT * FROM events WHERE tags @> ARRAY['user_id:123'] AND tags @> ARRAY['course_id:CS101'];
+
+-- Note: occurred_at is available for audit purposes but not used for filtering/ordering
+-- Events are ordered by (transaction_id, position) for true event ordering
 ```
 
 **Command Queries:**
@@ -361,6 +318,8 @@ SELECT c.*, e.*
 FROM commands c 
 JOIN events e ON c.transaction_id = e.transaction_id 
 WHERE c.type = 'CreateUser';
+
+-- Note: occurred_at is available for audit purposes but not used for filtering/ordering
 ```
 
 ### Basic Usage
