@@ -214,31 +214,48 @@ func (es *eventStore) appendInTx(ctx context.Context, tx pgx.Tx, events []InputE
 	}
 
 	// Execute append operation using PostgreSQL function
+	// Always use the simplified functions with 'events' table for maximum performance
+	var result []byte
 	if condition != nil {
-		_, err = tx.Exec(ctx, `
-			SELECT append_events_with_condition($1, $2, $3, $4, $5)
-		`, es.config.TargetEventsTable, types, tags, data, conditionJSON)
+		err = tx.QueryRow(ctx, `
+			SELECT append_events_with_condition($1, $2, $3, $4)
+		`, types, tags, data, conditionJSON).Scan(&result)
 	} else {
-		_, err = tx.Exec(ctx, `SELECT append_events_batch($1, $2, $3, $4)`, es.config.TargetEventsTable, types, tags, data)
+		_, err = tx.Exec(ctx, `SELECT append_events_batch($1, $2, $3)`, types, tags, data)
 	}
 
 	if err != nil {
-		// Check if it's a condition violation error
-		if strings.Contains(err.Error(), "append condition violated") {
-			return &ConcurrencyError{
-				EventStoreError: EventStoreError{
-					Op:  "appendInTx",
-					Err: fmt.Errorf("append condition violated: %w", err),
-				},
-			}
-		}
-
 		return &ResourceError{
 			EventStoreError: EventStoreError{
 				Op:  "appendInTx",
 				Err: fmt.Errorf("failed to append events: %w", err),
 			},
 			Resource: "database",
+		}
+	}
+
+	// Check result for conditional append
+	if condition != nil && len(result) > 0 {
+		var resultMap map[string]interface{}
+		if err := json.Unmarshal(result, &resultMap); err != nil {
+			return &ResourceError{
+				EventStoreError: EventStoreError{
+					Op:  "appendInTx",
+					Err: fmt.Errorf("failed to parse append result: %w", err),
+				},
+				Resource: "json",
+			}
+		}
+
+		// Check if the operation was successful
+		if success, ok := resultMap["success"].(bool); !ok || !success {
+			// This is a concurrency violation
+			return &ConcurrencyError{
+				EventStoreError: EventStoreError{
+					Op:  "appendInTx",
+					Err: fmt.Errorf("append condition violated: %v", resultMap["message"]),
+				},
+			}
 		}
 	}
 

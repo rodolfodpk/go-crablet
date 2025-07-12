@@ -12,15 +12,43 @@ import (
 // EventStore Constructors
 // =============================================================================
 
-// NewEventStore creates a new EventStore instance with the given PostgreSQL connection pool.
-// This is the main constructor for creating an event store.
+// NewEventStore creates a new EventStore instance with default configuration
 func NewEventStore(ctx context.Context, pool *pgxpool.Pool) (EventStore, error) {
-	return newEventStore(ctx, pool, nil)
+	// Test the connection
+	if err := pool.Ping(ctx); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	// Validate that the events table exists with correct structure
+	if err := validateEventsTableExists(ctx, pool, "events"); err != nil {
+		return nil, fmt.Errorf("failed to validate events table: %w", err)
+	}
+
+	config := EventStoreConfig{
+		MaxBatchSize:           1000,
+		LockTimeout:            5000,
+		StreamBuffer:           1000,
+		DefaultAppendIsolation: IsolationLevelReadCommitted,
+		QueryTimeout:           15000, // 15 seconds default
+		AppendTimeout:          10000, // 10 seconds default
+		// TargetEventsTable removed - always use 'events' table for maximum performance
+	}
+	return newEventStore(pool, config), nil
 }
 
-// NewEventStoreWithConfig creates a new EventStore instance with custom configuration.
+// NewEventStoreWithConfig creates a new EventStore instance with custom configuration
 func NewEventStoreWithConfig(ctx context.Context, pool *pgxpool.Pool, config EventStoreConfig) (EventStore, error) {
-	return newEventStore(ctx, pool, &config)
+	// Test the connection
+	if err := pool.Ping(ctx); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	// Validate that the events table exists with correct structure
+	if err := validateEventsTableExists(ctx, pool, "events"); err != nil {
+		return nil, fmt.Errorf("failed to validate events table: %w", err)
+	}
+
+	return newEventStore(pool, config), nil
 }
 
 // NewEventStoreFromPool creates a new EventStore from an existing pool without connection testing.
@@ -31,9 +59,9 @@ func NewEventStoreFromPool(pool *pgxpool.Pool) EventStore {
 		LockTimeout:            5000,
 		StreamBuffer:           1000,
 		DefaultAppendIsolation: IsolationLevelReadCommitted,
-		QueryTimeout:           15000,    // 15 seconds default
-		AppendTimeout:          10000,    // 10 seconds default
-		TargetEventsTable:      "events", // Set default table name
+		QueryTimeout:           15000, // 15 seconds default
+		AppendTimeout:          10000, // 10 seconds default
+		// TargetEventsTable removed - always use 'events' table for maximum performance
 	}
 	return &eventStore{
 		pool:   pool,

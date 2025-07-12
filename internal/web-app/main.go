@@ -13,6 +13,8 @@ import (
 
 	"go-crablet/pkg/dcb"
 
+	"sync/atomic"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -22,6 +24,17 @@ func init() {
 	// Only show WARN and ERROR level logs
 	log.SetOutput(os.Stderr)
 }
+
+// Configuration for concurrency error logging
+var (
+	// Set to true to log concurrency errors (expected behavior)
+	// Set to false to suppress them (they're normal in high-concurrency scenarios)
+	logConcurrencyErrors = os.Getenv("LOG_CONCURRENCY_ERRORS") == "true"
+
+	// Concurrency error monitoring
+	concurrencyErrorCount int64
+	totalAppendCount      int64
+)
 
 type Server struct {
 	storeReadCommitted  dcb.EventStore
@@ -192,6 +205,31 @@ func main() {
 		w.Header().Set("Cache-Control", "no-cache")
 		json.NewEncoder(w).Encode(response)
 		log.Printf("Database cleaned up successfully")
+	})
+
+	http.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		total := atomic.LoadInt64(&totalAppendCount)
+		errors := atomic.LoadInt64(&concurrencyErrorCount)
+		rate := 0.0
+		if total > 0 {
+			rate = float64(errors) / float64(total) * 100.0
+		}
+
+		response := map[string]interface{}{
+			"total_append_requests":      total,
+			"concurrency_errors":         errors,
+			"concurrency_error_rate_pct": rate,
+			"timestamp":                  time.Now().Unix(),
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-cache")
+		json.NewEncoder(w).Encode(response)
 	})
 
 	http.HandleFunc("/read", server.handleRead)
@@ -500,6 +538,9 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
+	// Track total append requests
+	atomic.AddInt64(&totalAppendCount, 1)
+
 	// Determine append method based on lock tags
 	var appendErr error
 	if useAdvisoryLocks {
@@ -535,11 +576,20 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 
 	if appendErr != nil {
 		if _, ok := appendErr.(*dcb.ConcurrencyError); ok {
+			// Track concurrency errors
+			atomic.AddInt64(&concurrencyErrorCount, 1)
+
+			// Log concurrency errors only if configured to do so
+			if logConcurrencyErrors {
+				log.Printf("Concurrency condition failed (expected): %v", appendErr)
+			}
 			resp.AppendConditionFailed = true
 			w.WriteHeader(http.StatusOK)
 			json.NewEncoder(w).Encode(resp)
 			return
 		}
+		// Log unexpected errors at ERROR level
+		log.Printf("Unexpected append error: %v", appendErr)
 		http.Error(w, appendErr.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -587,32 +637,32 @@ func (s *Server) appendWithAdvisoryLocks(ctx context.Context, events []dcb.Input
 	lockTimeout := s.storeReadCommitted.GetConfig().LockTimeout // Assuming a default or common lock timeout
 
 	// Call the advisory lock function directly with timeout
-	_, err = s.pool.Exec(ctx, `
+	var result []byte
+	err = s.pool.QueryRow(ctx, `
 		SELECT append_events_with_advisory_locks($1, $2, $3, $4, $5)
-	`, types, tags, data, conditionJSON, lockTimeout)
+	`, types, tags, data, conditionJSON, lockTimeout).Scan(&result)
 
 	if err != nil {
-		// Check if it's a lock timeout error
-		if strings.Contains(err.Error(), "lock timeout") {
-			return &dcb.ConcurrencyError{
-				EventStoreError: dcb.EventStoreError{
-					Op:  "append",
-					Err: fmt.Errorf("advisory lock timeout: %w", err),
-				},
-			}
-		}
-
-		// Check if it's a condition violation error
-		if strings.Contains(err.Error(), "append condition violated") {
-			return &dcb.ConcurrencyError{
-				EventStoreError: dcb.EventStoreError{
-					Op:  "append",
-					Err: fmt.Errorf("append condition violated: %w", err),
-				},
-			}
-		}
-
 		return fmt.Errorf("failed to append events with advisory locks: %w", err)
+	}
+
+	// Check result for conditional append
+	if condition != nil && len(result) > 0 {
+		var resultMap map[string]interface{}
+		if err := json.Unmarshal(result, &resultMap); err != nil {
+			return fmt.Errorf("failed to parse advisory lock result: %w", err)
+		}
+
+		// Check if the operation was successful
+		if success, ok := resultMap["success"].(bool); !ok || !success {
+			// This is a concurrency violation
+			return &dcb.ConcurrencyError{
+				EventStoreError: dcb.EventStoreError{
+					Op:  "append",
+					Err: fmt.Errorf("append condition violated: %v", resultMap["message"]),
+				},
+			}
+		}
 	}
 
 	return nil

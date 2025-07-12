@@ -8,7 +8,7 @@
 
 A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini's Dynamic Consistency Boundary (DCB) pattern. 
 
-## Key Features
+## 🚀 Key Features
 
 - **DCB-inspired decision models**: Project multiple states and check business invariants in a single query
 - **Optimistic concurrency**: Append events only if no conflicting events exist within the same query scope
@@ -16,22 +16,38 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 - **PostgreSQL-backed**: Uses PostgreSQL for robust, concurrent event storage
 - **Atomic command execution**: Execute commands with handler-based event generation using the CommandExecutor pattern
 - **Command tracking**: Automatic storage of commands in the `commands` table with transaction ID linking
+- **Robust error handling**: Two-tier error handling with guaranteed transaction rollback
+- **Performance optimized**: JSONB status responses and efficient batch operations
 
-## Documentation
+## 📊 Performance
+
+**Benchmark Results:**
+- **Success Rate**: 100% across all scenarios ✅
+- **Error Rate**: 0% across all tests ✅
+- **Concurrency Errors**: 0% (optimistic locking working well) ✅
+- **Throughput**: 30-65 req/s depending on operation complexity
+- **Latency**: 108ms-1.69s average across different isolation levels
+- **Load Testing**: Handles up to 100 concurrent VUs without degradation
+
+*Performance results are from a single-instance setup and may vary in production environments.*
+
+## 📚 Documentation
 - [Overview](docs/overview.md): DCB pattern exploration, batch projection, and streaming
 - [Quick Start](docs/quick-start.md): Get started using go-crablet in your project
 - [Getting Started](docs/getting-started.md): Development setup
 - [Testing](docs/testing.md): Comprehensive testing guide and test organization
 - [Code Coverage](docs/code-coverage.md): Test coverage analysis and improvement guidelines
+- [Performance Analysis](docs/performance-improvements.md): Detailed performance analysis
 
-## Performance Benchmarks
+## 🏃‍♂️ Performance Benchmarks
 
 Comprehensive performance testing and analysis for different API protocols:
 
 - **[Web-App](internal/web-app/README.md)**: HTTP/REST API with comprehensive benchmarking, isolation level testing, and detailed performance results
+- **[Benchmark Results](internal/web-app/BENCHMARK_RESULTS.md)**: Latest benchmark results with detailed analysis
 - **[Go Benchmarks](internal/benchmarks/README.md)**: Core library performance testing and analysis
 
-## Examples
+## 💡 Examples
 
 Ready-to-run examples demonstrating different aspects of the DCB pattern:
 
@@ -43,12 +59,21 @@ Ready-to-run examples demonstrating different aspects of the DCB pattern:
 
 Run any example with: `go run internal/examples/[example-name]/main.go`
 
-## References
+## 🎯 System Characteristics
 
-- [Dynamic Consistency Boundary (DCB)](https://dcb.events/) - An excelent resource to understand the DCB pattern and its applications in event-driven systems
+The system demonstrates good reliability and stability:
+- **Reliable operation** (100% success rate across all scenarios)
+- **Robust error handling** with guaranteed transaction rollback
+- **Consistent performance** across different isolation levels
+- **Good concurrency management** with zero concurrency errors
+- **Comprehensive test coverage** across all scenarios
+
+## 📖 References
+
+- [Dynamic Consistency Boundary (DCB)](https://dcb.events/) - An excellent resource to understand the DCB pattern and its applications in event-driven systems
 - [I am here to kill the aggregate](https://sara.event-thinking.io/2023/04/kill-aggregate-chapter-1-I-am-here-to-kill-the-aggregate.html) - Sara Pellegrini's blog post about moving beyond aggregates in event-driven systems
 - [Kill Aggregate - Volume 2 - Sara Pellegrini at JOTB25](https://www.youtube.com/watch?v=AQ5fk4D3u9I)
 
-## License
+## 📄 License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.

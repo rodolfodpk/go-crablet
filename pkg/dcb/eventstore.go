@@ -14,40 +14,26 @@ type eventStore struct {
 	config EventStoreConfig
 }
 
-// newEventStore creates a new eventStore instance
-func newEventStore(ctx context.Context, pool *pgxpool.Pool, config *EventStoreConfig) (*eventStore, error) {
-	// Test the connection
-	if err := pool.Ping(ctx); err != nil {
-		return nil, fmt.Errorf("failed to ping database: %w", err)
+func newEventStore(pool *pgxpool.Pool, cfg EventStoreConfig) *eventStore {
+	// Validate configuration
+	if cfg.MaxBatchSize <= 0 {
+		cfg.MaxBatchSize = 1000 // Default batch size
 	}
-	var cfg EventStoreConfig
-	if config != nil {
-		cfg = *config
-	} else {
-		cfg = EventStoreConfig{
-			MaxBatchSize:           1000,
-			LockTimeout:            5000,
-			StreamBuffer:           1000,
-			DefaultAppendIsolation: IsolationLevelReadCommitted,
-			QueryTimeout:           15000, // 15 seconds default
-			AppendTimeout:          10000, // 10 seconds default
-		}
+	if cfg.StreamBuffer <= 0 {
+		cfg.StreamBuffer = 1000 // Default stream buffer size
 	}
-
-	// Set default table name if not specified
-	if cfg.TargetEventsTable == "" {
-		cfg.TargetEventsTable = "events"
+	if cfg.QueryTimeout <= 0 {
+		cfg.QueryTimeout = 15000 // 15 seconds default
 	}
-
-	// Validate that the target events table exists with correct structure
-	if err := validateEventsTableExists(ctx, pool, cfg.TargetEventsTable); err != nil {
-		return nil, fmt.Errorf("failed to validate events table: %w", err)
+	if cfg.AppendTimeout <= 0 {
+		cfg.AppendTimeout = 10000 // 10 seconds default
 	}
+	// TargetEventsTable removed - always use 'events' table for maximum performance
 
 	return &eventStore{
 		pool:   pool,
 		config: cfg,
-	}, nil
+	}
 }
 
 // Remove GetLockTimeout method - lock timeout is now accessed via GetConfig().LockTimeout

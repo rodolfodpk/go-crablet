@@ -23,39 +23,43 @@ CREATE TABLE commands (
     type VARCHAR(64) NOT NULL,
     data JSONB NOT NULL,
     metadata JSONB,
-    target_events_table VARCHAR(64) NOT NULL,
     occurred_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Indexes for commands table
-CREATE INDEX idx_commands_type ON commands (type);
-CREATE INDEX idx_commands_target_table ON commands (target_events_table);
+-- CREATE INDEX idx_commands_type ON commands (type);
+-- CREATE INDEX idx_commands_target_table ON commands (target_events_table);
 
 -- Core indexes for essential operations
 CREATE INDEX idx_events_transaction_position_btree ON events (transaction_id, position);
 CREATE INDEX idx_events_tags ON events USING GIN (tags);
 
 -- Optimized function to check append conditions using transaction_id for proper ordering
+-- Returns JSONB with status instead of raising exceptions for better performance
+-- Always uses 'events' table for maximum performance
 CREATE OR REPLACE FUNCTION check_append_condition(
-    p_table_name TEXT,
     p_fail_if_events_match JSONB DEFAULT NULL,
     p_after_cursor JSONB DEFAULT NULL
-) RETURNS BOOLEAN AS $$
+) RETURNS JSONB AS $$
 DECLARE
     condition_count INTEGER;
     query_text TEXT;
+    result JSONB;
 BEGIN
+    -- Initialize result
+    result := '{"success": true, "message": "condition check passed"}'::JSONB;
+    
     -- Check FailIfEventsMatch condition (with optional after cursor scope)
     IF p_fail_if_events_match IS NOT NULL THEN
-        -- Build dynamic query with table name
-        query_text := format('
+        -- Build query for events table (no dynamic table name needed)
+        query_text := '
             WITH condition_queries AS (
                 SELECT 
                     jsonb_array_elements($1->''items'') AS query_item
             ),
             event_matches AS (
                 SELECT DISTINCT e.position
-                FROM %I e
+                FROM events e
                 CROSS JOIN condition_queries cq
                 WHERE (
                     -- Check event types if specified
@@ -77,56 +81,57 @@ BEGIN
                 AND e.transaction_id < pg_snapshot_xmin(pg_current_snapshot())
             )
             SELECT COUNT(*) FROM event_matches
-        ', p_table_name);
+        ';
         
         EXECUTE query_text INTO condition_count USING p_fail_if_events_match, p_after_cursor;
         
         IF condition_count > 0 THEN
-            RAISE EXCEPTION 'append condition violated: % matching events found', condition_count USING ERRCODE = 'DCB01', HINT = 'This is a concurrency violation - events matching the condition were found';
+            -- Return failure status instead of raising exception
+            result := jsonb_build_object(
+                'success', false,
+                'message', 'append condition violated',
+                'matching_events_count', condition_count,
+                'error_code', 'DCB01'
+            );
         END IF;
     END IF;
     
-    RETURN TRUE;
+    RETURN result;
 END;
 $$ LANGUAGE plpgsql;
 
 -- Function to batch insert events using UNNEST for better performance
+-- Always uses 'events' table for maximum performance
 CREATE OR REPLACE FUNCTION append_events_batch(
-    p_table_name TEXT,
     p_types TEXT[],
     p_tags TEXT[], -- array of Postgres array literals as strings
     p_data JSONB[]
 ) RETURNS VOID AS $$
-DECLARE
-    query_text TEXT;
 BEGIN
-    -- Build dynamic query with table name
-    query_text := format('
-        INSERT INTO %I (type, tags, data, transaction_id)
-        SELECT 
-            t.type,
-            t.tag_string::TEXT[], -- Cast the array literal string to TEXT[]
-            t.data,
-            pg_current_xact_id()
-        FROM UNNEST($1, $2, $3) AS t(type, tag_string, data)
-    ', p_table_name);
-    
-    -- Execute the dynamic query
-    EXECUTE query_text USING p_types, p_tags, p_data;
+    -- Insert directly into events table (no dynamic table name needed)
+    INSERT INTO events (type, tags, data, transaction_id)
+    SELECT 
+        t.type,
+        t.tag_string::TEXT[], -- Cast the array literal string to TEXT[]
+        t.data,
+        pg_current_xact_id()
+    FROM UNNEST($1, $2, $3) AS t(type, tag_string, data);
 END;
 $$ LANGUAGE plpgsql;
 
 -- Combined function to check conditions and append events atomically
+-- Returns JSONB with status instead of raising exceptions for better performance
+-- Always uses 'events' table for maximum performance
 CREATE OR REPLACE FUNCTION append_events_with_condition(
-    p_table_name TEXT,
     p_types TEXT[],
     p_tags TEXT[], -- array of Postgres array literals as strings
     p_data JSONB[],
     p_condition JSONB DEFAULT NULL
-) RETURNS VOID AS $$
+) RETURNS JSONB AS $$
 DECLARE
     fail_if_events_match JSONB;
     after_cursor JSONB;
+    condition_result JSONB;
 BEGIN
     -- Extract condition parameters
     IF p_condition IS NOT NULL THEN
@@ -137,23 +142,36 @@ BEGIN
     END IF;
     
     -- Check append conditions first
-    PERFORM check_append_condition(p_table_name, fail_if_events_match, after_cursor);
+    condition_result := check_append_condition(fail_if_events_match, after_cursor);
+    
+    -- If conditions failed, return the failure status
+    IF (condition_result->>'success')::boolean = false THEN
+        RETURN condition_result;
+    END IF;
     
     -- If conditions pass, insert events using UNNEST for all cases
-    PERFORM append_events_batch(p_table_name, p_types, p_tags, p_data);
+    PERFORM append_events_batch(p_types, p_tags, p_data);
+    
+    -- Return success status
+    RETURN jsonb_build_object(
+        'success', true,
+        'message', 'events appended successfully',
+        'events_count', array_length(p_types, 1)
+    );
 END;
 $$ LANGUAGE plpgsql;
 
 -- Function to acquire advisory locks based on tags with "lock:" prefix
 -- This function takes the same contract as append_events_with_condition but adds locking
+-- Returns JSONB with status instead of raising exceptions for better performance
+-- Always uses 'events' table for maximum performance
 CREATE OR REPLACE FUNCTION append_events_with_advisory_locks(
-    p_table_name TEXT,
     p_types TEXT[],
     p_tags TEXT[], -- array of Postgres array literals as strings
     p_data JSONB[],
     p_condition JSONB DEFAULT NULL,
     p_lock_timeout_ms INTEGER DEFAULT 5000 -- 5 second default timeout
-) RETURNS VOID AS $$
+) RETURNS JSONB AS $$
 DECLARE
     fail_if_events_match JSONB;
     after_cursor JSONB;
@@ -164,6 +182,7 @@ DECLARE
     lock_key TEXT;
     i INTEGER;
     lock_timeout_setting TEXT;
+    condition_result JSONB;
 BEGIN
     -- Set lock timeout for this transaction
     lock_timeout_setting := current_setting('lock_timeout', true);
@@ -221,111 +240,35 @@ BEGIN
     END LOOP;
     
     -- Check append conditions first
-    PERFORM check_append_condition(p_table_name, fail_if_events_match, after_cursor);
+    condition_result := check_append_condition(fail_if_events_match, after_cursor);
+    
+    -- If conditions failed, return the failure status
+    IF (condition_result->>'success')::boolean = false THEN
+        -- Restore original lock timeout setting
+        IF lock_timeout_setting IS NOT NULL THEN
+            PERFORM set_config('lock_timeout', lock_timeout_setting, false);
+        END IF;
+        RETURN condition_result;
+    END IF;
     
     -- If conditions pass, insert events using UNNEST for all cases
-    PERFORM append_events_batch(p_table_name, p_types, p_tags, p_data);
+    PERFORM append_events_batch(p_types, p_tags, p_data);
     
     -- Restore original lock timeout setting
     IF lock_timeout_setting IS NOT NULL THEN
         PERFORM set_config('lock_timeout', lock_timeout_setting, false);
     END IF;
-END;
-$$ LANGUAGE plpgsql;
-
--- Backward compatibility functions for default "events" table
--- These maintain the original function signatures for existing code
-
-CREATE OR REPLACE FUNCTION check_append_condition(
-    p_fail_if_events_match JSONB DEFAULT NULL,
-    p_after_cursor JSONB DEFAULT NULL
-) RETURNS BOOLEAN AS $$
-BEGIN
-    RETURN check_append_condition('events', p_fail_if_events_match, p_after_cursor);
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION append_events_batch(
-    p_types TEXT[],
-    p_tags TEXT[],
-    p_data JSONB[]
-) RETURNS VOID AS $$
-BEGIN
-    PERFORM append_events_batch('events', p_types, p_tags, p_data);
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION append_events_with_condition(
-    p_types TEXT[],
-    p_tags TEXT[],
-    p_data JSONB[],
-    p_condition JSONB DEFAULT NULL
-) RETURNS VOID AS $$
-BEGIN
-    PERFORM append_events_with_condition('events', p_types, p_tags, p_data, p_condition);
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION append_events_with_advisory_locks(
-    p_types TEXT[],
-    p_tags TEXT[],
-    p_data JSONB[],
-    p_condition JSONB DEFAULT NULL,
-    p_lock_timeout_ms INTEGER DEFAULT 5000
-) RETURNS VOID AS $$
-BEGIN
-    PERFORM append_events_with_advisory_locks('events', p_types, p_tags, p_data, p_condition, p_lock_timeout_ms);
-END;
-$$ LANGUAGE plpgsql;
-
--- Function to monitor advisory lock usage
-CREATE OR REPLACE FUNCTION get_advisory_lock_stats() 
-RETURNS TABLE (
-    lock_id BIGINT,
-    database_id OID,
-    object_id BIGINT,
-    session_id INTEGER,
-    application_name TEXT,
-    client_addr INET,
-    backend_start TIMESTAMPTZ,
-    query_start TIMESTAMPTZ,
-    state TEXT,
-    wait_event_type TEXT,
-    wait_event TEXT
-) AS $$
-BEGIN
-    RETURN QUERY
-    SELECT 
-        al.lockid,
-        al.database,
-        al.objid,
-        p.pid,
-        p.application_name,
-        p.client_addr,
-        p.backend_start,
-        p.query_start,
-        p.state,
-        p.wait_event_type,
-        p.wait_event
-    FROM pg_locks al
-    JOIN pg_stat_activity p ON al.pid = p.pid
-    WHERE al.locktype = 'advisory'
-    AND p.state != 'idle'
-    ORDER BY al.lockid, p.backend_start;
-END;
-$$ LANGUAGE plpgsql;
-
--- Function to get advisory lock count
-CREATE OR REPLACE FUNCTION get_advisory_lock_count() 
-RETURNS INTEGER AS $$
-DECLARE
-    lock_count INTEGER;
-BEGIN
-    SELECT COUNT(*) INTO lock_count
-    FROM pg_locks 
-    WHERE locktype = 'advisory';
     
-    RETURN lock_count;
+    -- Return success status
+    RETURN jsonb_build_object(
+        'success', true,
+        'message', 'events appended successfully with advisory locks',
+        'events_count', array_length(p_types, 1)
+    );
 END;
 $$ LANGUAGE plpgsql;
+
+-- Removed backward compatibility functions - now using simplified functions directly
+-- All functions now use the 'events' table for maximum performance
+-- Debug and monitoring functions moved to debug.sql
     

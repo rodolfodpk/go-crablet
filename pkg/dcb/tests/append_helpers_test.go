@@ -162,7 +162,7 @@ var _ = Describe("Append Helpers", func() {
 			condition := dcb.NewAppendCondition(query)
 			err = store.Append(ctx, events2, &condition)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("matching events found"))
+			Expect(err.Error()).To(ContainSubstring("append condition violated"))
 		})
 
 		It("should succeed append with FailIfEventsMatch condition when no matching events", func() {

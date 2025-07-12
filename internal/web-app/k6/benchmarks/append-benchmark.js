@@ -106,30 +106,40 @@ const APPEND_SCENARIOS = {
         })
     },
     
-    // Conditional append (should succeed)
+    // Conditional append (should succeed - no matching events)
     CONDITIONAL_SUCCESS: {
         name: 'Conditional Append (Success)',
         payload: () => ({
             events: generateUniqueEvent('UniqueEvent', ['unique', 'test']),
             condition: {
-                failIfEventsMatch: generateUniqueQuery(['UniqueEvent'], ['unique'])
+                failIfEventsMatch: {
+                    items: [{
+                        types: ['UniqueEvent'],
+                        tags: ['unique:should-not-exist']
+                    }]
+                }
             }
         })
     },
     
-    // Conditional append (should fail)
+    // Conditional append (should fail - matching events exist)
     CONDITIONAL_FAIL: {
         name: 'Conditional Append (Fail)',
         payload: () => {
-            const eventType = 'DuplicateEvent';
-            const tags = [`duplicate:${generateUniqueId('duplicate')}`];
+            // Use a fixed event type and tag that we know will exist
+            const eventType = 'ConditionalTestEvent';
+            const tag = 'conditional:test';
             return {
-                events: generateUniqueEvent(eventType, ['duplicate']),
+                events: {
+                    type: eventType,
+                    data: JSON.stringify({ message: 'conditional test event' }),
+                    tags: [tag]
+                },
                 condition: {
                     failIfEventsMatch: {
                         items: [{
                             types: [eventType],
-                            tags: tags
+                            tags: [tag]
                         }]
                     }
                 }
@@ -188,8 +198,21 @@ export default function () {
             if (r.status !== 200) return false;
             try {
                 const body = JSON.parse(r.body);
-                return body.hasOwnProperty('durationInMicroseconds') && 
-                       body.hasOwnProperty('appendConditionFailed');
+                const hasRequiredFields = body.hasOwnProperty('durationInMicroseconds') && 
+                                        body.hasOwnProperty('appendConditionFailed');
+                
+                // For conditional append tests, check if the result matches expectations
+                if (randomScenario.name.includes('Conditional')) {
+                    if (randomScenario.name.includes('Success')) {
+                        // Should succeed (appendConditionFailed should be false)
+                        return hasRequiredFields && body.appendConditionFailed === false;
+                    } else if (randomScenario.name.includes('Fail')) {
+                        // Should fail (appendConditionFailed should be true)
+                        return hasRequiredFields && body.appendConditionFailed === true;
+                    }
+                }
+                
+                return hasRequiredFields;
             } catch {
                 return false;
             }
@@ -267,6 +290,18 @@ export function setup() {
     const cleanupRes = http.post(`${BASE_URL}/cleanup`, null, params);
     if (cleanupRes.status !== 200) {
         throw new Error(`Cleanup failed: status ${cleanupRes.status}`);
+    }
+
+    // Test 5: Create conditional test event for failure scenarios
+    const conditionalTestEvent = {
+        type: 'ConditionalTestEvent',
+        data: JSON.stringify({ message: 'conditional test event for failure scenarios' }),
+        tags: ['conditional:test']
+    };
+    const conditionalAppendRes = http.post(`${BASE_URL}/append`, JSON.stringify({ events: conditionalTestEvent }), params);
+    
+    if (conditionalAppendRes.status !== 200) {
+        throw new Error(`Conditional test event creation failed: status ${conditionalAppendRes.status} body: ${conditionalAppendRes.body}`);
     }
 
     console.log('✅ Basic functionality validated - proceeding with append benchmark');

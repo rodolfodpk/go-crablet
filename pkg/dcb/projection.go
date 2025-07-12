@@ -83,7 +83,7 @@ func (es *eventStore) buildReadQuerySQL(query Query, after *Cursor, limit *int) 
 
 	// Build final query efficiently
 	var sqlQuery strings.Builder
-	sqlQuery.WriteString(fmt.Sprintf("SELECT type, tags, data, transaction_id, position, occurred_at FROM %s", es.config.TargetEventsTable))
+	sqlQuery.WriteString("SELECT type, tags, data, transaction_id, position, occurred_at FROM events")
 
 	if len(conditions) > 0 {
 		sqlQuery.WriteString(" WHERE ")

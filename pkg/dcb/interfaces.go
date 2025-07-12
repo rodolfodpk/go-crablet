@@ -198,15 +198,15 @@ func ParseIsolationLevel(s string) (IsolationLevel, error) {
 	}
 }
 
-// EventStoreConfig contains configuration for the EventStore
+// EventStoreConfig contains configuration for EventStore behavior
 type EventStoreConfig struct {
 	MaxBatchSize           int            `json:"max_batch_size"`
-	LockTimeout            int            `json:"lock_timeout"`             // Lock timeout in milliseconds for advisory locks
+	LockTimeout            int            `json:"lock_timeout"`             // Lock timeout in milliseconds for advisory locks (currently unused)
 	StreamBuffer           int            `json:"stream_buffer"`            // Channel buffer size for streaming operations
 	DefaultAppendIsolation IsolationLevel `json:"default_append_isolation"` // Default isolation level for Append operations
 	QueryTimeout           int            `json:"query_timeout"`            // Query timeout in milliseconds (defensive against hanging queries)
 	AppendTimeout          int            `json:"append_timeout"`           // Append timeout in milliseconds (defensive against hanging appends)
-	TargetEventsTable      string         `json:"target_events_table"`      // Target events table name (default: "events")
+	// TargetEventsTable removed - always use 'events' table for maximum performance
 }
 
 // =============================================================================

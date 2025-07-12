@@ -159,9 +159,9 @@ func (ce *commandExecutor) ExecuteCommand(ctx context.Context, command Command, 
 	}
 
 	_, err = tx.Exec(ctx, `
-		INSERT INTO commands (transaction_id, type, data, metadata, target_events_table)
-		VALUES (pg_current_xact_id(), $1, $2, $3, $4)
-	`, command.GetType(), command.GetData(), commandMetadata, config.TargetEventsTable)
+		INSERT INTO commands (transaction_id, type, data, metadata)
+		VALUES (pg_current_xact_id(), $1, $2, $3)
+	`, command.GetType(), command.GetData(), commandMetadata)
 	if err != nil {
 		return &ResourceError{
 			EventStoreError: EventStoreError{

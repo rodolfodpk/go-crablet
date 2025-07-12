@@ -92,7 +92,7 @@ var _ = Describe("CommandExecutor", func() {
 // Test command handlers
 type testCommandHandler struct{}
 
-func (h *testCommandHandler) Handle(ctx context.Context, decisionModels map[string]any, command dcb.Command) []dcb.InputEvent {
+func (h *testCommandHandler) Handle(ctx context.Context, eventStore dcb.EventStore, command dcb.Command) []dcb.InputEvent {
 	var cmdData map[string]interface{}
 	json.Unmarshal(command.GetData(), &cmdData)
 
@@ -112,6 +112,6 @@ func (h *testCommandHandler) Handle(ctx context.Context, decisionModels map[stri
 
 type emptyCommandHandler struct{}
 
-func (h *emptyCommandHandler) Handle(ctx context.Context, decisionModels map[string]any, command dcb.Command) []dcb.InputEvent {
+func (h *emptyCommandHandler) Handle(ctx context.Context, eventStore dcb.EventStore, command dcb.Command) []dcb.InputEvent {
 	return nil // Return empty events to test validation
 }

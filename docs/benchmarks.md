@@ -1,10 +1,9 @@
-# Go-Crablet Performance Benchmarks
+# Performance Benchmarks
 
-This document contains the latest performance benchmark results for the go-crablet event sourcing library, including both internal library benchmarks and web-app load testing results.
+This document contains performance benchmark results for the go-crablet event sourcing library, including both internal library benchmarks and web-app load testing results.
 
 ## Test Environment
 
-- **Date**: July 11, 2025
 - **Platform**: macOS (darwin 23.6.0)
 - **Database**: PostgreSQL with connection pool (5-20 connections)
 - **Web Server**: Go HTTP server on port 8080
@@ -13,7 +12,7 @@ This document contains the latest performance benchmark results for the go-crabl
 ## Internal Library Benchmarks
 
 ### Append Performance
-- **Batch Appends**: ~21.5 req/s with excellent concurrency scaling
+- **Batch Appends**: ~21.5 req/s with good concurrency scaling
 - **Conditional Appends**: ~14.6 req/s with proper conflict handling
 - **Single Event Appends**: Fast and reliable
 - **Concurrency**: Scales well up to 100+ concurrent operations
@@ -102,28 +101,28 @@ This document contains the latest performance benchmark results for the go-crabl
 - **Iteration Duration**: avg=3.15s, p90=4.64s, p95=4.89s
 - **Conflict Resolution**: 100% success rate
 
-## Key Performance Insights
+## Performance Characteristics
 
 ### Strengths
-1. **Excellent Reliability**: 100% success rates across all test scenarios
+1. **Good Reliability**: 100% success rates across all test scenarios
 2. **Fast Response Times**: Sub-second response times for most operations
 3. **Good Concurrency**: Handles 20-100 concurrent users effectively
-4. **Conflict Resolution**: Perfect handling of conditional append conflicts
+4. **Conflict Resolution**: Proper handling of conditional append conflicts
 5. **Isolation Level Flexibility**: All isolation levels perform well
 
-### Areas for Optimization
+### Performance Considerations
 1. **High Concurrency**: Response times increase under extreme load (100 VUs)
-2. **Batch Operations**: Could benefit from larger batch sizes
+2. **Batch Operations**: Performance varies with batch sizes
 3. **Connection Pool**: May need tuning for higher concurrency scenarios
 
-### Production Readiness
+### System Capabilities
 - ✅ **Stable Performance**: Consistent results across all tests
 - ✅ **Error Handling**: Robust error handling with 0% failure rates
 - ✅ **Scalability**: Good performance up to moderate concurrency levels
 - ✅ **Conflict Resolution**: Proper handling of concurrent modifications
 - ✅ **Isolation Levels**: All transaction isolation levels work correctly
 
-## Recommendations
+## Configuration Recommendations
 
 ### For Production Use
 1. **Connection Pool**: Consider increasing pool size for high-concurrency applications
@@ -131,19 +130,19 @@ This document contains the latest performance benchmark results for the go-crabl
 3. **Monitoring**: Monitor response times and adjust concurrency limits accordingly
 4. **Isolation Level**: Use Read Committed for most cases, Serializable when needed
 
-### For Further Testing
+### Performance Tuning
 1. **Long-Running Tests**: Run tests for longer durations to check for memory leaks
 2. **Database Scaling**: Test with larger datasets and more complex queries
 3. **Network Latency**: Test with simulated network latency
 4. **Failover Scenarios**: Test database failover and recovery scenarios
 
-## Conclusion
+## Summary
 
-The go-crablet library demonstrates excellent performance characteristics suitable for production use:
+The go-crablet library demonstrates good performance characteristics suitable for various use cases:
 
 - **Reliability**: 100% success rates across all test scenarios
 - **Performance**: Fast response times and good throughput
 - **Scalability**: Handles moderate to high concurrency effectively
 - **Robustness**: Proper conflict resolution and error handling
 
-The library is ready for production deployment with appropriate configuration for your specific use case and expected load patterns. 
+The library provides consistent performance across different isolation levels and operation types, making it suitable for event sourcing applications with varying consistency requirements. 
