@@ -88,9 +88,11 @@ func main() {
 
 ```go
 // Define command handler function
-func handleSubscribeStudent(ctx context.Context, store dcb.EventStore, command dcb.Command) []dcb.InputEvent {
+func handleSubscribeStudent(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, error) {
     var cmdData SubscribeStudentCommand
-    json.Unmarshal(command.GetData(), &cmdData)
+    if err := json.Unmarshal(command.GetData(), &cmdData); err != nil {
+        return nil, fmt.Errorf("failed to unmarshal command: %w", err)
+    }
 
     courseID := cmdData.CourseID
     studentID := cmdData.StudentID
@@ -120,36 +122,20 @@ func handleSubscribeStudent(ctx context.Context, store dcb.EventStore, command d
     // Project all states in single query
     states, appendCond, err := store.Project(ctx, projectors, nil)
     if err != nil {
-        return []dcb.InputEvent{
-            dcb.NewInputEvent("SubscriptionFailed",
-                dcb.NewTags("student_id", studentID, "course_id", courseID, "reason", "projection_error"),
-                dcb.ToJSON(map[string]string{"error": "Failed to project state"})),
-        }
+        return nil, fmt.Errorf("failed to project state: %w", err)
     }
 
     // Check business rules
     if !states["courseExists"].(bool) {
-        return []dcb.InputEvent{
-            dcb.NewInputEvent("SubscriptionFailed",
-                dcb.NewTags("student_id", studentID, "course_id", courseID, "reason", "course_not_found"),
-                dcb.ToJSON(map[string]string{"error": "Course does not exist"})),
-        }
+        return nil, fmt.Errorf("course %s does not exist", courseID)
     }
 
     if states["alreadySubscribed"].(bool) {
-        return []dcb.InputEvent{
-            dcb.NewInputEvent("SubscriptionFailed",
-                dcb.NewTags("student_id", studentID, "course_id", courseID, "reason", "already_subscribed"),
-                dcb.ToJSON(map[string]string{"error": "Student already subscribed"})),
-        }
+        return nil, fmt.Errorf("student %s already subscribed to course %s", studentID, courseID)
     }
 
     if states["numSubscriptions"].(int) >= 2 {
-        return []dcb.InputEvent{
-            dcb.NewInputEvent("SubscriptionFailed",
-                dcb.NewTags("student_id", studentID, "course_id", courseID, "reason", "course_full"),
-                dcb.ToJSON(map[string]string{"error": "Course is full"})),
-        }
+        return nil, fmt.Errorf("course %s is full", courseID)
     }
 
     // Generate success event
@@ -158,7 +144,7 @@ func handleSubscribeStudent(ctx context.Context, store dcb.EventStore, command d
         dcb.NewInputEvent("StudentSubscribed",
             dcb.NewTags("student_id", studentID, "course_id", courseID),
             data),
-    }
+    }, nil
 }
 
 // Usage with CommandExecutor
@@ -177,7 +163,7 @@ func main() {
     cmd := dcb.NewCommand("SubscribeStudent", dcb.ToJSON(cmdData), nil)
 
     // Execute command using function-based handler
-    err := commandExecutor.ExecuteCommand(ctx, cmd, dcb.CommandHandlerFunc(handleSubscribeStudent), nil)
+    _, err := commandExecutor.ExecuteCommand(ctx, cmd, dcb.CommandHandlerFunc(handleSubscribeStudent), nil)
     if err != nil {
         panic(err)
     }

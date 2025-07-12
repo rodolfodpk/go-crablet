@@ -64,11 +64,20 @@ type TransferMoneyCommand struct {
 }
 
 // Command handler functions
-func handleCreateAccount(ctx context.Context, store dcb.EventStore, command dcb.Command) []dcb.InputEvent {
+func handleCreateAccount(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, error) {
 	var cmd CreateAccountCommand
 	if err := json.Unmarshal(command.GetData(), &cmd); err != nil {
-		log.Printf("Failed to unmarshal create account command: %v", err)
-		return nil
+		return nil, fmt.Errorf("failed to unmarshal create account command: %w", err)
+	}
+
+	// Check for duplicate account
+	query := dcb.NewQuery(dcb.NewTags("account_id", cmd.AccountID), "AccountOpened")
+	events, err := store.Query(ctx, query, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query for existing account: %w", err)
+	}
+	if len(events) > 0 {
+		return nil, fmt.Errorf("account %s already exists", cmd.AccountID)
 	}
 
 	// Create the event
@@ -78,25 +87,22 @@ func handleCreateAccount(ctx context.Context, store dcb.EventStore, command dcb.
 		InitialBalance: cmd.InitialBalance,
 		OpenedAt:       time.Now(),
 	}
-
 	eventData, err := json.Marshal(event)
 	if err != nil {
-		log.Printf("Failed to marshal account opened event: %v", err)
-		return nil
+		return nil, fmt.Errorf("failed to marshal account opened event: %w", err)
 	}
 
 	return []dcb.InputEvent{
 		dcb.NewInputEvent("AccountOpened", []dcb.Tag{
 			dcb.NewTag("account_id", cmd.AccountID),
 		}, eventData),
-	}
+	}, nil
 }
 
-func handleTransferMoney(ctx context.Context, store dcb.EventStore, command dcb.Command) []dcb.InputEvent {
+func handleTransferMoney(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, error) {
 	var cmd TransferMoneyCommand
 	if err := json.Unmarshal(command.GetData(), &cmd); err != nil {
-		log.Printf("Failed to unmarshal transfer money command: %v", err)
-		return nil
+		return nil, fmt.Errorf("failed to unmarshal transfer money command: %w", err)
 	}
 
 	// Define projectors for account states (DCB pattern)
@@ -159,8 +165,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, command dcb.
 	// Project the account states
 	states, _, err := store.Project(ctx, projectors, nil)
 	if err != nil {
-		log.Printf("Failed to project account states: %v", err)
-		return nil
+		return nil, fmt.Errorf("failed to project account states: %w", err)
 	}
 
 	fromAccount, fromOk := states["fromAccount"].(*AccountState)
@@ -168,8 +173,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, command dcb.
 	allTransfers, transfersOk := states["allTransfers"].([]MoneyTransferred)
 
 	if !fromOk || !toOk || !transfersOk {
-		log.Printf("Failed to get account states from projection")
-		return nil
+		return nil, fmt.Errorf("failed to get account states from projection")
 	}
 
 	// Apply transfer history to calculate current balances
@@ -193,8 +197,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, command dcb.
 
 	// Validate transfer
 	if fromAccount.Balance < cmd.Amount {
-		log.Printf("Insufficient funds: account %s has %d, needs %d", cmd.FromAccountID, fromAccount.Balance, cmd.Amount)
-		return nil
+		return nil, fmt.Errorf("insufficient funds: account %s has %d, needs %d", cmd.FromAccountID, fromAccount.Balance, cmd.Amount)
 	}
 
 	// Calculate new balances
@@ -212,11 +215,9 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, command dcb.
 		TransferredAt: time.Now(),
 		Description:   cmd.Description,
 	}
-
 	eventData, err := json.Marshal(transferEvent)
 	if err != nil {
-		log.Printf("Failed to marshal money transferred event: %v", err)
-		return nil
+		return nil, fmt.Errorf("failed to marshal money transferred event: %w", err)
 	}
 
 	return []dcb.InputEvent{
@@ -225,19 +226,18 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, command dcb.
 			dcb.NewTag("from_account_id", cmd.FromAccountID),
 			dcb.NewTag("to_account_id", cmd.ToAccountID),
 		}, eventData),
-	}
+	}, nil
 }
 
 // Unified command handler function
-func handleCommand(ctx context.Context, store dcb.EventStore, command dcb.Command) []dcb.InputEvent {
+func handleCommand(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, error) {
 	switch command.GetType() {
 	case CommandTypeCreateAccount:
 		return handleCreateAccount(ctx, store, command)
 	case CommandTypeTransferMoney:
 		return handleTransferMoney(ctx, store, command)
 	default:
-		log.Printf("Unknown command type: %s", command.GetType())
-		return nil
+		return nil, fmt.Errorf("unknown command type: %s", command.GetType())
 	}
 }
 
@@ -266,7 +266,9 @@ func main() {
 	commandExecutor := dcb.NewCommandExecutor(store)
 
 	// Create command handler
-	handler := dcb.CommandHandlerFunc(handleCommand)
+	handler := dcb.CommandHandlerFunc(func(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, error) {
+		return handleCommand(ctx, store, command)
+	})
 
 	// Command 1: Create first account
 	fmt.Println("=== Creating First Account ===")
@@ -286,7 +288,7 @@ func main() {
 		"source":     "web_api",
 	})
 
-	err = commandExecutor.ExecuteCommand(ctx, command1, handler, nil)
+	_, err = commandExecutor.ExecuteCommand(ctx, command1, handler, nil)
 	if err != nil {
 		log.Fatalf("Create account 1 failed: %v", err)
 	}
@@ -310,7 +312,7 @@ func main() {
 		"source":     "web_api",
 	})
 
-	err = commandExecutor.ExecuteCommand(ctx, command2, handler, nil)
+	_, err = commandExecutor.ExecuteCommand(ctx, command2, handler, nil)
 	if err != nil {
 		log.Fatalf("Create account 2 failed: %v", err)
 	}
@@ -336,7 +338,7 @@ func main() {
 		"source":     "web_api",
 	})
 
-	err = commandExecutor.ExecuteCommand(ctx, command3, handler, nil)
+	_, err = commandExecutor.ExecuteCommand(ctx, command3, handler, nil)
 	if err != nil {
 		fmt.Printf("❌ Transfer failed: %v\n", err)
 	} else {
@@ -363,7 +365,7 @@ func main() {
 		"source":     "web_api",
 	})
 
-	err = commandExecutor.ExecuteCommand(ctx, command4, handler, nil)
+	_, err = commandExecutor.ExecuteCommand(ctx, command4, handler, nil)
 	if err != nil {
 		fmt.Printf("❌ Second transfer failed (expected): %v\n", err)
 	} else {

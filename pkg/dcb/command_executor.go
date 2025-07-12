@@ -19,10 +19,10 @@ func NewCommandExecutor(eventStore EventStore) CommandExecutor {
 	}
 }
 
-func (ce *commandExecutor) ExecuteCommand(ctx context.Context, command Command, handler CommandHandler, condition *AppendCondition) error {
+func (ce *commandExecutor) ExecuteCommand(ctx context.Context, command Command, handler CommandHandler, condition *AppendCondition) ([]InputEvent, error) {
 	// Validate inputs
 	if command == nil {
-		return &ValidationError{
+		return nil, &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  "ExecuteCommand",
 				Err: fmt.Errorf("command cannot be nil"),
@@ -33,7 +33,7 @@ func (ce *commandExecutor) ExecuteCommand(ctx context.Context, command Command, 
 	}
 
 	if handler == nil {
-		return &ValidationError{
+		return nil, &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  "ExecuteCommand",
 				Err: fmt.Errorf("handler cannot be nil"),
@@ -56,7 +56,7 @@ func (ce *commandExecutor) ExecuteCommand(ctx context.Context, command Command, 
 		IsoLevel: toPgxIsoLevel(config.DefaultAppendIsolation),
 	})
 	if err != nil {
-		return &ResourceError{
+		return nil, &ResourceError{
 			EventStoreError: EventStoreError{
 				Op:  "ExecuteCommand",
 				Err: fmt.Errorf("failed to begin transaction: %w", err),
@@ -67,11 +67,21 @@ func (ce *commandExecutor) ExecuteCommand(ctx context.Context, command Command, 
 	defer tx.Rollback(ctx)
 
 	// 1. Generate events using the handler with access to EventStore
-	events := handler.Handle(ctx, ce.eventStore, command)
+	events, handlerErr := handler.Handle(ctx, ce.eventStore, command)
+	if handlerErr != nil {
+		return nil, &ValidationError{
+			EventStoreError: EventStoreError{
+				Op:  "ExecuteCommand",
+				Err: handlerErr,
+			},
+			Field: "handler",
+			Value: "error",
+		}
+	}
 
 	// 3. Validate generated events
 	if len(events) == 0 {
-		return &ValidationError{
+		return nil, &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  "ExecuteCommand",
 				Err: fmt.Errorf("handler generated no events"),
@@ -84,7 +94,7 @@ func (ce *commandExecutor) ExecuteCommand(ctx context.Context, command Command, 
 	// Validate individual events
 	for i, event := range events {
 		if event.GetType() == "" {
-			return &ValidationError{
+			return nil, &ValidationError{
 				EventStoreError: EventStoreError{
 					Op:  "ExecuteCommand",
 					Err: fmt.Errorf("event at index %d has empty type", i),
@@ -98,7 +108,7 @@ func (ce *commandExecutor) ExecuteCommand(ctx context.Context, command Command, 
 		tagKeys := make(map[string]bool)
 		for j, tag := range event.GetTags() {
 			if tag.GetKey() == "" {
-				return &ValidationError{
+				return nil, &ValidationError{
 					EventStoreError: EventStoreError{
 						Op:  "ExecuteCommand",
 						Err: fmt.Errorf("empty tag key at index %d", j),
@@ -108,7 +118,7 @@ func (ce *commandExecutor) ExecuteCommand(ctx context.Context, command Command, 
 				}
 			}
 			if tag.GetValue() == "" {
-				return &ValidationError{
+				return nil, &ValidationError{
 					EventStoreError: EventStoreError{
 						Op:  "ExecuteCommand",
 						Err: fmt.Errorf("empty tag value for key %s", tag.GetKey()),
@@ -118,7 +128,7 @@ func (ce *commandExecutor) ExecuteCommand(ctx context.Context, command Command, 
 				}
 			}
 			if tagKeys[tag.GetKey()] {
-				return &ValidationError{
+				return nil, &ValidationError{
 					EventStoreError: EventStoreError{
 						Op:  "ExecuteCommand",
 						Err: fmt.Errorf("event at index %d has duplicate tag key: %s", i, tag.GetKey()),
@@ -140,7 +150,7 @@ func (ce *commandExecutor) ExecuteCommand(ctx context.Context, command Command, 
 		err = es.appendInTx(ctx, tx, events, nil)
 	}
 	if err != nil {
-		return err // If events fail, don't store command
+		return nil, err // If events fail, don't store command
 	}
 
 	// 5. Store command AFTER events (metadata)
@@ -148,7 +158,7 @@ func (ce *commandExecutor) ExecuteCommand(ctx context.Context, command Command, 
 	if command.GetMetadata() != nil {
 		commandMetadata, err = json.Marshal(command.GetMetadata())
 		if err != nil {
-			return &ResourceError{
+			return nil, &ResourceError{
 				EventStoreError: EventStoreError{
 					Op:  "ExecuteCommand",
 					Err: fmt.Errorf("failed to marshal command metadata: %w", err),
@@ -163,7 +173,7 @@ func (ce *commandExecutor) ExecuteCommand(ctx context.Context, command Command, 
 		VALUES (pg_current_xact_id(), $1, $2, $3)
 	`, command.GetType(), command.GetData(), commandMetadata)
 	if err != nil {
-		return &ResourceError{
+		return nil, &ResourceError{
 			EventStoreError: EventStoreError{
 				Op:  "ExecuteCommand",
 				Err: fmt.Errorf("failed to store command: %w", err),
@@ -174,7 +184,7 @@ func (ce *commandExecutor) ExecuteCommand(ctx context.Context, command Command, 
 
 	// Commit transaction
 	if err := tx.Commit(ctx); err != nil {
-		return &ResourceError{
+		return nil, &ResourceError{
 			EventStoreError: EventStoreError{
 				Op:  "ExecuteCommand",
 				Err: fmt.Errorf("failed to commit transaction: %w", err),
@@ -183,7 +193,7 @@ func (ce *commandExecutor) ExecuteCommand(ctx context.Context, command Command, 
 		}
 	}
 
-	return nil
+	return events, nil
 }
 
 // Helper methods
