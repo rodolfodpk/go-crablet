@@ -33,6 +33,9 @@ jobs:
       - name: Install dependencies
         run: go mod download
 
+      - name: Install gocovmerge
+        run: go install github.com/wadey/gocovmerge@latest
+
       - name: Build
         run: go build ./...
 
