@@ -43,7 +43,6 @@ type EventStore interface {
     GetPool() *pgxpool.Pool
 }
 ```
-```
 
 ### CommandExecutor Interface (Optional API)
 
@@ -59,7 +58,6 @@ type CommandHandler interface {
     // Process command and return events to append
     Handle(ctx context.Context, store EventStore, command Command) []InputEvent
 }
-```
 ```
 
 ### Usage Pattern
@@ -272,7 +270,6 @@ CREATE TABLE commands (
 
     PRIMARY KEY (transaction_id)              -- One command per transaction
 );
-```
 
 -- Indexes for efficient querying
 -- CREATE INDEX idx_commands_type ON commands(type);                -- Not currently used
