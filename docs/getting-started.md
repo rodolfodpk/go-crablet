@@ -4,7 +4,7 @@ If you're new to Go and want to run the examples, follow these essential steps:
 
 ## Prerequisites
 
-1. **Install Go** (1.24+): Download from [golang.org](https://golang.org/dl/)
+1. **Install Go** (1.24.5+): Download from [golang.org](https://golang.org/dl/)
 2. **Install Docker**: Download from [docker.com](https://docker.com/get-started/)
 3. **Install Git**: Download from [git-scm.com](https://git-scm.com/)
 
