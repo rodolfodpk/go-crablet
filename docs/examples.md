@@ -84,6 +84,106 @@ func main() {
 }
 ```
 
+### Command-Driven Approach with Function-Based Handler
+
+```go
+// Define command handler function
+func handleSubscribeStudent(ctx context.Context, store dcb.EventStore, command dcb.Command) []dcb.InputEvent {
+    var cmdData SubscribeStudentCommand
+    json.Unmarshal(command.GetData(), &cmdData)
+
+    courseID := cmdData.CourseID
+    studentID := cmdData.StudentID
+
+    // Define projectors for the decision model
+    projectors := []dcb.StateProjector{
+        {
+            ID: "courseExists",
+            Query: dcb.NewQuery(dcb.NewTags("course_id", courseID), "CourseDefined"),
+            InitialState: false,
+            TransitionFn: func(state any, e dcb.Event) any { return true },
+        },
+        {
+            ID: "numSubscriptions",
+            Query: dcb.NewQuery(dcb.NewTags("course_id", courseID), "StudentSubscribed"),
+            InitialState: 0,
+            TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
+        },
+        {
+            ID: "alreadySubscribed",
+            Query: dcb.NewQuery(dcb.NewTags("student_id", studentID, "course_id", courseID), "StudentSubscribed"),
+            InitialState: false,
+            TransitionFn: func(state any, e dcb.Event) any { return true },
+        },
+    }
+
+    // Project all states in single query
+    states, appendCond, err := store.Project(ctx, projectors, nil)
+    if err != nil {
+        return []dcb.InputEvent{
+            dcb.NewInputEvent("SubscriptionFailed",
+                dcb.NewTags("student_id", studentID, "course_id", courseID, "reason", "projection_error"),
+                dcb.ToJSON(map[string]string{"error": "Failed to project state"})),
+        }
+    }
+
+    // Check business rules
+    if !states["courseExists"].(bool) {
+        return []dcb.InputEvent{
+            dcb.NewInputEvent("SubscriptionFailed",
+                dcb.NewTags("student_id", studentID, "course_id", courseID, "reason", "course_not_found"),
+                dcb.ToJSON(map[string]string{"error": "Course does not exist"})),
+        }
+    }
+
+    if states["alreadySubscribed"].(bool) {
+        return []dcb.InputEvent{
+            dcb.NewInputEvent("SubscriptionFailed",
+                dcb.NewTags("student_id", studentID, "course_id", courseID, "reason", "already_subscribed"),
+                dcb.ToJSON(map[string]string{"error": "Student already subscribed"})),
+        }
+    }
+
+    if states["numSubscriptions"].(int) >= 2 {
+        return []dcb.InputEvent{
+            dcb.NewInputEvent("SubscriptionFailed",
+                dcb.NewTags("student_id", studentID, "course_id", courseID, "reason", "course_full"),
+                dcb.ToJSON(map[string]string{"error": "Course is full"})),
+        }
+    }
+
+    // Generate success event
+    data, _ := json.Marshal(StudentSubscribed{studentID, courseID})
+    return []dcb.InputEvent{
+        dcb.NewInputEvent("StudentSubscribed",
+            dcb.NewTags("student_id", studentID, "course_id", courseID),
+            data),
+    }
+}
+
+// Usage with CommandExecutor
+func main() {
+    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+    defer cancel()
+    pool, _ := pgxpool.New(ctx, "postgres://user:pass@localhost/db")
+    store, _ := dcb.NewEventStore(ctx, pool)
+    commandExecutor := dcb.NewCommandExecutor(store)
+
+    // Create command
+    cmdData := SubscribeStudentCommand{
+        StudentID: "s1",
+        CourseID:  "c1",
+    }
+    cmd := dcb.NewCommand("SubscribeStudent", dcb.ToJSON(cmdData), nil)
+
+    // Execute command using function-based handler
+    err := commandExecutor.ExecuteCommand(ctx, cmd, dcb.CommandHandlerFunc(handleSubscribeStudent), nil)
+    if err != nil {
+        panic(err)
+    }
+}
+```
+
 ### Channel-Based Approach (New!)
 
 ```go

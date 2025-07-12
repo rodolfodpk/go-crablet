@@ -356,10 +356,8 @@ cmd := dcb.NewCommand("CreateUser", dcb.ToJSON(userData), map[string]interface{}
     "source": "web_api",
 })
 
-// Define command handler
-type CreateUserHandler struct{}
-
-func (h *CreateUserHandler) Handle(ctx context.Context, store dcb.EventStore, command dcb.Command) []dcb.InputEvent {
+// Define command handler function
+func handleCreateUser(ctx context.Context, store dcb.EventStore, command dcb.Command) []dcb.InputEvent {
     // Extract command data
     var cmdData CreateUserCommand
     json.Unmarshal(command.GetData(), &cmdData)
@@ -396,9 +394,8 @@ func (h *CreateUserHandler) Handle(ctx context.Context, store dcb.EventStore, co
     }
 }
 
-// Execute command
-handler := &CreateUserHandler{}
-err := commandExecutor.ExecuteCommand(ctx, cmd, handler, nil)
+// Execute command using function-based handler
+err := commandExecutor.ExecuteCommand(ctx, cmd, dcb.CommandHandlerFunc(handleCreateUser), nil)
 ```
 
 ### Command Tracking
@@ -421,9 +418,9 @@ This enables:
 
 Since handlers receive the `EventStore`, they can implement their own projection logic with full type safety:
 
-#### Option 1: Direct Projection in Handler
+#### Option 1: Direct Projection in Handler Function
 ```go
-func (h *MyHandler) Handle(ctx context.Context, store dcb.EventStore, command dcb.Command) []dcb.InputEvent {
+func handleUserAction(ctx context.Context, store dcb.EventStore, command dcb.Command) []dcb.InputEvent {
     // Define projectors for this specific command
     projectors := []dcb.StateProjector{
         {
@@ -448,6 +445,9 @@ func (h *MyHandler) Handle(ctx context.Context, store dcb.EventStore, command dc
     // Use projected state for business logic
     return events
 }
+
+// Usage with CommandExecutor
+err := commandExecutor.ExecuteCommand(ctx, cmd, dcb.CommandHandlerFunc(handleUserAction), nil)
 ```
 
 #### Option 2: Reusable Projector Functions
@@ -466,11 +466,12 @@ func UserStateProjector(userID string) dcb.StateProjector {
     }
 }
 
-// Use in handler
-func (h *MyHandler) Handle(ctx context.Context, store dcb.EventStore, command dcb.Command) []dcb.InputEvent {
+// Use in handler function
+func handleUserAction(ctx context.Context, store dcb.EventStore, command dcb.Command) []dcb.InputEvent {
     projectors := []dcb.StateProjector{UserStateProjector(userID)}
     states, _, err := store.Project(ctx, projectors, nil)
     // ... use projected state
+    return events
 }
 ```
 

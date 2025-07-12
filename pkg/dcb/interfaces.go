@@ -67,6 +67,13 @@ type CommandHandler interface {
 	Handle(ctx context.Context, store EventStore, command Command) []InputEvent
 }
 
+// CommandHandlerFunc allows using functions as CommandHandler implementations
+type CommandHandlerFunc func(ctx context.Context, store EventStore, command Command) []InputEvent
+
+func (f CommandHandlerFunc) Handle(ctx context.Context, store EventStore, command Command) []InputEvent {
+	return f(ctx, store, command)
+}
+
 // Query represents a composite query with multiple conditions combined with OR logic
 // This is opaque to consumers - they can only construct it via helper functions
 // Now exposes GetItems for public access
