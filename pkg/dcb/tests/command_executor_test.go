@@ -37,8 +37,8 @@ var _ = Describe("CommandExecutor", func() {
 					"source":  "test",
 				})
 
-				// Execute command
-				err = commandExecutor.ExecuteCommand(ctx, command, &testCommandHandler{}, nil)
+				// Execute command using function-based handler
+				err = commandExecutor.ExecuteCommand(ctx, command, dcb.CommandHandlerFunc(handleTestCommand), nil)
 				Expect(err).NotTo(HaveOccurred())
 
 				// Verify events were created
@@ -63,7 +63,7 @@ var _ = Describe("CommandExecutor", func() {
 
 		Context("with nil command", func() {
 			It("should return validation error", func() {
-				err := commandExecutor.ExecuteCommand(ctx, nil, &testCommandHandler{}, nil)
+				err := commandExecutor.ExecuteCommand(ctx, nil, dcb.CommandHandlerFunc(handleTestCommand), nil)
 				Expect(err).To(HaveOccurred())
 				Expect(err).To(BeAssignableToTypeOf(&dcb.ValidationError{}))
 			})
@@ -81,7 +81,7 @@ var _ = Describe("CommandExecutor", func() {
 		Context("with handler that returns no events", func() {
 			It("should return validation error", func() {
 				command := dcb.NewCommand("empty_command", []byte("{}"), nil)
-				err := commandExecutor.ExecuteCommand(ctx, command, &emptyCommandHandler{}, nil)
+				err := commandExecutor.ExecuteCommand(ctx, command, dcb.CommandHandlerFunc(handleEmptyCommand), nil)
 				Expect(err).To(HaveOccurred())
 				Expect(err).To(BeAssignableToTypeOf(&dcb.ValidationError{}))
 			})
@@ -89,10 +89,8 @@ var _ = Describe("CommandExecutor", func() {
 	})
 })
 
-// Test command handlers
-type testCommandHandler struct{}
-
-func (h *testCommandHandler) Handle(ctx context.Context, eventStore dcb.EventStore, command dcb.Command) []dcb.InputEvent {
+// Test command handler functions
+func handleTestCommand(ctx context.Context, eventStore dcb.EventStore, command dcb.Command) []dcb.InputEvent {
 	var cmdData map[string]interface{}
 	json.Unmarshal(command.GetData(), &cmdData)
 
@@ -110,8 +108,6 @@ func (h *testCommandHandler) Handle(ctx context.Context, eventStore dcb.EventSto
 	}
 }
 
-type emptyCommandHandler struct{}
-
-func (h *emptyCommandHandler) Handle(ctx context.Context, eventStore dcb.EventStore, command dcb.Command) []dcb.InputEvent {
+func handleEmptyCommand(ctx context.Context, eventStore dcb.EventStore, command dcb.Command) []dcb.InputEvent {
 	return nil // Return empty events to test validation
 }
