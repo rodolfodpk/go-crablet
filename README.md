@@ -33,9 +33,8 @@ Comprehensive performance testing and analysis for different API protocols:
 
 Ready-to-run examples demonstrating different aspects of the DCB pattern:
 
-- **[Transfer Example](internal/examples/transfer/main.go)**: **Account transfer demonstration** - Money transfer between accounts with account creation and transfer in a single atomic batch operation
+- **[Transfer Example](internal/examples/transfer/main.go)**: **Account transfer with command executor** - Money transfer between accounts using the command executor pattern for atomic command execution and event generation
 - **[Course Enrollment](internal/examples/enrollment/main.go)**: **Course subscription demonstration** - Student course enrollment with capacity limits and business rules
-- **[Command Execution](internal/examples/command_execution/main.go)**: **Command-to-event pattern** - Demonstrates command handling, atomic command execution, and command tracking with event generation
 - **[Streaming](internal/examples/streaming/main.go)**: **Streaming approaches** - Demonstrates core EventStore reading, channel-based streaming, and channel-based projection
 - **[Decision Model](internal/examples/decision_model/main.go)**: **DCB decision model** - Exploring Dynamic Consistency Boundary concepts with multiple projectors
 - **[Batch Operations](internal/examples/batch/main.go)**: **Batch processing** - Batch event processing and atomic operations
