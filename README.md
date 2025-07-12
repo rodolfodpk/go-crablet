@@ -11,11 +11,11 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 ## Key Features
 
 - **DCB-inspired decision models**: Project multiple states and check business invariants in a single query
-- **Command execution**: Atomic command execution with automatic event generation using the CommandExecutor pattern
-- **Command tracking**: Automatic storage of commands in the `commands` table with transaction ID linking
 - **Optimistic concurrency**: Append events only if no conflicting events exist within the same query scope
 - **Memory-efficient streaming**: Process events row-by-row for large event streams
 - **PostgreSQL-backed**: Uses PostgreSQL for robust, concurrent event storage
+- **Atomic command execution**: Execute commands with handler-based event generation using the CommandExecutor pattern
+- **Command tracking**: Automatic storage of commands in the `commands` table with transaction ID linking
 
 ## Documentation
 - [Overview](docs/overview.md): DCB pattern exploration, batch projection, and streaming

@@ -14,7 +14,7 @@ go-crablet is a Go library for event sourcing, exploring concepts inspired by th
 - **Tag-based Queries**: Flexible, cross-entity queries using tags
 - **Streaming**: Process events efficiently for large datasets
 - **Transaction-based Ordering**: Uses PostgreSQL transaction IDs for true event ordering
-- **Command Execution**: Atomic command execution with automatic event generation and command tracking
+- **Atomic Command Execution**: Execute commands with handler-based event generation and command tracking
 
 ## Core Interfaces
 
@@ -234,13 +234,13 @@ Example validation errors:
 
 ## Command Execution
 
-go-crablet supports atomic command execution with automatic event generation and command tracking. The `CommandExecutor` provides a clean abstraction for command-driven event sourcing:
+go-crablet supports atomic command execution with handler-based event generation and command tracking. The `CommandExecutor` provides a clean abstraction for command-driven event sourcing:
 
 ### Command Execution Flow
 
 1. **Execute command** using the `CommandExecutor`
 2. **Handler performs projection** using the provided `EventStore`
-3. **Generate events** based on business logic and projected state
+3. **Handler generates events** based on business logic and projected state
 4. **Store command** in the `commands` table with transaction ID (automatic)
 5. **Append events** atomically within the same transaction
 
@@ -386,10 +386,10 @@ func (h *MyHandler) Handle(ctx context.Context, store dcb.EventStore, command dc
 
 - **Database**: PostgreSQL with `events` table, `commands` table, and append functions
 - **Event Storage**: Events stored with transaction IDs for true ordering and optimistic locking
-- **Command Tracking**: Commands automatically stored in `commands` table with transaction ID linking
 - **Streaming**: Multiple approaches for different dataset sizes (cursor-based and channel-based)
 - **Projections**: DCB decision model pattern with state projectors
-- **Command Execution**: Atomic command execution with automatic event generation using `CommandExecutor`
 - **Optimistic Locking**: Cursor-based append conditions for concurrent safety
+- **Command Tracking**: Commands automatically stored in `commands` table with transaction ID linking
+- **Command Execution**: Atomic command execution with handler-based event generation using `CommandExecutor`
 
 See [examples](examples.md) for complete working examples including course subscriptions and money transfers, and [getting-started](getting-started.md) for setup instructions.
