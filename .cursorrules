@@ -11,6 +11,44 @@ This is a Go event sourcing library **exploring** the Dynamic Consistency Bounda
 - Emphasize **exploration** over **production readiness**
 - Be **honest about limitations** and areas for improvement
 
+## Comprehensive Testing Requirements
+
+### Test Categories
+- **Internal Tests**: Core DCB package tests (`pkg/dcb/`)
+- **External Tests**: DCB test suite (`pkg/dcb/tests/`) and example applications (`internal/examples/`)
+- **Benchmark Tests**: Performance validation (`internal/benchmarks/`)
+
+### Mandatory Test Execution
+**ALWAYS run both internal and external tests before considering any changes complete:**
+
+```bash
+# Run all internal tests (core DCB functionality)
+go test ./pkg/dcb -v
+
+# Run all external tests (DCB test suite and examples)
+go test ./pkg/dcb/tests -v
+go test ./internal/examples/... -v
+
+# Run all tests comprehensively
+go test ./... -v
+```
+
+### Test Validation Checklist
+Before marking any task complete:
+- [ ] Internal DCB tests pass (core functionality)
+- [ ] External DCB test suite passes (advanced scenarios)
+- [ ] External example tests pass (integration scenarios)
+- [ ] All Ginkgo BDD tests pass (if applicable)
+- [ ] No test failures or skipped tests
+- [ ] Testcontainers integration working
+- [ ] Database schema and functions created successfully
+
+### Test Framework Requirements
+- **Internal Tests**: Use Ginkgo v2 + Gomega for BDD testing
+- **External Tests**: Support both standard Go tests and Ginkgo BDD
+- **Database Tests**: Always use Testcontainers for isolated PostgreSQL instances
+- **Coverage**: Maintain comprehensive test coverage for all public APIs
+
 ## SQLite Test Data System
 
 ### Key Directories

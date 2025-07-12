@@ -246,6 +246,125 @@ func (h *TransferCommandHandler) handleTransferMoney(ctx context.Context, store 
 	}
 }
 
+// Standalone functions for testing
+func handleCreateAccount(ctx context.Context, store dcb.EventStore, cmd CreateAccountCommand) error {
+	handler := &TransferCommandHandler{}
+
+	cmdData, err := json.Marshal(cmd)
+	if err != nil {
+		return fmt.Errorf("failed to marshal create account command: %v", err)
+	}
+
+	command := dcb.NewCommand(CommandTypeCreateAccount, cmdData, nil)
+	events := handler.Handle(ctx, store, command)
+
+	if len(events) == 0 {
+		return fmt.Errorf("no events generated for create account command")
+	}
+
+	// Check for duplicate account
+	query := dcb.NewQuery(dcb.NewTags("account_id", cmd.AccountID), "AccountOpened")
+	existingEvents, err := store.Query(ctx, query, nil)
+	if err != nil {
+		return fmt.Errorf("failed to query for existing account: %v", err)
+	}
+
+	if len(existingEvents) > 0 {
+		return fmt.Errorf("account %s already exists", cmd.AccountID)
+	}
+
+	// Append the events
+	err = store.Append(ctx, events, nil)
+	if err != nil {
+		return fmt.Errorf("failed to append account opened event: %v", err)
+	}
+
+	return nil
+}
+
+func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd TransferMoneyCommand) error {
+	handler := &TransferCommandHandler{}
+	cmdData, err := json.Marshal(cmd)
+	if err != nil {
+		return fmt.Errorf("failed to marshal transfer money command: %v", err)
+	}
+
+	command := dcb.NewCommand(CommandTypeTransferMoney, cmdData, nil)
+	events := handler.Handle(ctx, store, command)
+
+	// Check if from account exists and has sufficient funds
+	fromAccountQuery := dcb.NewQuery(dcb.NewTags("account_id", cmd.FromAccountID), "AccountOpened")
+	fromEvents, err := store.Query(ctx, fromAccountQuery, nil)
+	if err != nil {
+		return fmt.Errorf("failed to query from account: %v", err)
+	}
+
+	if len(fromEvents) == 0 {
+		return fmt.Errorf("insufficient funds: account %s does not exist", cmd.FromAccountID)
+	}
+
+	// Calculate current balance by projecting account state
+	projectors := []dcb.StateProjector{
+		{
+			ID:           "fromAccount",
+			Query:        fromAccountQuery,
+			InitialState: &AccountState{AccountID: cmd.FromAccountID},
+			TransitionFn: func(state any, event dcb.Event) any {
+				acc := state.(*AccountState)
+				switch event.Type {
+				case "AccountOpened":
+					var data AccountOpened
+					if err := json.Unmarshal(event.Data, &data); err == nil {
+						acc.Owner = data.Owner
+						acc.Balance = data.InitialBalance
+						acc.CreatedAt = data.OpenedAt
+						acc.UpdatedAt = data.OpenedAt
+					}
+				case "MoneyTransferred":
+					var data MoneyTransferred
+					if err := json.Unmarshal(event.Data, &data); err == nil {
+						if data.FromAccountID == cmd.FromAccountID {
+							acc.Balance = data.FromBalance
+							acc.UpdatedAt = data.TransferredAt
+						} else if data.ToAccountID == cmd.FromAccountID {
+							acc.Balance = data.ToBalance
+							acc.UpdatedAt = data.TransferredAt
+						}
+					}
+				}
+				return acc
+			},
+		},
+	}
+
+	states, _, err := store.Project(ctx, projectors, nil)
+	if err != nil {
+		return fmt.Errorf("failed to project account state: %v", err)
+	}
+
+	fromAccount, ok := states["fromAccount"].(*AccountState)
+	if !ok {
+		return fmt.Errorf("failed to get from account state")
+	}
+
+	if fromAccount.Balance < cmd.Amount {
+		return fmt.Errorf("insufficient funds: account %s has %d, needs %d", cmd.FromAccountID, fromAccount.Balance, cmd.Amount)
+	}
+
+	if len(events) == 0 {
+		// If no events generated, but the balance is insufficient, return insufficient funds error
+		return fmt.Errorf("insufficient funds: account %s has %d, needs %d", cmd.FromAccountID, fromAccount.Balance, cmd.Amount)
+	}
+
+	// Append the events
+	err = store.Append(ctx, events, nil)
+	if err != nil {
+		return fmt.Errorf("failed to append money transferred event: %v", err)
+	}
+
+	return nil
+}
+
 func main() {
 	// Create context with timeout for the entire application
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
