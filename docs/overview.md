@@ -20,6 +20,8 @@ go-crablet is a Go library for event sourcing, exploring concepts inspired by th
 
 ### EventStore Interface
 
+The `EventStore` is the primary interface that users interact with directly:
+
 ```go
 type EventStore interface {
     // Query reads events matching the query with optional cursor
@@ -62,6 +64,8 @@ type EventStore interface {
 
 ### CommandExecutor Interface
 
+The `CommandExecutor` is an optional wrapper around `EventStore` that provides command-driven event generation:
+
 ```go
 type CommandExecutor interface {
     // ExecuteCommand executes a command and generates events atomically
@@ -74,6 +78,25 @@ type CommandHandler interface {
     // The handler has access to the EventStore for projection and business logic
     Handle(ctx context.Context, store EventStore, command Command) []InputEvent
 }
+```
+
+### Usage Pattern
+
+Users typically follow this pattern:
+
+```go
+// 1. Create EventStore (primary interface)
+store, err := dcb.NewEventStore(ctx, pool)
+
+// 2. Optionally create CommandExecutor from EventStore
+commandExecutor := dcb.NewCommandExecutor(store)
+
+// 3. Use either interface as needed
+// Direct EventStore usage:
+err = store.Append(ctx, events, condition)
+
+// Command-driven usage:
+err = commandExecutor.ExecuteCommand(ctx, command, handler, condition)
 ```
 
 ### Supporting Types

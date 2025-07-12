@@ -39,7 +39,7 @@ Ready-to-run examples demonstrating different aspects of the DCB pattern:
 - **[Course Enrollment](internal/examples/enrollment/main.go)**: **Course subscription demonstration** - Student course enrollment with capacity limits and business rules
 - **[Streaming](internal/examples/streaming/main.go)**: **Streaming approaches** - Demonstrates core EventStore reading, channel-based streaming, and channel-based projection
 - **[Decision Model](internal/examples/decision_model/main.go)**: **DCB decision model** - Exploring Dynamic Consistency Boundary concepts with multiple projectors
-- **[Batch Operations](internal/examples/batch/main.go)**: **Batch processing** - Batch event processing and atomic operations
+- **[Multiple Events](internal/examples/batch/main.go)**: **Multiple event appends** - Single commands that generate and append multiple events atomically
 
 Run any example with: `go run internal/examples/[example-name]/main.go`
 
