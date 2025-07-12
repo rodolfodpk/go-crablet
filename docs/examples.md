@@ -92,7 +92,7 @@ func channelBasedExample() {
     defer cancel()
     pool, _ := pgxpool.New(ctx, "postgres://user:pass@localhost/db")
     store, _ := dcb.NewEventStore(ctx, pool)
-    
+
     courseID := "c1"
     studentID := "s1"
 
@@ -149,7 +149,7 @@ func channelStreamingExample() {
     defer cancel()
     pool, _ := pgxpool.New(ctx, "postgres://user:pass@localhost/db")
     store, _ := dcb.NewEventStore(ctx, pool)
-    
+
     // Create query for course events
     query := dcb.NewQuery(
         dcb.NewTags("course_id", "c1"), "CourseDefined",
@@ -266,17 +266,17 @@ For additional concurrency control, you can use advisory locks via `lock:` prefi
 
 ```go
 // Event with advisory lock on "account-123"
-event := dcb.NewInputEvent("MoneyTransfer", 
-    dcb.NewTags("account_id", "123", "lock:account-123"), 
+event := dcb.NewInputEvent("MoneyTransfer",
+    dcb.NewTags("account_id", "123", "lock:account-123"),
     dcb.ToJSON(transferData))
 
 // Multiple events with different locks
 events := []dcb.InputEvent{
-    dcb.NewInputEvent("DebitAccount", 
-        dcb.NewTags("account_id", "123", "lock:account-123"), 
+    dcb.NewInputEvent("DebitAccount",
+        dcb.NewTags("account_id", "123", "lock:account-123"),
         dcb.ToJSON(debitData)),
-    dcb.NewInputEvent("CreditAccount", 
-        dcb.NewTags("account_id", "456", "lock:account-456"), 
+    dcb.NewInputEvent("CreditAccount",
+        dcb.NewTags("account_id", "456", "lock:account-456"),
         dcb.ToJSON(creditData)),
 }
 ```

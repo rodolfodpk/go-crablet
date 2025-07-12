@@ -138,4 +138,4 @@ if err != nil {
 fmt.Printf("Generated %d events\n", len(events))
 ```
 
-This flow ensures reliable command execution with full audit trail and proper error handling, following the Dynamic Consistency Boundary (DCB) pattern principles. 
+This flow ensures reliable command execution with full audit trail and proper error handling, following the Dynamic Consistency Boundary (DCB) pattern principles.

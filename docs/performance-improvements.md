@@ -69,7 +69,7 @@ The original implementation used PostgreSQL `RAISE EXCEPTION` for concurrency vi
 ```sql
 -- PostgreSQL function
 IF condition_count > 0 THEN
-    RAISE EXCEPTION 'append condition violated: % matching events found', condition_count 
+    RAISE EXCEPTION 'append condition violated: % matching events found', condition_count
     USING ERRCODE = 'DCB01';
 END IF;
 
@@ -149,7 +149,7 @@ CREATE OR REPLACE FUNCTION append_events_batch(
 ) RETURNS VOID AS $$
 BEGIN
     INSERT INTO events (type, tags, data, transaction_id)
-    SELECT 
+    SELECT
         t.type,
         t.tag_string::TEXT[],
         t.data,
@@ -232,17 +232,17 @@ func (es *eventStore) Append(ctx context.Context, events []InputEvent, condition
         return &ResourceError{...}
     }
     defer tx.Rollback(ctx)  // ← KEY: Guaranteed rollback on any error
-    
+
     // ... append logic ...
     if err != nil {
         return err  // ← Transaction will be rolled back here
     }
-    
+
     // Only commit if we reach here successfully
     if err := tx.Commit(ctx); err != nil {
         return &ResourceError{...}  // ← Transaction will be rolled back here too
     }
-    
+
     return nil
 }
 ```
@@ -359,4 +359,4 @@ The performance optimizations have resulted in a system that is:
 - **More maintainable** with cleaner code and logs
 - **More scalable** with consistent performance characteristics
 
-*Note: This is a research and exploration project. Performance characteristics may vary based on workload and environment. The system is suitable for development and research purposes.* 
+*Note: This is a research and exploration project. Performance characteristics may vary based on workload and environment. The system is suitable for development and research purposes.*

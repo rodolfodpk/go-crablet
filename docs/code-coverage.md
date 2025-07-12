@@ -131,4 +131,4 @@ For detailed testing information, see the [Testing Guide](testing.md).
 
 ---
 
-**Focus**: Improve streaming operation coverage and maintain high coverage for new features. All tests must pass before merging changes. 
+**Focus**: Improve streaming operation coverage and maintain high coverage for new features. All tests must pass before merging changes.

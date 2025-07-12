@@ -193,4 +193,4 @@ The go-crablet library demonstrates excellent performance characteristics for ty
 - **Reliability**: Stable performance across different operation types
 - **Fast Testing**: SQLite caching system enables efficient benchmark execution
 
-The library is well-suited for real-time event processing with fast individual operations and efficient handling of multiple events in single append calls. The new SQLite test data system provides consistent, fast benchmark execution for both Go library and web-app testing. 
+The library is well-suited for real-time event processing with fast individual operations and efficient handling of multiple events in single append calls. The new SQLite test data system provides consistent, fast benchmark execution for both Go library and web-app testing.
