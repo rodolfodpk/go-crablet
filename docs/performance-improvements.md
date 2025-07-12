@@ -322,7 +322,7 @@ if success, ok := resultMap["success"].(bool); !ok || !success {
 - **JSONB Status Responses**: Reduced exception overhead by ~30-50%
 - **Simplified Schema**: Fixed 'events' table for better query plan caching
 - **Optimized Functions**: UNNEST-based batch inserts for better performance
-- **Advisory Locks**: Efficient concurrency control without blocking
+- **Advisory Locks**: Efficient concurrency control without blocking (optional feature, currently unused)
 
 ### Transaction Management
 - **Atomic Operations**: All operations are atomic with guaranteed rollback
