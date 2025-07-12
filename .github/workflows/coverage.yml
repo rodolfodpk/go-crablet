@@ -59,6 +59,42 @@ jobs:
         echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
         echo "Coverage: $COVERAGE%"
     
+    - name: Update README badge
+      if: github.ref == 'refs/heads/main'
+      run: |
+        # Determine badge color based on coverage
+        COVERAGE=$(cat coverage_percentage.txt)
+        if (( $(echo "$COVERAGE >= 90" | bc -l) )); then
+          COLOR="brightgreen"
+        elif (( $(echo "$COVERAGE >= 80" | bc -l) )); then
+          COLOR="green"
+        elif (( $(echo "$COVERAGE >= 70" | bc -l) )); then
+          COLOR="yellow"
+        elif (( $(echo "$COVERAGE >= 60" | bc -l) )); then
+          COLOR="orange"
+        else
+          COLOR="red"
+        fi
+        
+        # Update the badge in README.md
+        sed -i "s|https://img.shields.io/badge/code%20coverage-[0-9.]*%25-[a-z]*|https://img.shields.io/badge/code%20coverage-${COVERAGE}%25-${COLOR}|g" README.md
+        
+        # Show what was changed
+        echo "Updated coverage badge to ${COVERAGE}% (${COLOR})"
+    
+    - name: Commit and push changes
+      if: github.ref == 'refs/heads/main'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add README.md
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "Update coverage badge to ${{ steps.coverage.outputs.coverage }}%"
+          git push
+        fi
+    
     - name: Upload coverage report
       uses: actions/upload-artifact@v4
       with:
