@@ -116,4 +116,4 @@ config := dcb.EventStoreConfig{
 store, err := dcb.NewEventStoreWithConfig(ctx, pool, config)
 ```
 
-See the [API documentation](https://godoc.org/github.com/rodolfodpk/go-crablet/pkg/dcb) for all available options. 
+See the [API documentation](https://godoc.org/github.com/rodolfodpk/go-crablet/pkg/dcb) for all available options.

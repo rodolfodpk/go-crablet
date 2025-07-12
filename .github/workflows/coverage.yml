@@ -6,12 +6,18 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
     
     steps:
     - uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
     
     - name: Set up Go
       uses: actions/setup-go@v4
@@ -70,8 +76,12 @@ jobs:
           COLOR="red"
         fi
         
-        # Update the badge in README.md
-        sed -i "s|https://img.shields.io/badge/coverage-[0-9]*%25-[a-z]*|https://img.shields.io/badge/coverage-${COVERAGE}%25-${COLOR}|g" README.md
+        # Update the badge in README.md - match the current format
+        sed -i "s|https://img.shields.io/badge/code%20coverage-[0-9.]*%25-[a-z]*|https://img.shields.io/badge/code%20coverage-${COVERAGE}%25-${COLOR}|g" README.md
+        
+        # Show what was changed
+        echo "Updated coverage badge to ${COVERAGE}% (${COLOR})"
+        grep "code%20coverage" README.md
     
     - name: Commit and push changes
       if: github.ref == 'refs/heads/main'
@@ -79,8 +89,12 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add README.md
-        git commit -m "Update coverage badge to ${{ steps.coverage.outputs.coverage }}%" || exit 0
-        git push
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "Update coverage badge to ${{ steps.coverage.outputs.coverage }}%"
+          git push
+        fi
     
     - name: Upload coverage report
       uses: actions/upload-artifact@v4

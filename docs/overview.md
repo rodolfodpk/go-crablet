@@ -26,19 +26,19 @@ The `EventStore` is the primary interface that users interact with directly:
 type EventStore interface {
     // Query events with optional cursor (nil = from beginning, non-nil = after cursor)
     Query(ctx context.Context, query Query, cursor *Cursor) ([]Event, error)
-    
+
     // Stream events for large datasets with backpressure
     QueryStream(ctx context.Context, query Query, cursor *Cursor) (<-chan Event, error)
-    
+
     // Append events with optional optimistic locking condition
     Append(ctx context.Context, events []InputEvent, condition *AppendCondition) error
-    
+
     // Project multiple states in single query (DCB pattern)
     Project(ctx context.Context, projectors []StateProjector, cursor *Cursor) (map[string]any, AppendCondition, error)
-    
+
     // Stream projections for large datasets
     ProjectStream(ctx context.Context, projectors []StateProjector, cursor *Cursor) (<-chan map[string]any, <-chan AppendCondition, error)
-    
+
     GetConfig() EventStoreConfig
     GetPool() *pgxpool.Pool
 }
@@ -136,11 +136,11 @@ projectors := []dcb.StateProjector{
     },
 }
 states, appendCond, _ := store.Project(ctx, projectors, nil)
-if !states["courseExists"].(bool) { 
-    store.Append(ctx, []dcb.InputEvent{...}, nil) 
+if !states["courseExists"].(bool) {
+    store.Append(ctx, []dcb.InputEvent{...}, nil)
 }
-if states["numSubscriptions"].(int) < 2 { 
-    store.Append(ctx, []dcb.InputEvent{...}, &appendCond) 
+if states["numSubscriptions"].(int) < 2 {
+    store.Append(ctx, []dcb.InputEvent{...}, &appendCond)
 }
 ```
 
@@ -162,8 +162,8 @@ For additional concurrency control, you can use PostgreSQL advisory locks via ev
 **Example with advisory locks:**
 ```go
 // This event will acquire advisory lock on "user-123"
-event := dcb.NewInputEvent("UserAction", 
-    dcb.NewTags("user_id", "123", "lock:user-123"), 
+event := dcb.NewInputEvent("UserAction",
+    dcb.NewTags("user_id", "123", "lock:user-123"),
     dcb.ToJSON(data))
 ```
 
@@ -241,7 +241,7 @@ CREATE TABLE events (
     tags           TEXT[] NOT NULL,           -- Array of tags for querying (e.g., ["user_id:123", "order_id:456"])
     data           JSONB NOT NULL,            -- Event payload as JSON
     occurred_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(), -- Event timestamp
-    
+
     PRIMARY KEY (transaction_id, position),   -- Composite primary key for ordering
     UNIQUE (transaction_id, position)         -- Ensure no duplicate positions within transaction
 );
@@ -269,7 +269,7 @@ CREATE TABLE commands (
     data           JSONB NOT NULL,            -- Command payload as JSON
     metadata       JSONB NOT NULL DEFAULT '{}', -- Additional context (correlation ID, source, etc.)
     occurred_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(), -- Command execution timestamp
-    
+
     PRIMARY KEY (transaction_id)              -- One command per transaction
 );
 ```
@@ -291,23 +291,23 @@ CREATE TABLE commands (
 **Events Table:**
 ```sql
 -- User creation events
-INSERT INTO events VALUES 
-(123456789, 0, 'UserCreated', ARRAY['user_id:123', 'email:alice@example.com'], 
- '{"user_id": "123", "email": "alice@example.com", "name": "Alice Smith"}', 
+INSERT INTO events VALUES
+(123456789, 0, 'UserCreated', ARRAY['user_id:123', 'email:alice@example.com'],
+ '{"user_id": "123", "email": "alice@example.com", "name": "Alice Smith"}',
  '2025-07-12 15:30:00+00');
 
--- Course enrollment events  
-INSERT INTO events VALUES 
-(123456790, 0, 'StudentEnrolled', ARRAY['user_id:123', 'course_id:CS101'], 
- '{"user_id": "123", "course_id": "CS101", "enrolled_at": "2025-07-12 15:35:00"}', 
+-- Course enrollment events
+INSERT INTO events VALUES
+(123456790, 0, 'StudentEnrolled', ARRAY['user_id:123', 'course_id:CS101'],
+ '{"user_id": "123", "course_id": "CS101", "enrolled_at": "2025-07-12 15:35:00"}',
  '2025-07-12 15:35:00+00');
 ```
 
 **Commands Table:**
 ```sql
 -- Command that generated the user creation events
-INSERT INTO commands VALUES 
-(123456789, 'CreateUser', 
+INSERT INTO commands VALUES
+(123456789, 'CreateUser',
  '{"email": "alice@example.com", "name": "Alice Smith"}',
  '{"correlation_id": "corr_123", "source": "web_api", "user_agent": "Mozilla/5.0"}',
  '2025-07-12 15:30:00+00');
@@ -339,9 +339,9 @@ SELECT * FROM commands WHERE type = 'CreateUser';
 SELECT * FROM commands WHERE metadata->>'correlation_id' = 'corr_123';
 
 -- Query commands with their generated events
-SELECT c.*, e.* 
-FROM commands c 
-JOIN events e ON c.transaction_id = e.transaction_id 
+SELECT c.*, e.*
+FROM commands c
+JOIN events e ON c.transaction_id = e.transaction_id
 WHERE c.type = 'CreateUser';
 
 -- Note: occurred_at is available for audit purposes but not used for filtering/ordering
@@ -366,7 +366,7 @@ func (h *CreateUserHandler) Handle(ctx context.Context, store dcb.EventStore, co
     // Extract command data
     var cmdData CreateUserCommand
     json.Unmarshal(command.GetData(), &cmdData)
-    
+
     // Perform projection to check current state
     projectors := []dcb.StateProjector{
         {
@@ -376,25 +376,25 @@ func (h *CreateUserHandler) Handle(ctx context.Context, store dcb.EventStore, co
             TransitionFn: func(state any, event dcb.Event) any { return true },
         },
     }
-    
+
     states, _, err := store.Project(ctx, projectors, nil)
     if err != nil {
         return nil
     }
-    
+
     // Check business rules using projected state
     if states["userExists"].(bool) {
         return []dcb.InputEvent{
-            dcb.NewInputEvent("UserCreationFailed", 
-                dcb.NewTags("email", cmdData.Email, "reason", "user_exists"), 
+            dcb.NewInputEvent("UserCreationFailed",
+                dcb.NewTags("email", cmdData.Email, "reason", "user_exists"),
                 dcb.ToJSON(map[string]string{"error": "User already exists"})),
         }
     }
-    
+
     // Generate success events
     return []dcb.InputEvent{
-        dcb.NewInputEvent("UserCreated", 
-            dcb.NewTags("email", cmdData.Email), 
+        dcb.NewInputEvent("UserCreated",
+            dcb.NewTags("email", cmdData.Email),
             dcb.ToJSON(userCreatedData)),
     }
 }
@@ -441,12 +441,12 @@ func (h *MyHandler) Handle(ctx context.Context, store dcb.EventStore, command dc
             },
         },
     }
-    
+
     states, _, err := store.Project(ctx, projectors, nil)
     if err != nil {
         return nil
     }
-    
+
     userState := states["userState"].(*UserState)
     // Use projected state for business logic
     return events
