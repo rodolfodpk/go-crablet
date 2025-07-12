@@ -1,0 +1,146 @@
+# Cursor Project Rules for go-crablet
+
+# Go-Crablet Cursor Configuration
+
+## Project Overview
+This is a Go event sourcing library **exploring** the Dynamic Consistency Boundary (DCB) pattern with PostgreSQL for production and SQLite for benchmark test data.
+
+**IMPORTANT: This is an exploration project, not a production-ready solution.**
+- We are **learning and experimenting** with DCB concepts
+- Performance claims should be **modest and factual**
+- Emphasize **exploration** over **production readiness**
+- Be **honest about limitations** and areas for improvement
+
+## SQLite Test Data System
+
+### Key Directories
+- `internal/benchmarks/setup/` - Dataset generation and SQLite caching
+- `internal/benchmarks/tools/` - Dataset preparation tools
+- `cache/` - SQLite database with pre-generated test datasets
+- `internal/benchmarks/benchmarks/` - Go benchmark tests
+
+### SQLite Test Data Workflow
+
+1. **Generate Test Datasets**:
+   ```bash
+   cd internal/benchmarks/tools
+   go run prepare_datasets_main.go
+   ```
+   This creates SQLite cache with "tiny" and "small" datasets.
+
+2. **Run Go Benchmarks**:
+   ```bash
+   make benchmark-go
+   # or
+   cd internal/benchmarks/benchmarks
+   go test -bench=. -benchmem -benchtime=2s -timeout=5m .
+   ```
+
+3. **Clear Cache** (if needed):
+   ```bash
+   rm -rf cache/
+   ```
+
+### Dataset Sizes
+- **"tiny"**: 5 courses, 10 students, 20 enrollments
+- **"small"**: 1,000 courses, 10,000 students, 50,000 enrollments
+
+### Important Notes
+- SQLite is ONLY used for benchmark test data caching
+- API consumers only see PostgreSQL dependency
+- Benchmarks use cached datasets for fast execution
+- No expensive dataset regeneration during benchmarks
+
+### Database Setup
+- PostgreSQL: Production database (localhost:5432/crablet)
+- SQLite: Benchmark cache (cache/benchmark_datasets.db)
+
+### Common Commands
+- `make benchmark-go` - Run Go library benchmarks
+- `make benchmark-all` - Run all benchmarks (web-app + Go)
+- `make test` - Run unit tests
+- `make build` - Build all packages
+
+## Testing Stack
+
+### Test Framework
+- **Ginkgo v2**: BDD testing framework for Go
+- **Gomega**: Matcher library for assertions
+- **Testcontainers**: Containerized test dependencies
+- **Docker Compose**: Local development environment
+
+### Test Structure
+```go
+// Example test structure
+var _ = Describe("EventStore", func() {
+    var (
+        ctx    context.Context
+        store  dcb.EventStore
+        pool   *pgxpool.Pool
+    )
+
+    BeforeEach(func() {
+        ctx = context.Background()
+        // Setup test containers or local PostgreSQL
+    })
+
+    AfterEach(func() {
+        // Cleanup
+    })
+
+    Describe("Append", func() {
+        It("should append events successfully", func() {
+            // Test implementation
+            Expect(err).To(BeNil())
+            Expect(events).To(HaveLen(1))
+        })
+    })
+})
+```
+
+### Running Tests
+```bash
+# Run all tests
+make test
+
+# Run tests with coverage
+make test-coverage
+
+# Run comprehensive coverage
+make coverage
+
+# Run specific test package
+go test -v ./pkg/dcb/tests/...
+```
+
+## Development Guidelines
+- Keep SQLite usage internal to benchmarks only
+- Use PostgreSQL for all production code
+- Cache datasets to avoid regeneration overhead
+- Run benchmarks with reasonable timeouts (2-5 minutes)
+- **Use Ginkgo + Gomega for all new tests**
+- **Use Testcontainers for database dependencies**
+- **Follow BDD style with Describe/Context/It blocks**
+- **Write comprehensive assertions with Gomega matchers**
+
+## Communication Guidelines
+- **Always be modest** about performance and capabilities
+- **Emphasize exploration** of DCB concepts, not production readiness
+- **Be honest about limitations** and areas that need improvement
+- **Avoid overstating** performance claims or system capabilities
+- **Present this as a learning project** rather than a finished solution
+- **Acknowledge that DCB is still evolving** and we're exploring its application
+
+## Critical Approval Requirements
+- **ALL changes to `docker-entrypoint-initdb.d/schema.sql` require user approval**
+- **ALL changes to core API in `pkg/dcb/` require user approval**
+- **Database schema changes must be reviewed before implementation**
+- **API breaking changes must be explicitly approved**
+- **Never modify production database schema without approval** 
+
+# Large File Policy
+- **Never commit large binary files or build artifacts** (e.g., Go binaries, SQLite databases, large JSON/CSV, or benchmark result files) to git. These files bloat the repository, slow down operations, and make collaboration difficult.
+- **Keep git history clean**: If large files are accidentally committed, use tools like `git filter-repo` to remove them from the entire history.
+- **Always add large files and build artifacts to `.gitignore`** to prevent accidental commits.
+- **Review `.gitignore` regularly** to ensure new large files or patterns are excluded.
+- **If in doubt, ask before committing any file over 1MB**. 
