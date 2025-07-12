@@ -11,6 +11,8 @@ import (
 
 	"go-crablet/pkg/dcb"
 
+	"testing"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	. "github.com/onsi/ginkgo/v2"
@@ -19,36 +21,41 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
+var (
+	ctx       context.Context
+	cancel    context.CancelFunc
+	pool      *pgxpool.Pool
+	container testcontainers.Container
+	store     dcb.EventStore
+)
+
+var _ = BeforeSuite(func() {
+	ctx, cancel = context.WithTimeout(context.Background(), 2*time.Minute)
+	var err error
+	pool, container, err = setupTestDatabase(ctx)
+	Expect(err).NotTo(HaveOccurred())
+	store, err = dcb.NewEventStore(ctx, pool)
+	Expect(err).NotTo(HaveOccurred())
+})
+
+var _ = AfterSuite(func() {
+	if pool != nil {
+		pool.Close()
+	}
+	if container != nil {
+		container.Terminate(ctx)
+	}
+	if cancel != nil {
+		cancel()
+	}
+})
+
+func TestTransferExample(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Transfer Example Suite")
+}
+
 var _ = Describe("TransferExample", func() {
-	var (
-		ctx       context.Context
-		cancel    context.CancelFunc
-		pool      *pgxpool.Pool
-		container testcontainers.Container
-		store     dcb.EventStore
-	)
-
-	BeforeSuite(func() {
-		ctx, cancel = context.WithTimeout(context.Background(), 2*time.Minute)
-		var err error
-		pool, container, err = setupTestDatabase(ctx)
-		Expect(err).NotTo(HaveOccurred())
-		store, err = dcb.NewEventStore(ctx, pool)
-		Expect(err).NotTo(HaveOccurred())
-	})
-
-	AfterSuite(func() {
-		if pool != nil {
-			pool.Close()
-		}
-		if container != nil {
-			container.Terminate(ctx)
-		}
-		if cancel != nil {
-			cancel()
-		}
-	})
-
 	cleanupEvents := func() {
 		_, err := pool.Exec(ctx, "TRUNCATE TABLE events RESTART IDENTITY CASCADE")
 		Expect(err).NotTo(HaveOccurred())
