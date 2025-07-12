@@ -2,284 +2,390 @@ package main
 
 import (
 	"context"
-	"testing"
+	"crypto/rand"
+	"encoding/base64"
+	"fmt"
+	"os"
+	"strings"
+	"time"
 
 	"go-crablet/pkg/dcb"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-// cleanupEvents truncates the events table to ensure test isolation
-func cleanupEvents(t *testing.T, pool *pgxpool.Pool) {
-	ctx := context.Background()
-	_, err := pool.Exec(ctx, "TRUNCATE TABLE events RESTART IDENTITY CASCADE")
-	require.NoError(t, err)
-}
+var _ = Describe("BatchExample", func() {
+	var (
+		ctx       context.Context
+		cancel    context.CancelFunc
+		pool      *pgxpool.Pool
+		container testcontainers.Container
+		store     dcb.EventStore
+	)
 
-func TestBatchExample(t *testing.T) {
-	ctx := context.Background()
-
-	// Connect to test database
-	pool, err := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")
-	require.NoError(t, err)
-	defer pool.Close()
-
-	// Clean up before test
-	cleanupEvents(t, pool)
-
-	// Create event store
-	store, err := dcb.NewEventStore(ctx, pool)
-	require.NoError(t, err)
-
-	// Test Command 1: Create User
-	t.Run("Create User", func(t *testing.T) {
-		cleanupEvents(t, pool)
-		createUserCmd := CreateUserCommand{
-			UserID:   "test_user123",
-			Username: "john_doe",
-			Email:    "john@example.com",
-		}
-		err := handleCreateUser(ctx, store, createUserCmd)
-		assert.NoError(t, err)
+	BeforeSuite(func() {
+		ctx, cancel = context.WithTimeout(context.Background(), 2*time.Minute)
+		var err error
+		pool, container, err = setupTestDatabase(ctx)
+		Expect(err).NotTo(HaveOccurred())
+		store, err = dcb.NewEventStore(ctx, pool)
+		Expect(err).NotTo(HaveOccurred())
 	})
 
-	// Test Command 2: Create Order
-	t.Run("Create Order", func(t *testing.T) {
-		cleanupEvents(t, pool)
-		// Create the user first
-		createUserCmd := CreateUserCommand{
-			UserID:   "test_user123",
-			Username: "john_doe",
-			Email:    "john@example.com",
+	AfterSuite(func() {
+		if pool != nil {
+			pool.Close()
 		}
-		err := handleCreateUser(ctx, store, createUserCmd)
-		require.NoError(t, err)
-
-		// Now create the order
-		createOrderCmd := CreateOrderCommand{
-			OrderID: "test_order456",
-			UserID:  "test_user123",
-			Items: []OrderItem{
-				{ProductID: "prod1", Quantity: 2, Price: 29.99},
-				{ProductID: "prod2", Quantity: 1, Price: 49.99},
-			},
+		if container != nil {
+			container.Terminate(ctx)
 		}
-		err = handleCreateOrder(ctx, store, createOrderCmd)
-		assert.NoError(t, err)
+		if cancel != nil {
+			cancel()
+		}
 	})
 
-	// Test business rules
-	t.Run("Business Rules", func(t *testing.T) {
-		cleanupEvents(t, pool)
-		// Test: Cannot create user with same ID
-		t.Run("Cannot Create Duplicate User", func(t *testing.T) {
-			cleanupEvents(t, pool)
-			// Create the user first
-			createUserCmd := CreateUserCommand{
-				UserID:   "test_user123",
-				Username: "john_doe",
-				Email:    "john@example.com",
-			}
-			err := handleCreateUser(ctx, store, createUserCmd)
-			require.NoError(t, err)
+	cleanupEvents := func() {
+		_, err := pool.Exec(ctx, "TRUNCATE TABLE events RESTART IDENTITY CASCADE")
+		Expect(err).NotTo(HaveOccurred())
+	}
 
-			// Attempt to create duplicate user
-			duplicateCmd := CreateUserCommand{
-				UserID:   "test_user123", // Same ID as existing user
-				Username: "jane_doe",
-				Email:    "jane@example.com",
-			}
-			err = handleCreateUser(ctx, store, duplicateCmd)
-			assert.Error(t, err)
-			assert.Contains(t, err.Error(), "already exists")
+	Describe("BatchExample", func() {
+		BeforeEach(func() {
+			cleanupEvents()
 		})
 
-		// Test: Cannot create user with same email
-		t.Run("Cannot Create User with Duplicate Email", func(t *testing.T) {
-			cleanupEvents(t, pool)
-			// Create the user first
+		It("should create a user", func() {
 			createUserCmd := CreateUserCommand{
 				UserID:   "test_user123",
 				Username: "john_doe",
 				Email:    "john@example.com",
 			}
 			err := handleCreateUser(ctx, store, createUserCmd)
-			require.NoError(t, err)
-
-			// Attempt to create user with duplicate email
-			duplicateEmailCmd := CreateUserCommand{
-				UserID:   "test_user456",
-				Username: "jane_doe",
-				Email:    "john@example.com", // Same email as existing user
-			}
-			err = handleCreateUser(ctx, store, duplicateEmailCmd)
-			assert.Error(t, err)
-			assert.Contains(t, err.Error(), "already exists")
+			Expect(err).NotTo(HaveOccurred())
 		})
 
-		// Test: Cannot create order with same ID
-		t.Run("Cannot Create Duplicate Order", func(t *testing.T) {
-			cleanupEvents(t, pool)
-			// Create the user first
+		It("should create an order after creating a user", func() {
 			createUserCmd := CreateUserCommand{
 				UserID:   "test_user123",
 				Username: "john_doe",
 				Email:    "john@example.com",
 			}
 			err := handleCreateUser(ctx, store, createUserCmd)
-			require.NoError(t, err)
+			Expect(err).NotTo(HaveOccurred())
 
-			// Create the order first
 			createOrderCmd := CreateOrderCommand{
 				OrderID: "test_order456",
 				UserID:  "test_user123",
 				Items: []OrderItem{
 					{ProductID: "prod1", Quantity: 2, Price: 29.99},
+					{ProductID: "prod2", Quantity: 1, Price: 49.99},
 				},
 			}
 			err = handleCreateOrder(ctx, store, createOrderCmd)
-			require.NoError(t, err)
-
-			// Attempt to create duplicate order
-			duplicateOrderCmd := CreateOrderCommand{
-				OrderID: "test_order456", // Same ID as existing order
-				UserID:  "test_user123",
-				Items: []OrderItem{
-					{ProductID: "prod3", Quantity: 1, Price: 19.99},
-				},
-			}
-			err = handleCreateOrder(ctx, store, duplicateOrderCmd)
-			assert.Error(t, err)
-			assert.Contains(t, err.Error(), "already exists")
+			Expect(err).NotTo(HaveOccurred())
 		})
 
-		// Test: Cannot create order for non-existent user
-		t.Run("Cannot Create Order for Non-existent User", func(t *testing.T) {
-			cleanupEvents(t, pool)
-			nonExistentUserCmd := CreateOrderCommand{
-				OrderID: "test_order789",
-				UserID:  "non_existent_user",
-				Items: []OrderItem{
-					{ProductID: "prod1", Quantity: 1, Price: 29.99},
-				},
-			}
-			err := handleCreateOrder(ctx, store, nonExistentUserCmd)
-			assert.Error(t, err)
-			assert.Contains(t, err.Error(), "does not exist")
-		})
-	})
+		// Test business rules
+		Describe("Business Rules", func() {
+			BeforeEach(func() {
+				cleanupEvents()
+			})
 
-	// Test batch operations
-	t.Run("Batch Operations", func(t *testing.T) {
-		cleanupEvents(t, pool)
-		// Test batch create users
-		t.Run("Batch Create Users", func(t *testing.T) {
-			cleanupEvents(t, pool)
-			users := []CreateUserCommand{
-				{UserID: "batch_user1", Username: "batch_user1", Email: "batch1@example.com"},
-				{UserID: "batch_user2", Username: "batch_user2", Email: "batch2@example.com"},
-			}
-			err := handleBatchCreateUsers(ctx, store, users)
-			assert.NoError(t, err)
-		})
+			It("should prevent creating user with same ID", func() {
+				createUserCmd := CreateUserCommand{
+					UserID:   "test_user123",
+					Username: "john_doe",
+					Email:    "john@example.com",
+				}
+				err := handleCreateUser(ctx, store, createUserCmd)
+				Expect(err).NotTo(HaveOccurred())
 
-		// Test batch create orders
-		t.Run("Batch Create Orders", func(t *testing.T) {
-			cleanupEvents(t, pool)
-			// Create users first
-			users := []CreateUserCommand{
-				{UserID: "batch_user1", Username: "batch_user1", Email: "batch1@example.com"},
-				{UserID: "batch_user2", Username: "batch_user2", Email: "batch2@example.com"},
-			}
-			err := handleBatchCreateUsers(ctx, store, users)
-			require.NoError(t, err)
+				duplicateCmd := CreateUserCommand{
+					UserID:   "test_user123", // Same ID as existing user
+					Username: "jane_doe",
+					Email:    "jane@example.com",
+				}
+				err = handleCreateUser(ctx, store, duplicateCmd)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("already exists"))
+			})
 
-			orders := []CreateOrderCommand{
-				{
-					OrderID: "batch_order1",
-					UserID:  "batch_user1",
+			It("should prevent creating user with same email", func() {
+				createUserCmd := CreateUserCommand{
+					UserID:   "test_user123",
+					Username: "john_doe",
+					Email:    "john@example.com",
+				}
+				err := handleCreateUser(ctx, store, createUserCmd)
+				Expect(err).NotTo(HaveOccurred())
+
+				duplicateEmailCmd := CreateUserCommand{
+					UserID:   "test_user456",
+					Username: "jane_doe",
+					Email:    "john@example.com", // Same email as existing user
+				}
+				err = handleCreateUser(ctx, store, duplicateEmailCmd)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("already exists"))
+			})
+
+			It("should prevent creating order with same ID", func() {
+				createUserCmd := CreateUserCommand{
+					UserID:   "test_user123",
+					Username: "john_doe",
+					Email:    "john@example.com",
+				}
+				err := handleCreateUser(ctx, store, createUserCmd)
+				Expect(err).NotTo(HaveOccurred())
+
+				createOrderCmd := CreateOrderCommand{
+					OrderID: "test_order456",
+					UserID:  "test_user123",
 					Items: []OrderItem{
-						{ProductID: "prod1", Quantity: 1, Price: 29.99},
+						{ProductID: "prod1", Quantity: 2, Price: 29.99},
 					},
-				},
-				{
-					OrderID: "batch_order2",
-					UserID:  "batch_user2",
-					Items: []OrderItem{
-						{ProductID: "prod2", Quantity: 2, Price: 49.99},
-					},
-				},
-			}
-			err = handleBatchCreateOrders(ctx, store, orders)
-			assert.NoError(t, err)
-		})
+				}
+				err = handleCreateOrder(ctx, store, createOrderCmd)
+				Expect(err).NotTo(HaveOccurred())
 
-		// Test batch validation - one user already exists
-		t.Run("Batch Validation - Duplicate User", func(t *testing.T) {
-			cleanupEvents(t, pool)
-			// Create the user first
-			createUserCmd := CreateUserCommand{
-				UserID:   "batch_user1",
-				Username: "batch_user1",
-				Email:    "batch1@example.com",
-			}
-			err := handleCreateUser(ctx, store, createUserCmd)
-			require.NoError(t, err)
-
-			users := []CreateUserCommand{
-				{UserID: "batch_user3", Username: "batch_user3", Email: "batch3@example.com"},
-				{UserID: "batch_user1", Username: "batch_user1_duplicate", Email: "batch1_duplicate@example.com"}, // Already exists
-			}
-			err = handleBatchCreateUsers(ctx, store, users)
-			assert.Error(t, err)
-			assert.Contains(t, err.Error(), "already exists")
-		})
-
-		// Test batch validation - one order already exists
-		t.Run("Batch Validation - Duplicate Order", func(t *testing.T) {
-			cleanupEvents(t, pool)
-			// First create the user that will be used for orders
-			createUserCmd := CreateUserCommand{
-				UserID:   "batch_user3",
-				Username: "batch_user3",
-				Email:    "batch3@example.com",
-			}
-			err := handleCreateUser(ctx, store, createUserCmd)
-			require.NoError(t, err)
-
-			// Create the first order
-			createOrderCmd := CreateOrderCommand{
-				OrderID: "batch_order1",
-				UserID:  "batch_user3",
-				Items: []OrderItem{
-					{ProductID: "prod1", Quantity: 1, Price: 29.99},
-				},
-			}
-			err = handleCreateOrder(ctx, store, createOrderCmd)
-			require.NoError(t, err)
-
-			// Now try to create a batch with a duplicate order
-			orders := []CreateOrderCommand{
-				{
-					OrderID: "batch_order3",
-					UserID:  "batch_user3",
+				duplicateOrderCmd := CreateOrderCommand{
+					OrderID: "test_order456", // Same ID as existing order
+					UserID:  "test_user123",
 					Items: []OrderItem{
 						{ProductID: "prod3", Quantity: 1, Price: 19.99},
 					},
-				},
-				{
-					OrderID: "batch_order1", // Already exists
+				}
+				err = handleCreateOrder(ctx, store, duplicateOrderCmd)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("already exists"))
+			})
+
+			It("should prevent creating order for non-existent user", func() {
+				nonExistentUserCmd := CreateOrderCommand{
+					OrderID: "test_order789",
+					UserID:  "non_existent_user",
+					Items: []OrderItem{
+						{ProductID: "prod1", Quantity: 1, Price: 29.99},
+					},
+				}
+				err := handleCreateOrder(ctx, store, nonExistentUserCmd)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("does not exist"))
+			})
+		})
+
+		// Test batch operations
+		Describe("Batch Operations", func() {
+			BeforeEach(func() {
+				cleanupEvents()
+			})
+
+			It("should batch create users", func() {
+				users := []CreateUserCommand{
+					{UserID: "batch_user1", Username: "batch_user1", Email: "batch1@example.com"},
+					{UserID: "batch_user2", Username: "batch_user2", Email: "batch2@example.com"},
+				}
+				err := handleBatchCreateUsers(ctx, store, users)
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			It("should batch create orders", func() {
+				users := []CreateUserCommand{
+					{UserID: "batch_user1", Username: "batch_user1", Email: "batch1@example.com"},
+					{UserID: "batch_user2", Username: "batch_user2", Email: "batch2@example.com"},
+				}
+				err := handleBatchCreateUsers(ctx, store, users)
+				Expect(err).NotTo(HaveOccurred())
+
+				orders := []CreateOrderCommand{
+					{
+						OrderID: "batch_order1",
+						UserID:  "batch_user1",
+						Items: []OrderItem{
+							{ProductID: "prod1", Quantity: 1, Price: 29.99},
+						},
+					},
+					{
+						OrderID: "batch_order2",
+						UserID:  "batch_user2",
+						Items: []OrderItem{
+							{ProductID: "prod2", Quantity: 2, Price: 49.99},
+						},
+					},
+				}
+				err = handleBatchCreateOrders(ctx, store, orders)
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			It("should batch validation - one user already exists", func() {
+				createUserCmd := CreateUserCommand{
+					UserID:   "batch_user1",
+					Username: "batch_user1",
+					Email:    "batch1@example.com",
+				}
+				err := handleCreateUser(ctx, store, createUserCmd)
+				Expect(err).NotTo(HaveOccurred())
+
+				users := []CreateUserCommand{
+					{UserID: "batch_user3", Username: "batch_user3", Email: "batch3@example.com"},
+					{UserID: "batch_user1", Username: "batch_user1_duplicate", Email: "batch1_duplicate@example.com"}, // Already exists
+				}
+				err = handleBatchCreateUsers(ctx, store, users)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("already exists"))
+			})
+
+			It("should batch validation - one order already exists", func() {
+				createUserCmd := CreateUserCommand{
+					UserID:   "batch_user3",
+					Username: "batch_user3",
+					Email:    "batch3@example.com",
+				}
+				err := handleCreateUser(ctx, store, createUserCmd)
+				Expect(err).NotTo(HaveOccurred())
+
+				createOrderCmd := CreateOrderCommand{
+					OrderID: "batch_order1",
 					UserID:  "batch_user3",
 					Items: []OrderItem{
-						{ProductID: "prod4", Quantity: 1, Price: 39.99},
+						{ProductID: "prod1", Quantity: 1, Price: 29.99},
 					},
-				},
-			}
-			err = handleBatchCreateOrders(ctx, store, orders)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "order batch_order1 already exists")
+				}
+				err = handleCreateOrder(ctx, store, createOrderCmd)
+				Expect(err).NotTo(HaveOccurred())
+
+				orders := []CreateOrderCommand{
+					{
+						OrderID: "batch_order3",
+						UserID:  "batch_user3",
+						Items: []OrderItem{
+							{ProductID: "prod3", Quantity: 1, Price: 19.99},
+						},
+					},
+					{
+						OrderID: "batch_order1", // Already exists
+						UserID:  "batch_user3",
+						Items: []OrderItem{
+							{ProductID: "prod4", Quantity: 1, Price: 39.99},
+						},
+					},
+				}
+				err = handleBatchCreateOrders(ctx, store, orders)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("order batch_order1 already exists"))
+			})
 		})
 	})
+})
+
+// setupTestDatabase creates a test database using testcontainers
+func setupTestDatabase(ctx context.Context) (*pgxpool.Pool, testcontainers.Container, error) {
+	// Generate a random password
+	password, err := generateRandomPassword(16)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to generate password: %w", err)
+	}
+
+	req := testcontainers.ContainerRequest{
+		Image:        "postgres:17.5-alpine",
+		ExposedPorts: []string{"5432/tcp"},
+		Env: map[string]string{
+			"POSTGRES_PASSWORD": password,
+		},
+		WaitingFor: wait.ForListeningPort("5432/tcp"),
+	}
+
+	postgresC, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	host, err := postgresC.Host(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	port, err := postgresC.MappedPort(ctx, "5432")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	dsn := fmt.Sprintf("postgres://postgres:%s@%s:%s/postgres?sslmode=disable", password, host, port.Port())
+	poolConfig, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Configure prepared statement cache settings
+	poolConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeCacheDescribe
+	poolConfig.ConnConfig.StatementCacheCapacity = 100
+
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Read and execute schema.sql
+	schemaSQL, err := os.ReadFile("../../../docker-entrypoint-initdb.d/schema.sql")
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read schema: %w", err)
+	}
+
+	// Filter out psql meta-commands that don't work with Go's database driver
+	filteredSQL := filterPsqlCommands(string(schemaSQL))
+
+	// Execute schema
+	_, err = pool.Exec(ctx, filteredSQL)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to execute schema: %w", err)
+	}
+
+	return pool, postgresC, nil
+}
+
+// generateRandomPassword creates a random password string
+func generateRandomPassword(length int) (string, error) {
+	bytes := make([]byte, length)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return base64.URLEncoding.EncodeToString(bytes)[:length], nil
+}
+
+// filterPsqlCommands removes psql meta-commands and psql-only SQL from schema.sql
+func filterPsqlCommands(sql string) string {
+	lines := strings.Split(sql, "\n")
+	var filteredLines []string
+
+	for _, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+
+		// Remove lines that are psql meta-commands or psql-only SQL
+		if strings.HasPrefix(trimmedLine, "\\") {
+			continue
+		}
+		if strings.Contains(trimmedLine, "\\gexec") {
+			continue
+		}
+		if strings.Contains(trimmedLine, "SELECT 'CREATE DATABASE") {
+			continue
+		}
+
+		// Skip empty lines after filtering
+		if trimmedLine == "" {
+			continue
+		}
+
+		filteredLines = append(filteredLines, trimmedLine)
+	}
+
+	return strings.Join(filteredLines, "\n")
 }

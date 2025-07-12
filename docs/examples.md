@@ -233,7 +233,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 
 **Key features:**
 - **Business logic validation**: Checks sufficient funds before transfer
-- **Optimistic locking**: Uses `AppendIf` with configurable isolation level
+- **Optimistic locking**: Uses `Append` with conditions and configurable isolation level
 - **Concurrent safety**: Only one transfer can succeed when multiple try to spend the same balance
 - **Event sourcing**: All transfers are recorded as events for audit trail
 
@@ -350,10 +350,10 @@ Benchmark results from web-app load testing (30-second tests):
 | Method | Throughput | Avg Response Time | p95 Response Time | Use Case |
 |--------|------------|------------------|------------------|----------|
 | **Append** | 79.2 req/s | 24.87ms | 49.16ms | Simple appends |
-| **AppendIf** | 61.7 req/s | 12.82ms | 21.86ms | Conditional appends |
+| **Append (with condition)** | 61.7 req/s | 12.82ms | 21.86ms | Conditional appends |
 
 **Key insights:**
-- **AppendIf is fastest**: Conditional appends with Repeatable Read perform better than simple appends
+- **Conditional appends are fastest**: Conditional appends with Repeatable Read perform better than simple appends
 - **Excellent reliability**: Both methods achieve 100% success rate
 - **Optimized implementation**: Cursor-based optimistic locking and SQL functions are highly efficient
 

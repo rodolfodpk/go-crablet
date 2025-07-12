@@ -17,6 +17,20 @@ CREATE TABLE events (type VARCHAR(64) NOT NULL,
                      occurred_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
                      CONSTRAINT chk_event_type_length CHECK (LENGTH(type) <= 64));
 
+-- Create the commands table for command tracking
+CREATE TABLE commands (
+    transaction_id xid8 NOT NULL PRIMARY KEY,
+    type VARCHAR(64) NOT NULL,
+    data JSONB NOT NULL,
+    metadata JSONB,
+    target_events_table VARCHAR(64) NOT NULL,
+    occurred_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for commands table
+CREATE INDEX idx_commands_type ON commands (type);
+CREATE INDEX idx_commands_target_table ON commands (target_events_table);
+
 -- Core indexes for essential operations
 CREATE INDEX idx_events_transaction_position_btree ON events (transaction_id, position);
 CREATE INDEX idx_events_tags ON events USING GIN (tags);

@@ -57,6 +57,11 @@ func (es *eventStore) GetConfig() EventStoreConfig {
 	return es.config
 }
 
+// GetPool returns the underlying database pool
+func (es *eventStore) GetPool() *pgxpool.Pool {
+	return es.pool
+}
+
 // validateEventsTableExists validates that the target events table exists with correct structure
 func validateEventsTableExists(ctx context.Context, pool *pgxpool.Pool, tableName string) error {
 	// Check if table exists

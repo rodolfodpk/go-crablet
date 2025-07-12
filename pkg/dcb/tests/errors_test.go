@@ -1,4 +1,4 @@
-package dcb_test
+package dcb
 
 import (
 	"errors"

@@ -2,14 +2,22 @@ package utils
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
+	"fmt"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"go-crablet/pkg/dcb"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 // cleanupEvents truncates the events table to ensure test isolation
@@ -21,15 +29,118 @@ func cleanupEvents(t *testing.T, pool *pgxpool.Pool) {
 	require.NoError(t, err)
 }
 
+// setupTestDatabase creates a test database using testcontainers
+func setupTestDatabase(ctx context.Context) (*pgxpool.Pool, testcontainers.Container, error) {
+	// Generate a random password
+	password, err := generateRandomPassword(16)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to generate password: %w", err)
+	}
+
+	req := testcontainers.ContainerRequest{
+		Image:        "postgres:17.5-alpine",
+		ExposedPorts: []string{"5432/tcp"},
+		Env: map[string]string{
+			"POSTGRES_PASSWORD": password,
+		},
+		WaitingFor: wait.ForListeningPort("5432/tcp"),
+	}
+
+	postgresC, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	host, err := postgresC.Host(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	port, err := postgresC.MappedPort(ctx, "5432")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	dsn := fmt.Sprintf("postgres://postgres:%s@%s:%s/postgres?sslmode=disable", password, host, port.Port())
+	poolConfig, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Configure prepared statement cache settings
+	poolConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeCacheDescribe
+	poolConfig.ConnConfig.StatementCacheCapacity = 100
+
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Read and execute schema.sql
+	schemaSQL, err := os.ReadFile("../../../docker-entrypoint-initdb.d/schema.sql")
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read schema: %w", err)
+	}
+
+	// Filter out psql meta-commands that don't work with Go's database driver
+	filteredSQL := filterPsqlCommands(string(schemaSQL))
+
+	// Execute schema
+	_, err = pool.Exec(ctx, filteredSQL)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to execute schema: %w", err)
+	}
+
+	return pool, postgresC, nil
+}
+
+// generateRandomPassword creates a random password string
+func generateRandomPassword(length int) (string, error) {
+	bytes := make([]byte, length)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return base64.URLEncoding.EncodeToString(bytes)[:length], nil
+}
+
+// filterPsqlCommands removes psql meta-commands and psql-only SQL from schema.sql
+func filterPsqlCommands(sql string) string {
+	lines := strings.Split(sql, "\n")
+	var filteredLines []string
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		// Skip psql meta-commands (lines starting with \) and empty lines
+		if strings.HasPrefix(trimmed, "\\") || trimmed == "" {
+			continue
+		}
+		// Skip lines that contain \gexec (psql command)
+		if strings.Contains(line, "\\gexec") {
+			continue
+		}
+		// Skip comment lines
+		if strings.HasPrefix(trimmed, "--") {
+			continue
+		}
+		filteredLines = append(filteredLines, line)
+	}
+
+	return strings.Join(filteredLines, "\n")
+}
+
 func TestDumpEvents(t *testing.T) {
 	// Create context with timeout for the entire test
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	// Connect to test database
-	pool, err := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")
+	// Set up test database using testcontainers
+	pool, container, err := setupTestDatabase(ctx)
 	require.NoError(t, err)
 	defer pool.Close()
+	defer container.Terminate(ctx)
 
 	// Create event store
 	store := dcb.NewEventStoreFromPool(pool)

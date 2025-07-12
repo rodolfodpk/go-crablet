@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Event represents a single event in the store
@@ -35,6 +37,23 @@ type Tag interface {
 	isTag()
 	GetKey() string
 	GetValue() string
+}
+
+// Command represents a command that triggers event generation
+type Command interface {
+	GetType() string
+	GetData() []byte
+	GetMetadata() map[string]interface{}
+}
+
+// CommandHandler handles command execution and generates events
+type CommandHandler interface {
+	Handle(ctx context.Context, decisionModels map[string]any, command Command) []InputEvent
+}
+
+// CommandExecutor executes commands and generates events
+type CommandExecutor interface {
+	ExecuteCommand(ctx context.Context, command Command, handler CommandHandler, condition *AppendCondition) error
 }
 
 // Query represents a composite query with multiple conditions combined with OR logic
@@ -102,6 +121,9 @@ type EventStore interface {
 
 	// GetConfig returns the current EventStore configuration
 	GetConfig() EventStoreConfig
+
+	// GetPool returns the underlying database pool
+	GetPool() *pgxpool.Pool
 }
 
 // StateProjector defines how to project a state from events
@@ -180,6 +202,16 @@ type tag struct {
 func (t *tag) isTag()           {}
 func (t *tag) GetKey() string   { return t.key }
 func (t *tag) GetValue() string { return t.value }
+
+type command struct {
+	commandType string
+	data        []byte
+	metadata    map[string]interface{}
+}
+
+func (c *command) GetType() string                     { return c.commandType }
+func (c *command) GetData() []byte                     { return c.data }
+func (c *command) GetMetadata() map[string]interface{} { return c.metadata }
 
 // MarshalJSON ensures Tag is marshaled as {"key":..., "value":...}
 func (t *tag) MarshalJSON() ([]byte, error) {

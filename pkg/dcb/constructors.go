@@ -170,3 +170,21 @@ func ToJSON(v any) []byte {
 	}
 	return data
 }
+
+// =============================================================================
+// Command Constructors
+// =============================================================================
+
+// NewCommand creates a new Command with type, data, and metadata
+func NewCommand(commandType string, data []byte, metadata map[string]interface{}) Command {
+	return &command{
+		commandType: commandType,
+		data:        data,
+		metadata:    metadata,
+	}
+}
+
+// NewCommandSimple creates a new Command with type and data only
+func NewCommandSimple(commandType string, data []byte) Command {
+	return NewCommand(commandType, data, nil)
+}

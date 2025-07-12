@@ -42,115 +42,6 @@ func (es *eventStore) Append(ctx context.Context, events []InputEvent, condition
 		}
 	}
 
-	// Use conditional or unconditional append based on condition parameter
-	if condition != nil {
-		return es.appendEventsWithCondition(ctx, events, *condition)
-	}
-	return es.appendEventsBatch(ctx, events)
-}
-
-// appendEventsWithCondition uses PostgreSQL functions for atomic append with condition checking
-func (es *eventStore) appendEventsWithCondition(ctx context.Context, events []InputEvent, condition AppendCondition) error {
-	// Validate events
-	if len(events) == 0 {
-		return &ValidationError{
-			EventStoreError: EventStoreError{
-				Op:  "append",
-				Err: fmt.Errorf("events must not be empty"),
-			},
-			Field: "events",
-			Value: "empty",
-		}
-	}
-
-	if len(events) > es.config.MaxBatchSize {
-		return &ValidationError{
-			EventStoreError: EventStoreError{
-				Op:  "append",
-				Err: fmt.Errorf("batch size %d exceeds maximum of %d", len(events), es.config.MaxBatchSize),
-			},
-			Field: "events",
-			Value: fmt.Sprintf("count:%d", len(events)),
-		}
-	}
-
-	// Validate individual events
-	for i, event := range events {
-		if event.GetType() == "" {
-			return &ValidationError{
-				EventStoreError: EventStoreError{
-					Op:  "append",
-					Err: fmt.Errorf("event at index %d has empty type", i),
-				},
-				Field: "type",
-				Value: "empty",
-			}
-		}
-
-		// Validate tags
-		tagKeys := make(map[string]bool)
-		for j, tag := range event.GetTags() {
-			if tag.GetKey() == "" {
-				return &ValidationError{
-					EventStoreError: EventStoreError{
-						Op:  "append",
-						Err: fmt.Errorf("empty tag key at index %d", j),
-					},
-					Field: "tag.key",
-					Value: "empty",
-				}
-			}
-			if tag.GetValue() == "" {
-				return &ValidationError{
-					EventStoreError: EventStoreError{
-						Op:  "append",
-						Err: fmt.Errorf("empty tag value for key %s", tag.GetKey()),
-					},
-					Field: "tag.value",
-					Value: "empty",
-				}
-			}
-			if tagKeys[tag.GetKey()] {
-				return &ValidationError{
-					EventStoreError: EventStoreError{
-						Op:  "append",
-						Err: fmt.Errorf("event at index %d has duplicate tag key: %s", i, tag.GetKey()),
-					},
-					Field: "tag.key",
-					Value: tag.GetKey(),
-				}
-			}
-			tagKeys[tag.GetKey()] = true
-		}
-	}
-
-	// Prepare data for batch insert
-	types := make([]string, len(events))
-	tags := make([]string, len(events)) // now []string of array literals
-	data := make([][]byte, len(events))
-
-	for i, event := range events {
-		types[i] = event.GetType()
-		tags[i] = encodeTagsArrayLiteral(TagsToArray(event.GetTags()))
-		data[i] = event.GetData()
-	}
-
-	// Convert condition to JSONB for PostgreSQL function
-	var conditionJSON []byte
-	var err error
-	if condition != nil {
-		conditionJSON, err = json.Marshal(condition)
-		if err != nil {
-			return &ResourceError{
-				EventStoreError: EventStoreError{
-					Op:  "appendEventsWithCondition",
-					Err: fmt.Errorf("failed to marshal condition: %w", err),
-				},
-				Resource: "json",
-			}
-		}
-	}
-
 	// Start transaction with hybrid timeout (respects caller timeout if set, otherwise uses default)
 	appendCtx, cancel := es.withTimeout(ctx, es.config.AppendTimeout)
 	defer cancel()
@@ -161,7 +52,7 @@ func (es *eventStore) appendEventsWithCondition(ctx context.Context, events []In
 	if err != nil {
 		return &ResourceError{
 			EventStoreError: EventStoreError{
-				Op:  "appendEventsWithCondition",
+				Op:  "append",
 				Err: fmt.Errorf("failed to begin transaction: %w", err),
 			},
 			Resource: "database",
@@ -169,164 +60,21 @@ func (es *eventStore) appendEventsWithCondition(ctx context.Context, events []In
 	}
 	defer tx.Rollback(ctx)
 
-	// Execute append operation using PostgreSQL function with table name parameter
-	_, err = tx.Exec(ctx, `
-		SELECT append_events_with_condition($1, $2, $3, $4, $5)
-	`, es.config.TargetEventsTable, types, tags, data, conditionJSON)
-
+	// Use conditional or unconditional append based on condition parameter
+	if condition != nil {
+		err = es.appendInTx(ctx, tx, events, *condition)
+	} else {
+		err = es.appendInTx(ctx, tx, events, nil)
+	}
 	if err != nil {
-		// Check if it's a condition violation error
-		if strings.Contains(err.Error(), "append condition violated") {
-			return &ConcurrencyError{
-				EventStoreError: EventStoreError{
-					Op:  "append",
-					Err: fmt.Errorf("append condition violated: %w", err),
-				},
-			}
-		}
-
-		return &ResourceError{
-			EventStoreError: EventStoreError{
-				Op:  "appendEventsWithCondition",
-				Err: fmt.Errorf("failed to append events: %w", err),
-			},
-			Resource: "database",
-		}
+		return err
 	}
 
 	// Commit transaction
 	if err := tx.Commit(ctx); err != nil {
 		return &ResourceError{
 			EventStoreError: EventStoreError{
-				Op:  "appendEventsWithCondition",
-				Err: fmt.Errorf("failed to commit transaction: %w", err),
-			},
-			Resource: "database",
-		}
-	}
-
-	return nil
-}
-
-// appendEventsBatch uses the PostgreSQL append_events_batch function (no condition)
-func (es *eventStore) appendEventsBatch(ctx context.Context, events []InputEvent) error {
-	if len(events) == 0 {
-		return &ValidationError{
-			EventStoreError: EventStoreError{
 				Op:  "append",
-				Err: fmt.Errorf("events must not be empty"),
-			},
-			Field: "events",
-			Value: "empty",
-		}
-	}
-
-	if len(events) > es.config.MaxBatchSize {
-		return &ValidationError{
-			EventStoreError: EventStoreError{
-				Op:  "append",
-				Err: fmt.Errorf("batch size %d exceeds maximum of %d", len(events), es.config.MaxBatchSize),
-			},
-			Field: "events",
-			Value: fmt.Sprintf("count:%d", len(events)),
-		}
-	}
-
-	// Validate individual events
-	for i, event := range events {
-		if event.GetType() == "" {
-			return &ValidationError{
-				EventStoreError: EventStoreError{
-					Op:  "append",
-					Err: fmt.Errorf("event at index %d has empty type", i),
-				},
-				Field: "type",
-				Value: "empty",
-			}
-		}
-
-		// Validate tags
-		tagKeys := make(map[string]bool)
-		for j, tag := range event.GetTags() {
-			if tag.GetKey() == "" {
-				return &ValidationError{
-					EventStoreError: EventStoreError{
-						Op:  "append",
-						Err: fmt.Errorf("empty tag key at index %d", j),
-					},
-					Field: "tag.key",
-					Value: "empty",
-				}
-			}
-			if tag.GetValue() == "" {
-				return &ValidationError{
-					EventStoreError: EventStoreError{
-						Op:  "append",
-						Err: fmt.Errorf("empty tag value for key %s", tag.GetKey()),
-					},
-					Field: "tag.value",
-					Value: "empty",
-				}
-			}
-			if tagKeys[tag.GetKey()] {
-				return &ValidationError{
-					EventStoreError: EventStoreError{
-						Op:  "append",
-						Err: fmt.Errorf("event at index %d has duplicate tag key: %s", i, tag.GetKey()),
-					},
-					Field: "tag.key",
-					Value: tag.GetKey(),
-				}
-			}
-			tagKeys[tag.GetKey()] = true
-		}
-	}
-
-	// Prepare data for batch insert
-	types := make([]string, len(events))
-	tags := make([]string, len(events)) // now []string of array literals
-	data := make([][]byte, len(events))
-
-	for i, event := range events {
-		types[i] = event.GetType()
-		tags[i] = encodeTagsArrayLiteral(TagsToArray(event.GetTags()))
-		data[i] = event.GetData()
-	}
-
-	// Execute PostgreSQL function for batch insert with hybrid timeout
-	appendCtx, cancel := es.withTimeout(ctx, es.config.AppendTimeout)
-	defer cancel()
-
-	tx, err := es.pool.BeginTx(appendCtx, pgx.TxOptions{
-		IsoLevel: toPgxIsoLevel(es.config.DefaultAppendIsolation),
-	})
-	if err != nil {
-		return &ResourceError{
-			EventStoreError: EventStoreError{
-				Op:  "appendEventsBatch",
-				Err: fmt.Errorf("failed to begin transaction: %w", err),
-			},
-			Resource: "database",
-		}
-	}
-	defer tx.Rollback(ctx)
-
-	// Execute batch append using PostgreSQL function with table name parameter
-	_, err = tx.Exec(ctx, `SELECT append_events_batch($1, $2, $3, $4)`, es.config.TargetEventsTable, types, tags, data)
-	if err != nil {
-		return &ResourceError{
-			EventStoreError: EventStoreError{
-				Op:  "appendEventsBatch",
-				Err: fmt.Errorf("failed to append events: %w", err),
-			},
-			Resource: "database",
-		}
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return &ResourceError{
-			EventStoreError: EventStoreError{
-				Op:  "appendEventsBatch",
 				Err: fmt.Errorf("failed to commit transaction: %w", err),
 			},
 			Resource: "database",
@@ -360,6 +108,141 @@ func toPgxIsoLevel(level IsolationLevel) pgx.TxIsoLevel {
 	default:
 		return pgx.ReadCommitted
 	}
+}
+
+// appendInTx appends events within an existing transaction
+// This is the internal method that does the actual work without managing transactions
+func (es *eventStore) appendInTx(ctx context.Context, tx pgx.Tx, events []InputEvent, condition AppendCondition) error {
+	// Validate events
+	if len(events) == 0 {
+		return &ValidationError{
+			EventStoreError: EventStoreError{
+				Op:  "appendInTx",
+				Err: fmt.Errorf("events slice cannot be empty"),
+			},
+			Field: "events",
+			Value: "empty",
+		}
+	}
+
+	if len(events) > es.config.MaxBatchSize {
+		return &ValidationError{
+			EventStoreError: EventStoreError{
+				Op:  "appendInTx",
+				Err: fmt.Errorf("batch size %d exceeds maximum of %d", len(events), es.config.MaxBatchSize),
+			},
+			Field: "events",
+			Value: fmt.Sprintf("count:%d", len(events)),
+		}
+	}
+
+	// Validate individual events
+	for i, event := range events {
+		if event.GetType() == "" {
+			return &ValidationError{
+				EventStoreError: EventStoreError{
+					Op:  "appendInTx",
+					Err: fmt.Errorf("event at index %d has empty type", i),
+				},
+				Field: "type",
+				Value: "empty",
+			}
+		}
+
+		// Validate tags
+		tagKeys := make(map[string]bool)
+		for j, tag := range event.GetTags() {
+			if tag.GetKey() == "" {
+				return &ValidationError{
+					EventStoreError: EventStoreError{
+						Op:  "appendInTx",
+						Err: fmt.Errorf("empty tag key at index %d", j),
+					},
+					Field: "tag.key",
+					Value: "empty",
+				}
+			}
+			if tag.GetValue() == "" {
+				return &ValidationError{
+					EventStoreError: EventStoreError{
+						Op:  "appendInTx",
+						Err: fmt.Errorf("empty tag value for key %s", tag.GetKey()),
+					},
+					Field: "tag.value",
+					Value: "empty",
+				}
+			}
+			if tagKeys[tag.GetKey()] {
+				return &ValidationError{
+					EventStoreError: EventStoreError{
+						Op:  "appendInTx",
+						Err: fmt.Errorf("event at index %d has duplicate tag key: %s", i, tag.GetKey()),
+					},
+					Field: "tag.key",
+					Value: tag.GetKey(),
+				}
+			}
+			tagKeys[tag.GetKey()] = true
+		}
+	}
+
+	// Prepare data for batch insert
+	types := make([]string, len(events))
+	tags := make([]string, len(events)) // now []string of array literals
+	data := make([][]byte, len(events))
+
+	for i, event := range events {
+		types[i] = event.GetType()
+		tags[i] = encodeTagsArrayLiteral(TagsToArray(event.GetTags()))
+		data[i] = event.GetData()
+	}
+
+	// Convert condition to JSONB for PostgreSQL function
+	var conditionJSON []byte
+	var err error
+	if condition != nil {
+		conditionJSON, err = json.Marshal(condition)
+		if err != nil {
+			return &ResourceError{
+				EventStoreError: EventStoreError{
+					Op:  "appendInTx",
+					Err: fmt.Errorf("failed to marshal condition: %w", err),
+				},
+				Resource: "json",
+			}
+		}
+	}
+
+	// Execute append operation using PostgreSQL function
+	if condition != nil {
+		_, err = tx.Exec(ctx, `
+			SELECT append_events_with_condition($1, $2, $3, $4, $5)
+		`, es.config.TargetEventsTable, types, tags, data, conditionJSON)
+	} else {
+		_, err = tx.Exec(ctx, `SELECT append_events_batch($1, $2, $3, $4)`, es.config.TargetEventsTable, types, tags, data)
+	}
+
+	if err != nil {
+		// Check if it's a condition violation error
+		if strings.Contains(err.Error(), "append condition violated") {
+			return &ConcurrencyError{
+				EventStoreError: EventStoreError{
+					Op:  "appendInTx",
+					Err: fmt.Errorf("append condition violated: %w", err),
+				},
+			}
+		}
+
+		return &ResourceError{
+			EventStoreError: EventStoreError{
+				Op:  "appendInTx",
+				Err: fmt.Errorf("failed to append events: %w", err),
+			},
+			Resource: "database",
+		}
+	}
+
+	return nil
 }
 
 // isConcurrencyError checks if the error is a concurrency error raised by SQL

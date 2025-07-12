@@ -1,4 +1,4 @@
-package dcb_test
+package dcb
 
 import (
 	"context"
@@ -25,6 +25,7 @@ import (
 // Test globals
 var (
 	ctx       context.Context
+	cancel    context.CancelFunc
 	pool      *pgxpool.Pool
 	store     dcb.EventStore
 	container testcontainers.Container
@@ -33,8 +34,9 @@ var (
 // Test setup and teardown
 var _ = BeforeSuite(func() {
 	// Create context with timeout for test setup
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
+	ctx, cancel = context.WithTimeout(context.Background(), 60*time.Second)
+	// Don't defer cancel here - we need the context for tests
+	// The context will be cleaned up in AfterSuite
 
 	// Initialize test database using testcontainers
 	var err error
@@ -61,11 +63,14 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
+	if cancel != nil {
+		cancel() // Cancel the context
+	}
 	if pool != nil {
 		pool.Close()
 	}
 	if container != nil {
-		container.Terminate(ctx)
+		container.Terminate(context.Background()) // Use background context for cleanup
 	}
 })
 
