@@ -1,0 +1,60 @@
+# Files to exclude from grep/sed operations for performance
+# Large binary files
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+batch
+benchmark
+channel_projection
+decision_model
+enrollment
+transfer
+web-app
+streaming
+server
+benchmarks
+command_execution
+internal/examples/*/
+internal/web-app/web-app
+
+# Large data files
+*.db
+*.sqlite
+*.sqlite3
+benchmark-results/
+test-results/
+k6-*.json
+k6-*.html
+k6-results/
+*-benchmark-*.json
+*-test-*.json
+
+# Coverage and test artifacts
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+*.prof
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Build artifacts
+vendor/
+node_modules/
+dist/
+build/
+
+# Log files
+*.log
+logs/
+
+# Cache directories
+.cache/
+cache/ 

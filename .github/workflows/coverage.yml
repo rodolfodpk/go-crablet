@@ -1,0 +1,70 @@
+name: Code Coverage
+
+on:
+  push:
+    branches: [ main, feature/* ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+    
+    - name: Install dependencies
+      run: go mod download
+    
+    - name: Run tests with coverage
+      run: |
+        cd pkg/dcb
+        go test -coverprofile=coverage.out -covermode=atomic
+        go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//' > coverage_percentage.txt
+    
+    - name: Extract coverage percentage
+      id: coverage
+      run: |
+        COVERAGE=$(cat pkg/dcb/coverage_percentage.txt)
+        echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+        echo "Coverage: $COVERAGE%"
+    
+    - name: Update README badge
+      if: github.ref == 'refs/heads/main'
+      run: |
+        # Determine badge color based on coverage
+        COVERAGE=$(cat pkg/dcb/coverage_percentage.txt)
+        if (( $(echo "$COVERAGE >= 90" | bc -l) )); then
+          COLOR="brightgreen"
+        elif (( $(echo "$COVERAGE >= 80" | bc -l) )); then
+          COLOR="green"
+        elif (( $(echo "$COVERAGE >= 70" | bc -l) )); then
+          COLOR="yellow"
+        elif (( $(echo "$COVERAGE >= 60" | bc -l) )); then
+          COLOR="orange"
+        else
+          COLOR="red"
+        fi
+        
+        # Update the badge in README.md
+        sed -i "s|https://img.shields.io/badge/coverage-[0-9]*%25-[a-z]*|https://img.shields.io/badge/coverage-${COVERAGE}%25-${COLOR}|g" README.md
+    
+    - name: Commit and push changes
+      if: github.ref == 'refs/heads/main'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add README.md
+        git commit -m "Update coverage badge to ${{ steps.coverage.outputs.coverage }}%" || exit 0
+        git push
+    
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: pkg/dcb/coverage.out 
