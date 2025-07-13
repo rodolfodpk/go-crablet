@@ -96,12 +96,7 @@ type Command interface {
 
 ## Transaction ID Ordering and Locking
 
-go-crablet uses PostgreSQL's `xid8` transaction IDs for event ordering and concurrency control. This is a DCB-specific approach, not classic optimistic locking:
-
-- **True ordering**: No gaps or out-of-order events
-- **DCB concurrency control**: Uses transaction IDs for conflict detection (primary mechanism, not classic optimistic locking)
-- **Cursor-based**: Combines `(transaction_id, position)` for precise positioning
-- **Advisory locks**: Experimental/optional additional locking via `lock:` prefixed tags in event tags (not enabled by default)
+go-crablet uses PostgreSQL's `xid8` transaction IDs for event ordering and concurrency control. Concurrency control is based on the Dynamic Consistency Boundary (DCB) approach, not classic optimistic locking. In addition, we use a `transaction_id` for each event (inspired by Oskar’s “Ordering in Postgres Outbox” article) to guarantee correct, gapless event ordering. The DCB pattern handles conflict detection and consistency, while transaction IDs ensure events are always ordered as they occurred in the database.
 
 ## DCB Decision Model Pattern
 
@@ -149,6 +144,7 @@ go-crablet primarily uses **DCB concurrency control** via transaction IDs and ap
 - **Conflict detection**: Uses `AppendCondition` to check for existing events before appending
 - **Concurrent safety**: Only one append can succeed when conditions match existing events
 - **No blocking**: Failed appends return immediately with `ConcurrencyError`
+- **Event ordering**: Transaction IDs ensure correct, gapless event ordering (see Oskar’s article in References)
 
 ### Optional: Advisory Locks (Experimental)
 For additional concurrency control, you can use PostgreSQL advisory locks via event tags:
