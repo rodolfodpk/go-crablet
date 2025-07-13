@@ -319,8 +319,8 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 
 **Key features:**
 - **Business logic validation**: Checks sufficient funds before transfer
-- **Optimistic locking**: Uses `Append` with conditions and configurable isolation level (primary mechanism)
-- **Advisory locks**: Optional additional locking via `lock:` prefixed tags (e.g., `"lock:account-123"`)
+- **DCB concurrency control**: Uses `Append` with conditions and configurable isolation level (primary mechanism, not classic optimistic locking)
+- **Advisory locks**: Experimental/optional additional locking via `lock:` prefixed tags (e.g., "lock:account-123")
 - **Concurrent safety**: Only one transfer can succeed when multiple try to spend the same balance
 - **Event sourcing**: All transfers are recorded as events for audit trail
 
@@ -332,23 +332,23 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 - **No aggregates or legacy event sourcing patterns required**
 - **Channel-based streaming provides immediate processing feedback**
 - **Choose the right streaming approach for your dataset size**
-- **Optimistic locking prevents double-spending** in concurrent scenarios
+- **DCB concurrency control prevents double-spending** in concurrent scenarios (not classic optimistic locking)
 
 ## Transaction Isolation Levels and Locking
 
-### Primary: Optimistic Locking
-go-crablet primarily uses optimistic locking via transaction IDs and append conditions:
+### Primary: DCB Concurrency Control (Not Classic Optimistic Locking)
+go-crablet primarily uses DCB concurrency control via transaction IDs and append conditions (not classic optimistic locking):
 
 ```go
 // Simple append (no conditions) - uses default isolation level
 store.Append(ctx, events, nil)
 
-// Conditional append - uses default isolation level with optimistic locking
+// Conditional append - uses default isolation level with DCB concurrency control
 store.Append(ctx, events, &condition)
 ```
 
-### Optional: Advisory Locks
-For additional concurrency control, you can use advisory locks via `lock:` prefixed tags:
+### Optional: Advisory Locks (Experimental)
+For additional concurrency control, you can use advisory locks via `lock:` prefixed tags (experimental, not enabled by default):
 
 ```go
 // Event with advisory lock on "account-123"
@@ -367,7 +367,7 @@ events := []dcb.InputEvent{
 }
 ```
 
-**Note**: Advisory locks are currently available in the database functions but not actively used by the Go implementation.
+**Note**: Advisory locks are currently available in the database functions but are experimental and not actively used by the Go implementation.
 
 ### Isolation Levels
 go-crablet uses configurable PostgreSQL transaction isolation levels for append operations:

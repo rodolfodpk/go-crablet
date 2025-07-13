@@ -96,12 +96,12 @@ type Command interface {
 
 ## Transaction ID Ordering and Locking
 
-go-crablet uses PostgreSQL's `xid8` transaction IDs for event ordering and optimistic locking:
+go-crablet uses PostgreSQL's `xid8` transaction IDs for event ordering and concurrency control. This is a DCB-specific approach, not classic optimistic locking:
 
 - **True ordering**: No gaps or out-of-order events
-- **Optimistic locking**: Uses transaction IDs for conflict detection (primary mechanism)
+- **DCB concurrency control**: Uses transaction IDs for conflict detection (primary mechanism, not classic optimistic locking)
 - **Cursor-based**: Combines `(transaction_id, position)` for precise positioning
-- **Advisory locks**: Optional additional locking via `lock:` prefixed tags in event tags
+- **Advisory locks**: Experimental/optional additional locking via `lock:` prefixed tags in event tags (not enabled by default)
 
 ## DCB Decision Model Pattern
 
@@ -144,28 +144,20 @@ if states["numSubscriptions"].(int) < 2 {
 
 ## Transaction Isolation and Locking
 
-### Primary: Optimistic Locking
-go-crablet primarily uses **optimistic locking** via transaction IDs and append conditions:
+### Primary: DCB Concurrency Control (Not Classic Optimistic Locking)
+go-crablet primarily uses **DCB concurrency control** via transaction IDs and append conditions:
 - **Conflict detection**: Uses `AppendCondition` to check for existing events before appending
 - **Concurrent safety**: Only one append can succeed when conditions match existing events
 - **No blocking**: Failed appends return immediately with `ConcurrencyError`
 
-### Optional: Advisory Locks
+### Optional: Advisory Locks (Experimental)
 For additional concurrency control, you can use PostgreSQL advisory locks via event tags:
-- **Tag-based locking**: Add tags with `lock:` prefix (e.g., `"lock:user-123"`, `"lock:account-456"`)
+- **Tag-based locking**: Add tags with `lock:` prefix (e.g., "lock:user-123", "lock:account-456")
 - **Automatic acquisition**: Database functions automatically acquire locks on these keys
 - **Deadlock prevention**: Locks are sorted and acquired in consistent order
 - **Transaction-scoped**: Locks are automatically released when transaction commits/rolls back
 
-**Example with advisory locks:**
-```go
-// This event will acquire advisory lock on "user-123"
-event := dcb.NewInputEvent("UserAction",
-    dcb.NewTags("user_id", "123", "lock:user-123"),
-    dcb.ToJSON(data))
-```
-
-**Note**: Advisory locks are currently available in the database functions but not actively used by the Go implementation.
+**Note**: Advisory locks are currently available in the database functions but are experimental and not actively used by the Go implementation.
 
 ### Isolation Levels
 Configurable PostgreSQL isolation levels via `EventStoreConfig.DefaultAppendIsolation` (default: Read Committed).
