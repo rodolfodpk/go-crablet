@@ -140,11 +140,12 @@ if states["numSubscriptions"].(int) < 2 {
 ## Transaction Isolation and Locking
 
 ### Primary: DCB Concurrency Control (Not Classic Optimistic Locking)
-go-crablet primarily uses **DCB concurrency control** via transaction IDs and append conditions:
-- **Conflict detection**: Uses `AppendCondition` to check for existing events before appending
-- **Concurrent safety**: Only one append can succeed when conditions match existing events
+go-crablet primarily uses **DCB concurrency control** via append conditions and transaction IDs:
+- **DCB approach**: Uses `AppendCondition` to check for existing events before appending (not classic optimistic locking)
+- **Conflict detection**: Only one append can succeed when conditions match existing events
 - **No blocking**: Failed appends return immediately with `ConcurrencyError`
-- **Event ordering**: Transaction IDs ensure correct, gapless event ordering (see Oskar’s article in References)
+- **Event ordering**: Transaction IDs ensure correct, gapless event ordering (inspired by Oskar's "Ordering in Postgres Outbox" article)
+- **Combined approach**: DCB pattern handles conflict detection and consistency, while transaction IDs provide reliable ordering
 
 ### Optional: Advisory Locks (Experimental)
 For additional concurrency control, you can use PostgreSQL advisory locks via event tags:
