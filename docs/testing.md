@@ -129,7 +129,7 @@ Test complete workflows:
 Test concurrent operations and race conditions:
 - Multiple concurrent appends
 - Concurrent projections
-- Lock mechanisms
+- Lock mechanisms (DCB concurrency control is the default; advisory locks are experimental/optional and not enabled by default)
 
 ## Test Data Management
 

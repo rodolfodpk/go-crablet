@@ -83,6 +83,7 @@ func main() {
 
     // Conditional append with optimistic concurrency
     if len(events) > 0 {
+        // DCB concurrency control (not classic optimistic locking)
         condition := dcb.NewAppendCondition(query)
         newEvent := dcb.NewInputEvent("UserUpdated", dcb.NewTags("user_id", "123"), []byte(`{"name": "John Smith"}`))
         err = store.Append(ctx, []dcb.InputEvent{newEvent}, &condition)

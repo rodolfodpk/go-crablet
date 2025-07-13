@@ -11,7 +11,7 @@ The go-crablet system has undergone several performance optimizations, resulting
 ### Overall Performance Metrics
 - **Success Rate**: 100% across all scenarios ✅
 - **Error Rate**: 0% across all tests ✅
-- **Concurrency Errors**: 0% (optimistic locking working well) ✅
+- **Concurrency Errors**: 0% (DCB concurrency control working well) ✅
 - **System Stability**: Handles up to 100 VUs with performance degradation at higher concurrency levels ✅
 
 ### Detailed Benchmark Results
@@ -29,7 +29,7 @@ The go-crablet system has undergone several performance optimizations, resulting
 - **Average Latency**: 1.69s
 - **99th Percentile**: 4.23s (target: <2s) ⚠️
 - **Success Rate**: 100% ✅
-- **Concurrency Errors**: 0% ✅
+- **Concurrency Errors**: 0% (DCB concurrency control working well) ✅
 - **Total Requests**: 8,058
 - **Status**: ✅ PASSED (functional, thresholds exceeded)
 
@@ -51,6 +51,9 @@ The go-crablet system has undergone several performance optimizations, resulting
 **Key Finding**: All three isolation levels perform very similarly, indicating minimal overhead from stronger isolation levels.
 
 *Note: These results are from a single-instance setup and may vary in production environments.*
+
+## DCB Concurrency Control (Not Classic Optimistic Locking)
+The default concurrency control in go-crablet is DCB's transaction ID–based approach, not classic optimistic locking. Advisory locks are experimental/optional and not enabled by default.
 
 ## 🔧 Performance Optimizations Implemented
 
