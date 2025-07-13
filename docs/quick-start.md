@@ -81,7 +81,7 @@ func main() {
         log.Printf("Event: %s, Position: %d", event.Type, event.Position)
     }
 
-    // Conditional append with optimistic concurrency
+    // Conditional append with DCB concurrency control
     if len(events) > 0 {
         // DCB concurrency control (not classic optimistic locking)
         condition := dcb.NewAppendCondition(query)

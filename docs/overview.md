@@ -4,13 +4,13 @@ go-crablet is a Go library for event sourcing, exploring concepts inspired by th
 
 - Project multiple states and check business invariants in a single query
 - Use tag-based, OR-combined queries for cross-entity consistency
-- Enforce optimistic concurrency with combined append conditions
+- Enforce DCB concurrency control with combined append conditions (uses transaction IDs, not classic optimistic locking)
 - Execute commands with automatic event generation using the CommandExecutor pattern
 
 ## Key Concepts
 
 - **Batch Projection**: Project multiple states (decision model) in one database query
-- **Combined Append Condition**: Use a single, OR-combined query for optimistic locking
+- **Combined Append Condition**: Use a single, OR-combined query for DCB concurrency control
 - **Tag-based Queries**: Flexible, cross-entity queries using tags
 - **Streaming**: Process events efficiently for large datasets
 - **Transaction-based Ordering**: Uses PostgreSQL transaction IDs for true event ordering
@@ -30,7 +30,7 @@ type EventStore interface {
     // Stream events for large datasets with backpressure
     QueryStream(ctx context.Context, query Query, cursor *Cursor) (<-chan Event, error)
 
-    // Append events with optional optimistic locking condition
+    // Append events with optional DCB concurrency control condition
     Append(ctx context.Context, events []InputEvent, condition *AppendCondition) error
 
     // Project multiple states in single query (DCB pattern)
@@ -471,10 +471,10 @@ func handleUserAction(ctx context.Context, store dcb.EventStore, command dcb.Com
 ## Implementation Details
 
 - **Database**: PostgreSQL with `events` table, `commands` table, and append functions
-- **Event Storage**: Events stored with transaction IDs for true ordering and optimistic locking
+- **Event Storage**: Events stored with transaction IDs for true ordering and DCB concurrency control
 - **Streaming**: Multiple approaches for different dataset sizes (cursor-based and channel-based)
 - **Projections**: DCB decision model pattern with state projectors
-- **Optimistic Locking**: Cursor-based append conditions for concurrent safety
+- **DCB Concurrency Control**: Cursor-based append conditions for concurrent safety (uses transaction IDs, not classic optimistic locking)
 - **Command Tracking**: Commands automatically stored in `commands` table with transaction ID linking
 - **Command Execution**: Atomic command execution with handler-based event generation using `CommandExecutor`
 - **Lock Acquisition**: Advisory locks available via `lock:` prefixed tags in event tags (optional feature, currently unused in Go implementation)
