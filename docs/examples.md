@@ -319,7 +319,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 
 **Key features:**
 - **Business logic validation**: Checks sufficient funds before transfer
-- **DCB concurrency control**: Uses `Append` with conditions and configurable isolation level (primary mechanism, not classic optimistic locking)
+- **DCB concurrency control**: Uses `Append` with conditions and configurable isolation level (primary mechanism, not classic optimistic locking; transaction IDs ensure correct event ordering, inspired by Oskar’s article)
 - **Advisory locks**: Experimental/optional additional locking via `lock:` prefixed tags (e.g., "lock:account-123")
 - **Concurrent safety**: Only one transfer can succeed when multiple try to spend the same balance
 - **Event sourcing**: All transfers are recorded as events for audit trail
@@ -332,7 +332,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 - **No aggregates or legacy event sourcing patterns required**
 - **Channel-based streaming provides immediate processing feedback**
 - **Choose the right streaming approach for your dataset size**
-- **DCB concurrency control prevents double-spending** in concurrent scenarios (not classic optimistic locking)
+- **DCB concurrency control prevents double-spending** in concurrent scenarios (not classic optimistic locking; transaction IDs ensure correct event ordering)
 
 ## Transaction Isolation Levels and Locking
 

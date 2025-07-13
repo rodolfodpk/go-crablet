@@ -53,7 +53,7 @@ The go-crablet system has undergone several performance optimizations, resulting
 *Note: These results are from a single-instance setup and may vary in production environments.*
 
 ## DCB Concurrency Control (Not Classic Optimistic Locking)
-The default concurrency control in go-crablet is DCB's transaction ID–based approach, not classic optimistic locking. Advisory locks are experimental/optional and not enabled by default.
+The default concurrency control in go-crablet is the DCB approach (not classic optimistic locking). In addition, we use a transaction_id for each event (inspired by Oskar’s “Ordering in Postgres Outbox” article) to guarantee correct, gapless event ordering. The DCB pattern handles conflict detection and consistency, while transaction IDs ensure events are always ordered as they occurred in the database. Advisory locks are experimental/optional and not enabled by default.
 
 ## 🔧 Performance Optimizations Implemented
 
