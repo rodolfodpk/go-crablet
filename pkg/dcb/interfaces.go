@@ -48,7 +48,10 @@ type EventStore interface {
 	// GetConfig returns the current EventStore configuration
 	GetConfig() EventStoreConfig
 
-	// GetPool returns the underlying database pool
+	// GetPool exposes the underlying PostgreSQL connection pool (pgxpool.Pool).
+	// This is intended for advanced/internal use cases such as custom transaction management,
+	// integration testing, or infrastructure extensions. Regular application logic should NOT
+	// use this method, as it bypasses the event store's consistency and abstraction guarantees.
 	GetPool() *pgxpool.Pool
 }
 
