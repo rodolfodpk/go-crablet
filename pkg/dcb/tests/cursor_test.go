@@ -79,9 +79,9 @@ var _ = Describe("Cursor-based operations", func() {
 
 			// Create some test events
 			events := []dcb.InputEvent{
-				dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", uniqueID), []byte(`{"name": "John"}`)),
-				dcb.NewInputEvent("UserUpdated", dcb.NewTags("user_id", uniqueID), []byte(`{"name": "John Doe"}`)),
-				dcb.NewInputEvent("UserUpdated", dcb.NewTags("user_id", uniqueID), []byte(`{"name": "John Doe Smith"}`)),
+				dcb.NewInputEvent("UserRegistered", dcb.NewTags("user_id", uniqueID), []byte(`{"name": "John"}`)),
+				dcb.NewInputEvent("UserNameChanged", dcb.NewTags("user_id", uniqueID), []byte(`{"name": "John Doe"}`)),
+				dcb.NewInputEvent("UserNameChanged", dcb.NewTags("user_id", uniqueID), []byte(`{"name": "John Doe Smith"}`)),
 			}
 
 			// Append events
@@ -89,7 +89,7 @@ var _ = Describe("Cursor-based operations", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Read first event to get cursor
-			query := dcb.NewQuery(dcb.NewTags("user_id", uniqueID), "UserCreated")
+			query := dcb.NewQuery(dcb.NewTags("user_id", uniqueID), "UserRegistered")
 			firstEvents, err := store.Query(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(firstEvents).To(HaveLen(1))
@@ -109,7 +109,7 @@ var _ = Describe("Cursor-based operations", func() {
 				},
 				TransitionFn: func(state any, event dcb.Event) any {
 					userState := state.(map[string]interface{})
-					if event.Type == "UserCreated" || event.Type == "UserUpdated" {
+					if event.Type == "UserRegistered" || event.Type == "UserNameChanged" {
 						// Parse event data to get name
 						userState["name"] = "updated" // Simplified for test
 					}
@@ -123,7 +123,7 @@ var _ = Describe("Cursor-based operations", func() {
 			Expect(states).To(HaveKey("user"))
 			Expect(appendCondition).NotTo(BeNil())
 
-			// Should have processed events after the cursor (2 UserUpdated events)
+			// Should have processed events after the cursor (2 UserNameChanged events)
 			userState := states["user"].(map[string]interface{})
 			Expect(userState["name"]).To(Equal("updated"))
 		})
@@ -139,8 +139,8 @@ var _ = Describe("Cursor-based operations", func() {
 
 			// Create some test events
 			events := []dcb.InputEvent{
-				dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", uniqueID), []byte(`{"name": "Jane"}`)),
-				dcb.NewInputEvent("UserUpdated", dcb.NewTags("user_id", uniqueID), []byte(`{"name": "Jane Doe"}`)),
+				dcb.NewInputEvent("UserRegistered", dcb.NewTags("user_id", uniqueID), []byte(`{"name": "Jane"}`)),
+				dcb.NewInputEvent("UserNameChanged", dcb.NewTags("user_id", uniqueID), []byte(`{"name": "Jane Doe"}`)),
 			}
 
 			// Append events
@@ -148,7 +148,7 @@ var _ = Describe("Cursor-based operations", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Read first event to get cursor
-			query := dcb.NewQuery(dcb.NewTags("user_id", uniqueID), "UserCreated")
+			query := dcb.NewQuery(dcb.NewTags("user_id", uniqueID), "UserRegistered")
 			firstEvents, err := store.Query(ctx, query, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(firstEvents).To(HaveLen(1))
@@ -168,7 +168,7 @@ var _ = Describe("Cursor-based operations", func() {
 				},
 				TransitionFn: func(state any, event dcb.Event) any {
 					userState := state.(map[string]interface{})
-					if event.Type == "UserCreated" || event.Type == "UserUpdated" {
+					if event.Type == "UserCreated" || event.Type == "UserNameChanged" {
 						userState["name"] = "streamed"
 					}
 					return userState

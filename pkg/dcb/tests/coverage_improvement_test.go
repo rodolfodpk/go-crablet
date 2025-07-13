@@ -11,7 +11,7 @@ var _ = Describe("Coverage Improvement Tests", func() {
 	Describe("NewQuery", func() {
 		It("should create query with validation", func() {
 			tags := dcb.NewTags("user_id", "123")
-			eventTypes := []string{"UserCreated", "UserUpdated"}
+			eventTypes := []string{"UserRegistered", "UserNameChanged"}
 
 			query := dcb.NewQuery(tags, eventTypes...)
 
@@ -36,7 +36,7 @@ var _ = Describe("Coverage Improvement Tests", func() {
 
 	Describe("NewQueryItem", func() {
 		It("should create query item with single event type and tags", func() {
-			eventType := "UserCreated"
+			eventType := "UserRegistered"
 			tags := dcb.NewTags("user_id", "123")
 
 			item := dcb.NewQueryItem([]string{eventType}, tags)
@@ -47,7 +47,7 @@ var _ = Describe("Coverage Improvement Tests", func() {
 		})
 
 		It("should create query item with single event type and key-value tags", func() {
-			eventType := "UserCreated"
+			eventType := "UserRegistered"
 			kv := []string{"user_id", "123", "tenant", "test"}
 
 			item := dcb.NewQueryItem([]string{eventType}, dcb.NewTags(kv...))

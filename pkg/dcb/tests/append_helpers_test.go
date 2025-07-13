@@ -156,7 +156,7 @@ var _ = Describe("Append Helpers", func() {
 
 			// Second append with FailIfEventsMatch condition
 			events2 := []dcb.InputEvent{
-				dcb.NewInputEvent("UserUpdated", dcb.NewTags("user_id", "123"), dcb.ToJSON(map[string]string{"name": "Jane"})),
+				dcb.NewInputEvent("UserNameChanged", dcb.NewTags("user_id", "123"), dcb.ToJSON(map[string]string{"name": "Jane"})),
 			}
 			query := dcb.NewQuery(dcb.NewTags("user_id", "123"), "UserCreated")
 			condition := dcb.NewAppendCondition(query)
@@ -170,7 +170,7 @@ var _ = Describe("Append Helpers", func() {
 			events := []dcb.InputEvent{
 				dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", "123"), dcb.ToJSON(map[string]string{"name": "John"})),
 			}
-			query := dcb.NewQuery(dcb.NewTags("user_id", "123"), "UserUpdated")
+			query := dcb.NewQuery(dcb.NewTags("user_id", "123"), "UserNameChanged")
 			condition := dcb.NewAppendCondition(query)
 			err := store.Append(ctx, events, &condition)
 			Expect(err).NotTo(HaveOccurred())
@@ -214,7 +214,7 @@ var _ = Describe("Append Helpers", func() {
 
 			// Second append with same condition - should fail
 			events2 := []dcb.InputEvent{
-				dcb.NewInputEvent("UserUpdated", dcb.NewTags("user_id", "123"), dcb.ToJSON(map[string]string{"name": "Jane"})),
+				dcb.NewInputEvent("UserNameChanged", dcb.NewTags("user_id", "123"), dcb.ToJSON(map[string]string{"name": "Jane"})),
 			}
 			query := dcb.NewQuery(dcb.NewTags("user_id", "123"), "UserCreated")
 			condition := dcb.NewAppendCondition(query)

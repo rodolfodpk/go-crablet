@@ -31,14 +31,14 @@ var _ = Describe("Error Handling Helpers", func() {
 	})
 
 	It("detects and extracts ConcurrencyError", func() {
-		event := dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", "456"), dcb.ToJSON(map[string]string{"name": "Jane"}))
+		event := dcb.NewInputEvent("UserRegistered", dcb.NewTags("user_id", "456"), dcb.ToJSON(map[string]string{"name": "Jane"}))
 		events := []dcb.InputEvent{event}
 		// First append should succeed
 		err := store.Append(ctx, events, nil)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Second append with a condition that will fail
-		query := dcb.NewQuery(dcb.NewTags("user_id", "456"), "UserCreated")
+		query := dcb.NewQuery(dcb.NewTags("user_id", "456"), "UserRegistered")
 		condition := dcb.NewAppendCondition(query)
 		err = store.Append(ctx, events, &condition)
 
