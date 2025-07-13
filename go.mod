@@ -1,4 +1,4 @@
-module go-crablet
+module github.com/rodolfodpk/go-crablet
 
 go 1.24.5
 

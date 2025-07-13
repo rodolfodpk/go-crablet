@@ -57,6 +57,18 @@ func validateQueryTags(query Query) error {
 
 // validateEvent validates a single event and returns a ValidationError if invalid
 func validateEvent(e InputEvent, index int) error {
+	// Validate JSON data FIRST (fail early)
+	if !json.Valid(e.GetData()) {
+		return &ValidationError{
+			EventStoreError: EventStoreError{
+				Op:  "validateEvent",
+				Err: fmt.Errorf("invalid JSON data in event %d", index),
+			},
+			Field: "data",
+			Value: fmt.Sprintf("event[%d]", index),
+		}
+	}
+
 	// Early validation checks with early returns
 	if e.GetType() == "" {
 		return &ValidationError{
@@ -100,18 +112,6 @@ func validateEvent(e InputEvent, index int) error {
 				Field: fmt.Sprintf("event[%d].tag[%d].value", index, j),
 				Value: t.GetKey(),
 			}
-		}
-	}
-
-	// Validate Data as JSON
-	if !json.Valid(e.GetData()) {
-		return &ValidationError{
-			EventStoreError: EventStoreError{
-				Op:  "validateEvent",
-				Err: fmt.Errorf("invalid JSON data in event %d", index),
-			},
-			Field: "data",
-			Value: fmt.Sprintf("event[%d]", index),
 		}
 	}
 

@@ -43,6 +43,22 @@ func (ce *commandExecutor) ExecuteCommand(ctx context.Context, command Command, 
 		}
 	}
 
+	// Validate and prepare command data FIRST (fail early)
+	var commandMetadata []byte
+	if command.GetMetadata() != nil {
+		var err error
+		commandMetadata, err = json.Marshal(command.GetMetadata())
+		if err != nil {
+			return nil, &ResourceError{
+				EventStoreError: EventStoreError{
+					Op:  "ExecuteCommand",
+					Err: fmt.Errorf("failed to marshal command metadata: %w", err),
+				},
+				Resource: "json",
+			}
+		}
+	}
+
 	// Get config from EventStore
 	config := ce.eventStore.GetConfig()
 
@@ -145,29 +161,15 @@ func (ce *commandExecutor) ExecuteCommand(ctx context.Context, command Command, 
 	// Use type assertion to access internal appendInTx method
 	es := ce.eventStore.(*eventStore)
 	if condition != nil {
-		err = es.appendInTx(ctx, tx, events, *condition)
+		err = es.appendInTx(ctx, tx, events, *condition, nil)
 	} else {
-		err = es.appendInTx(ctx, tx, events, nil)
+		err = es.appendInTx(ctx, tx, events, nil, nil)
 	}
 	if err != nil {
 		return nil, err // If events fail, don't store command
 	}
 
-	// 5. Store command AFTER events (metadata)
-	var commandMetadata []byte
-	if command.GetMetadata() != nil {
-		commandMetadata, err = json.Marshal(command.GetMetadata())
-		if err != nil {
-			return nil, &ResourceError{
-				EventStoreError: EventStoreError{
-					Op:  "ExecuteCommand",
-					Err: fmt.Errorf("failed to marshal command metadata: %w", err),
-				},
-				Resource: "json",
-			}
-		}
-	}
-
+	// 5. Store command AFTER events (metadata) - now using pre-marshaled data
 	_, err = tx.Exec(ctx, `
 		INSERT INTO commands (transaction_id, type, data, metadata)
 		VALUES (pg_current_xact_id(), $1, $2, $3)

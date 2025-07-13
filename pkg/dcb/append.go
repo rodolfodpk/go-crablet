@@ -30,6 +30,22 @@ func (es *eventStore) withTimeout(ctx context.Context, defaultTimeoutMs int) (co
 // condition == nil: unconditional append
 // condition != nil: conditional append (optimistic locking)
 func (es *eventStore) Append(ctx context.Context, events []InputEvent, condition *AppendCondition) error {
+	// Validate and prepare condition FIRST (fail early)
+	var conditionJSON []byte
+	if condition != nil {
+		var err error
+		conditionJSON, err = json.Marshal(condition)
+		if err != nil {
+			return &ResourceError{
+				EventStoreError: EventStoreError{
+					Op:  "append",
+					Err: fmt.Errorf("failed to marshal condition: %w", err),
+				},
+				Resource: "json",
+			}
+		}
+	}
+
 	// Validate events
 	if len(events) == 0 {
 		return &ValidationError{
@@ -62,9 +78,9 @@ func (es *eventStore) Append(ctx context.Context, events []InputEvent, condition
 
 	// Use conditional or unconditional append based on condition parameter
 	if condition != nil {
-		err = es.appendInTx(ctx, tx, events, *condition)
+		err = es.appendInTx(ctx, tx, events, *condition, conditionJSON)
 	} else {
-		err = es.appendInTx(ctx, tx, events, nil)
+		err = es.appendInTx(ctx, tx, events, nil, nil)
 	}
 	if err != nil {
 		return err
@@ -112,7 +128,7 @@ func toPgxIsoLevel(level IsolationLevel) pgx.TxIsoLevel {
 
 // appendInTx appends events within an existing transaction
 // This is the internal method that does the actual work without managing transactions
-func (es *eventStore) appendInTx(ctx context.Context, tx pgx.Tx, events []InputEvent, condition AppendCondition) error {
+func (es *eventStore) appendInTx(ctx context.Context, tx pgx.Tx, events []InputEvent, condition AppendCondition, conditionJSON []byte) error {
 	// Validate events
 	if len(events) == 0 {
 		return &ValidationError{
@@ -197,25 +213,10 @@ func (es *eventStore) appendInTx(ctx context.Context, tx pgx.Tx, events []InputE
 		data[i] = event.GetData()
 	}
 
-	// Convert condition to JSONB for PostgreSQL function
-	var conditionJSON []byte
-	var err error
-	if condition != nil {
-		conditionJSON, err = json.Marshal(condition)
-		if err != nil {
-			return &ResourceError{
-				EventStoreError: EventStoreError{
-					Op:  "appendInTx",
-					Err: fmt.Errorf("failed to marshal condition: %w", err),
-				},
-				Resource: "json",
-			}
-		}
-	}
-
 	// Execute append operation using PostgreSQL function
 	// Always use the simplified functions with 'events' table for maximum performance
 	var result []byte
+	var err error
 	if condition != nil {
 		err = tx.QueryRow(ctx, `
 			SELECT append_events_with_condition($1, $2, $3, $4)
