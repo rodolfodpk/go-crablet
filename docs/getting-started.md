@@ -33,8 +33,6 @@ All examples are located in `internal/examples/` and demonstrate different aspec
 - `internal/examples/decision_model/main.go` - Exploring Dynamic Consistency Boundary concepts
 - `internal/examples/enrollment/main.go` - Course enrollment with business rules
 - `internal/examples/transfer/main.go` - Money transfer between accounts
-- `internal/examples/readstream/main.go` - Event streaming basics
-- `internal/examples/streaming_projection/main.go` - Streaming projections
-- `internal/examples/cursor_streaming/main.go` - Large dataset processing
+- `internal/examples/streaming/main.go` - Event streaming basics
 - `internal/examples/batch/main.go` - Multiple events in single append calls
-- `internal/examples/channel_projection/main.go`
+- `internal/examples/utils/main.go` - Utility functions and helpers
