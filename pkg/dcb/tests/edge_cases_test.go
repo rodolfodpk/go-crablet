@@ -177,6 +177,42 @@ var _ = Describe("Interface Type Guards and Edge Cases", func() {
 			Expect(config.StreamBuffer).To(Equal(999999))
 			Expect(config.QueryTimeout).To(Equal(999999))
 		})
+
+		It("should create EventStore with custom config using NewEventStoreFromPoolWithConfig", func() {
+			customConfig := dcb.EventStoreConfig{
+				MaxBatchSize:           500,
+				LockTimeout:            3000,
+				StreamBuffer:           500,
+				DefaultAppendIsolation: dcb.IsolationLevelRepeatableRead,
+				QueryTimeout:           8000,
+				AppendTimeout:          6000,
+			}
+
+			// Create EventStore with custom config
+			customStore := dcb.NewEventStoreFromPoolWithConfig(pool, customConfig)
+			Expect(customStore).NotTo(BeNil())
+
+			// Verify the config was applied correctly
+			retrievedConfig := customStore.GetConfig()
+			Expect(retrievedConfig.MaxBatchSize).To(Equal(500))
+			Expect(retrievedConfig.LockTimeout).To(Equal(3000))
+			Expect(retrievedConfig.StreamBuffer).To(Equal(500))
+			Expect(retrievedConfig.DefaultAppendIsolation).To(Equal(dcb.IsolationLevelRepeatableRead))
+			Expect(retrievedConfig.QueryTimeout).To(Equal(8000))
+			Expect(retrievedConfig.AppendTimeout).To(Equal(6000))
+
+			// Verify it can perform basic operations
+			event := dcb.NewInputEvent("TestEvent", dcb.NewTags("key", "value"), dcb.ToJSON(map[string]string{"data": "test"}))
+			err := customStore.Append(ctx, []dcb.InputEvent{event}, nil)
+			Expect(err).To(BeNil())
+
+			// Query the event back
+			query := dcb.NewQuery(dcb.NewTags("key", "value"), "TestEvent")
+			events, err := customStore.Query(ctx, query, nil)
+			Expect(err).To(BeNil())
+			Expect(events).To(HaveLen(1))
+			Expect(events[0].Type).To(Equal("TestEvent"))
+		})
 	})
 
 	Describe("Tag Constructor Edge Cases", func() {
