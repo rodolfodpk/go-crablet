@@ -13,14 +13,14 @@ rm -f coverage.out coverage_combined.out coverage_internal.out coverage_external
 
 # Step 1: Run internal tests (pkg/dcb only)
 echo "📦 Running internal tests (pkg/dcb)..."
-go test -v -coverpkg=go-crablet/pkg/dcb -coverprofile=coverage_internal.out ./pkg/dcb || {
+go test -v -coverpkg=github.com/rodolfodpk/go-crablet/pkg/dcb -coverprofile=coverage_internal.out ./pkg/dcb || {
     echo "❌ Internal tests failed"
     exit 1
 }
 
 # Step 2: Run external tests (pkg/dcb/tests)
 echo "🔗 Running external tests (pkg/dcb/tests)..."
-go test -v -coverpkg=go-crablet/pkg/dcb -coverprofile=coverage_external.out ./pkg/dcb/tests || {
+go test -v -coverpkg=github.com/rodolfodpk/go-crablet/pkg/dcb -coverprofile=coverage_external.out ./pkg/dcb/tests || {
     echo "❌ External tests failed"
     exit 1
 }
