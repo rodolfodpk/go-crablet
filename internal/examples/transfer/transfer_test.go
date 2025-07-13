@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"go-crablet/pkg/dcb"
+	"github.com/rodolfodpk/go-crablet/pkg/dcb"
 
 	"testing"
 

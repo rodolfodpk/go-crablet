@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"go-crablet/internal/benchmarks/setup"
-	"go-crablet/pkg/dcb"
+	"github.com/rodolfodpk/go-crablet/internal/benchmarks/setup"
+	"github.com/rodolfodpk/go-crablet/pkg/dcb"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )

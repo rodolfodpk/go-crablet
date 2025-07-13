@@ -7,8 +7,8 @@ import (
 	"log"
 	"math/rand"
 
-	"go-crablet/internal/examples/utils"
-	"go-crablet/pkg/dcb"
+	"github.com/rodolfodpk/go-crablet/internal/examples/utils"
+	"github.com/rodolfodpk/go-crablet/pkg/dcb"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )

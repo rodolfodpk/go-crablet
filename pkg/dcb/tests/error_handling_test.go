@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	dcb "go-crablet/pkg/dcb"
+	dcb "github.com/rodolfodpk/go-crablet/pkg/dcb"
 )
 
 var _ = Describe("Error Handling Helpers", func() {

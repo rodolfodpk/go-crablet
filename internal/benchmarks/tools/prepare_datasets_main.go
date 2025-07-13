@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"go-crablet/internal/benchmarks/setup"
+	"github.com/rodolfodpk/go-crablet/internal/benchmarks/setup"
 )
 
 func main() {
