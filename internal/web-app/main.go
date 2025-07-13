@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"go-crablet/internal/benchmarks/setup"
-	"go-crablet/pkg/dcb"
+	"github.com/rodolfodpk/go-crablet/internal/benchmarks/setup"
+	"github.com/rodolfodpk/go-crablet/pkg/dcb"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -273,7 +273,7 @@ func main() {
 	}
 
 	// Log startup information
-	log.Printf("Starting go-crablet web-app server on port %s", port)
+	log.Printf("Starting github.com/rodolfodpk/go-crablet web-app server on port %s", port)
 	log.Printf("Database connected successfully (pool: %d-%d connections)", minConns, maxConns)
 
 	// Configure HTTP server for high performance

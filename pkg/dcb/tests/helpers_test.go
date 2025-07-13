@@ -1,7 +1,7 @@
 package dcb_test
 
 import (
-	"go-crablet/pkg/dcb"
+	"github.com/rodolfodpk/go-crablet/pkg/dcb"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

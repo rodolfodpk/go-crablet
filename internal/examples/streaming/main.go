@@ -1,4 +1,4 @@
-// This example demonstrates different streaming approaches in go-crablet
+// This example demonstrates different streaming approaches in github.com/rodolfodpk/go-crablet
 // Run with: go run internal/examples/streaming/main.go
 package main
 
@@ -8,7 +8,7 @@ import (
 	"log"
 	"time"
 
-	"go-crablet/pkg/dcb"
+	"github.com/rodolfodpk/go-crablet/pkg/dcb"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )

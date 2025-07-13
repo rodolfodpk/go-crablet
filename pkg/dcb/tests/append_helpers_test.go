@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"go-crablet/pkg/dcb"
+	"github.com/rodolfodpk/go-crablet/pkg/dcb"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	. "github.com/onsi/ginkgo/v2"
