@@ -1,6 +1,6 @@
 # Command Execution Flow
 
-This document illustrates the command execution flow in go-crablet using a sequence diagram, showing how commands are processed, validated, and converted to events using the DCB pattern's optimistic locking approach.
+This document illustrates the command execution flow in go-crablet using a sequence diagram, showing how commands are processed, validated, and converted to events using the DCB pattern's concurrency control approach.
 
 ## Sequence Diagram
 
@@ -13,7 +13,7 @@ sequenceDiagram
     participant Commands Table
     participant Events Table
 
-    Note over Client, Events Table: Command Execution Flow with DCB Pattern<br/>Primary: Optimistic Locking via Transaction IDs
+    Note over Client, Events Table: Command Execution Flow with DCB Pattern<br/>Primary: Concurrency Control via Transaction IDs
 
     Client->>CommandExecutor: ExecuteCommand(command)
     Note right of Client: command: Command interface<br/>with type, data, and metadata
@@ -35,10 +35,10 @@ sequenceDiagram
             CommandExecutor-->>Client: Return execution error
         else Command Execution Successful
             CommandExecutor->>EventStore: Append(events, condition)
-            Note right of EventStore: Validate events<br/>Check MaxBatchSize limit<br/>Apply optimistic locking conditions
+            Note right of EventStore: Validate events<br/>Check MaxBatchSize limit<br/>Apply DCB concurrency control conditions
 
             EventStore->>Database: Check append conditions
-            Note right of Database: DCB optimistic locking:<br/>- Check for conflicting events<br/>- Use transaction_id for ordering<br/>- No advisory locks (optional feature unused)
+            Note right of Database: DCB concurrency control:<br/>- Check for conflicting events<br/>- Use transaction_id for ordering<br/>- No advisory locks (optional feature unused)
 
             alt Condition Check Failed
                 EventStore->>Database: Rollback transaction
@@ -86,13 +86,13 @@ type Command interface {
 - **Purpose**: Core event sourcing operations
 - **Responsibilities**:
   - Validate event batches
-  - Apply DCB optimistic locking via append conditions
+  - Apply DCB concurrency control via append conditions
   - Persist events to database
   - **Does NOT store commands** (handled by CommandExecutor)
 
 ### 4. Database Operations
 - **Transaction Management**: Ensures atomicity
-- **DCB Optimistic Locking**: Primary mechanism using transaction IDs and append conditions
+- **DCB Concurrency Control**: Primary mechanism using transaction IDs and append conditions (not classic optimistic locking)
 - **Advisory Locks**: Optional feature via `lock:` prefixed tags (currently unused in Go implementation)
 - **Event Storage**: Persists events with metadata
 - **Command Tracking**: Stores command execution history (separate from EventStore)
@@ -103,7 +103,7 @@ type Command interface {
 2. **Transaction Start**: Begin database transaction with appropriate isolation
 3. **Command Execution**: Execute command handler to generate events
 4. **Event Validation**: Check event batch size and structure
-5. **DCB Condition Check**: Apply optimistic locking via append conditions (no advisory locks)
+5. **DCB Condition Check**: Apply concurrency control via append conditions (no advisory locks)
 6. **Event Persistence**: Insert events into events table
 7. **Command Tracking**: Store command metadata in commands table (separate from EventStore)
 8. **Transaction Commit**: Commit all changes atomically
@@ -119,11 +119,12 @@ type Command interface {
 ## Benefits
 
 - **Atomicity**: All operations succeed or fail together
-- **DCB Consistency**: Optimistic locking via transaction IDs prevents concurrent conflicts
+- **DCB Consistency**: Concurrency control via transaction IDs prevents concurrent conflicts (this is not classic optimistic locking, but a DCB-specific approach—see references below)
 - **Audit Trail**: Complete command and event history
 - **Error Recovery**: Automatic rollback on failures
 - **Performance**: Optimized for typical event sourcing workloads
-- **Simplicity**: No complex locking mechanisms - pure optimistic approach
+- **Simplicity**: No complex locking mechanisms - pure DCB approach
+- **Experimental Advisory Locks**: PostgreSQL advisory lock support exists as an experimental, optional feature (not enabled by default)
 
 ## Example Usage
 
@@ -142,4 +143,9 @@ if err != nil {
 fmt.Printf("Generated %d events\n", len(events))
 ```
 
-This flow ensures reliable command execution with full audit trail and proper error handling, following the Dynamic Consistency Boundary (DCB) pattern principles with optimistic locking via transaction IDs.
+This flow ensures reliable command execution with full audit trail and proper error handling, following the Dynamic Consistency Boundary (DCB) pattern principles with concurrency control via transaction IDs (not classic optimistic locking).
+
+## References
+
+- [Ordering in Postgres Outbox: Why Transaction IDs Matter](https://event-driven.io/en/ordering_in_postgres_outbox/)
+- PostgreSQL advisory lock support in go-crablet is experimental and optional; DCB concurrency control is the default and recommended approach.

@@ -12,7 +12,7 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 
 **Core API - EventStore:**
 - **DCB-inspired decision models**: Project multiple states and check business invariants in a single query
-- **Optimistic concurrency**: Append events only if no conflicting events exist within the same query scope
+- **DCB concurrency control**: Append events only if no conflicting events exist within the same query scope (uses transaction IDs, not classic optimistic locking)
 - **Memory-efficient streaming**: Process events row-by-row for large event streams
 - **PostgreSQL-backed**: Uses PostgreSQL for robust, concurrent event storage
 - **Robust error handling**: Two-tier error handling with guaranteed transaction rollback

@@ -3,7 +3,7 @@
 This example demonstrates our exploration of the Dynamic Consistency Boundary (DCB) pattern using go-crablet. It shows how we're experimenting with:
 - Project multiple states (decision model) in a single query
 - Enforce business invariants (course exists, not full, student not already subscribed)
-- Use a combined append condition for optimistic concurrency
+- Use a combined append condition for DCB concurrency control (uses transaction IDs, not classic optimistic locking)
 - Use channel-based streaming for Go-idiomatic event processing
 
 ## Example: Course Subscription Command Handler
@@ -263,9 +263,9 @@ func channelStreamingExample() {
 }
 ```
 
-## Example: Money Transfer with Optimistic Locking
+## Example: Money Transfer with DCB Concurrency Control
 
-This example demonstrates concurrent money transfers with optimistic locking to prevent double-spending:
+This example demonstrates concurrent money transfers with DCB concurrency control to prevent double-spending:
 
 ```go
 func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd TransferMoneyCommand) error {
@@ -311,7 +311,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
         return fmt.Errorf("insufficient funds: account %s has %d, needs %d", cmd.FromAccountID, from.Balance, cmd.Amount)
     }
     // ...
-    // Use appendCond for optimistic concurrency
+    // Use appendCond for DCB concurrency control
     // ...
     return nil
 }
@@ -382,7 +382,7 @@ store.Append(ctx, events, &condition)
 
 **When to use different methods:**
 - **Append (nil condition)**: Fastest, safe for simple appends
-- **Append (with condition)**: Good for conditional appends, prevents phantom reads with optimistic locking
+- **Append (with condition)**: Good for conditional appends, prevents phantom reads with DCB concurrency control
 
 The isolation level and other settings can be configured when creating the EventStore via `EventStoreConfig`:
 
@@ -476,7 +476,7 @@ Benchmark results from web-app load testing (30-second tests):
 **Key insights:**
 - **Conditional appends are fastest**: Conditional appends with Repeatable Read perform better than simple appends
 - **Excellent reliability**: Both methods achieve 100% success rate
-- **Optimized implementation**: Cursor-based optimistic locking and SQL functions are highly efficient
+- **Optimized implementation**: Cursor-based DCB concurrency control and SQL functions are highly efficient
 
 ## Available Examples
 

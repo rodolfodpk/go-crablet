@@ -260,7 +260,7 @@ func (es *eventStore) Append(ctx context.Context, events []InputEvent, condition
 
 ### Reliability
 - **Good Success Rates**: 100% across all test scenarios
-- **Zero Concurrency Errors**: Optimistic locking working well
+- **Zero Concurrency Errors**: DCB concurrency control working well
 - **Robust Error Handling**: All error scenarios properly managed
 - **Transaction Atomicity**: Guaranteed rollback on any error
 
