@@ -215,6 +215,19 @@ go test -v ./pkg/dcb/tests/...
 - **Present this as a learning project** rather than a finished solution
 - **Acknowledge that DCB is still evolving** and we're exploring its application
 
+## Command Execution Terminology
+- **NEVER say "Convert commands to events"** - this is misleading and incorrect
+- **ALWAYS say "Execute command handlers to generate events"** or similar
+- **Emphasize that command handlers apply business logic** to decide what events to create
+- **Clarify there is no automatic conversion** - it's a deliberate business decision
+- **The command handler is where business logic lives** and decides what events to create
+- **Use phrases like**:
+  - "Execute command logic to generate events"
+  - "Command handler returns events"
+  - "Process command and create events"
+  - "Command execution produces events"
+  - "Handler applies business logic and generates events"
+
 ## Critical Approval Requirements
 - **ALL changes to `docker-entrypoint-initdb.d/schema.sql` require user approval**
 - **ALL changes to core API in `pkg/dcb/` require user approval**
