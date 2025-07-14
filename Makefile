@@ -129,6 +129,45 @@ benchmark-results:
 	@echo "Results saved in: $(BENCHMARK_RESULTS_DIR)/"
 	@ls -la $(BENCHMARK_RESULTS_DIR)/*_$(TIMESTAMP).txt 2>/dev/null || echo "No results files found"
 
+# Run examples
+examples:
+	@echo "Available examples:"
+	@echo "  make example-decision-model  - Run decision model example"
+	@echo "  make example-enrollment      - Run course enrollment example"
+	@echo "  make example-transfer        - Run money transfer example"
+	@echo "  make example-streaming       - Run event streaming example"
+	@echo "  make example-batch           - Run batch events example"
+	@echo "  make example-ticket-booking  - Run ticket booking example (experimental)"
+	@echo "  make example-utils           - Run utility functions example"
+
+example-decision-model:
+	@echo "🚀 Running decision model example..."
+	@$(GO) run internal/examples/decision_model/main.go
+
+example-enrollment:
+	@echo "🚀 Running course enrollment example..."
+	@$(GO) run internal/examples/enrollment/main.go
+
+example-transfer:
+	@echo "🚀 Running money transfer example..."
+	@$(GO) run internal/examples/transfer/main.go
+
+example-streaming:
+	@echo "🚀 Running event streaming example..."
+	@$(GO) run internal/examples/streaming/main.go
+
+example-batch:
+	@echo "🚀 Running batch events example..."
+	@$(GO) run internal/examples/batch/main.go
+
+example-ticket-booking:
+	@echo "🚀 Running ticket booking example (experimental)..."
+	@$(GO) run internal/examples/ticket_booking/main.go
+
+example-utils:
+	@echo "🚀 Running utility functions example..."
+	@$(GO) run internal/examples/utils/main.go
+
 # Show help
 help:
 	@echo "Available targets:"
@@ -148,6 +187,8 @@ help:
 	@echo "  generate-datasets - Generate SQLite test datasets"
 	@echo "  web-app-start  - Start web app server"
 	@echo "  web-app-stop   - Stop web app server"
+	@echo "  examples       - Show available examples"
+	@echo "  example-*      - Run specific example (see 'make examples' for list)"
 	@echo "  benchmark      - Run all benchmarks (alias for benchmark-all)"
 	@echo "  benchmark-all  - Run all benchmark tests"
 	@echo "  benchmark-quick - Run quick functionality test"
