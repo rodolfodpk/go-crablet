@@ -65,68 +65,76 @@ func main() {
 		log.Fatalf("failed to create event store: %v", err)
 	}
 
-	// Test both approaches if not specifically requested
-	if !*useAdvisoryLocks {
-		// Test DCB Concurrency Control
-		fmt.Println("=== Testing DCB Concurrency Control ===")
-		dcbResults := runConcurrencyTest(ctx, store, *numUsers, *numSeats, *ticketsPerUser, false)
-
-		// Clear the database for the next test
-		fmt.Println("\nClearing database for next test...")
-		clearDatabase(ctx, pool)
-
-		// Test Advisory Locks
-		fmt.Println("\n=== Testing PostgreSQL Advisory Locks ===")
-		advisoryResults := runConcurrencyTest(ctx, store, *numUsers, *numSeats, *ticketsPerUser, true)
-
-		// Compare results
-		fmt.Println("\n" + strings.Repeat("=", 80))
-		fmt.Println("=== PERFORMANCE COMPARISON ===")
-		fmt.Println(strings.Repeat("=", 80))
-		fmt.Printf("%-30s | %-15s | %-15s | %-15s | %-15s\n", "Method", "Total Time", "Avg Time/Booking", "Success Rate", "Throughput")
-		fmt.Println(strings.Repeat("-", 80))
-		fmt.Printf("%-30s | %-15s | %-15s | %-15s | %-15s\n",
-			"DCB Concurrency Control",
-			dcbResults.totalTime,
-			dcbResults.avgTime,
-			fmt.Sprintf("%.1f%%", dcbResults.successRate),
-			fmt.Sprintf("%.0f ops/s", dcbResults.throughput))
-		fmt.Printf("%-30s | %-15s | %-15s | %-15s | %-15s\n",
-			"PostgreSQL Advisory Locks",
-			advisoryResults.totalTime,
-			advisoryResults.avgTime,
-			fmt.Sprintf("%.1f%%", advisoryResults.successRate),
-			fmt.Sprintf("%.0f ops/s", advisoryResults.throughput))
-		fmt.Println(strings.Repeat("-", 80))
-
-		// Performance analysis
-		fmt.Println("\n=== PERFORMANCE ANALYSIS ===")
-		if dcbResults.totalTime < advisoryResults.totalTime {
-			improvement := float64(advisoryResults.totalTime) / float64(dcbResults.totalTime)
-			fmt.Printf("✅ DCB Concurrency Control is %.1fx FASTER than Advisory Locks\n", improvement)
-		} else {
-			improvement := float64(dcbResults.totalTime) / float64(advisoryResults.totalTime)
-			fmt.Printf("✅ Advisory Locks are %.1fx FASTER than DCB Concurrency Control\n", improvement)
-		}
-
-		if dcbResults.throughput > advisoryResults.throughput {
-			improvement := dcbResults.throughput / advisoryResults.throughput
-			fmt.Printf("✅ DCB Concurrency Control has %.1fx HIGHER throughput\n", improvement)
-		} else {
-			improvement := advisoryResults.throughput / dcbResults.throughput
-			fmt.Printf("✅ Advisory Locks have %.1fx HIGHER throughput\n", improvement)
-		}
-
+	// Determine test mode based on command line flags
+	if *useAdvisoryLocks {
+		runSingleApproach(ctx, store, *numUsers, *numSeats, *ticketsPerUser, *useAdvisoryLocks)
 	} else {
-		// Run only the requested approach
-		fmt.Printf("=== Testing %s ===\n", getConcurrencyMethod(*useAdvisoryLocks))
-		results := runConcurrencyTest(ctx, store, *numUsers, *numSeats, *ticketsPerUser, *useAdvisoryLocks)
+		runPerformanceComparison(ctx, store, pool, *numUsers, *numSeats, *ticketsPerUser)
+	}
+}
 
-		fmt.Printf("\n=== Results ===\n")
-		fmt.Printf("Total Time: %v\n", results.totalTime)
-		fmt.Printf("Average Time per Booking: %v\n", results.avgTime)
-		fmt.Printf("Success Rate: %.1f%%\n", results.successRate)
-		fmt.Printf("Throughput: %.0f ops/s\n", results.throughput)
+// runSingleApproach runs a single concurrency control approach
+func runSingleApproach(ctx context.Context, store dcb.EventStore, numUsers, numSeats, ticketsPerUser int, useAdvisoryLocks bool) {
+	fmt.Printf("=== Testing %s ===\n", getConcurrencyMethod(useAdvisoryLocks))
+	results := runConcurrencyTest(ctx, store, numUsers, numSeats, ticketsPerUser, useAdvisoryLocks)
+
+	fmt.Printf("\n=== Results ===\n")
+	fmt.Printf("Total Time: %v\n", results.totalTime)
+	fmt.Printf("Average Time per Booking: %v\n", results.avgTime)
+	fmt.Printf("Success Rate: %.1f%%\n", results.successRate)
+	fmt.Printf("Throughput: %.0f ops/s\n", results.throughput)
+}
+
+// runPerformanceComparison runs both approaches and compares their performance
+func runPerformanceComparison(ctx context.Context, store dcb.EventStore, pool *pgxpool.Pool, numUsers, numSeats, ticketsPerUser int) {
+	// Test DCB Concurrency Control
+	fmt.Println("=== Testing DCB Concurrency Control ===")
+	dcbResults := runConcurrencyTest(ctx, store, numUsers, numSeats, ticketsPerUser, false)
+
+	// Clear the database for the next test
+	fmt.Println("\nClearing database for next test...")
+	clearDatabase(ctx, pool)
+
+	// Test Advisory Locks
+	fmt.Println("\n=== Testing PostgreSQL Advisory Locks ===")
+	advisoryResults := runConcurrencyTest(ctx, store, numUsers, numSeats, ticketsPerUser, true)
+
+	// Compare results
+	fmt.Println("\n" + strings.Repeat("=", 80))
+	fmt.Println("=== PERFORMANCE COMPARISON ===")
+	fmt.Println(strings.Repeat("=", 80))
+	fmt.Printf("%-30s | %-15s | %-15s | %-15s | %-15s\n", "Method", "Total Time", "Avg Time/Booking", "Success Rate", "Throughput")
+	fmt.Println(strings.Repeat("-", 80))
+	fmt.Printf("%-30s | %-15s | %-15s | %-15s | %-15s\n",
+		"DCB Concurrency Control",
+		dcbResults.totalTime,
+		dcbResults.avgTime,
+		fmt.Sprintf("%.1f%%", dcbResults.successRate),
+		fmt.Sprintf("%.0f ops/s", dcbResults.throughput))
+	fmt.Printf("%-30s | %-15s | %-15s | %-15s | %-15s\n",
+		"PostgreSQL Advisory Locks",
+		advisoryResults.totalTime,
+		advisoryResults.avgTime,
+		fmt.Sprintf("%.1f%%", advisoryResults.successRate),
+		fmt.Sprintf("%.0f ops/s", advisoryResults.throughput))
+	fmt.Println(strings.Repeat("-", 80))
+
+	// Performance analysis
+	fmt.Println("\n=== PERFORMANCE ANALYSIS ===")
+	if dcbResults.totalTime < advisoryResults.totalTime {
+		improvement := float64(advisoryResults.totalTime) / float64(dcbResults.totalTime)
+		fmt.Printf("✅ DCB Concurrency Control is %.1fx FASTER than Advisory Locks\n", improvement)
+	} else {
+		improvement := float64(dcbResults.totalTime) / float64(advisoryResults.totalTime)
+		fmt.Printf("✅ Advisory Locks are %.1fx FASTER than DCB Concurrency Control\n", improvement)
+	}
+
+	if dcbResults.throughput > advisoryResults.throughput {
+		improvement := dcbResults.throughput / advisoryResults.throughput
+		fmt.Printf("✅ DCB Concurrency Control has %.1fx HIGHER throughput\n", improvement)
+	} else {
+		improvement := advisoryResults.throughput / dcbResults.throughput
+		fmt.Printf("✅ Advisory Locks have %.1fx HIGHER throughput\n", improvement)
 	}
 }
 
