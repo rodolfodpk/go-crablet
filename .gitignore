@@ -63,6 +63,5 @@ streaming
 server
 benchmarks
 command_execution
-internal/examples/*/
 internal/web-app/web-app
 
