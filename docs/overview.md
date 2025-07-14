@@ -154,7 +154,7 @@ For additional concurrency control, you can use PostgreSQL advisory locks via ev
 - **Deadlock prevention**: Locks are sorted and acquired in consistent order
 - **Transaction-scoped**: Locks are automatically released when transaction commits/rolls back
 
-**Note**: Advisory locks are currently available in the database functions but are experimental and not actively used by the Go implementation.
+**Note**: Advisory locks are now fully implemented and available in the Go implementation via `lock:` prefixed tags. When `lock:` tags are present, advisory locks are acquired FIRST, then DCB concurrency checks are performed. Both mechanisms work together for comprehensive concurrency control.
 
 ### Isolation Levels
 Configurable PostgreSQL isolation levels via `EventStoreConfig.DefaultAppendIsolation` (default: Read Committed).
@@ -474,6 +474,6 @@ func handleUserAction(ctx context.Context, store dcb.EventStore, command dcb.Com
 - **DCB Concurrency Control**: Cursor-based append conditions for concurrent safety (uses transaction IDs, not classic optimistic locking)
 - **Command Tracking**: Commands automatically stored in `commands` table with transaction ID linking
 - **Command Execution**: Atomic command execution with handler-based event generation using `CommandExecutor`
-- **Lock Acquisition**: Advisory locks available via `lock:` prefixed tags in event tags (optional feature, currently unused in Go implementation)
+- **Lock Acquisition**: Advisory locks available via `lock:` prefixed tags in event tags (fully implemented)
 
 See [examples](examples.md) for complete working examples including course subscriptions and money transfers, and [getting-started](getting-started.md) for setup instructions.

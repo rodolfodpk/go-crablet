@@ -241,3 +241,13 @@ go test -v ./pkg/dcb/tests/...
 - **Always add large files and build artifacts to `.gitignore`** to prevent accidental commits.
 - **Review `.gitignore` regularly** to ensure new large files or patterns are excluded.
 - **If in doubt, ask before committing any file over 1MB**. 
+
+# Cursor Project Rule: Event Tag Array Contract
+
+- The contract for event tags in batch appends is:
+  - Each event's tags are passed as a single Postgres array-literal string (e.g., '{"key1:value1","key2:value2"}').
+  - The Go code (using pgx) must pass a []string where each element is a valid array-literal string for one event's tags.
+  - The SQL function must accept TEXT[] (not TEXT[][]), and cast each element to TEXT[] inside the function.
+  - The function must process, filter, and reconstruct tags as a valid array-literal string for each event, not as a comma-separated string or a nested array.
+
+- Never require Go code to pass [][]string or Postgres text[][] for tags. Always use the array-literal string contract. 
