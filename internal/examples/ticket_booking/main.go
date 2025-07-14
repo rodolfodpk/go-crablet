@@ -57,7 +57,7 @@ func main() {
 		ConcertID:      concertID,
 		Artist:         "The Event Sourcing Band",
 		Venue:          "DCB Arena",
-		TotalSeats:     10, // Only 10 seats available
+		TotalSeats:     20, // 20 seats available
 		PricePerTicket: 50.0,
 	}
 	err = handleCreateConcert(ctx, store, createConcertCmd)
@@ -66,15 +66,15 @@ func main() {
 	}
 
 	fmt.Println("=== Testing Concurrent Ticket Booking with Advisory Locks ===")
-	fmt.Printf("Concert %s has %d seats available. Attempting to book tickets for 8 customers concurrently...\n",
+	fmt.Printf("Concert %s has %d seats available. Attempting to book tickets for 100 customers concurrently...\n",
 		concertID, createConcertCmd.TotalSeats)
 
 	// Simulate concurrent ticket booking attempts
 	var wg sync.WaitGroup
-	results := make(chan string, 8)
+	results := make(chan string, 100)
 
-	// Try to book tickets for 8 customers concurrently (but only some should succeed)
-	for i := 1; i <= 8; i++ {
+	// Try to book tickets for 100 customers concurrently (but only some should succeed)
+	for i := 1; i <= 100; i++ {
 		wg.Add(1)
 		go func(customerID int) {
 			defer wg.Done()
