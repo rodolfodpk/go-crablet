@@ -137,7 +137,7 @@ examples:
 	@echo "  make example-transfer        - Run money transfer example"
 	@echo "  make example-streaming       - Run event streaming example"
 	@echo "  make example-batch           - Run batch events example"
-	@echo "  make example-ticket-booking  - Run ticket booking example (experimental)"
+	@echo "  make example-concurrency     - Run concurrency comparison example"
 	@echo "  make example-utils           - Run utility functions example"
 
 example-decision-model:
@@ -160,9 +160,9 @@ example-batch:
 	@echo "🚀 Running batch events example..."
 	@$(GO) run internal/examples/batch/main.go
 
-example-ticket-booking:
-	@echo "🚀 Running ticket booking example (experimental)..."
-	@$(GO) run internal/examples/ticket_booking/main.go
+example-concurrency:
+	@echo "🚀 Running concurrency comparison example..."
+	@$(GO) run internal/examples/concurrency_comparison/main.go
 
 example-utils:
 	@echo "🚀 Running utility functions example..."
