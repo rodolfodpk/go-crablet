@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"sync"
@@ -41,6 +42,18 @@ type ConcertState struct {
 }
 
 func main() {
+	// Parse command-line arguments
+	var numUsers = flag.Int("users", 100, "Number of concurrent users to simulate (default: 100)")
+	var numSeats = flag.Int("seats", 20, "Number of seats available in the concert (default: 20)")
+	var ticketsPerUser = flag.Int("tickets", 2, "Number of tickets each user wants to book (default: 2)")
+	flag.Parse()
+
+	// Show configuration
+	fmt.Printf("=== Ticket Booking Advisory Lock Test ===\n")
+	fmt.Printf("Configuration: %d users, %d seats, %d tickets per user\n", *numUsers, *numSeats, *ticketsPerUser)
+	fmt.Printf("Expected successful bookings: %d (if seats >= users * tickets)\n", *numSeats / *ticketsPerUser)
+	fmt.Printf("Expected failed bookings: %d\n\n", *numUsers-(*numSeats / *ticketsPerUser))
+
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")
 	if err != nil {
@@ -57,7 +70,7 @@ func main() {
 		ConcertID:      concertID,
 		Artist:         "The Event Sourcing Band",
 		Venue:          "DCB Arena",
-		TotalSeats:     20, // 20 seats available
+		TotalSeats:     *numSeats, // Configurable seats
 		PricePerTicket: 50.0,
 	}
 	err = handleCreateConcert(ctx, store, createConcertCmd)
@@ -66,24 +79,24 @@ func main() {
 	}
 
 	fmt.Println("=== Testing Concurrent Ticket Booking with Advisory Locks ===")
-	fmt.Printf("Concert %s has %d seats available. Attempting to book tickets for 100 customers concurrently...\n",
-		concertID, createConcertCmd.TotalSeats)
+	fmt.Printf("Concert %s has %d seats available. Attempting to book tickets for %d customers concurrently...\n",
+		concertID, createConcertCmd.TotalSeats, *numUsers)
 
 	// Simulate concurrent ticket booking attempts
 	var wg sync.WaitGroup
-	results := make(chan string, 100)
+	results := make(chan string, *numUsers)
 
-	// Try to book tickets for 100 customers concurrently (but only some should succeed)
-	for i := 1; i <= 100; i++ {
+	// Try to book tickets for customers concurrently (but only some should succeed)
+	for i := 1; i <= *numUsers; i++ {
 		wg.Add(1)
 		go func(customerID int) {
 			defer wg.Done()
 
-			// Each customer wants 2 tickets
+			// Each customer wants configurable number of tickets
 			bookCmd := BookTicketsCommand{
 				CustomerID: fmt.Sprintf("customer%d", customerID),
 				ConcertID:  concertID,
-				Quantity:   2, // Each customer wants 2 tickets
+				Quantity:   *ticketsPerUser, // Configurable tickets per user
 			}
 
 			err := handleBookTicketsWithAdvisoryLock(ctx, store, bookCmd)
@@ -121,11 +134,11 @@ func handleCreateConcert(ctx context.Context, store dcb.EventStore, cmd CreateCo
 			ID: "concertExists",
 			Query: dcb.NewQuery(
 				dcb.NewTags("concert_id", cmd.ConcertID),
-				"ConcertCreated",
+				"ConcertDefined",
 			),
 			InitialState: false,
 			TransitionFn: func(state any, event dcb.Event) any {
-				return true // If we see a ConcertCreated event, concert exists
+				return true // If we see a ConcertDefined event, concert exists
 			},
 		},
 	}
@@ -143,7 +156,7 @@ func handleCreateConcert(ctx context.Context, store dcb.EventStore, cmd CreateCo
 	// Create events for this command
 	events := []dcb.InputEvent{
 		dcb.NewInputEvent(
-			"ConcertCreated",
+			"ConcertDefined",
 			dcb.NewTags("concert_id", cmd.ConcertID),
 			mustJSON(map[string]any{
 				"Artist":         cmd.Artist,
@@ -181,12 +194,12 @@ func handleBookTicketsWithAdvisoryLock(ctx context.Context, store dcb.EventStore
 			ID: "concertState",
 			Query: dcb.NewQuery(
 				dcb.NewTags("concert_id", cmd.ConcertID),
-				"ConcertCreated",
+				"ConcertDefined",
 			),
 			InitialState: ConcertState{},
 			TransitionFn: func(state any, event dcb.Event) any {
 				concert := state.(ConcertState)
-				if event.Type == "ConcertCreated" {
+				if event.Type == "ConcertDefined" {
 					var data map[string]any
 					json.Unmarshal(event.Data, &data)
 					concert.Artist = data["Artist"].(string)
@@ -272,12 +285,12 @@ func showConcertState(ctx context.Context, store dcb.EventStore, concertID strin
 			ID: "concertState",
 			Query: dcb.NewQuery(
 				dcb.NewTags("concert_id", concertID),
-				"ConcertCreated",
+				"ConcertDefined",
 			),
 			InitialState: ConcertState{},
 			TransitionFn: func(state any, event dcb.Event) any {
 				concert := state.(ConcertState)
-				if event.Type == "ConcertCreated" {
+				if event.Type == "ConcertDefined" {
 					var data map[string]any
 					json.Unmarshal(event.Data, &data)
 					concert.Artist = data["Artist"].(string)
