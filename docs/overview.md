@@ -234,7 +234,7 @@ CREATE TABLE events (
 );
 
 -- Indexes for efficient querying
--- CREATE INDEX idx_events_type ON events(type);                    -- Not currently used
+CREATE INDEX idx_events_type ON events(type);                      -- Used for event type filtering
 CREATE INDEX idx_events_tags ON events USING GIN(tags);            -- Used for tag-based queries
 -- CREATE INDEX idx_events_occurred_at ON events(occurred_at);      -- Not currently used
 CREATE INDEX idx_events_transaction_position_btree ON events(transaction_id, position); -- Used for ordering and cursors

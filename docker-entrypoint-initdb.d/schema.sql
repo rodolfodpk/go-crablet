@@ -33,6 +33,7 @@ CREATE TABLE commands (
 -- Core indexes for essential operations
 CREATE INDEX idx_events_transaction_position_btree ON events (transaction_id, position);
 CREATE INDEX idx_events_tags ON events USING GIN (tags);
+CREATE INDEX idx_events_type ON events (type);
 
 -- Optimized function to check append conditions using transaction_id for proper ordering
 -- Returns JSONB with status instead of raising exceptions for better performance
