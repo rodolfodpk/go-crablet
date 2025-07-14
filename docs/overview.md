@@ -5,7 +5,7 @@ go-crablet is a Go library for event sourcing, exploring concepts inspired by th
 - Project multiple states and check business invariants in a single query
 - Use tag-based, OR-combined queries for cross-entity consistency
 - Enforce DCB concurrency control with combined append conditions (uses transaction IDs, not classic optimistic locking)
-- Execute commands with automatic event generation using the CommandExecutor pattern
+- Execute commands with handler-based event generation using the CommandExecutor pattern
 
 ## Key Concepts
 
