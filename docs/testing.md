@@ -61,6 +61,21 @@ go test ./pkg/dcb/... -v -run "Validation"
 go test ./pkg/dcb/tests/... -v -run "Batch"
 ```
 
+### Run Concurrency Tests
+```bash
+# Run all concurrency-related tests
+go test ./pkg/dcb/tests/concurrency_test.go ./pkg/dcb/tests/advisory_locks_test.go ./pkg/dcb/tests/setup_test.go -v
+
+# Run DCB concurrency control tests only
+go test ./pkg/dcb/tests/... -v -run "Concurrency.*DCB"
+
+# Run advisory locks tests only
+go test ./pkg/dcb/tests/... -v -run "Advisory.*Lock"
+
+# Run the concurrency comparison example
+go run internal/examples/concurrency_comparison/main.go -users 50 -seats 30
+```
+
 ### Run Tests with Coverage
 ```bash
 # Generate coverage report
@@ -127,9 +142,21 @@ Test complete workflows:
 
 ### 4. Concurrency Tests
 Test concurrent operations and race conditions:
-- Multiple concurrent appends
+- Multiple concurrent appends with DCB concurrency control
 - Concurrent projections
-- Lock mechanisms (DCB concurrency control is the default; advisory locks are experimental/optional and not enabled by default)
+- Advisory locks vs DCB concurrency control comparison
+- N-user concurrent scenarios (10+ users) to demonstrate real-world concurrency
+
+**Key Test Files:**
+- `concurrency_test.go` - Tests DCB concurrency control with N concurrent users
+- `advisory_locks_test.go` - Tests advisory locks with and without AppendCondition
+- `concurrency_comparison/main.go` - Performance comparison between DCB and advisory locks
+
+**Test Scenarios:**
+- **DCB Concurrency Control**: Uses `AppendCondition` to enforce business rules
+- **Advisory Locks**: Serialize access but don't enforce business limits without conditions
+- **Both Combined**: Serialize access AND enforce business rules
+- **N-User Testing**: Demonstrates real concurrent scenarios (10+ users) instead of just 2
 
 ## Test Data Management
 

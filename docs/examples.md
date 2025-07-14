@@ -320,7 +320,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 **Key features:**
 - **Business logic validation**: Checks sufficient funds before transfer
 - **DCB concurrency control**: Uses `Append` with conditions and configurable isolation level (primary mechanism, not classic optimistic locking; transaction IDs ensure correct event ordering, inspired by Oskar’s article)
-- **Advisory locks**: Experimental/optional additional locking via `lock:` prefixed tags (e.g., "lock:account-123")
+- **Advisory locks**: Optional additional locking via `lock:` prefixed tags (e.g., "lock:account-123")
 - **Concurrent safety**: Only one transfer can succeed when multiple try to spend the same balance
 - **Event sourcing**: All transfers are recorded as events for audit trail
 
@@ -367,7 +367,7 @@ events := []dcb.InputEvent{
 }
 ```
 
-**Note**: Advisory locks are currently available in the database functions but are experimental and not actively used by the Go implementation.
+**Note**: Advisory locks are now fully implemented and available in the Go implementation via `lock:` prefixed tags. When `lock:` tags are present, advisory locks are acquired FIRST, then DCB concurrency checks are performed. Both mechanisms work together for comprehensive concurrency control.
 
 ### Isolation Levels
 go-crablet uses configurable PostgreSQL transaction isolation levels for append operations:
@@ -486,5 +486,46 @@ Benchmark results from web-app load testing (30-second tests):
 - **`internal/examples/extension_interface/`** - Extension interface pattern demonstration
 - **`internal/examples/transfer/`** - Event sourcing with semantic event names
 - **`internal/examples/enrollment/`** - Course enrollment with business rules
+- **`internal/examples/concurrency_comparison/`** - **NEW**: Performance comparison between DCB concurrency control and PostgreSQL advisory locks
+
+## Concurrency Comparison Example
+
+The `concurrency_comparison` example demonstrates the differences between DCB concurrency control and PostgreSQL advisory locks in a realistic concert ticket booking scenario:
+
+### Key Features
+- **N-user concurrency testing**: Simulates 50-100 concurrent users booking tickets
+- **Performance comparison**: Benchmarks both approaches with timing and throughput metrics
+- **Real-world scenario**: Concert ticket booking with limited seats
+- **Comprehensive testing**: Shows both mechanisms working together
+
+### Usage
+```bash
+# Run with default settings (100 users, 20 seats, 2 tickets per user)
+go run internal/examples/concurrency_comparison/main.go
+
+# Run with custom settings
+go run internal/examples/concurrency_comparison/main.go -users 50 -seats 30 -tickets 1
+
+# Test only advisory locks
+go run internal/examples/concurrency_comparison/main.go -advisory-locks -users 50 -seats 30
+
+# Test only DCB concurrency control
+go run internal/examples/concurrency_comparison/main.go -users 50 -seats 30
+```
+
+### What It Demonstrates
+1. **DCB Concurrency Control**: Uses `AppendCondition` to enforce business rules
+2. **Advisory Locks**: Serialize access but don't enforce business limits without conditions
+3. **Both Combined**: Serialize access AND enforce business rules
+4. **Performance Metrics**: Throughput, success rates, and timing comparisons
+
+### Test Results
+The example shows:
+- **DCB Concurrency Control**: Enforces business rules but may allow more than expected bookings
+- **Advisory Locks**: Serialize access, ensuring sequential processing
+- **Performance**: Both approaches have similar performance characteristics
+- **Real-world Usage**: How to choose between the two approaches based on your needs
+
+This example is particularly useful for understanding when to use each concurrency control mechanism and how they perform under realistic load.
 
 All `Query` and `QueryItem` usage must go through the provided helper functions. Direct struct access is not possible. This enforces DCB compliance and improves type safety.

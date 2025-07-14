@@ -35,7 +35,7 @@ All examples are located in `internal/examples/` and demonstrate different aspec
 - `internal/examples/transfer/main.go` - Money transfer between accounts
 - `internal/examples/streaming/main.go` - Event streaming basics
 - `internal/examples/batch/main.go` - Multiple events in single append calls
-- `internal/examples/ticket_booking/main.go` - Concert ticket booking with PostgreSQL advisory locks (experimental)
+- `internal/examples/concurrency_comparison/main.go` - Concert ticket booking comparing DCB concurrency control vs PostgreSQL advisory locks
 - `internal/examples/utils/main.go` - Utility functions and helpers
 
 ### Running Examples with Parameters
@@ -44,8 +44,8 @@ Some examples support command-line parameters for testing different scenarios:
 
 ```bash
 # Ticket booking example with custom parameters
-go run internal/examples/ticket_booking/main.go -users 50 -seats 30 -tickets 1
+go run internal/examples/concurrency_comparison/main.go -users 50 -seats 30 -tickets 1
 
 # Show help for available options
-go run internal/examples/ticket_booking/main.go -h
+go run internal/examples/concurrency_comparison/main.go -h
 ```

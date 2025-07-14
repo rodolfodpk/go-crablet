@@ -162,24 +162,23 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to acquire advisory locks based on tags with "lock:" prefix
--- This function takes the same contract as append_events_with_condition but adds locking
+-- Function to acquire advisory locks based on separate lock tags parameter
+-- This function takes storage tags and lock tags as separate parameters
 -- Returns JSONB with status instead of raising exceptions for better performance
 -- Always uses 'events' table for maximum performance
 CREATE OR REPLACE FUNCTION append_events_with_advisory_locks(
     p_types TEXT[],
-    p_tags TEXT[], -- array of Postgres array literals as strings
+    p_tags TEXT[], -- array of Postgres array literals as strings for storage
     p_data JSONB[],
+    p_lock_tags TEXT[], -- array of Postgres array literals as strings for advisory locks
     p_condition JSONB DEFAULT NULL,
     p_lock_timeout_ms INTEGER DEFAULT 5000 -- 5 second default timeout
 ) RETURNS JSONB AS $$
 DECLARE
     fail_if_events_match JSONB;
     after_cursor JSONB;
-    cleaned_tags TEXT[];
     lock_keys TEXT[];
     tag_array TEXT[];
-    tag_key TEXT;
     lock_key TEXT;
     i INTEGER;
     lock_timeout_setting TEXT;
@@ -197,36 +196,15 @@ BEGIN
         END IF;
     END IF;
     
-    -- Process each event's tags to extract lock keys and clean tags
-    FOR i IN 1..array_length(p_tags, 1) LOOP
-        -- Parse the tag array string into actual array
-        tag_array := p_tags[i]::TEXT[];
-        
-        -- Initialize arrays for this event
-        cleaned_tags := '{}';
-        lock_keys := '{}';
-        
-        -- Process each tag in the array
-        FOREACH tag_key IN ARRAY tag_array LOOP
-            -- Check if tag starts with "lock:"
-            IF tag_key LIKE 'lock:%' THEN
-                -- Extract the lock key (remove "lock:" prefix)
-                lock_key := substring(tag_key from 6); -- 'lock:' is 5 chars, so start from position 6
-                
-                -- Add to lock keys array
-                lock_keys := array_append(lock_keys, lock_key);
-                
-                -- Don't add to cleaned tags (remove the lock: prefix entirely)
-            ELSE
-                -- Add to cleaned tags (no lock: prefix)
-                cleaned_tags := array_append(cleaned_tags, tag_key);
-            END IF;
-        END LOOP;
+        -- Process each event's lock tags to acquire advisory locks
+    FOR i IN 1..array_length(p_lock_tags, 1) LOOP
+        -- Parse the lock tags array string into actual array
+        tag_array := p_lock_tags[i]::TEXT[];
         
         -- Acquire advisory locks for all lock keys (sorted to prevent deadlocks)
-        IF array_length(lock_keys, 1) > 0 THEN
+        IF array_length(tag_array, 1) > 0 THEN
             -- Sort lock keys to prevent deadlocks
-            SELECT array_agg(key ORDER BY key) INTO lock_keys FROM unnest(lock_keys) AS key;
+            SELECT array_agg(key ORDER BY key) INTO lock_keys FROM unnest(tag_array) AS key;
             
             -- Acquire locks for each key
             FOREACH lock_key IN ARRAY lock_keys LOOP
@@ -235,9 +213,6 @@ BEGIN
                 PERFORM pg_advisory_xact_lock(hashtext(lock_key));
             END LOOP;
         END IF;
-        
-        -- Update the tags array with cleaned tags
-        p_tags[i] := array_to_string(cleaned_tags, ',');
     END LOOP;
     
     -- Check append conditions first
