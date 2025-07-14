@@ -1,6 +1,6 @@
 # Command Execution Flow
 
-This document illustrates the command execution flow in go-crablet using a sequence diagram, showing how commands are processed, validated, and converted to events using the DCB pattern's concurrency control approach.
+This document illustrates the command execution flow in go-crablet using a sequence diagram, showing how commands are processed, validated, and executed to generate events using the DCB pattern's concurrency control approach.
 
 ## Sequence Diagram
 
@@ -27,15 +27,15 @@ sequenceDiagram
         CommandExecutor->>Database: Begin transaction
         Note right of Database: Start PostgreSQL transaction<br/>with appropriate isolation level
 
-        CommandExecutor->>CommandExecutor: Execute command logic
-        Note right of CommandExecutor: Calls command handler<br/>Returns []InputEvent
+            CommandExecutor->>CommandExecutor: Execute command logic
+    Note right of CommandExecutor: Calls command handler<br/>Handler applies business logic<br/>Returns []InputEvent
 
-        alt Command Execution Failed
-            CommandExecutor->>Database: Rollback transaction
-            CommandExecutor-->>Client: Return execution error
-        else Command Execution Successful
-            CommandExecutor->>EventStore: Append(events, condition)
-            Note right of EventStore: Validate events<br/>Check MaxBatchSize limit<br/>Apply DCB concurrency control conditions
+    alt Command Execution Failed
+        CommandExecutor->>Database: Rollback transaction
+        CommandExecutor-->>Client: Return execution error
+    else Command Execution Successful
+        CommandExecutor->>EventStore: Append(events, condition)
+        Note right of EventStore: Validate events<br/>Check MaxBatchSize limit<br/>Apply DCB concurrency control conditions
 
             EventStore->>Database: Check append conditions
             Note right of Database: DCB concurrency control:<br/>- Check for conflicting events<br/>- Use transaction_id for ordering<br/>- No advisory locks (optional feature unused)
@@ -79,7 +79,7 @@ type Command interface {
   - Execute commands using handlers
   - Manage database transactions
   - Handle rollback on failures
-  - Convert commands to events via EventStore
+  - Execute command handlers to generate events
   - Store command metadata for audit trail
 
 ### 3. EventStore
@@ -101,7 +101,7 @@ type Command interface {
 
 1. **Command Validation**: Client provides command, basic validation performed
 2. **Transaction Start**: Begin database transaction with appropriate isolation
-3. **Command Execution**: Execute command handler to generate events
+3. **Command Execution**: Execute command handler to apply business logic and generate events
 4. **Event Validation**: Check event batch size and structure
 5. **DCB Condition Check**: Apply concurrency control via append conditions (no advisory locks)
 6. **Event Persistence**: Insert events into events table
@@ -143,7 +143,7 @@ if err != nil {
 fmt.Printf("Generated %d events\n", len(events))
 ```
 
-This flow ensures reliable command execution with full audit trail and proper error handling, following the Dynamic Consistency Boundary (DCB) pattern principles with concurrency control via transaction IDs (not classic optimistic locking).
+This flow ensures reliable command execution with full audit trail and proper error handling, following the Dynamic Consistency Boundary (DCB) pattern principles with concurrency control via transaction IDs (not classic optimistic locking). The command handler applies business logic to decide what events to create - there is no automatic conversion from commands to events.
 
 ## References
 
