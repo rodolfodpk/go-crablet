@@ -9,7 +9,7 @@
 
 ## Go Library Benchmarks
 
-### Advisory Lock Performance
+### Advisory Lock Performance (Simple Resource Locking)
 | Operation | Throughput | Latency | Memory | Allocations |
 |-----------|------------|---------|---------|-------------|
 | Single (Small) | 932 ops/sec | 1.18ms | 4KB | 85 |
@@ -21,6 +21,8 @@
 | Batch 10 | 392-484 ops/sec | 1.3-1.5ms | 4KB | 85 |
 | Batch 100 | 201-216 ops/sec | 2.8-3.1ms | 4KB | 85 |
 | Batch 1000 | 33-42 ops/sec | 29.6-33.9ms | 4KB | 85 |
+
+**Note**: These benchmarks test advisory locks without DCB conditions (1 I/O operation). When combined with DCB conditions, performance equals AppendIf (2 I/O operations).
 
 ### Append Performance
 | Operation | Throughput | Latency | Memory | Allocations |
@@ -110,6 +112,7 @@
 ### Key Insights
 - **Optimal Concurrency**: 5 goroutines (4.7ms latency)
 - **Conditional Operations**: 100-150x slower but required for business logic
+- **Advisory Locks**: Fast when used alone (1 I/O), same as AppendIf when combined with DCB conditions (2 I/O)
 - **HTTP API Overhead**: ~1.5ms base latency vs ~1.1ms for direct library calls
 - **Memory Scaling**: Linear with event count (~1.8MB for 1000 events)
 - **Connection Pool**: 20 connections optimal for concurrent benchmarks

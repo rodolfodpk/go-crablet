@@ -38,27 +38,60 @@
 | **DCB Conditions (AppendIf)** | 2 I/O: SELECT + INSERT | ~170ms | Business rule validation |
 | **Advisory Locks + DCB** | 2 I/O: SELECT + INSERT | ~170ms | Resource locking + business rules |
 
-### Why Advisory Locks Appear More Performant
+### Advisory Locks vs DCB Conditions: Performance Analysis
 
-**Advisory locks without DCB conditions** = **1 I/O operation**:
+#### Operation Sequence
+
+**Advisory Locks + DCB Conditions** (when both are used):
 ```sql
--- In-memory lock acquisition (no I/O)
+-- 1. In-memory lock acquisition (no I/O)
 PERFORM pg_advisory_xact_lock(hashtext(lock_key));
 
--- Single I/O operation
-PERFORM append_events_batch(p_types, p_tags, p_data);
-```
-
-**DCB conditional appends** = **2 I/O operations**:
-```sql
--- First I/O: Complex query with CTEs, GIN indexes, cursor filtering
+-- 2. DCB condition check (I/O operation)
 condition_result := check_append_condition(fail_if_events_match, after_cursor);
 
--- Second I/O: Event insertion
+-- 3. Event insertion (I/O operation)
 PERFORM append_events_batch(p_types, p_tags, p_data);
 ```
 
-**Key Insight**: Advisory lock benchmarks typically test **simple scenarios without DCB conditions**, resulting in only 1 I/O operation vs 2 I/O operations for conditional appends.
+**DCB Conditions Only** (AppendIf):
+```sql
+-- 1. DCB condition check (I/O operation)
+condition_result := check_append_condition(fail_if_events_match, after_cursor);
+
+-- 2. Event insertion (I/O operation)
+PERFORM append_events_batch(p_types, p_tags, p_data);
+```
+
+#### Why Advisory Locks Appear More Performant
+
+The performance difference comes from **what scenarios are being benchmarked**:
+
+**Advisory lock benchmarks** typically test simple resource locking:
+```go
+// Simple advisory lock (no DCB conditions)
+event := dcb.NewInputEvent("TestEvent",
+    dcb.NewTags("lock:resource", "123"),  // Only advisory lock
+    []byte(`{"data": "test"}`))
+store.Append(ctx, []dcb.InputEvent{event}, nil)  // No condition = 1 I/O operation
+```
+
+**AppendIf benchmarks** test complex business rule validation:
+```go
+// DCB condition check
+condition := dcb.NewAppendCondition(query)
+store.Append(ctx, []dcb.InputEvent{event}, &condition)  // With condition = 2 I/O operations
+```
+
+#### Performance Comparison
+
+| Scenario | I/O Operations | Performance | Use Case |
+|----------|----------------|-------------|----------|
+| **Advisory Locks (no conditions)** | 1 I/O: INSERT | ~1.2ms | Simple resource serialization |
+| **DCB Conditions (AppendIf)** | 2 I/O: SELECT + INSERT | ~170ms | Business rule validation |
+| **Advisory Locks + DCB** | 2 I/O: SELECT + INSERT | ~170ms | Resource locking + business rules |
+
+**Key Insight**: Advisory locks appear more performant because benchmarks typically test **simple scenarios without DCB conditions**. When both advisory locks and DCB conditions are used together, performance equals AppendIf (2 I/O operations).
 
 ## Technical Optimizations
 
