@@ -93,3 +93,36 @@ func BenchmarkAppendIfWithConflict_Tiny(b *testing.B) {
 	benchCtx := SetupBenchmarkContext(b, "tiny")
 	BenchmarkAppendIfWithConflict(b, benchCtx, 1)
 }
+
+// Mixed event types benchmarks (matching web-app scenarios)
+func BenchmarkAppendMixedEventTypes_Small(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "small")
+	BenchmarkAppendMixedEventTypes(b, benchCtx, 5)
+}
+
+func BenchmarkAppendMixedEventTypes_Tiny(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "tiny")
+	BenchmarkAppendMixedEventTypes(b, benchCtx, 5)
+}
+
+// High frequency event benchmarks (matching web-app scenarios)
+func BenchmarkAppendHighFrequency_Small(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "small")
+	BenchmarkAppendHighFrequency(b, benchCtx, 50)
+}
+
+func BenchmarkAppendHighFrequency_Tiny(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "tiny")
+	BenchmarkAppendHighFrequency(b, benchCtx, 50)
+}
+
+// Advisory locks with DCB benchmarks (matching web-app scenarios)
+func BenchmarkAppendAdvisoryLocksWithDCB_Small(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "small")
+	BenchmarkAppendAdvisoryLocksWithDCB(b, benchCtx, 10)
+}
+
+func BenchmarkAppendAdvisoryLocksWithDCB_Tiny(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "tiny")
+	BenchmarkAppendAdvisoryLocksWithDCB(b, benchCtx, 10)
+}
