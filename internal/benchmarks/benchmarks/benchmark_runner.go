@@ -3,7 +3,9 @@ package benchmarks
 import (
 	"context"
 	"fmt"
+	"os"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -11,6 +13,13 @@ import (
 	"github.com/rodolfodpk/go-crablet/pkg/dcb"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// Global shared pool for all benchmarks
+var (
+	globalPool     *pgxpool.Pool
+	globalPoolOnce sync.Once
+	globalPoolMu   sync.RWMutex
 )
 
 // BenchmarkContext holds the context for running benchmarks
@@ -23,21 +32,52 @@ type BenchmarkContext struct {
 	Projectors   []dcb.StateProjector
 }
 
-// SetupBenchmarkContext creates a new benchmark context with the specified dataset size
-func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
-	// Create context with timeout for setup
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
+// getOrCreateGlobalPool returns the shared global pool, creating it if necessary
+func getOrCreateGlobalPool() (*pgxpool.Pool, error) {
+	globalPoolMu.RLock()
+	if globalPool != nil {
+		defer globalPoolMu.RUnlock()
+		return globalPool, nil
+	}
+	globalPoolMu.RUnlock()
 
-	// Initialize the SQLite cache
-	if err := setup.InitGlobalCache(); err != nil {
-		b.Fatalf("Failed to initialize cache: %v", err)
+	globalPoolMu.Lock()
+	defer globalPoolMu.Unlock()
+
+	// Double-check after acquiring write lock
+	if globalPool != nil {
+		return globalPool, nil
 	}
 
-	// Connect to database
-	pool, err := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/dcb_app?sslmode=disable")
+	// Create new pool with conservative settings
+	poolConfig, err := pgxpool.ParseConfig("postgres://crablet:crablet@localhost:5432/crablet")
 	if err != nil {
-		b.Fatalf("Failed to connect to database: %v", err)
+		return nil, fmt.Errorf("failed to parse connection string: %v", err)
+	}
+
+	// Configure pool for shared usage across all benchmarks
+	poolConfig.MaxConns = 10 // Conservative limit to prevent exhaustion
+	poolConfig.MinConns = 2  // Keep 2 connections ready
+	poolConfig.MaxConnLifetime = 5 * time.Minute
+	poolConfig.MaxConnIdleTime = 2 * time.Minute
+
+	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create global pool: %v", err)
+	}
+
+	globalPool = pool
+	return globalPool, nil
+}
+
+// SetupBenchmarkContext creates a new benchmark context with the specified dataset size
+func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
+	ctx := context.Background()
+
+	// Use the shared global pool
+	pool, err := getOrCreateGlobalPool()
+	if err != nil {
+		b.Fatalf("Failed to get global pool: %v", err)
 	}
 
 	// Truncate events table before running benchmarks
@@ -586,4 +626,39 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 	b.Run("MemoryUsage_ProjectStream", func(b *testing.B) {
 		BenchmarkMemoryUsage(b, benchCtx, "project_stream")
 	})
+}
+
+// TestMain sets up and tears down the shared global pool for all benchmarks
+func TestMain(m *testing.M) {
+	// Initialize the shared global pool before running any benchmarks
+	pool, err := getOrCreateGlobalPool()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to initialize global pool: %v", err))
+	}
+
+	// Warm up the pool with a few test queries
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Execute a few warm-up queries to ensure connections are ready
+	for i := 0; i < 3; i++ {
+		_, err := pool.Exec(ctx, "SELECT 1")
+		if err != nil {
+			panic(fmt.Sprintf("Failed to warm up pool: %v", err))
+		}
+	}
+
+	// Run all benchmarks
+	exitCode := m.Run()
+
+	// Clean up the global pool
+	globalPoolMu.Lock()
+	if globalPool != nil {
+		globalPool.Close()
+		globalPool = nil
+	}
+	globalPoolMu.Unlock()
+
+	// Exit with the same code as the tests
+	os.Exit(exitCode)
 }

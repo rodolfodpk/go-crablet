@@ -549,14 +549,14 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 	// Unmarshal req.Events (json.RawMessage) into interface{}
 	var eventsAny interface{}
 	if err := json.Unmarshal(req.Events, &eventsAny); err != nil {
-		log.Printf("Failed to unmarshal events: %v", err)
+		// Debug logging removed for performance
 		http.Error(w, "Invalid events", http.StatusBadRequest)
 		return
 	}
 
 	inputEvents, err := convertInputEvents(eventsAny)
 	if err != nil {
-		log.Printf("convertInputEvents error: %v, events type: %T", err, eventsAny)
+		// Debug logging removed for performance
 		http.Error(w, "Invalid events", http.StatusBadRequest)
 		return
 	}
@@ -613,8 +613,7 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(resp)
 			return
 		}
-		// Log unexpected errors at ERROR level
-		log.Printf("Unexpected append error: %v", appendErr)
+		// Debug logging removed for performance
 		http.Error(w, appendErr.Error(), http.StatusInternalServerError)
 		return
 	}
