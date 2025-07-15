@@ -21,11 +21,10 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 - **Atomic command execution**: Execute commands with handler-based event generation using the CommandExecutor pattern
 - **Command tracking**: Automatic storage of commands in the `commands` table with transaction ID linking
 
-## 📊 Performance Testing
+## 📊 Performance
 
-- **[Performance Benchmarks](docs/benchmarks.md)**: Detailed benchmark results and analysis
-- **[Web-App Benchmarks](internal/web-app/README.md)**: HTTP/REST API performance testing
-- **[Go Benchmarks](internal/benchmarks/README.md)**: Core library performance testing
+- **[Benchmarks](docs/benchmarks.md)**: Comprehensive performance analysis including Go library, HTTP API, and advisory locks
+- **[Performance Analysis](docs/performance-improvements.md)**: Technical optimizations and I/O operation analysis
 
 *For benchmark execution commands, see [Development Guide](docs/getting-started.md).*
 
@@ -35,7 +34,6 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 - [Getting Started](docs/getting-started.md): Development setup
 - [Command Execution Flow](docs/command-execution-flow.md): Sequence diagram and command processing flow
 - [Testing](docs/testing.md): Comprehensive testing guide and test organization
-- [Performance Analysis](docs/performance-improvements.md): Detailed performance analysis
 
 ## 💡 Examples
 
