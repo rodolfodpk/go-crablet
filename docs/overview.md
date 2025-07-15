@@ -78,9 +78,11 @@ type Command interface {
 
 ### Optional: Advisory Locks
 - Tag-based locking: Add tags with `lock:` prefix (e.g., "lock:user-123")
-- Automatic acquisition: Database functions acquire locks on these keys
+- Automatic acquisition: Database functions acquire locks on these keys before DCB condition checks
 - Deadlock prevention: Locks sorted and acquired in consistent order
 - Transaction-scoped: Automatically released on commit/rollback
+- Performance: 1 I/O operation when used alone, 2 I/O operations when combined with DCB conditions
+- Use case: Resource serialization without complex business logic validation
 
 ## Configuration
 
