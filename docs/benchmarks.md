@@ -116,3 +116,12 @@
 - **HTTP API Overhead**: ~1.5ms base latency vs ~1.1ms for direct library calls
 - **Memory Scaling**: Linear with event count (~1.8MB for 1000 events)
 - **Connection Pool**: 20 connections optimal for concurrent benchmarks
+
+## Go Library vs Web-App Comparison
+
+For a comprehensive performance comparison between the Go library and web-app implementations, see [Performance Comparison](performance-comparison.md).
+
+**Key Findings:**
+- Go library significantly outperforms web-app for write operations (1,028x lower latency)
+- Read operations show more comparable performance (1.6x latency difference)
+- Web-app suitable for development/testing, Go library recommended for high-throughput production
