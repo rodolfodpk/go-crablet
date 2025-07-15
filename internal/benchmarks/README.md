@@ -46,13 +46,22 @@ go run main.go
 
 ### **Current API Methods**
 
-The benchmarks currently test the core `Append` method. The library also supports conditional append operations with different isolation levels:
+The benchmarks test comprehensive append operations including advisory locks:
 
 - **`Append`**: Basic append with ReadCommitted isolation
 - **`AppendIf`**: Conditional append with RepeatableRead isolation  
 - **`AppendIfIsolated`**: Conditional append with Serializable isolation
+- **`Append with Advisory Locks`**: Append with PostgreSQL advisory locks via `lock:` tags
 
-*Note: Future benchmark updates may include comprehensive testing of all append methods and their isolation level performance characteristics.*
+### **Advisory Lock Benchmarks**
+
+New comprehensive advisory lock benchmarks are now available:
+
+- **Single Advisory Lock**: Individual events with advisory locks
+- **Batch Advisory Lock**: Batch events with advisory locks (10, 100, 1000)
+- **Concurrent Advisory Lock**: Multiple goroutines with advisory locks
+- **Advisory Lock Contention**: High contention scenarios with shared resources
+- **Advisory Lock vs Regular**: Performance comparison between advisory locks and regular appends
 
 ### **What's Being Tested**
 
@@ -65,19 +74,28 @@ The benchmarks currently test the core `Append` method. The library also support
 
 **Key Insight**: Batch append is ~26x more efficient than single event appends (1000-event batches vs single events)
 
-#### **2. Read Operations (DCB-Focused)**
+#### **2. Advisory Lock Operations**
+- **Single Advisory Lock**: Tests `store.Append()` with `lock:` tags - advisory lock performance
+- **Batch Advisory Lock**: Tests batch operations with advisory locks (10, 100, 1000 events)
+- **Concurrent Advisory Lock**: Tests concurrent access with advisory locks (10, 50 goroutines)
+- **Advisory Lock Contention**: Tests high contention scenarios with shared resources
+- **Advisory Lock vs Regular**: Direct performance comparison between advisory locks and regular appends
+
+**Key Insight**: Advisory locks provide serialization guarantees with measurable overhead
+
+#### **3. Read Operations (DCB-Focused)**
 - **Targeted Queries**: All queries use specific consistency boundaries (no empty tags)
 - **Course Queries**: `category="Computer Science"`, `course_id="course-1"`
 - **Student Queries**: `major="Computer Science"`, `student_id="student-1"`
 - **Enrollment Queries**: `grade="A"`, `semester="Fall2024"`
 - **Cross-Entity Consistency**: OR queries demonstrating proper DCB boundaries
 
-#### **3. Streaming Operations**
+#### **4. Streaming Operations**
 - **Channel Streaming**: DCB-focused streaming with specific student enrollments
 - **Memory Efficiency**: Only processes relevant events (5 vs 50,000+)
 - **Performance**: Sub-10ms for targeted streaming operations
 
-#### **4. Projection Operations (DCB-Focused)**
+#### **5. Projection Operations (DCB-Focused)**
 - **Business Decision Boundaries**: Projectors represent real business scenarios
 - **Single Projector**: CS course count, student major analysis
 - **Multiple Projectors**: CS courses + CS students + A-grade enrollments
@@ -156,6 +174,12 @@ go test -bench=. -benchmem -memprofile=mem.prof
 
 # Run specific benchmark with verbose output
 go test -bench=BenchmarkAppendSingle_Small -benchmem -v
+
+# Run advisory lock benchmarks
+go test -bench=BenchmarkAdvisoryLock -benchmem
+
+# Run all advisory lock benchmarks
+go test -bench=BenchmarkAdvisoryLocks -benchmem
 ```
 
 ### **Running Individual Benchmarks**

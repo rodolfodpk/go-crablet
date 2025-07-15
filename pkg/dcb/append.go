@@ -252,8 +252,7 @@ func (es *eventStore) appendInTx(ctx context.Context, tx pgx.Tx, events []InputE
 		// Encode lock keys for advisory locks (without lock: prefix)
 		lockTags[i] = encodeTagsArrayLiteral(lockKeys)
 
-		// Debug: print the exact array literal strings
-		fmt.Printf("[DEBUG] Event %d storage tags: %q, lock tags: %q\n", i, tags[i], lockTags[i])
+		// Debug logging removed for performance
 	}
 
 	// Execute append operation using appropriate PostgreSQL function

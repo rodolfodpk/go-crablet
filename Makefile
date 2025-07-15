@@ -83,7 +83,7 @@ docs:
 # Benchmark targets
 benchmark: benchmark-all
 
-benchmark-all: benchmark-quick benchmark-append benchmark-isolation benchmark-concurrency benchmark-go benchmark-web-app benchmark-web-app-appendif benchmark-results
+benchmark-all: benchmark-quick benchmark-append benchmark-isolation benchmark-concurrency benchmark-go benchmark-web-app benchmark-web-app-appendif benchmark-web-app-advisory-locks benchmark-results
 
 benchmark-quick:
 	@echo "🚀 Running Quick Test Benchmark..."
@@ -123,6 +123,12 @@ benchmark-web-app-appendif:
 	@mkdir -p $(BENCHMARK_RESULTS_DIR)
 	@cd internal/web-app/k6/benchmarks && k6 run --out json=../../../../$(BENCHMARK_RESULTS_DIR)/web_app_appendif_$(TIMESTAMP).json append-if-benchmark.js > ../../../../$(BENCHMARK_RESULTS_DIR)/web_app_appendif_$(TIMESTAMP).txt 2>&1 || true
 	@echo "✅ Web-app appendIf benchmarks completed"
+
+benchmark-web-app-advisory-locks:
+	@echo "🚀 Running Web-App Advisory Locks Benchmarks with SQLite Test Data..."
+	@mkdir -p $(BENCHMARK_RESULTS_DIR)
+	@cd internal/web-app/k6/benchmarks && k6 run --out json=../../../../$(BENCHMARK_RESULTS_DIR)/web_app_advisory_locks_$(TIMESTAMP).json advisory-locks-benchmark.js > ../../../../$(BENCHMARK_RESULTS_DIR)/web_app_advisory_locks_$(TIMESTAMP).txt 2>&1 || true
+	@echo "✅ Web-app advisory locks benchmarks completed"
 
 benchmark-results:
 	@echo "📊 Collecting benchmark results..."
@@ -198,5 +204,6 @@ help:
 	@echo "  benchmark-go - Run Go library benchmarks"
 	@echo "  benchmark-web-app - Run web-app benchmarks with SQLite test data"
 	@echo "  benchmark-web-app-appendif - Run web-app appendIf benchmarks with SQLite test data"
+	@echo "  benchmark-web-app-advisory-locks - Run web-app advisory locks benchmarks with SQLite test data"
 	@echo "  benchmark-results - Show benchmark results"
 	@echo "  help           - Show this help message" 
