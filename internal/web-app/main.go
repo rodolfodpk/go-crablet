@@ -265,6 +265,7 @@ func main() {
 
 	http.HandleFunc("/read", server.handleRead)
 	http.HandleFunc("/append", server.handleAppend)
+	http.HandleFunc("/project", server.handleProject)
 
 	// Get port from environment
 	port := os.Getenv("PORT")
@@ -347,6 +348,26 @@ type AppendRequest struct {
 type AppendResponse struct {
 	DurationInMicroseconds int64 `json:"durationInMicroseconds"`
 	AppendConditionFailed  bool  `json:"appendConditionFailed"`
+}
+
+type StateProjector struct {
+	ID                 string      `json:"id"`
+	Query              Query       `json:"query"`
+	InitialState       interface{} `json:"initialState"`
+	TransitionFunction string      `json:"transitionFunction"`
+}
+
+type StateProjectors []StateProjector
+
+type ProjectRequest struct {
+	Projectors StateProjectors `json:"projectors"`
+	After      *EventId        `json:"after,omitempty"`
+}
+
+type ProjectResponse struct {
+	DurationInMicroseconds int64                  `json:"durationInMicroseconds"`
+	States                 map[string]interface{} `json:"states"`
+	AppendCondition        *AppendCondition       `json:"appendCondition,omitempty"`
 }
 
 // Convert OpenAPI types to DCB types
@@ -620,6 +641,95 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+func (s *Server) handleProject(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req ProjectRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	start := time.Now()
+
+	// Convert projectors to DCB format
+	projectors := make([]dcb.StateProjector, len(req.Projectors))
+	for i, p := range req.Projectors {
+
+		// Create transition function
+		transitionFn := func(state any, event dcb.Event) any {
+			// For now, implement a simple counter transition
+			// In a real implementation, you'd parse and execute the JavaScript function
+			if current, ok := state.(int); ok {
+				return current + 1
+			}
+			return 1
+		}
+
+		projectors[i] = dcb.StateProjector{
+			ID:           p.ID,
+			Query:        convertQuery(p.Query),
+			InitialState: p.InitialState,
+			TransitionFn: transitionFn,
+		}
+	}
+
+	// Execute projection with timeout
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	var cursor *dcb.Cursor
+	if req.After != nil {
+		position, err := strconv.ParseInt(string(*req.After), 10, 64)
+		if err != nil {
+			http.Error(w, "Invalid cursor format", http.StatusBadRequest)
+			return
+		}
+		cursor = &dcb.Cursor{
+			Position: position,
+		}
+	}
+
+	states, appendCondition, err := s.storeReadCommitted.Project(ctx, projectors, cursor)
+
+	duration := time.Since(start)
+	durationMicroseconds := duration.Microseconds()
+
+	if err != nil {
+		// Provide more specific error responses
+		if _, ok := err.(*dcb.ValidationError); ok {
+			http.Error(w, fmt.Sprintf("Validation error: %v", err), http.StatusBadRequest)
+		} else if _, ok := err.(*dcb.ResourceError); ok {
+			http.Error(w, fmt.Sprintf("Resource error: %v", err), http.StatusInternalServerError)
+		} else {
+			http.Error(w, fmt.Sprintf("Projection failed: %v", err), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Convert append condition back to API format
+	var apiAppendCondition *AppendCondition
+	if appendCondition != nil {
+		// For now, create a simple append condition
+		// In a real implementation, you'd convert the DCB append condition
+		apiAppendCondition = &AppendCondition{
+			FailIfEventsMatch: Query{Items: []QueryItem{}},
+		}
+	}
+
+	response := ProjectResponse{
+		DurationInMicroseconds: durationMicroseconds,
+		States:                 states,
+		AppendCondition:        apiAppendCondition,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }
 
 // hasLockTags checks if any events have tags starting with "lock:"

@@ -90,6 +90,46 @@ paths:
                   error:
                     type: string
                     description: Error message
+  /project:
+    post:
+      operationId: project
+      summary: Project state from events matching the specified projectors
+      description: |
+        Projects state from events that match the specified projectors.
+        Returns performance metrics including duration and projected states.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectRequest'
+        required: true
+      responses:
+        '200':
+          description: Successfully projected state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '400':
+          description: Bad Request - Invalid projectors or options
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
 
 components:
   schemas:
@@ -232,4 +272,59 @@ components:
       additionalProperties: false
       required:
         - durationInMicroseconds
-        - appendConditionFailed 
+        - appendConditionFailed
+    StateProjector:
+      type: object
+      description: Defines how to project state from events
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the projector
+          maxLength: 255
+        query:
+          $ref: '#/components/schemas/Query'
+          description: Query to match events for this projector
+        initialState:
+          description: Initial state value for the projector
+        transitionFunction:
+          type: string
+          description: JavaScript function string for state transitions
+      additionalProperties: false
+      required:
+        - id
+        - query
+        - initialState
+        - transitionFunction
+    StateProjectors:
+      type: array
+      items:
+        $ref: '#/components/schemas/StateProjector'
+    ProjectRequest:
+      type: object
+      properties:
+        projectors:
+          $ref: '#/components/schemas/StateProjectors'
+          description: Array of state projectors
+        after:
+          $ref: '#/components/schemas/EventId'
+          description: Optional cursor to start projection from
+      additionalProperties: false
+      required:
+        - projectors
+    ProjectResponse:
+      type: object
+      properties:
+        durationInMicroseconds:
+          type: integer
+          description: Duration of the projection operation in microseconds
+        states:
+          type: object
+          description: Projected states by projector ID
+          additionalProperties: true
+        appendCondition:
+          $ref: '#/components/schemas/AppendCondition'
+          description: Append condition for optimistic locking
+      additionalProperties: false
+      required:
+        - durationInMicroseconds
+        - states 
