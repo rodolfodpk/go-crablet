@@ -27,6 +27,39 @@
 - **Degraded**: 10+ concurrent goroutines (8.5ms+ latency)
 - **Connection Pool**: 20 max connections
 
+## I/O Operation Analysis
+
+### Database I/O Operations by Append Type
+
+| Append Type | I/O Operations | Performance | Use Case |
+|-------------|----------------|-------------|----------|
+| **Regular Append** | 1 I/O: INSERT | ~1.1ms | Simple event storage |
+| **Advisory Locks (no conditions)** | 1 I/O: INSERT | ~1.2ms | Resource locking only |
+| **DCB Conditions (AppendIf)** | 2 I/O: SELECT + INSERT | ~170ms | Business rule validation |
+| **Advisory Locks + DCB** | 2 I/O: SELECT + INSERT | ~170ms | Resource locking + business rules |
+
+### Why Advisory Locks Appear More Performant
+
+**Advisory locks without DCB conditions** = **1 I/O operation**:
+```sql
+-- In-memory lock acquisition (no I/O)
+PERFORM pg_advisory_xact_lock(hashtext(lock_key));
+
+-- Single I/O operation
+PERFORM append_events_batch(p_types, p_tags, p_data);
+```
+
+**DCB conditional appends** = **2 I/O operations**:
+```sql
+-- First I/O: Complex query with CTEs, GIN indexes, cursor filtering
+condition_result := check_append_condition(fail_if_events_match, after_cursor);
+
+-- Second I/O: Event insertion
+PERFORM append_events_batch(p_types, p_tags, p_data);
+```
+
+**Key Insight**: Advisory lock benchmarks typically test **simple scenarios without DCB conditions**, resulting in only 1 I/O operation vs 2 I/O operations for conditional appends.
+
 ## Technical Optimizations
 
 ### 1. Shared Connection Pool
@@ -81,7 +114,7 @@ tx.Commit(ctx)  // Only on success
 
 ## Performance Characteristics
 
-### Throughput Hierarchy
+### Throughput Hierarchy (Fastest to Slowest)
 1. Read/Projection: 3,000+ ops/sec
 2. Basic Append: 900+ ops/sec  
 3. Advisory Locks: 900+ ops/sec
