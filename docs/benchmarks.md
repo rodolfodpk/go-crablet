@@ -51,68 +51,64 @@
 
 ## Web-App Load Testing
 
-### Quick Test (Basic Functionality)
-- **6,389 iterations** completed with **0 errors**
-- **637.4 iterations/second** throughput
-- **1,275 requests/second** HTTP throughput
-- **1.47ms average response time**
-- **100% success rate**
+### Latest Benchmarks (2025-07-14)
+- **Tested Endpoints:** append, append-if, read, project
+- **All endpoints:** 100% success, no errors
 
-### Append Performance Benchmark
-- **16,227 iterations** completed successfully
-- **62.4 requests/second** HTTP throughput
-- **805.5ms average response time**
-- **100% append success rate**
-- **Batch Operations**: 6,043 batch appends (23.2/s)
-- **Conditional Operations**: 4,058 conditional appends (15.6/s)
+#### Append Benchmark
+- **Iterations:** ~15,200
+- **Request Rate:** ~58 req/s
+- **p99 Latency:** 6.2s (threshold crossed)
+- **Success:** 100%
+- **Note:** Throughput is solid, but latency spikes at high concurrency. Main bottleneck is in database/DCB logic, not HTTP or JSON handling.
 
-### Isolation Level Benchmark
-- **14,216 iterations** completed with **0 errors**
-- **54.7 requests/second** HTTP throughput
-- **106.6ms average response time**
-- **100% success rate**
+#### Append-If Benchmark
+- **Iterations:** ~7,080
+- **Request Rate:** ~27 req/s
+- **p99 Latency:** 6.3s (threshold crossed)
+- **Success:** 100%
+- **Note:** Conditional appends are slower, as expected. Bottleneck is in DCB logic.
 
-**Isolation Level Performance**:
-- Read Committed: 4,760 appends (18.3 req/s)
-- Repeatable Read: 4,781 appends (18.4 req/s)
-- Serializable: 4,675 appends (18.0 req/s)
+#### Read Benchmark
+- **Iterations:** ~432,400
+- **Request Rate:** ~1,660 req/s
+- **p99 Latency:** 5.7ms (well within threshold)
+- **Success:** 100%
+- **Note:** Read performance is excellent.
 
-### Concurrency Test
-- **2,297 iterations** completed with **0 errors**
-- **55.1 requests/second** HTTP throughput
-- **226.9ms average response time**
-- **100% success rate**
+#### Project Benchmark
+- **Iterations:** ~174,300
+- **Request Rate:** ~670 req/s
+- **p99 Latency:** 8.2ms (well within threshold)
+- **Success:** 100%
+- **Note:** Projection queries are fast and scale well.
 
-**Operation Mix**:
-- Simple Appends: 4,594 operations (100% success rate)
-- Conditional Appends: 4,592 operations (100% success rate)
-- Read Operations: 99% success rate
+---
 
-### Advisory Lock Benchmark
-- **45,300 iterations** completed with **0 errors**
-- **215.7 requests/second** HTTP throughput
-- **100% success rate** for advisory lock operations
+### Robustness Improvement
+- The append endpoint now robustly supports both array and object event payloads (thanks to handler fix).
+- All web-app endpoints now pass 100% of requests in benchmarks.
+- No more 400 errors or failed requests due to payload format.
 
-### AppendIf (Conditional Append) Benchmark
-- **7,795 iterations** completed with **0 errors**
-- **29.9 requests/second** HTTP throughput
-- **1.75s average response time**
-- **100% success rate** for all conditional operations
-
-## Performance Summary
+---
 
 ### Throughput Hierarchy (Fastest to Slowest)
-1. Read/Projection: 3,000+ ops/sec
-2. Basic Append: 900+ ops/sec
-3. Advisory Locks: 900+ ops/sec
-4. HTTP API: 1,275+ req/sec
-5. Concurrent Locks: 200+ ops/sec
-6. Conditional Append: 3-4 ops/sec
+1. Read/Projection: 1,600+ ops/sec (read), 670+ ops/sec (project)
+2. Basic Append: ~58 ops/sec
+3. Conditional Append: ~27 ops/sec
 
-### Key Insights
-- **Optimal Concurrency**: 5 goroutines (4.7ms latency)
-- **Conditional Operations**: 100-150x slower but required for business logic
-- **Advisory Locks**: Fast when used alone (1 I/O), same as AppendIf when combined with DCB conditions (2 I/O)
-- **HTTP API Overhead**: ~1.5ms base latency vs ~1.1ms for direct library calls
-- **Memory Scaling**: Linear with event count (~1.8MB for 1000 events)
-- **Connection Pool**: 20 connections optimal for concurrent benchmarks
+### Key Insights (2025-07-14)
+- **Append/Append-If bottleneck is in database/DCB logic, not HTTP/JSON.**
+- **Read and project endpoints are extremely fast and scale well.**
+- **Handler now robustly supports both array and object event payloads.**
+- **No regressions or errors in latest benchmarks.**
+- **HTTP/JSON optimizations yield diminishing returns; focus future tuning on database and DCB logic.**
+
+## Go Library vs Web-App Comparison
+
+For a comprehensive performance comparison between the Go library and web-app implementations, see [Performance Comparison](performance-comparison.md).
+
+**Key Findings:**
+- Go library significantly outperforms web-app for write operations (1,028x lower latency)
+- Read operations show more comparable performance (1.6x latency difference)
+- Web-app suitable for development/testing, Go library recommended for high-throughput production

@@ -24,6 +24,7 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 ## 📊 Performance
 
 - **[Benchmarks](docs/benchmarks.md)**: Comprehensive performance analysis including Go library, HTTP API, and advisory locks
+- **[Performance Comparison](docs/performance-comparison.md)**: Go library vs web-app performance analysis and recommendations
 - **[Performance Analysis](docs/performance-improvements.md)**: Technical optimizations and I/O operation analysis
 
 *For benchmark execution commands, see [Development Guide](docs/getting-started.md).*

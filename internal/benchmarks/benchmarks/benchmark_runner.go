@@ -364,6 +364,95 @@ func BenchmarkAppendIfWithConflictCondition(b *testing.B, benchCtx *BenchmarkCon
 	}
 }
 
+// BenchmarkAppendMixedEventTypes benchmarks append with mixed event types (matching web-app scenarios)
+func BenchmarkAppendMixedEventTypes(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
+	// Create context with timeout for each benchmark iteration
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	eventTypes := []string{"UserCreated", "AccountOpened", "TransactionInitiated", "NotificationSent", "AuditLog"}
+
+	for i := 0; i < b.N; i++ {
+		events := make([]dcb.InputEvent, batchSize)
+		uniqueID := fmt.Sprintf("mixed_%d_%d", time.Now().UnixNano(), i)
+
+		for j := 0; j < batchSize; j++ {
+			eventID := fmt.Sprintf("%s_%d", uniqueID, j)
+			eventType := eventTypes[j%len(eventTypes)]
+			events[j] = dcb.NewInputEvent(eventType,
+				dcb.NewTags("test", "mixed", "unique_id", eventID),
+				[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s", "type": "%s"}`, eventID, eventType)))
+		}
+
+		err := benchCtx.Store.Append(ctx, events, nil)
+		if err != nil {
+			b.Fatalf("Mixed event types append failed: %v", err)
+		}
+	}
+}
+
+// BenchmarkAppendHighFrequency benchmarks high-frequency event append (matching web-app scenarios)
+func BenchmarkAppendHighFrequency(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
+	// Create context with timeout for each benchmark iteration
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		events := make([]dcb.InputEvent, batchSize)
+		uniqueID := fmt.Sprintf("highfreq_%d_%d", time.Now().UnixNano(), i)
+
+		for j := 0; j < batchSize; j++ {
+			eventID := fmt.Sprintf("%s_%d", uniqueID, j)
+			events[j] = dcb.NewInputEvent("SensorReading",
+				dcb.NewTags("sensor", fmt.Sprintf("sensor_%d", j), "location", "data_center", "type", "temperature"),
+				[]byte(fmt.Sprintf(`{"value": %d, "timestamp": "%d", "sensor_id": "%s"}`, j, time.Now().UnixNano(), eventID)))
+		}
+
+		err := benchCtx.Store.Append(ctx, events, nil)
+		if err != nil {
+			b.Fatalf("High frequency append failed: %v", err)
+		}
+	}
+}
+
+// BenchmarkAppendAdvisoryLocksWithDCB benchmarks advisory locks with DCB conditions (matching web-app scenarios)
+func BenchmarkAppendAdvisoryLocksWithDCB(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
+	// Create context with timeout for each benchmark iteration
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		events := make([]dcb.InputEvent, batchSize)
+		uniqueID := fmt.Sprintf("advisory_dcb_%d_%d", time.Now().UnixNano(), i)
+
+		for j := 0; j < batchSize; j++ {
+			eventID := fmt.Sprintf("%s_%d", uniqueID, j)
+			events[j] = dcb.NewInputEvent("ResourceEvent",
+				dcb.NewTags("lock:resource", fmt.Sprintf("resource_%d", j), "test", "advisory_dcb", "unique_id", eventID),
+				[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, eventID)))
+		}
+
+		// Create a condition that should pass (no conflicting events)
+		condition := dcb.NewAppendCondition(
+			dcb.NewQuery(dcb.NewTags("test", "advisory_dcb"), "ConflictingResourceEvent"),
+		)
+
+		err := benchCtx.Store.Append(ctx, events, &condition)
+		if err != nil {
+			b.Fatalf("Advisory locks with DCB failed: %v", err)
+		}
+	}
+}
+
 // BenchmarkRead benchmarks event reading
 func BenchmarkRead(b *testing.B, benchCtx *BenchmarkContext, queryIndex int) {
 	// Create context with timeout for each benchmark iteration
