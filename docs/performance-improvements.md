@@ -13,13 +13,13 @@
 | AppendIf | 3-4 ops/sec | 170ms | 12MB | 156K |
 | Project Single | 3,000+ ops/sec | 350μs | 1.4MB | 35K |
 
-### HTTP API Performance
+### HTTP API Performance (Concurrent Load)
 | Endpoint | Throughput | Latency | Notes |
 |----------|------------|---------|-------|
 | Quick Test | 1,275 req/sec | 1.47ms | Basic health check |
 | Append | 62 req/sec | 805ms | Single event append |
 | Append with Advisory Locks | 216 req/sec | 4.6ms | Event append with resource locking tags |
-| AppendIf | 30 req/sec | 1.75s | Conditional append |
+| AppendIf | 30 req/sec | 1.75s | Conditional append (100 concurrent users) |
 
 ## Database I/O Operations
 
@@ -85,7 +85,7 @@ tx.Commit(ctx)  // Only on success
 - **Read/Projection**: Fastest operations (3,000+ ops/sec)
 - **Basic Append**: High throughput (900+ ops/sec)
 - **Advisory Locks**: Same performance as basic append when used alone
-- **Conditional Operations**: Slow but required for business logic (3-4 ops/sec)
+- **Conditional Operations**: Slow but required for business logic (3-4 ops/sec single-threaded, 30 req/sec with 100 concurrent users)
 - **HTTP API Overhead**: ~1.5ms additional latency vs direct library calls
 
 ### Memory Usage
