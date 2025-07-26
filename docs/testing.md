@@ -158,6 +158,60 @@ Test concurrent operations and race conditions:
 - **Both Combined**: Serialize access AND enforce business rules
 - **N-User Testing**: Demonstrates real concurrent scenarios (10+ users) instead of just 2
 
+## Example Tests
+
+### Transfer Example Tests
+The transfer example includes comprehensive tests that demonstrate proper DCB compliance and business logic validation:
+
+**Test Structure:**
+```
+internal/examples/transfer/test/transfer_test.go
+```
+
+**Key Test Scenarios:**
+- **Account Creation**: Tests creating accounts with proper validation
+- **Money Transfers**: Tests successful transfers between accounts
+- **Business Rules**: Tests duplicate account prevention and insufficient funds handling
+- **Non-existent Accounts**: Tests transfers to non-existent accounts (creates them automatically)
+- **Sequential Transfers**: Tests multiple transfers and balance tracking
+- **Concurrency Control**: Tests DCB compliance with `AppendCondition`
+
+**Test Features:**
+- **Proper Module Structure**: Tests use the refactored cmd/, logic/, test/ structure
+- **Comprehensive Coverage**: Tests all business scenarios including edge cases
+- **DCB Compliance**: All tests use proper `AppendCondition` for concurrency control
+- **Realistic Scenarios**: Tests realistic banking scenarios with proper validation
+
+**Running Transfer Tests:**
+```bash
+# Run transfer example tests
+go test ./internal/examples/transfer/test/ -v
+
+# Run with coverage
+go test ./internal/examples/transfer/test/ -v -cover
+```
+
+### Concurrency Comparison Example
+The concurrency comparison example demonstrates performance differences between DCB concurrency control and advisory locks:
+
+**Usage:**
+```bash
+# Run with default settings (100 users, 20 seats, 2 tickets per user)
+go run internal/examples/concurrency_comparison/main.go
+
+# Run with custom settings
+go run internal/examples/concurrency_comparison/main.go -users 50 -seats 30 -tickets 1
+
+# Test only advisory locks
+go run internal/examples/concurrency_comparison/main.go -advisory-locks -users 50 -seats 30
+```
+
+**What It Tests:**
+- **DCB Concurrency Control**: Uses `AppendCondition` to enforce business rules
+- **Advisory Locks**: Serialize access but don't enforce business limits without conditions
+- **Performance Comparison**: Benchmarks both approaches with timing and throughput metrics
+- **Real-world Scenarios**: Concert ticket booking with limited seats
+
 ## Test Data Management
 
 ### Unique Test Data
