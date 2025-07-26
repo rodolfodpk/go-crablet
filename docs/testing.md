@@ -158,37 +158,34 @@ Test concurrent operations and race conditions:
 - **Both Combined**: Serialize access AND enforce business rules
 - **N-User Testing**: Demonstrates real concurrent scenarios (10+ users) instead of just 2
 
-## Example Tests
+## Example Demonstrations
 
-### Transfer Example Tests
-The transfer example includes comprehensive tests that demonstrate proper DCB compliance and business logic validation:
+### Transfer Example
+The transfer example demonstrates proper DCB compliance and business logic validation:
 
-**Test Structure:**
+**Example Structure:**
 ```
-internal/examples/transfer/test/transfer_test.go
+internal/examples/transfer/main.go
 ```
 
-**Key Test Scenarios:**
-- **Account Creation**: Tests creating accounts with proper validation
-- **Money Transfers**: Tests successful transfers between accounts
-- **Business Rules**: Tests duplicate account prevention and insufficient funds handling
-- **Non-existent Accounts**: Tests transfers to non-existent accounts (creates them automatically)
-- **Sequential Transfers**: Tests multiple transfers and balance tracking
-- **Concurrency Control**: Tests DCB compliance with `AppendCondition`
+**Key Demonstrations:**
+- **Account Creation**: Creating accounts with proper validation
+- **Money Transfers**: Successful transfers between accounts
+- **Business Rules**: Duplicate account prevention and insufficient funds handling
+- **Non-existent Accounts**: Transfers to non-existent accounts (creates them automatically)
+- **Sequential Transfers**: Multiple transfers and balance tracking
+- **Concurrency Control**: DCB compliance with `AppendCondition`
 
-**Test Features:**
-- **Proper Module Structure**: Tests use the refactored cmd/, logic/, test/ structure
-- **Comprehensive Coverage**: Tests all business scenarios including edge cases
-- **DCB Compliance**: All tests use proper `AppendCondition` for concurrency control
-- **Realistic Scenarios**: Tests realistic banking scenarios with proper validation
+**Example Features:**
+- **Flat Structure**: Single main.go file with all types and handlers
+- **Comprehensive Scenarios**: All business scenarios including edge cases
+- **DCB Compliance**: Uses proper `AppendCondition` for concurrency control
+- **Realistic Scenarios**: Realistic banking scenarios with proper validation
 
-**Running Transfer Tests:**
+**Running Transfer Example:**
 ```bash
-# Run transfer example tests
-go test ./internal/examples/transfer/test/ -v
-
-# Run with coverage
-go test ./internal/examples/transfer/test/ -v -cover
+# Run transfer example
+go run internal/examples/transfer/main.go
 ```
 
 ### Concurrency Comparison Example

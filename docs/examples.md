@@ -265,14 +265,12 @@ func channelStreamingExample() {
 
 ## Example: Money Transfer with DCB Concurrency Control
 
-This example demonstrates concurrent money transfers with DCB concurrency control to prevent double-spending. The transfer example has been refactored into a proper Go module structure for better maintainability and testability.
+This example demonstrates concurrent money transfers with DCB concurrency control to prevent double-spending. The transfer example uses a flat structure for simplicity and consistency with other examples.
 
 ### Project Structure
 ```
 internal/examples/transfer/
-├── cmd/main.go          # Main executable
-├── logic/logic.go       # Shared business logic and types
-└── test/transfer_test.go # Comprehensive tests
+└── main.go              # Complete example with types, handlers, and main function
 ```
 
 ```go
