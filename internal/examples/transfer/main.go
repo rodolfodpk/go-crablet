@@ -8,238 +8,12 @@ import (
 	"log"
 	"time"
 
+	transferpkg "github.com/rodolfodpk/go-crablet/internal/examples/transfer/pkg"
 	"github.com/rodolfodpk/go-crablet/internal/examples/utils"
 	"github.com/rodolfodpk/go-crablet/pkg/dcb"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-// AccountState holds the state for an account
-type AccountState struct {
-	AccountID string
-	Owner     string
-	Balance   int
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-// AccountOpened represents when an account is opened
-type AccountOpened struct {
-	AccountID      string    `json:"account_id"`
-	Owner          string    `json:"owner"`
-	InitialBalance int       `json:"initial_balance"`
-	OpenedAt       time.Time `json:"opened_at"`
-}
-
-// MoneyTransferred represents a money transfer between accounts
-type MoneyTransferred struct {
-	TransferID    string    `json:"transfer_id"`
-	FromAccountID string    `json:"from_account_id"`
-	ToAccountID   string    `json:"to_account_id"`
-	Amount        int       `json:"amount"`
-	FromBalance   int       `json:"from_balance"` // Balance after transfer
-	ToBalance     int       `json:"to_balance"`   // Balance after transfer
-	TransferredAt time.Time `json:"transferred_at"`
-	Description   string    `json:"description,omitempty"`
-}
-
-// Command types
-const (
-	CommandTypeCreateAccount = "create_account"
-	CommandTypeTransferMoney = "transfer_money"
-)
-
-type CreateAccountCommand struct {
-	AccountID      string `json:"account_id"`
-	Owner          string `json:"owner"`
-	InitialBalance int    `json:"initial_balance"`
-}
-
-type TransferMoneyCommand struct {
-	TransferID    string `json:"transfer_id"`
-	FromAccountID string `json:"from_account_id"`
-	ToAccountID   string `json:"to_account_id"`
-	Amount        int    `json:"amount"`
-	Description   string `json:"description,omitempty"`
-}
-
-// Command handler functions
-func handleCreateAccount(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, error) {
-	var cmd CreateAccountCommand
-	if err := json.Unmarshal(command.GetData(), &cmd); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal create account command: %w", err)
-	}
-
-	// Check for duplicate account
-	query := dcb.NewQuery(dcb.NewTags("account_id", cmd.AccountID), "AccountOpened")
-	events, err := store.Query(ctx, query, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query for existing account: %w", err)
-	}
-	if len(events) > 0 {
-		return nil, fmt.Errorf("account %s already exists", cmd.AccountID)
-	}
-
-	// Create the event
-	event := AccountOpened{
-		AccountID:      cmd.AccountID,
-		Owner:          cmd.Owner,
-		InitialBalance: cmd.InitialBalance,
-		OpenedAt:       time.Now(),
-	}
-	eventData, err := json.Marshal(event)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal account opened event: %w", err)
-	}
-
-	return []dcb.InputEvent{
-		dcb.NewInputEvent("AccountOpened", []dcb.Tag{
-			dcb.NewTag("account_id", cmd.AccountID),
-		}, eventData),
-	}, nil
-}
-
-func handleTransferMoney(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, error) {
-	var cmd TransferMoneyCommand
-	if err := json.Unmarshal(command.GetData(), &cmd); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal transfer money command: %w", err)
-	}
-
-	// Define projectors for account states (DCB pattern)
-	projectors := []dcb.StateProjector{
-		{
-			ID:           "fromAccount",
-			Query:        dcb.NewQuery(dcb.NewTags("account_id", cmd.FromAccountID), "AccountOpened"),
-			InitialState: &AccountState{AccountID: cmd.FromAccountID},
-			TransitionFn: func(state any, event dcb.Event) any {
-				acc := state.(*AccountState)
-				switch event.Type {
-				case "AccountOpened":
-					var data AccountOpened
-					if err := json.Unmarshal(event.Data, &data); err == nil {
-						acc.Owner = data.Owner
-						acc.Balance = data.InitialBalance
-						acc.CreatedAt = data.OpenedAt
-						acc.UpdatedAt = data.OpenedAt
-					}
-				}
-				return acc
-			},
-		},
-		{
-			ID:           "toAccount",
-			Query:        dcb.NewQuery(dcb.NewTags("account_id", cmd.ToAccountID), "AccountOpened"),
-			InitialState: &AccountState{AccountID: cmd.ToAccountID},
-			TransitionFn: func(state any, event dcb.Event) any {
-				acc := state.(*AccountState)
-				switch event.Type {
-				case "AccountOpened":
-					var data AccountOpened
-					if err := json.Unmarshal(event.Data, &data); err == nil {
-						acc.Owner = data.Owner
-						acc.Balance = data.InitialBalance
-						acc.CreatedAt = data.OpenedAt
-						acc.UpdatedAt = data.OpenedAt
-					}
-				}
-				return acc
-			},
-		},
-		{
-			ID:           "allTransfers",
-			Query:        dcb.NewQuery(nil, "MoneyTransferred"),
-			InitialState: []MoneyTransferred{},
-			TransitionFn: func(state any, event dcb.Event) any {
-				transfers := state.([]MoneyTransferred)
-				if event.Type == "MoneyTransferred" {
-					var data MoneyTransferred
-					if err := json.Unmarshal(event.Data, &data); err == nil {
-						transfers = append(transfers, data)
-					}
-				}
-				return transfers
-			},
-		},
-	}
-
-	// Project the account states
-	states, _, err := store.Project(ctx, projectors, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to project account states: %w", err)
-	}
-
-	fromAccount, fromOk := states["fromAccount"].(*AccountState)
-	toAccount, toOk := states["toAccount"].(*AccountState)
-	allTransfers, transfersOk := states["allTransfers"].([]MoneyTransferred)
-
-	if !fromOk || !toOk || !transfersOk {
-		return nil, fmt.Errorf("failed to get account states from projection")
-	}
-
-	// Apply transfer history to calculate current balances
-	for _, transfer := range allTransfers {
-		if transfer.FromAccountID == cmd.FromAccountID {
-			fromAccount.Balance = transfer.FromBalance
-			fromAccount.UpdatedAt = transfer.TransferredAt
-		} else if transfer.ToAccountID == cmd.FromAccountID {
-			fromAccount.Balance = transfer.ToBalance
-			fromAccount.UpdatedAt = transfer.TransferredAt
-		}
-
-		if transfer.FromAccountID == cmd.ToAccountID {
-			toAccount.Balance = transfer.FromBalance
-			toAccount.UpdatedAt = transfer.TransferredAt
-		} else if transfer.ToAccountID == cmd.ToAccountID {
-			toAccount.Balance = transfer.ToBalance
-			toAccount.UpdatedAt = transfer.TransferredAt
-		}
-	}
-
-	// Validate transfer
-	if fromAccount.Balance < cmd.Amount {
-		return nil, fmt.Errorf("insufficient funds: account %s has %d, needs %d", cmd.FromAccountID, fromAccount.Balance, cmd.Amount)
-	}
-
-	// Calculate new balances
-	newFromBalance := fromAccount.Balance - cmd.Amount
-	newToBalance := toAccount.Balance + cmd.Amount
-
-	// Create transfer event
-	transferEvent := MoneyTransferred{
-		TransferID:    cmd.TransferID,
-		FromAccountID: cmd.FromAccountID,
-		ToAccountID:   cmd.ToAccountID,
-		Amount:        cmd.Amount,
-		FromBalance:   newFromBalance,
-		ToBalance:     newToBalance,
-		TransferredAt: time.Now(),
-		Description:   cmd.Description,
-	}
-	eventData, err := json.Marshal(transferEvent)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal money transferred event: %w", err)
-	}
-
-	return []dcb.InputEvent{
-		dcb.NewInputEvent("MoneyTransferred", []dcb.Tag{
-			dcb.NewTag("transfer_id", cmd.TransferID),
-			dcb.NewTag("from_account_id", cmd.FromAccountID),
-			dcb.NewTag("to_account_id", cmd.ToAccountID),
-		}, eventData),
-	}, nil
-}
-
-// Unified command handler function
-func handleCommand(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, error) {
-	switch command.GetType() {
-	case CommandTypeCreateAccount:
-		return handleCreateAccount(ctx, store, command)
-	case CommandTypeTransferMoney:
-		return handleTransferMoney(ctx, store, command)
-	default:
-		return nil, fmt.Errorf("unknown command type: %s", command.GetType())
-	}
-}
 
 func main() {
 	// Create context with timeout for the entire application
@@ -267,12 +41,13 @@ func main() {
 
 	// Create command handler
 	handler := dcb.CommandHandlerFunc(func(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, error) {
-		return handleCommand(ctx, store, command)
+		events, _, err := transferpkg.HandleCommand(ctx, store, command)
+		return events, err
 	})
 
 	// Command 1: Create first account
 	fmt.Println("=== Creating First Account ===")
-	createAccount1Cmd := CreateAccountCommand{
+	createAccount1Cmd := transferpkg.CreateAccountCommand{
 		AccountID:      "acc1",
 		Owner:          "Alice",
 		InitialBalance: 1000,
@@ -283,7 +58,7 @@ func main() {
 		log.Fatalf("Failed to marshal create account command: %v", err)
 	}
 
-	command1 := dcb.NewCommand(CommandTypeCreateAccount, createCmdData1, map[string]interface{}{
+	command1 := dcb.NewCommand(transferpkg.CommandTypeCreateAccount, createCmdData1, map[string]interface{}{
 		"request_id": "req_001",
 		"source":     "web_api",
 	})
@@ -296,7 +71,7 @@ func main() {
 
 	// Command 2: Create second account
 	fmt.Println("\n=== Creating Second Account ===")
-	createAccount2Cmd := CreateAccountCommand{
+	createAccount2Cmd := transferpkg.CreateAccountCommand{
 		AccountID:      "acc456",
 		Owner:          "Bob",
 		InitialBalance: 500,
@@ -307,7 +82,7 @@ func main() {
 		log.Fatalf("Failed to marshal create account command: %v", err)
 	}
 
-	command2 := dcb.NewCommand(CommandTypeCreateAccount, createCmdData2, map[string]interface{}{
+	command2 := dcb.NewCommand(transferpkg.CommandTypeCreateAccount, createCmdData2, map[string]interface{}{
 		"request_id": "req_002",
 		"source":     "web_api",
 	})
@@ -320,7 +95,7 @@ func main() {
 
 	// Command 3: Transfer money
 	fmt.Println("\n=== Transferring Money ===")
-	transferCmd := TransferMoneyCommand{
+	transferCmd := transferpkg.TransferMoneyCommand{
 		TransferID:    fmt.Sprintf("tx-%d", time.Now().UnixNano()),
 		FromAccountID: "acc1",
 		ToAccountID:   "acc456",
@@ -333,21 +108,27 @@ func main() {
 		log.Fatalf("Failed to marshal transfer command: %v", err)
 	}
 
-	command3 := dcb.NewCommand(CommandTypeTransferMoney, transferCmdData, map[string]interface{}{
+	command3 := dcb.NewCommand(transferpkg.CommandTypeTransferMoney, transferCmdData, map[string]interface{}{
 		"request_id": "req_003",
 		"source":     "web_api",
 	})
 
-	_, err = commandExecutor.ExecuteCommand(ctx, command3, handler, nil)
+	// Use the DCB-compliant handler to get events and append condition
+	_, appendCondition, err := transferpkg.HandleCommand(ctx, store, command3)
 	if err != nil {
 		fmt.Printf("❌ Transfer failed: %v\n", err)
 	} else {
-		fmt.Printf("✓ Transfer successful! Transfer ID: %s\n", transferCmd.TransferID)
+		_, err = commandExecutor.ExecuteCommand(ctx, command3, handler, appendCondition)
+		if err != nil {
+			fmt.Printf("❌ Transfer failed: %v\n", err)
+		} else {
+			fmt.Printf("✓ Transfer successful! Transfer ID: %s\n", transferCmd.TransferID)
+		}
 	}
 
 	// Second transfer (should fail due to insufficient funds)
 	fmt.Println("\n=== Attempting Second Transfer (should fail due to insufficient funds) ===")
-	secondTransferCmd := TransferMoneyCommand{
+	secondTransferCmd := transferpkg.TransferMoneyCommand{
 		TransferID:    fmt.Sprintf("tx-%d", time.Now().UnixNano()),
 		FromAccountID: "acc1",
 		ToAccountID:   "acc456",
@@ -360,7 +141,7 @@ func main() {
 		log.Fatalf("Failed to marshal second transfer command: %v", err)
 	}
 
-	command4 := dcb.NewCommand(CommandTypeTransferMoney, secondTransferCmdData, map[string]interface{}{
+	command4 := dcb.NewCommand(transferpkg.CommandTypeTransferMoney, secondTransferCmdData, map[string]interface{}{
 		"request_id": "req_004",
 		"source":     "web_api",
 	})

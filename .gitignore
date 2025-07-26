@@ -57,7 +57,6 @@ benchmark
 channel_projection
 decision_model
 enrollment
-transfer
 web-app
 streaming
 server
