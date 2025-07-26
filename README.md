@@ -40,7 +40,7 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 
 Ready-to-run examples demonstrating different aspects of the DCB pattern:
 
-- **[Transfer Example](internal/examples/transfer/cmd/main.go)**: Money transfer with DCB concurrency control (refactored with proper module structure)
+- **[Transfer Example](internal/examples/transfer/)**: Money transfer with DCB concurrency control (refactored with proper module structure)
 - **[Course Enrollment](internal/examples/enrollment/main.go)**: Student course enrollment with capacity limits
 - **[Streaming](internal/examples/streaming/main.go)**: Event streaming and projection approaches
 - **[Decision Model](internal/examples/decision_model/main.go)**: DCB decision model with multiple projectors
