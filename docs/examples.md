@@ -265,7 +265,15 @@ func channelStreamingExample() {
 
 ## Example: Money Transfer with DCB Concurrency Control
 
-This example demonstrates concurrent money transfers with DCB concurrency control to prevent double-spending:
+This example demonstrates concurrent money transfers with DCB concurrency control to prevent double-spending. The transfer example has been refactored into a proper Go module structure for better maintainability and testability.
+
+### Project Structure
+```
+internal/examples/transfer/
+├── cmd/main.go          # Main executable
+├── logic/logic.go       # Shared business logic and types
+└── test/transfer_test.go # Comprehensive tests
+```
 
 ```go
 func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd TransferMoneyCommand) error {
@@ -484,7 +492,7 @@ Benchmark results from web-app load testing (30-second tests):
 - **`internal/examples/channel_streaming/`** - Channel-based streaming for small-medium datasets
 - **`internal/examples/channel_projection/`** - Channel-based projection with immediate feedback
 - **`internal/examples/extension_interface/`** - Extension interface pattern demonstration
-- **`internal/examples/transfer/`** - Event sourcing with semantic event names
+- **`internal/examples/transfer/`** - Money transfer with DCB concurrency control (refactored with proper module structure)
 - **`internal/examples/enrollment/`** - Course enrollment with business rules
 - **`internal/examples/concurrency_comparison/`** - **NEW**: Performance comparison between DCB concurrency control and PostgreSQL advisory locks
 
