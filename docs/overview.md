@@ -14,22 +14,33 @@ go-crablet is a Go library for event sourcing, exploring concepts inspired by th
 
 ## Core Interfaces
 
-### EventStore Interface
+### Primary: EventStore Interface
+
+The EventStore is the main interface for event sourcing operations:
 
 ```go
 type EventStore interface {
+    // Query operations
     Query(ctx context.Context, query Query, cursor *Cursor) ([]Event, error)
     QueryStream(ctx context.Context, query Query, cursor *Cursor) (<-chan Event, error)
+    
+    // Append operations
     Append(ctx context.Context, events []InputEvent, condition *AppendCondition) error
     AppendIf(ctx context.Context, events []InputEvent, condition AppendCondition) error
+    
+    // Projection operations
     Project(ctx context.Context, projectors []StateProjector, cursor *Cursor) (map[string]any, AppendCondition, error)
     ProjectStream(ctx context.Context, projectors []StateProjector, cursor *Cursor) (<-chan map[string]any, <-chan AppendCondition, error)
+    
+    // Configuration
     GetConfig() EventStoreConfig
     GetPool() *pgxpool.Pool
 }
 ```
 
-### CommandExecutor Interface (Optional)
+### Optional: CommandExecutor Interface
+
+The CommandExecutor provides command-driven architecture support:
 
 ```go
 type CommandExecutor interface {
@@ -41,16 +52,17 @@ type CommandHandler interface {
 }
 ```
 
-### Usage Pattern
+## Usage Patterns
+
+### Primary: EventStore Pattern (Direct Event Sourcing)
+
+The EventStore is the primary interface for event sourcing. Use this pattern when you want direct control over event creation and business logic:
 
 ```go
-// 1. Create EventStore (primary interface)
+// 1. Create EventStore
 store, err := dcb.NewEventStore(ctx, pool)
 
-// 2. Optionally create CommandExecutor (not required)
-commandExecutor := dcb.NewCommandExecutor(store)
-
-// 3. Use fluent API for better developer experience
+// 2. Use fluent API for events and queries
 event := dcb.NewEvent("UserCreated").
     WithTag("user_id", "123").
     WithData(userData).
@@ -63,10 +75,48 @@ query := dcb.NewQueryBuilder().
 
 condition := dcb.FailIfExists("user_id", "123")
 
-// 4. Use either interface as needed
-err = store.AppendIf(ctx, []dcb.InputEvent{event}, condition)  // Fluent conditional append
-err = store.Append(ctx, events, &condition)  // Direct usage with pointer
-err = commandExecutor.ExecuteCommand(ctx, command, handler, &condition)  // Command-driven
+// 3. Direct event operations
+err = store.AppendIf(ctx, []dcb.InputEvent{event}, condition)  // Conditional append
+err = store.Append(ctx, events, nil)  // Unconditional append
+events, err := store.Query(ctx, query, nil)  // Query events
+states, err := store.Project(ctx, projectors, nil)  // Project state
+```
+
+### Optional: CommandExecutor Pattern (Command-Driven Architecture)
+
+The CommandExecutor is an optional pattern for command-driven architectures. Use this when you want to separate command handling from event creation:
+
+```go
+// 1. Create EventStore and CommandExecutor
+store, err := dcb.NewEventStore(ctx, pool)
+commandExecutor := dcb.NewCommandExecutor(store)
+
+// 2. Define command handler
+func handleCreateUser(ctx context.Context, store dcb.EventStore, cmd dcb.Command) ([]dcb.InputEvent, error) {
+    var data CreateUserCommand
+    if err := json.Unmarshal(cmd.GetData(), &data); err != nil {
+        return nil, err
+    }
+    
+    // Business logic validation
+    if data.Email == "" {
+        return nil, errors.New("email required")
+    }
+    
+    // Create events
+    event := dcb.NewEvent("UserCreated").
+        WithTag("user_id", data.UserID).
+        WithTag("email", data.Email).
+        WithData(data).
+        Build()
+    
+    return []dcb.InputEvent{event}, nil
+}
+
+// 3. Execute commands
+command := dcb.NewCommand("CreateUser", commandData)
+condition := dcb.FailIfExists("email", userEmail)
+err = commandExecutor.ExecuteCommand(ctx, command, handleCreateUser, &condition)
 ```
 
 ### Supporting Types
@@ -229,7 +279,11 @@ type EventStoreConfig struct {
 }
 ```
 
-## Example: Course Subscription
+## Examples
+
+### EventStore Pattern: Course Subscription
+
+Direct event sourcing approach using the EventStore interface:
 
 ```go
 // Define projectors using fluent API
@@ -258,6 +312,39 @@ if states["numSubscriptions"].(int) < 2 {
         Build()
     store.AppendIf(ctx, []dcb.InputEvent{enrollmentEvent}, appendCond)
 }
+```
+
+### CommandExecutor Pattern: User Registration
+
+Command-driven approach using the CommandExecutor interface:
+
+```go
+// Define command handler
+func handleRegisterUser(ctx context.Context, store dcb.EventStore, cmd dcb.Command) ([]dcb.InputEvent, error) {
+    var data RegisterUserCommand
+    if err := json.Unmarshal(cmd.GetData(), &data); err != nil {
+        return nil, err
+    }
+    
+    // Business logic validation
+    if data.Email == "" || data.Name == "" {
+        return nil, errors.New("email and name required")
+    }
+    
+    // Create user registration event
+    event := dcb.NewEvent("UserRegistered").
+        WithTag("user_id", data.UserID).
+        WithTag("email", data.Email).
+        WithData(data).
+        Build()
+    
+    return []dcb.InputEvent{event}, nil
+}
+
+// Execute command with condition
+command := dcb.NewCommand("RegisterUser", commandData)
+condition := dcb.FailIfExists("email", userEmail)
+err = commandExecutor.ExecuteCommand(ctx, command, handleRegisterUser, &condition)
 ```
 
 ## Performance
