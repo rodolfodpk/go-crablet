@@ -87,7 +87,10 @@ func HandleCreateAccount(ctx context.Context, store dcb.EventStore, cmd CreateAc
 		OpenedAt:       time.Now(),
 	}
 
-	event := dcb.NewInputEvent("AccountOpened", dcb.Tags{"account_id": cmd.AccountID}.ToTags(), dcb.ToJSON(accountOpened))
+	event := dcb.NewEvent("AccountOpened").
+		WithTag("account_id", cmd.AccountID).
+		WithData(accountOpened).
+		Build()
 	return []dcb.InputEvent{event}, nil
 }
 
@@ -194,11 +197,12 @@ func HandleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 		Description:   cmd.Description,
 	}
 
-	event := dcb.NewInputEvent("MoneyTransferred", dcb.Tags{
-		"transfer_id":     cmd.TransferID,
-		"from_account_id": cmd.FromAccountID,
-		"to_account_id":   cmd.ToAccountID,
-	}.ToTags(), dcb.ToJSON(transfer))
+	event := dcb.NewEvent("MoneyTransferred").
+		WithTag("transfer_id", cmd.TransferID).
+		WithTag("from_account_id", cmd.FromAccountID).
+		WithTag("to_account_id", cmd.ToAccountID).
+		WithData(transfer).
+		Build()
 
 	return []dcb.InputEvent{event}, &appendCondition, nil
 }

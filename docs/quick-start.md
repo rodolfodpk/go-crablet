@@ -60,8 +60,14 @@ func main() {
         log.Fatal(err)
     }
 
-    // Define a simple event
-    event := dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", "123"), []byte(`{"name": "John Doe", "email": "john@example.com"}`))
+    // Define a simple event using the fluent API
+    event := dcb.NewEvent("UserCreated").
+        WithTag("user_id", "123").
+        WithData(map[string]string{
+            "name":  "John Doe",
+            "email": "john@example.com",
+        }).
+        Build()
 
     // Append event (simple, no conditions)
     err = store.Append(ctx, []dcb.InputEvent{event}, nil)
@@ -70,23 +76,32 @@ func main() {
     }
     log.Printf("Event appended successfully")
 
-    // Query events (use Query instead of Read)
-    query := dcb.NewQuery(dcb.NewTags("user_id", "123"), "UserCreated")
+    // Query events using the new QueryBuilder
+    query := dcb.NewQueryBuilder().
+        WithTag("user_id", "123").
+        WithType("UserCreated").
+        Build()
+    
     events, err := store.Query(ctx, query, nil)
     if err != nil {
         log.Fatal(err)
     }
 
     for _, event := range events {
-        log.Printf("Event: %s, Position: %d", event.Type, event.Position)
+        log.Printf("Event: %s, Position: %d", event.GetType(), event.GetPosition())
     }
 
     // Conditional append with DCB concurrency control
     if len(events) > 0 {
-        // DCB concurrency control (not classic optimistic locking)
-        condition := dcb.NewAppendCondition(query)
-        newEvent := dcb.NewInputEvent("UserUpdated", dcb.NewTags("user_id", "123"), []byte(`{"name": "John Smith"}`))
-        err = store.Append(ctx, []dcb.InputEvent{newEvent}, &condition)
+        // Use fluent append condition constructor
+        condition := dcb.FailIfExists("user_id", "123")
+        
+        newEvent := dcb.NewEvent("UserUpdated").
+            WithTag("user_id", "123").
+            WithData(map[string]string{"name": "John Smith"}).
+            Build()
+            
+        err = store.AppendIf(ctx, []dcb.InputEvent{newEvent}, condition)
         if err != nil {
             log.Printf("Conditional append failed: %v", err)
         }
@@ -99,7 +114,8 @@ func main() {
 After completing this quick start:
 
 - Read the [Overview](overview.md) to understand DCB concepts and transaction ID ordering
-- Explore the [Examples](../internal/examples/) directory for complete working examples including money transfers
+- Explore the [Overview](overview.md) for the fluent API patterns
+- Check out the [Examples](../internal/examples/) directory for complete working examples including money transfers
 
 ## Configuration
 

@@ -222,86 +222,97 @@ func NewCommandSimple(commandType string, data []byte) Command {
 // =============================================================================
 
 // QueryBuilder provides a fluent interface for building queries
+// DCB compliant: QueryItems are combined with OR, conditions within QueryItem are AND
 type QueryBuilder struct {
-	items []QueryItem
+	items       []QueryItem
+	currentItem *queryItemBuilder
+}
+
+// queryItemBuilder builds a single QueryItem with AND conditions
+type queryItemBuilder struct {
+	eventTypes []string
+	tags       []Tag
 }
 
 // NewQueryBuilder creates a new QueryBuilder instance
 func NewQueryBuilder() *QueryBuilder {
 	return &QueryBuilder{
-		items: make([]QueryItem, 0),
+		items:       make([]QueryItem, 0),
+		currentItem: &queryItemBuilder{},
 	}
 }
 
-// WithTag adds a single tag condition to the query
-func (qb *QueryBuilder) WithTag(key, value string) *QueryBuilder {
-	tags := []Tag{NewTag(key, value)}
-	item := NewQueryItem(nil, tags)
-	qb.items = append(qb.items, item)
+// AddItem starts a new QueryItem for OR conditions
+// This creates a new QueryItem that will be combined with OR
+func (qb *QueryBuilder) AddItem() *QueryBuilder {
+	// Finalize current item if it has content
+	if len(qb.currentItem.eventTypes) > 0 || len(qb.currentItem.tags) > 0 {
+		item := NewQueryItem(qb.currentItem.eventTypes, qb.currentItem.tags)
+		qb.items = append(qb.items, item)
+	}
+
+	// Start new item
+	qb.currentItem = &queryItemBuilder{}
 	return qb
 }
 
-// WithTags adds multiple tag conditions to the query
+// WithTag adds a single tag condition to the current QueryItem (AND)
+func (qb *QueryBuilder) WithTag(key, value string) *QueryBuilder {
+	qb.currentItem.tags = append(qb.currentItem.tags, NewTag(key, value))
+	return qb
+}
+
+// WithTags adds multiple tag conditions to the current QueryItem (AND)
 func (qb *QueryBuilder) WithTags(kv ...string) *QueryBuilder {
 	if len(kv)%2 != 0 {
 		// Invalid key-value pairs, return builder unchanged
 		return qb
 	}
 
-	tags := make([]Tag, 0, len(kv)/2)
 	for i := 0; i < len(kv); i += 2 {
-		tags = append(tags, NewTag(kv[i], kv[i+1]))
+		qb.currentItem.tags = append(qb.currentItem.tags, NewTag(kv[i], kv[i+1]))
 	}
-
-	item := NewQueryItem(nil, tags)
-	qb.items = append(qb.items, item)
 	return qb
 }
 
-// WithType adds a single event type condition to the query
+// WithType adds a single event type condition to the current QueryItem (OR with existing types)
 func (qb *QueryBuilder) WithType(eventType string) *QueryBuilder {
-	item := NewQueryItem([]string{eventType}, nil)
-	qb.items = append(qb.items, item)
+	qb.currentItem.eventTypes = append(qb.currentItem.eventTypes, eventType)
 	return qb
 }
 
-// WithTypes adds multiple event type conditions to the query
+// WithTypes adds multiple event type conditions to the current QueryItem (OR with existing types)
 func (qb *QueryBuilder) WithTypes(eventTypes ...string) *QueryBuilder {
-	item := NewQueryItem(eventTypes, nil)
-	qb.items = append(qb.items, item)
+	qb.currentItem.eventTypes = append(qb.currentItem.eventTypes, eventTypes...)
 	return qb
 }
 
-// WithTagAndType adds both tag and event type conditions to the query
+// WithTagAndType adds both tag and event type conditions to the current QueryItem
 func (qb *QueryBuilder) WithTagAndType(key, value, eventType string) *QueryBuilder {
-	tags := []Tag{NewTag(key, value)}
-	item := NewQueryItem([]string{eventType}, tags)
-	qb.items = append(qb.items, item)
+	qb.WithTag(key, value)
+	qb.WithType(eventType)
 	return qb
 }
 
-// WithTagsAndTypes adds both tags and event types conditions to the query
+// WithTagsAndTypes adds both tags and event types conditions to the current QueryItem
 func (qb *QueryBuilder) WithTagsAndTypes(eventTypes []string, kv ...string) *QueryBuilder {
-	if len(kv)%2 != 0 {
-		// Invalid key-value pairs, return builder unchanged
-		return qb
-	}
-
-	tags := make([]Tag, 0, len(kv)/2)
-	for i := 0; i < len(kv); i += 2 {
-		tags = append(tags, NewTag(kv[i], kv[i+1]))
-	}
-
-	item := NewQueryItem(eventTypes, tags)
-	qb.items = append(qb.items, item)
+	qb.WithTypes(eventTypes...)
+	qb.WithTags(kv...)
 	return qb
 }
 
 // Build creates the final Query from the builder
 func (qb *QueryBuilder) Build() Query {
+	// Finalize current item if it has content
+	if len(qb.currentItem.eventTypes) > 0 || len(qb.currentItem.tags) > 0 {
+		item := NewQueryItem(qb.currentItem.eventTypes, qb.currentItem.tags)
+		qb.items = append(qb.items, item)
+	}
+
 	if len(qb.items) == 0 {
 		return NewQueryEmpty()
 	}
+
 	return NewQueryFromItems(qb.items...)
 }
 
@@ -393,10 +404,149 @@ func ProjectStateWithTypes(id string, eventTypes []string, key, value string, in
 
 // ProjectStateWithTags creates a projector with multiple tag conditions
 func ProjectStateWithTags(id string, eventType string, tags Tags, initialState any, transitionFn func(any, Event) any) StateProjector {
+	builder := NewQueryBuilder().WithType(eventType)
+	for key, value := range tags {
+		builder.WithTag(key, value)
+	}
 	return StateProjector{
 		ID:           id,
-		Query:        NewQueryBuilder().WithTagAndType("", "", eventType).Build(), // Simplified for now
+		Query:        builder.Build(),
 		InitialState: initialState,
 		TransitionFn: transitionFn,
 	}
+}
+
+// =============================================================================
+// Event Builder Pattern (Additive - for better developer experience)
+// =============================================================================
+
+// EventBuilder provides a fluent interface for building events
+type EventBuilder struct {
+	eventType string
+	tags      map[string]string
+	data      any
+}
+
+// NewEvent creates a new EventBuilder for fluent event construction
+func NewEvent(eventType string) *EventBuilder {
+	return &EventBuilder{
+		eventType: eventType,
+		tags:      make(map[string]string),
+	}
+}
+
+// WithTag adds a single tag to the event
+func (eb *EventBuilder) WithTag(key, value string) *EventBuilder {
+	eb.tags[key] = value
+	return eb
+}
+
+// WithTags adds multiple tags to the event
+func (eb *EventBuilder) WithTags(tags map[string]string) *EventBuilder {
+	for key, value := range tags {
+		eb.tags[key] = value
+	}
+	return eb
+}
+
+// WithData sets the event data (will be JSON marshaled)
+func (eb *EventBuilder) WithData(data any) *EventBuilder {
+	eb.data = data
+	return eb
+}
+
+// Build creates the final InputEvent
+func (eb *EventBuilder) Build() InputEvent {
+	tags := make([]Tag, 0, len(eb.tags))
+	for key, value := range eb.tags {
+		tags = append(tags, NewTag(key, value))
+	}
+
+	var data []byte
+	if eb.data != nil {
+		data = ToJSON(eb.data)
+	}
+
+	return NewInputEvent(eb.eventType, tags, data)
+}
+
+// =============================================================================
+// Batch Builder Pattern (Additive - for better developer experience)
+// =============================================================================
+
+// BatchBuilder provides a fluent interface for building event batches
+type BatchBuilder struct {
+	events []InputEvent
+}
+
+// NewBatch creates a new BatchBuilder for fluent batch construction
+func NewBatch() *BatchBuilder {
+	return &BatchBuilder{
+		events: make([]InputEvent, 0),
+	}
+}
+
+// AddEvent adds a single event to the batch
+func (bb *BatchBuilder) AddEvent(event InputEvent) *BatchBuilder {
+	bb.events = append(bb.events, event)
+	return bb
+}
+
+// AddEvents adds multiple events to the batch
+func (bb *BatchBuilder) AddEvents(events ...InputEvent) *BatchBuilder {
+	bb.events = append(bb.events, events...)
+	return bb
+}
+
+// AddEventFromBuilder adds an event from an EventBuilder to the batch
+func (bb *BatchBuilder) AddEventFromBuilder(builder *EventBuilder) *BatchBuilder {
+	bb.events = append(bb.events, builder.Build())
+	return bb
+}
+
+// Build creates the final event batch
+func (bb *BatchBuilder) Build() []InputEvent {
+	return bb.events
+}
+
+// =============================================================================
+// Convenience Functions
+// =============================================================================
+
+// AppendSingleEvent is a convenience function for appending a single event
+func AppendSingleEvent(ctx context.Context, store EventStore, eventType string, tags map[string]string, data any) error {
+	event := NewEvent(eventType).WithTags(tags).WithData(data).Build()
+	return store.Append(ctx, []InputEvent{event})
+}
+
+// AppendSingleEventIf is a convenience function for appending a single event with condition
+func AppendSingleEventIf(ctx context.Context, store EventStore, eventType string, tags map[string]string, data any, condition AppendCondition) error {
+	event := NewEvent(eventType).WithTags(tags).WithData(data).Build()
+	return store.AppendIf(ctx, []InputEvent{event}, condition)
+}
+
+// AppendBatchFromStructs is a convenience function for appending events from struct definitions
+func AppendBatchFromStructs(ctx context.Context, store EventStore, events ...struct {
+	Type string
+	Tags map[string]string
+	Data any
+}) error {
+	inputEvents := make([]InputEvent, len(events))
+	for i, event := range events {
+		inputEvents[i] = NewEvent(event.Type).WithTags(event.Tags).WithData(event.Data).Build()
+	}
+	return store.Append(ctx, inputEvents)
+}
+
+// AppendBatchFromStructsIf is a convenience function for appending events from struct definitions with condition
+func AppendBatchFromStructsIf(ctx context.Context, store EventStore, condition AppendCondition, events ...struct {
+	Type string
+	Tags map[string]string
+	Data any
+}) error {
+	inputEvents := make([]InputEvent, len(events))
+	for i, event := range events {
+		inputEvents[i] = NewEvent(event.Type).WithTags(event.Tags).WithData(event.Data).Build()
+	}
+	return store.AppendIf(ctx, inputEvents, condition)
 }

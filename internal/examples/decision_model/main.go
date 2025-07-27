@@ -212,11 +212,10 @@ func handleOpenAccount(ctx context.Context, store dcb.EventStore, cmd OpenAccoun
 		return fmt.Errorf("account %s already exists", cmd.AccountID)
 	}
 	events := []dcb.InputEvent{
-		dcb.NewInputEvent(
-			"AccountOpened",
-			dcb.NewTags("account_id", cmd.AccountID),
-			toJSON(AccountOpenedData{InitialBalance: cmd.InitialBalance}),
-		),
+		dcb.NewEvent("AccountOpened").
+			WithTag("account_id", cmd.AccountID).
+			WithData(AccountOpenedData{InitialBalance: cmd.InitialBalance}).
+			Build(),
 	}
 	err = store.AppendIf(ctx, events, appendCondition)
 	if err != nil {
@@ -262,11 +261,10 @@ func handleProcessTransaction(ctx context.Context, store dcb.EventStore, cmd Pro
 		return fmt.Errorf("account %s does not exist", cmd.AccountID)
 	}
 	events := []dcb.InputEvent{
-		dcb.NewInputEvent(
-			"TransactionProcessed",
-			dcb.NewTags("account_id", cmd.AccountID),
-			toJSON(TransactionProcessedData{Amount: cmd.Amount}),
-		),
+		dcb.NewEvent("TransactionProcessed").
+			WithTag("account_id", cmd.AccountID).
+			WithData(TransactionProcessedData{Amount: cmd.Amount}).
+			Build(),
 	}
 	err = store.AppendIf(ctx, events, appendCondition)
 	if err != nil {
@@ -312,11 +310,10 @@ func handleProcessTransactionWithCondition(ctx context.Context, store dcb.EventS
 		return fmt.Errorf("account %s does not exist", cmd.AccountID)
 	}
 	events := []dcb.InputEvent{
-		dcb.NewInputEvent(
-			"TransactionProcessed",
-			dcb.NewTags("account_id", cmd.AccountID),
-			toJSON(TransactionProcessedData{Amount: cmd.Amount}),
-		),
+		dcb.NewEvent("TransactionProcessed").
+			WithTag("account_id", cmd.AccountID).
+			WithData(TransactionProcessedData{Amount: cmd.Amount}).
+			Build(),
 	}
 	err = store.AppendIf(ctx, events, condition)
 	if err != nil {

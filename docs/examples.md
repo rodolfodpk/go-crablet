@@ -40,35 +40,22 @@ func main() {
     courseID := "c1"
     studentID := "s1"
 
-    // Define projectors for the decision model
+    // Define projectors for the decision model using fluent API
     projectors := []dcb.StateProjector{
-        {
-            ID: "courseExists",
-            Query: dcb.NewQuery(dcb.NewTags("course_id", courseID), "CourseDefined"),
-            InitialState: false,
-            TransitionFn: func(state any, e dcb.Event) any { return true },
-        },
-        {
-            ID: "numSubscriptions",
-            Query: dcb.NewQuery(dcb.NewTags("course_id", courseID), "StudentSubscribed"),
-            InitialState: 0,
-            TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
-        },
-        {
-            ID: "alreadySubscribed",
-            Query: dcb.NewQuery(dcb.NewTags("student_id", studentID, "course_id", courseID), "StudentSubscribed"),
-            InitialState: false,
-            TransitionFn: func(state any, e dcb.Event) any { return true },
-        },
+        dcb.ProjectBoolean("courseExists", "CourseDefined", "course_id", courseID),
+        dcb.ProjectCounter("numSubscriptions", "StudentSubscribed", "course_id", courseID),
+        dcb.ProjectBoolean("alreadySubscribed", "StudentSubscribed", "student_id", studentID),
     }
 
     // Project all states in single query (cursor-based approach)
     states, appendCond, err := store.Project(ctx, projectors, nil)
 
     if !states["courseExists"].(bool) {
-        // Append CourseDefined event
-        data, _ := json.Marshal(CourseDefined{courseID, 2})
-        event := dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", courseID), data)
+        // Append CourseDefined event using fluent API
+        event := dcb.NewEvent("CourseDefined").
+            WithTag("course_id", courseID).
+            WithData(CourseDefined{courseID, 2}).
+            Build()
         store.Append(ctx, []dcb.InputEvent{event}, nil)
     }
     if states["alreadySubscribed"].(bool) {
@@ -77,14 +64,17 @@ func main() {
     if states["numSubscriptions"].(int) >= 2 {
         panic("course is full")
     }
-    // Subscribe student
-    data, _ := json.Marshal(StudentSubscribed{studentID, courseID})
-    event := dcb.NewInputEvent("StudentSubscribed", dcb.NewTags("student_id", studentID, "course_id", courseID), data)
+    // Subscribe student using fluent API
+    event := dcb.NewEvent("StudentSubscribed").
+        WithTag("student_id", studentID).
+        WithTag("course_id", courseID).
+        WithData(StudentSubscribed{studentID, courseID}).
+        Build()
     store.Append(ctx, []dcb.InputEvent{event}, &appendCond)
 }
 ```
 
-### Command-Driven Approach with Function-Based Handler
+### Function-Based Handler
 
 ```go
 // Define command handler function
@@ -336,7 +326,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 - **The append condition is the OR-combination of all projector queries**
 - **Only one database round trip is needed for all business rules**
 - **No aggregates or legacy event sourcing patterns required**
-- **Channel-based streaming provides immediate processing feedback**
+- **Channel-based streaming for immediate processing feedback**
 - **Choose the right streaming approach for your dataset size**
 - **DCB concurrency control prevents double-spending** in concurrent scenarios (not classic optimistic locking; transaction IDs ensure correct event ordering)
 
@@ -406,7 +396,7 @@ store, err := dcb.NewEventStoreWithConfig(ctx, pool, config)
 
 ## Query Building with Helper Functions
 
-go-crablet provides concise helper functions to simplify query building:
+Helper functions for query building:
 
 ### Using QItem and QItemKV Helpers
 
