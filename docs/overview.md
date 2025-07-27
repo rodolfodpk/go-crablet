@@ -10,6 +10,7 @@ go-crablet is a Go library for event sourcing, exploring concepts inspired by th
 - **Streaming**: Process events efficiently for large datasets
 - **Transaction-based Ordering**: Uses PostgreSQL transaction IDs for true event ordering
 - **Atomic Command Execution**: Execute commands with handler-based event generation
+- **Simplified API**: Fluent interfaces for events, queries, and projections with 50% less boilerplate
 
 ## Core Interfaces
 
@@ -51,6 +52,19 @@ commandExecutor := dcb.NewCommandExecutor(store)
 // 3. Use either interface as needed
 err = store.Append(ctx, events, condition)  // Direct usage
 err = commandExecutor.ExecuteCommand(ctx, command, handler, condition)  // Command-driven
+
+// 4. Use simplified API for better developer experience
+event := dcb.NewEvent("UserCreated").
+    WithTag("user_id", "123").
+    WithData(userData).
+    Build()
+
+query := dcb.NewQueryBuilder().
+    WithTag("user_id", "123").
+    WithType("UserCreated").
+    Build()
+
+condition := dcb.FailIfExists("user_id", "123")
 ```
 
 ### Supporting Types
@@ -83,6 +97,47 @@ type Command interface {
 - Transaction-scoped: Automatically released on commit/rollback
 - Performance: 1 I/O operation when used alone, 2 I/O operations when combined with DCB conditions
 - Use case: Resource serialization without complex business logic validation
+
+## Simplified API
+
+The library provides a simplified API for common operations, reducing boilerplate by 50%:
+
+### EventBuilder
+```go
+event := dcb.NewEvent("UserCreated").
+    WithTag("user_id", "123").
+    WithTags(map[string]string{
+        "tenant": "acme",
+        "version": "1.0",
+    }).
+    WithData(userData).
+    Build()
+```
+
+### QueryBuilder
+```go
+query := dcb.NewQueryBuilder().
+    WithTag("user_id", "123").
+    WithType("UserCreated").
+    AddItem().
+    WithTag("user_id", "456").
+    WithType("UserProfileUpdated").
+    Build()
+```
+
+### Simplified AppendConditions
+```go
+condition := dcb.FailIfExists("user_id", "123")
+condition := dcb.FailIfEventType("UserRegistered", "user_id", "123")
+```
+
+### Projection Helpers
+```go
+projector := dcb.ProjectCounter("user_count", "UserRegistered", "status", "active")
+projector := dcb.ProjectBoolean("user_exists", "UserRegistered", "user_id", "123")
+```
+
+See [Simplified API Guide](simplified-api.md) for complete documentation.
 
 ## Configuration
 

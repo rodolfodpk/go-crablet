@@ -40,35 +40,22 @@ func main() {
     courseID := "c1"
     studentID := "s1"
 
-    // Define projectors for the decision model
+    // Define projectors for the decision model using simplified API
     projectors := []dcb.StateProjector{
-        {
-            ID: "courseExists",
-            Query: dcb.NewQuery(dcb.NewTags("course_id", courseID), "CourseDefined"),
-            InitialState: false,
-            TransitionFn: func(state any, e dcb.Event) any { return true },
-        },
-        {
-            ID: "numSubscriptions",
-            Query: dcb.NewQuery(dcb.NewTags("course_id", courseID), "StudentSubscribed"),
-            InitialState: 0,
-            TransitionFn: func(state any, e dcb.Event) any { return state.(int) + 1 },
-        },
-        {
-            ID: "alreadySubscribed",
-            Query: dcb.NewQuery(dcb.NewTags("student_id", studentID, "course_id", courseID), "StudentSubscribed"),
-            InitialState: false,
-            TransitionFn: func(state any, e dcb.Event) any { return true },
-        },
+        dcb.ProjectBoolean("courseExists", "CourseDefined", "course_id", courseID),
+        dcb.ProjectCounter("numSubscriptions", "StudentSubscribed", "course_id", courseID),
+        dcb.ProjectBoolean("alreadySubscribed", "StudentSubscribed", "student_id", studentID),
     }
 
     // Project all states in single query (cursor-based approach)
     states, appendCond, err := store.Project(ctx, projectors, nil)
 
     if !states["courseExists"].(bool) {
-        // Append CourseDefined event
-        data, _ := json.Marshal(CourseDefined{courseID, 2})
-        event := dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", courseID), data)
+        // Append CourseDefined event using simplified API
+        event := dcb.NewEvent("CourseDefined").
+            WithTag("course_id", courseID).
+            WithData(CourseDefined{courseID, 2}).
+            Build()
         store.Append(ctx, []dcb.InputEvent{event}, nil)
     }
     if states["alreadySubscribed"].(bool) {
@@ -77,9 +64,12 @@ func main() {
     if states["numSubscriptions"].(int) >= 2 {
         panic("course is full")
     }
-    // Subscribe student
-    data, _ := json.Marshal(StudentSubscribed{studentID, courseID})
-    event := dcb.NewInputEvent("StudentSubscribed", dcb.NewTags("student_id", studentID, "course_id", courseID), data)
+    // Subscribe student using simplified API
+    event := dcb.NewEvent("StudentSubscribed").
+        WithTag("student_id", studentID).
+        WithTag("course_id", courseID).
+        WithData(StudentSubscribed{studentID, courseID}).
+        Build()
     store.Append(ctx, []dcb.InputEvent{event}, &appendCond)
 }
 ```
