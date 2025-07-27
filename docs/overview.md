@@ -21,6 +21,7 @@ type EventStore interface {
     Query(ctx context.Context, query Query, cursor *Cursor) ([]Event, error)
     QueryStream(ctx context.Context, query Query, cursor *Cursor) (<-chan Event, error)
     Append(ctx context.Context, events []InputEvent, condition *AppendCondition) error
+    AppendIf(ctx context.Context, events []InputEvent, condition AppendCondition) error
     Project(ctx context.Context, projectors []StateProjector, cursor *Cursor) (map[string]any, AppendCondition, error)
     ProjectStream(ctx context.Context, projectors []StateProjector, cursor *Cursor) (<-chan map[string]any, <-chan AppendCondition, error)
     GetConfig() EventStoreConfig
@@ -49,11 +50,7 @@ store, err := dcb.NewEventStore(ctx, pool)
 // 2. Optionally create CommandExecutor (not required)
 commandExecutor := dcb.NewCommandExecutor(store)
 
-// 3. Use either interface as needed
-err = store.Append(ctx, events, condition)  // Direct usage
-err = commandExecutor.ExecuteCommand(ctx, command, handler, condition)  // Command-driven
-
-// 4. Use fluent API for better developer experience
+// 3. Use fluent API for better developer experience
 event := dcb.NewEvent("UserCreated").
     WithTag("user_id", "123").
     WithData(userData).
@@ -65,6 +62,11 @@ query := dcb.NewQueryBuilder().
     Build()
 
 condition := dcb.FailIfExists("user_id", "123")
+
+// 4. Use either interface as needed
+err = store.AppendIf(ctx, []dcb.InputEvent{event}, condition)  // Fluent conditional append
+err = store.Append(ctx, events, &condition)  // Direct usage with pointer
+err = commandExecutor.ExecuteCommand(ctx, command, handler, &condition)  // Command-driven
 ```
 
 ### Supporting Types
@@ -137,6 +139,30 @@ projector := dcb.ProjectCounter("user_count", "UserRegistered", "status", "activ
 projector := dcb.ProjectBoolean("user_exists", "UserRegistered", "user_id", "123")
 ```
 
+### BatchBuilder
+```go
+batch := dcb.NewBatch().
+    AddEvent(event1).
+    AddEvent(event2).
+    AddEventFromBuilder(eventBuilder).
+    Build()
+```
+
+### Convenience Functions
+```go
+// Append single event with tags
+err := dcb.AppendSingleEvent(ctx, store, "UserLogin", map[string]string{
+    "user_id": "123",
+    "ip": "192.168.1.1",
+}, loginData)
+
+// Append single event with condition
+err := dcb.AppendSingleEventIf(ctx, store, "UserProfileUpdated", 
+    map[string]string{"user_id": "123"}, 
+    userData, 
+    dcb.FailIfExists("user_id", "123"))
+```
+
 See the [Quick Start](quick-start.md) and [Examples](../internal/examples/) for complete usage examples.
 
 ## Migration from Legacy API
@@ -206,27 +232,31 @@ type EventStoreConfig struct {
 ## Example: Course Subscription
 
 ```go
+// Define projectors using fluent API
 projectors := []dcb.StateProjector{
-    {
-        ID: "courseExists",
-        Query: dcb.NewQuery(dcb.NewTags("course_id", courseID), "CourseDefined"),
-        InitialState: false,
-        TransitionFn: func(state any, event dcb.Event) any { return true },
-    },
-    {
-        ID: "numSubscriptions",
-        Query: dcb.NewQuery(dcb.NewTags("course_id", courseID), "StudentEnrolled"),
-        InitialState: 0,
-        TransitionFn: func(state any, event dcb.Event) any { return state.(int) + 1 },
-    },
+    dcb.ProjectBoolean("courseExists", "CourseDefined", "course_id", courseID),
+    dcb.ProjectCounter("numSubscriptions", "StudentEnrolled", "course_id", courseID),
 }
 
 states, appendCond, _ := store.Project(ctx, projectors, nil)
+
 if !states["courseExists"].(bool) {
-    store.Append(ctx, []dcb.InputEvent{...}, nil)
+    // Create course using fluent API
+    courseEvent := dcb.NewEvent("CourseDefined").
+        WithTag("course_id", courseID).
+        WithData(CourseDefined{courseID, 2}).
+        Build()
+    store.Append(ctx, []dcb.InputEvent{courseEvent}, nil)
 }
+
 if states["numSubscriptions"].(int) < 2 {
-    store.Append(ctx, []dcb.InputEvent{...}, &appendCond)
+    // Enroll student using fluent API
+    enrollmentEvent := dcb.NewEvent("StudentEnrolled").
+        WithTag("student_id", studentID).
+        WithTag("course_id", courseID).
+        WithData(StudentEnrolled{studentID, courseID}).
+        Build()
+    store.AppendIf(ctx, []dcb.InputEvent{enrollmentEvent}, appendCond)
 }
 ```
 
