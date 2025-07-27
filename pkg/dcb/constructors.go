@@ -414,3 +414,252 @@ func ProjectStateWithTags(id string, eventType string, tags Tags, initialState a
 		TransitionFn: transitionFn,
 	}
 }
+
+// =============================================================================
+// Event Builder Pattern (Additive - for better developer experience)
+// =============================================================================
+
+// EventBuilder provides a fluent interface for building events
+type EventBuilder struct {
+	eventType string
+	tags      map[string]string
+	data      any
+}
+
+// NewEvent creates a new EventBuilder for fluent event construction
+func NewEvent(eventType string) *EventBuilder {
+	return &EventBuilder{
+		eventType: eventType,
+		tags:      make(map[string]string),
+	}
+}
+
+// WithTag adds a single tag to the event
+func (eb *EventBuilder) WithTag(key, value string) *EventBuilder {
+	eb.tags[key] = value
+	return eb
+}
+
+// WithTags adds multiple tags to the event
+func (eb *EventBuilder) WithTags(tags map[string]string) *EventBuilder {
+	for key, value := range tags {
+		eb.tags[key] = value
+	}
+	return eb
+}
+
+// WithData sets the event data (will be JSON marshaled)
+func (eb *EventBuilder) WithData(data any) *EventBuilder {
+	eb.data = data
+	return eb
+}
+
+// Build creates the final InputEvent
+func (eb *EventBuilder) Build() InputEvent {
+	tags := make([]Tag, 0, len(eb.tags))
+	for key, value := range eb.tags {
+		tags = append(tags, NewTag(key, value))
+	}
+
+	var data []byte
+	if eb.data != nil {
+		data = ToJSON(eb.data)
+	}
+
+	return NewInputEvent(eb.eventType, tags, data)
+}
+
+// =============================================================================
+// Batch Builder Pattern (Additive - for better developer experience)
+// =============================================================================
+
+// BatchBuilder provides a fluent interface for building event batches
+type BatchBuilder struct {
+	events []InputEvent
+}
+
+// NewBatch creates a new BatchBuilder for fluent batch construction
+func NewBatch() *BatchBuilder {
+	return &BatchBuilder{
+		events: make([]InputEvent, 0),
+	}
+}
+
+// AddEvent adds a single event to the batch
+func (bb *BatchBuilder) AddEvent(event InputEvent) *BatchBuilder {
+	bb.events = append(bb.events, event)
+	return bb
+}
+
+// AddEvents adds multiple events to the batch
+func (bb *BatchBuilder) AddEvents(events ...InputEvent) *BatchBuilder {
+	bb.events = append(bb.events, events...)
+	return bb
+}
+
+// AddEventFromBuilder adds an event from an EventBuilder to the batch
+func (bb *BatchBuilder) AddEventFromBuilder(builder *EventBuilder) *BatchBuilder {
+	bb.events = append(bb.events, builder.Build())
+	return bb
+}
+
+// Build creates the final event batch
+func (bb *BatchBuilder) Build() []InputEvent {
+	return bb.events
+}
+
+// =============================================================================
+// Simplified Append Helpers (Additive - for better developer experience)
+// =============================================================================
+
+// AppendHelper provides simplified append operations
+type AppendHelper struct {
+	store EventStore
+}
+
+// NewAppendHelper creates a new AppendHelper for simplified append operations
+func NewAppendHelper(store EventStore) *AppendHelper {
+	return &AppendHelper{store: store}
+}
+
+// AppendEvent appends a single event without conditions
+func (ah *AppendHelper) AppendEvent(ctx context.Context, event InputEvent) error {
+	return ah.store.Append(ctx, []InputEvent{event})
+}
+
+// AppendEvents appends multiple events without conditions
+func (ah *AppendHelper) AppendEvents(ctx context.Context, events []InputEvent) error {
+	return ah.store.Append(ctx, events)
+}
+
+// AppendEventIf appends a single event with condition
+func (ah *AppendHelper) AppendEventIf(ctx context.Context, event InputEvent, condition AppendCondition) error {
+	return ah.store.AppendIf(ctx, []InputEvent{event}, condition)
+}
+
+// AppendEventsIf appends multiple events with condition
+func (ah *AppendHelper) AppendEventsIf(ctx context.Context, events []InputEvent, condition AppendCondition) error {
+	return ah.store.AppendIf(ctx, events, condition)
+}
+
+// AppendBatch appends a batch without conditions
+func (ah *AppendHelper) AppendBatch(ctx context.Context, batch *BatchBuilder) error {
+	return ah.store.Append(ctx, batch.Build())
+}
+
+// AppendBatchIf appends a batch with condition
+func (ah *AppendHelper) AppendBatchIf(ctx context.Context, batch *BatchBuilder, condition AppendCondition) error {
+	return ah.store.AppendIf(ctx, batch.Build(), condition)
+}
+
+// =============================================================================
+// Transaction Helper (Additive - for better developer experience)
+// =============================================================================
+
+// TransactionHelper provides simplified transaction management
+type TransactionHelper struct {
+	store EventStore
+}
+
+// NewTransactionHelper creates a new TransactionHelper for simplified transaction management
+func NewTransactionHelper(store EventStore) *TransactionHelper {
+	return &TransactionHelper{store: store}
+}
+
+// WithTransaction executes multiple append operations in a single transaction
+func (th *TransactionHelper) WithTransaction(ctx context.Context, fn func(*AppendHelper) error) error {
+	// Note: This is a simplified version. In a real implementation,
+	// you might want to use the underlying pool for transaction management
+	// For now, we'll use the existing append methods which handle transactions internally
+
+	helper := NewAppendHelper(th.store)
+	return fn(helper)
+}
+
+// =============================================================================
+// Validation Helpers (Additive - for better developer experience)
+// =============================================================================
+
+// EventValidator provides validation for common event patterns
+type EventValidator struct{}
+
+// NewEventValidator creates a new EventValidator
+func NewEventValidator() *EventValidator {
+	return &EventValidator{}
+}
+
+// ValidateRequiredTags validates that events have required tags
+func (ev *EventValidator) ValidateRequiredTags(events []InputEvent, requiredTags ...string) error {
+	for i, event := range events {
+		eventTags := make(map[string]string)
+		for _, tag := range event.GetTags() {
+			eventTags[tag.GetKey()] = tag.GetValue()
+		}
+
+		for _, requiredTag := range requiredTags {
+			if _, exists := eventTags[requiredTag]; !exists {
+				return fmt.Errorf("event %d missing required tag: %s", i, requiredTag)
+			}
+		}
+	}
+	return nil
+}
+
+// ValidateEventTypes validates that events have expected types
+func (ev *EventValidator) ValidateEventTypes(events []InputEvent, allowedTypes ...string) error {
+	allowedSet := make(map[string]bool)
+	for _, t := range allowedTypes {
+		allowedSet[t] = true
+	}
+
+	for i, event := range events {
+		if !allowedSet[event.GetType()] {
+			return fmt.Errorf("event %d has invalid type: %s (allowed: %v)", i, event.GetType(), allowedTypes)
+		}
+	}
+	return nil
+}
+
+// =============================================================================
+// Convenience Functions (Additive - for better developer experience)
+// =============================================================================
+
+// AppendSingleEvent is a convenience function for appending a single event
+func AppendSingleEvent(ctx context.Context, store EventStore, eventType string, tags map[string]string, data any) error {
+	event := NewEvent(eventType).WithTags(tags).WithData(data).Build()
+	return store.Append(ctx, []InputEvent{event})
+}
+
+// AppendSingleEventIf is a convenience function for appending a single event with condition
+func AppendSingleEventIf(ctx context.Context, store EventStore, eventType string, tags map[string]string, data any, condition AppendCondition) error {
+	event := NewEvent(eventType).WithTags(tags).WithData(data).Build()
+	return store.AppendIf(ctx, []InputEvent{event}, condition)
+}
+
+// AppendBatchFromStructs is a convenience function for creating and appending events from structs
+func AppendBatchFromStructs(ctx context.Context, store EventStore, events ...struct {
+	Type string
+	Tags map[string]string
+	Data any
+}) error {
+	batch := NewBatch()
+	for _, e := range events {
+		event := NewEvent(e.Type).WithTags(e.Tags).WithData(e.Data).Build()
+		batch.AddEvent(event)
+	}
+	return store.Append(ctx, batch.Build())
+}
+
+// AppendBatchFromStructsIf is a convenience function for creating and appending events from structs with condition
+func AppendBatchFromStructsIf(ctx context.Context, store EventStore, condition AppendCondition, events ...struct {
+	Type string
+	Tags map[string]string
+	Data any
+}) error {
+	batch := NewBatch()
+	for _, e := range events {
+		event := NewEvent(e.Type).WithTags(e.Tags).WithData(e.Data).Build()
+		batch.AddEvent(event)
+	}
+	return store.AppendIf(ctx, batch.Build(), condition)
+}

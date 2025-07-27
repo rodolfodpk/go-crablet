@@ -281,4 +281,164 @@ func main() {
 	fmt.Println("• Simplified tag creation")
 	fmt.Println("• Easy-to-use projection helpers")
 	fmt.Println("• Clear DCB concurrency control")
+
+	// Demo new append API improvements
+	fmt.Println("\n=== New Append API Improvements Demo ===")
+
+	// Demo 1: EventBuilder Pattern
+	fmt.Println("1. EventBuilder Pattern:")
+	fmt.Println("   Old way: dcb.NewInputEvent(\"UserRegistered\", dcb.Tags{\"user_id\": \"123\"}.ToTags(), dcb.ToJSON(userData))")
+	fmt.Println("   New way: dcb.NewEvent(\"UserRegistered\").WithTag(\"user_id\", \"123\").WithData(userData).Build()")
+
+	// Demo 2: BatchBuilder Pattern
+	fmt.Println("\n2. BatchBuilder Pattern:")
+	fmt.Println("   Old way: []dcb.InputEvent{event1, event2, event3}")
+	fmt.Println("   New way: dcb.NewBatch().AddEventFromBuilder(builder1).AddEventFromBuilder(builder2).Build()")
+
+	// Demo 3: AppendHelper Pattern
+	fmt.Println("\n3. AppendHelper Pattern:")
+	fmt.Println("   Old way: store.Append(ctx, []dcb.InputEvent{event})")
+	fmt.Println("   New way: helper.AppendEvent(ctx, event)")
+
+	// Demo 4: Validation Helpers
+	fmt.Println("\n4. Validation Helpers:")
+	fmt.Println("   validator.ValidateRequiredTags(events, \"user_id\", \"email\")")
+	fmt.Println("   validator.ValidateEventTypes(events, \"UserRegistered\", \"UserProfileUpdated\")")
+
+	// Demo 5: Convenience Functions
+	fmt.Println("\n5. Convenience Functions:")
+	fmt.Println("   dcb.AppendSingleEvent(ctx, store, \"UserRegistered\", tags, data)")
+	fmt.Println("   dcb.AppendBatchFromStructs(ctx, store, eventStructs...)")
+
+	// Demo EventBuilder
+	fmt.Println("\n=== EventBuilder Demo ===")
+
+	// Create events using EventBuilder
+	userEvent = UserRegistered{
+		UserID:    "user_456",
+		Email:     "jane@example.com",
+		Username:  "janedoe",
+		CreatedAt: time.Now(),
+	}
+
+	profileEvent := UserProfileUpdated{
+		UserID:    "user_456",
+		Bio:       "Software engineer",
+		AvatarURL: "https://example.com/avatar.jpg",
+		UpdatedAt: time.Now(),
+	}
+
+	// Build events using EventBuilder
+	event1 := dcb.NewEvent("UserRegistered").
+		WithTag("user_id", "user_456").
+		WithTag("email", "jane@example.com").
+		WithData(userEvent).
+		Build()
+
+	event2 := dcb.NewEvent("UserProfileUpdated").
+		WithTag("user_id", "user_456").
+		WithData(profileEvent).
+		Build()
+
+	// Demo BatchBuilder
+	fmt.Println("\n=== BatchBuilder Demo ===")
+
+	batch := dcb.NewBatch().
+		AddEvent(event1).
+		AddEvent(event2)
+
+	// Add another event using EventBuilder inline
+	batch.AddEventFromBuilder(
+		dcb.NewEvent("UserStatusChanged").
+			WithTag("user_id", "user_456").
+			WithTag("status", "active").
+			WithData(map[string]string{"status": "active"}),
+	)
+
+	batchEvents := batch.Build()
+	fmt.Printf("✓ Created batch with %d events\n", len(batchEvents))
+
+	// Demo AppendHelper
+	fmt.Println("\n=== AppendHelper Demo ===")
+
+	helper := dcb.NewAppendHelper(store)
+
+	// Append single event
+	err = helper.AppendEvent(ctx, event1)
+	if err != nil {
+		log.Printf("Append single event failed: %v", err)
+	} else {
+		fmt.Println("✓ Appended single event")
+	}
+
+	// Append batch
+	err = helper.AppendBatch(ctx, batch)
+	if err != nil {
+		log.Printf("Append batch failed: %v", err)
+	} else {
+		fmt.Println("✓ Appended event batch")
+	}
+
+	// Demo validation
+	fmt.Println("\n=== Validation Demo ===")
+
+	validator := dcb.NewEventValidator()
+
+	// Validate required tags
+	err = validator.ValidateRequiredTags(batchEvents, "user_id")
+	if err != nil {
+		log.Printf("Tag validation failed: %v", err)
+	} else {
+		fmt.Println("✓ All events have required tags")
+	}
+
+	// Validate event types
+	err = validator.ValidateEventTypes(batchEvents, "UserRegistered", "UserProfileUpdated", "UserStatusChanged")
+	if err != nil {
+		log.Printf("Event type validation failed: %v", err)
+	} else {
+		fmt.Println("✓ All events have valid types")
+	}
+
+	// Demo convenience functions
+	fmt.Println("\n=== Convenience Functions Demo ===")
+
+	// Append single event using convenience function
+	err = dcb.AppendSingleEvent(ctx, store, "UserLogin", map[string]string{
+		"user_id": "user_456",
+		"ip":      "192.168.1.1",
+	}, map[string]string{
+		"login_time": time.Now().Format(time.RFC3339),
+	})
+	if err != nil {
+		log.Printf("Convenience append failed: %v", err)
+	} else {
+		fmt.Println("✓ Appended event using convenience function")
+	}
+
+	// Demo transaction helper
+	fmt.Println("\n=== Transaction Helper Demo ===")
+
+	txHelper := dcb.NewTransactionHelper(store)
+
+	err = txHelper.WithTransaction(ctx, func(appendHelper *dcb.AppendHelper) error {
+		// Multiple append operations in a single logical transaction
+		err1 := appendHelper.AppendEvent(ctx, event1)
+		if err1 != nil {
+			return err1
+		}
+
+		err2 := appendHelper.AppendEvent(ctx, event2)
+		if err2 != nil {
+			return err2
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		log.Printf("Transaction failed: %v", err)
+	} else {
+		fmt.Println("✓ Transaction completed successfully")
+	}
 }
