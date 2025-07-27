@@ -91,19 +91,50 @@ The CommandExecutor is an optional pattern for command-driven architectures. Use
 store, err := dcb.NewEventStore(ctx, pool)
 commandExecutor := dcb.NewCommandExecutor(store)
 
-// 2. Define command handler
+// 2. Define command types
+type CreateUserCommand struct {
+    UserID string `json:"user_id"`
+    Email  string `json:"email"`
+    Name   string `json:"name"`
+}
+
+type TransferMoneyCommand struct {
+    FromAccountID string  `json:"from_account_id"`
+    ToAccountID   string  `json:"to_account_id"`
+    Amount        float64 `json:"amount"`
+}
+
+// 3. Define command handlers
 func handleCreateUser(ctx context.Context, store dcb.EventStore, cmd dcb.Command) ([]dcb.InputEvent, error) {
     var data CreateUserCommand
     if err := json.Unmarshal(cmd.GetData(), &data); err != nil {
-        return nil, err
+        return nil, fmt.Errorf("failed to unmarshal command: %w", err)
     }
     
     // Business logic validation
     if data.Email == "" {
         return nil, errors.New("email required")
     }
+    if data.Name == "" {
+        return nil, errors.New("name required")
+    }
     
-    // Create events
+    // Check if user already exists
+    query := dcb.NewQueryBuilder().
+        WithTag("email", data.Email).
+        WithType("UserCreated").
+        Build()
+    
+    events, err := store.Query(ctx, query, nil)
+    if err != nil {
+        return nil, fmt.Errorf("failed to query existing users: %w", err)
+    }
+    
+    if len(events) > 0 {
+        return nil, fmt.Errorf("user with email %s already exists", data.Email)
+    }
+    
+    // Create user registration event
     event := dcb.NewEvent("UserCreated").
         WithTag("user_id", data.UserID).
         WithTag("email", data.Email).
@@ -113,7 +144,70 @@ func handleCreateUser(ctx context.Context, store dcb.EventStore, cmd dcb.Command
     return []dcb.InputEvent{event}, nil
 }
 
-// 3. Execute commands
+func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd dcb.Command) ([]dcb.InputEvent, error) {
+    var data TransferMoneyCommand
+    if err := json.Unmarshal(cmd.GetData(), &data); err != nil {
+        return nil, fmt.Errorf("failed to unmarshal command: %w", err)
+    }
+    
+    // Business logic validation
+    if data.Amount <= 0 {
+        return nil, errors.New("amount must be positive")
+    }
+    if data.FromAccountID == data.ToAccountID {
+        return nil, errors.New("cannot transfer to same account")
+    }
+    
+    // Project account states to check balances
+    projectors := []dcb.StateProjector{
+        dcb.ProjectState("from_balance", "AccountOpened", "account_id", data.FromAccountID, 0.0, func(state any, event dcb.Event) any {
+            balance := state.(float64)
+            if event.GetType() == "MoneyDeposited" {
+                var deposit struct{ Amount float64 }
+                json.Unmarshal(event.GetData(), &deposit)
+                balance += deposit.Amount
+            } else if event.GetType() == "MoneyWithdrawn" {
+                var withdrawal struct{ Amount float64 }
+                json.Unmarshal(event.GetData(), &withdrawal)
+                balance -= withdrawal.Amount
+            }
+            return balance
+        }),
+    }
+    
+    states, _, err := store.Project(ctx, projectors, nil)
+    if err != nil {
+        return nil, fmt.Errorf("failed to project account state: %w", err)
+    }
+    
+    fromBalance := states["from_balance"].(float64)
+    if fromBalance < data.Amount {
+        return nil, fmt.Errorf("insufficient funds: balance %.2f, required %.2f", fromBalance, data.Amount)
+    }
+    
+    // Create transfer events
+    withdrawalEvent := dcb.NewEvent("MoneyWithdrawn").
+        WithTag("account_id", data.FromAccountID).
+        WithTag("transfer_id", fmt.Sprintf("transfer_%d", time.Now().Unix())).
+        WithData(map[string]interface{}{
+            "amount": data.Amount,
+            "reason": "transfer",
+        }).
+        Build()
+    
+    depositEvent := dcb.NewEvent("MoneyDeposited").
+        WithTag("account_id", data.ToAccountID).
+        WithTag("transfer_id", fmt.Sprintf("transfer_%d", time.Now().Unix())).
+        WithData(map[string]interface{}{
+            "amount": data.Amount,
+            "reason": "transfer",
+        }).
+        Build()
+    
+    return []dcb.InputEvent{withdrawalEvent, depositEvent}, nil
+}
+
+// 4. Execute commands
 command := dcb.NewCommand("CreateUser", commandData)
 condition := dcb.FailIfExists("email", userEmail)
 err = commandExecutor.ExecuteCommand(ctx, command, handleCreateUser, &condition)
@@ -319,16 +413,43 @@ if states["numSubscriptions"].(int) < 2 {
 Command-driven approach using the CommandExecutor interface:
 
 ```go
-// Define command handler
+// Define command type
+type RegisterUserCommand struct {
+    UserID string `json:"user_id"`
+    Email  string `json:"email"`
+    Name   string `json:"name"`
+}
+
+// Define command handler with complete business logic
 func handleRegisterUser(ctx context.Context, store dcb.EventStore, cmd dcb.Command) ([]dcb.InputEvent, error) {
     var data RegisterUserCommand
     if err := json.Unmarshal(cmd.GetData(), &data); err != nil {
-        return nil, err
+        return nil, fmt.Errorf("failed to unmarshal command: %w", err)
     }
     
     // Business logic validation
-    if data.Email == "" || data.Name == "" {
-        return nil, errors.New("email and name required")
+    if data.Email == "" {
+        return nil, errors.New("email required")
+    }
+    if data.Name == "" {
+        return nil, errors.New("name required")
+    }
+    if data.UserID == "" {
+        return nil, errors.New("user_id required")
+    }
+    
+    // Check if user already exists using projection
+    projectors := []dcb.StateProjector{
+        dcb.ProjectBoolean("user_exists", "UserRegistered", "email", data.Email),
+    }
+    
+    states, _, err := store.Project(ctx, projectors, nil)
+    if err != nil {
+        return nil, fmt.Errorf("failed to check existing user: %w", err)
+    }
+    
+    if states["user_exists"].(bool) {
+        return nil, fmt.Errorf("user with email %s already exists", data.Email)
     }
     
     // Create user registration event
