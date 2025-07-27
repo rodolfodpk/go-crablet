@@ -358,52 +358,9 @@ func main() {
 	batchEvents := batch.Build()
 	fmt.Printf("✓ Created batch with %d events\n", len(batchEvents))
 
-	// Demo AppendHelper
-	fmt.Println("\n=== AppendHelper Demo ===")
+	fmt.Println("\n=== Convenience Functions ===")
 
-	helper := dcb.NewAppendHelper(store)
-
-	// Append single event
-	err = helper.AppendEvent(ctx, event1)
-	if err != nil {
-		log.Printf("Append single event failed: %v", err)
-	} else {
-		fmt.Println("✓ Appended single event")
-	}
-
-	// Append batch
-	err = helper.AppendBatch(ctx, batch)
-	if err != nil {
-		log.Printf("Append batch failed: %v", err)
-	} else {
-		fmt.Println("✓ Appended event batch")
-	}
-
-	// Demo validation
-	fmt.Println("\n=== Validation Demo ===")
-
-	validator := dcb.NewEventValidator()
-
-	// Validate required tags
-	err = validator.ValidateRequiredTags(batchEvents, "user_id")
-	if err != nil {
-		log.Printf("Tag validation failed: %v", err)
-	} else {
-		fmt.Println("✓ All events have required tags")
-	}
-
-	// Validate event types
-	err = validator.ValidateEventTypes(batchEvents, "UserRegistered", "UserProfileUpdated", "UserStatusChanged")
-	if err != nil {
-		log.Printf("Event type validation failed: %v", err)
-	} else {
-		fmt.Println("✓ All events have valid types")
-	}
-
-	// Demo convenience functions
-	fmt.Println("\n=== Convenience Functions Demo ===")
-
-	// Append single event using convenience function
+	// Single event convenience
 	err = dcb.AppendSingleEvent(ctx, store, "UserLogin", map[string]string{
 		"user_id": "user_456",
 		"ip":      "192.168.1.1",
@@ -411,34 +368,36 @@ func main() {
 		"login_time": time.Now().Format(time.RFC3339),
 	})
 	if err != nil {
-		log.Printf("Convenience append failed: %v", err)
-	} else {
-		fmt.Println("✓ Appended event using convenience function")
+		log.Fatalf("Failed to append single event: %v", err)
 	}
+	fmt.Println("✓ Single event appended")
 
-	// Demo transaction helper
-	fmt.Println("\n=== Transaction Helper Demo ===")
-
-	txHelper := dcb.NewTransactionHelper(store)
-
-	err = txHelper.WithTransaction(ctx, func(appendHelper *dcb.AppendHelper) error {
-		// Multiple append operations in a single logical transaction
-		err1 := appendHelper.AppendEvent(ctx, event1)
-		if err1 != nil {
-			return err1
-		}
-
-		err2 := appendHelper.AppendEvent(ctx, event2)
-		if err2 != nil {
-			return err2
-		}
-
-		return nil
-	})
-
+	// Batch from structs convenience
+	err = dcb.AppendBatchFromStructs(ctx, store,
+		struct {
+			Type string
+			Tags map[string]string
+			Data any
+		}{
+			Type: "UserAction",
+			Tags: map[string]string{"user_id": "user_456", "action": "view_profile"},
+			Data: map[string]string{"timestamp": time.Now().Format(time.RFC3339)},
+		},
+		struct {
+			Type string
+			Tags map[string]string
+			Data any
+		}{
+			Type: "UserAction",
+			Tags: map[string]string{"user_id": "user_456", "action": "edit_settings"},
+			Data: map[string]string{"timestamp": time.Now().Format(time.RFC3339)},
+		},
+	)
 	if err != nil {
-		log.Printf("Transaction failed: %v", err)
-	} else {
-		fmt.Println("✓ Transaction completed successfully")
+		log.Fatalf("Failed to append batch from structs: %v", err)
 	}
+	fmt.Println("✓ Batch from structs appended")
+
+	fmt.Println("\n=== Demo Complete ===")
+	fmt.Println("All examples executed successfully!")
 }

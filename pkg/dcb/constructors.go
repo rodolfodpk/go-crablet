@@ -509,119 +509,7 @@ func (bb *BatchBuilder) Build() []InputEvent {
 }
 
 // =============================================================================
-// Simplified Append Helpers (Additive - for better developer experience)
-// =============================================================================
-
-// AppendHelper provides simplified append operations
-type AppendHelper struct {
-	store EventStore
-}
-
-// NewAppendHelper creates a new AppendHelper for simplified append operations
-func NewAppendHelper(store EventStore) *AppendHelper {
-	return &AppendHelper{store: store}
-}
-
-// AppendEvent appends a single event without conditions
-func (ah *AppendHelper) AppendEvent(ctx context.Context, event InputEvent) error {
-	return ah.store.Append(ctx, []InputEvent{event})
-}
-
-// AppendEvents appends multiple events without conditions
-func (ah *AppendHelper) AppendEvents(ctx context.Context, events []InputEvent) error {
-	return ah.store.Append(ctx, events)
-}
-
-// AppendEventIf appends a single event with condition
-func (ah *AppendHelper) AppendEventIf(ctx context.Context, event InputEvent, condition AppendCondition) error {
-	return ah.store.AppendIf(ctx, []InputEvent{event}, condition)
-}
-
-// AppendEventsIf appends multiple events with condition
-func (ah *AppendHelper) AppendEventsIf(ctx context.Context, events []InputEvent, condition AppendCondition) error {
-	return ah.store.AppendIf(ctx, events, condition)
-}
-
-// AppendBatch appends a batch without conditions
-func (ah *AppendHelper) AppendBatch(ctx context.Context, batch *BatchBuilder) error {
-	return ah.store.Append(ctx, batch.Build())
-}
-
-// AppendBatchIf appends a batch with condition
-func (ah *AppendHelper) AppendBatchIf(ctx context.Context, batch *BatchBuilder, condition AppendCondition) error {
-	return ah.store.AppendIf(ctx, batch.Build(), condition)
-}
-
-// =============================================================================
-// Transaction Helper (Additive - for better developer experience)
-// =============================================================================
-
-// TransactionHelper provides simplified transaction management
-type TransactionHelper struct {
-	store EventStore
-}
-
-// NewTransactionHelper creates a new TransactionHelper for simplified transaction management
-func NewTransactionHelper(store EventStore) *TransactionHelper {
-	return &TransactionHelper{store: store}
-}
-
-// WithTransaction executes multiple append operations in a single transaction
-func (th *TransactionHelper) WithTransaction(ctx context.Context, fn func(*AppendHelper) error) error {
-	// Note: This is a simplified version. In a real implementation,
-	// you might want to use the underlying pool for transaction management
-	// For now, we'll use the existing append methods which handle transactions internally
-
-	helper := NewAppendHelper(th.store)
-	return fn(helper)
-}
-
-// =============================================================================
-// Validation Helpers (Additive - for better developer experience)
-// =============================================================================
-
-// EventValidator provides validation for common event patterns
-type EventValidator struct{}
-
-// NewEventValidator creates a new EventValidator
-func NewEventValidator() *EventValidator {
-	return &EventValidator{}
-}
-
-// ValidateRequiredTags validates that events have required tags
-func (ev *EventValidator) ValidateRequiredTags(events []InputEvent, requiredTags ...string) error {
-	for i, event := range events {
-		eventTags := make(map[string]string)
-		for _, tag := range event.GetTags() {
-			eventTags[tag.GetKey()] = tag.GetValue()
-		}
-
-		for _, requiredTag := range requiredTags {
-			if _, exists := eventTags[requiredTag]; !exists {
-				return fmt.Errorf("event %d missing required tag: %s", i, requiredTag)
-			}
-		}
-	}
-	return nil
-}
-
-// ValidateEventTypes validates that events have expected types
-func (ev *EventValidator) ValidateEventTypes(events []InputEvent, allowedTypes ...string) error {
-	allowedSet := make(map[string]bool)
-	for _, t := range allowedTypes {
-		allowedSet[t] = true
-	}
-
-	for i, event := range events {
-		if !allowedSet[event.GetType()] {
-			return fmt.Errorf("event %d has invalid type: %s (allowed: %v)", i, event.GetType(), allowedTypes)
-		}
-	}
-	return nil
-}
-
-// =============================================================================
-// Convenience Functions (Additive - for better developer experience)
+// Convenience Functions
 // =============================================================================
 
 // AppendSingleEvent is a convenience function for appending a single event
@@ -636,30 +524,28 @@ func AppendSingleEventIf(ctx context.Context, store EventStore, eventType string
 	return store.AppendIf(ctx, []InputEvent{event}, condition)
 }
 
-// AppendBatchFromStructs is a convenience function for creating and appending events from structs
+// AppendBatchFromStructs is a convenience function for appending events from struct definitions
 func AppendBatchFromStructs(ctx context.Context, store EventStore, events ...struct {
 	Type string
 	Tags map[string]string
 	Data any
 }) error {
-	batch := NewBatch()
-	for _, e := range events {
-		event := NewEvent(e.Type).WithTags(e.Tags).WithData(e.Data).Build()
-		batch.AddEvent(event)
+	inputEvents := make([]InputEvent, len(events))
+	for i, event := range events {
+		inputEvents[i] = NewEvent(event.Type).WithTags(event.Tags).WithData(event.Data).Build()
 	}
-	return store.Append(ctx, batch.Build())
+	return store.Append(ctx, inputEvents)
 }
 
-// AppendBatchFromStructsIf is a convenience function for creating and appending events from structs with condition
+// AppendBatchFromStructsIf is a convenience function for appending events from struct definitions with condition
 func AppendBatchFromStructsIf(ctx context.Context, store EventStore, condition AppendCondition, events ...struct {
 	Type string
 	Tags map[string]string
 	Data any
 }) error {
-	batch := NewBatch()
-	for _, e := range events {
-		event := NewEvent(e.Type).WithTags(e.Tags).WithData(e.Data).Build()
-		batch.AddEvent(event)
+	inputEvents := make([]InputEvent, len(events))
+	for i, event := range events {
+		inputEvents[i] = NewEvent(event.Type).WithTags(event.Tags).WithData(event.Data).Build()
 	}
-	return store.AppendIf(ctx, batch.Build(), condition)
+	return store.AppendIf(ctx, inputEvents, condition)
 }
