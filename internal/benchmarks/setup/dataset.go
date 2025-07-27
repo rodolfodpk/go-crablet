@@ -366,7 +366,7 @@ func loadCourses(ctx context.Context, store dcb.EventStore, courses []CourseData
 					course.ID, course.Name, course.Capacity, course.Instructor, course.Category, course.Popularity)))
 		}
 
-		err := store.Append(ctx, events, nil)
+		err := store.Append(ctx, events)
 		if err != nil {
 			return fmt.Errorf("failed to append course batch %d-%d: %w", i, end-1, err)
 		}
@@ -395,7 +395,7 @@ func loadStudents(ctx context.Context, store dcb.EventStore, students []StudentD
 					student.ID, student.Name, student.Email, student.Major, student.Year, student.MaxCourses)))
 		}
 
-		err := store.Append(ctx, events, nil)
+		err := store.Append(ctx, events)
 		if err != nil {
 			return fmt.Errorf("failed to append student batch %d-%d: %w", i, end-1, err)
 		}
@@ -430,7 +430,7 @@ func loadEnrollments(ctx context.Context, store dcb.EventStore, enrollments []En
 					enrollment.StudentID, enrollment.CourseID, enrollment.EnrolledAt.Format(time.RFC3339), enrollment.Grade)))
 		}
 
-		err := store.Append(ctx, events, nil)
+		err := store.Append(ctx, events)
 		if err != nil {
 			return fmt.Errorf("failed to append enrollment batch %d-%d: %w", i, end-1, err)
 		}

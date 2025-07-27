@@ -38,7 +38,7 @@ var _ = Describe("CommandExecutor", func() {
 				})
 
 				// Execute command using function-based handler
-				_, err = commandExecutor.ExecuteCommand(ctx, command, dcb.CommandHandlerFunc(handleTestCommand)
+				_, err = commandExecutor.ExecuteCommand(ctx, command, dcb.CommandHandlerFunc(handleTestCommand), nil)
 				Expect(err).NotTo(HaveOccurred())
 
 				// Verify events were created
@@ -63,7 +63,7 @@ var _ = Describe("CommandExecutor", func() {
 
 		Context("with nil command", func() {
 			It("should return validation error", func() {
-				_, err := commandExecutor.ExecuteCommand(ctx, nil, dcb.CommandHandlerFunc(handleTestCommand)
+				_, err := commandExecutor.ExecuteCommand(ctx, nil, dcb.CommandHandlerFunc(handleTestCommand), nil)
 				Expect(err).To(HaveOccurred())
 				Expect(err).To(BeAssignableToTypeOf(&dcb.ValidationError{}))
 			})
@@ -71,8 +71,8 @@ var _ = Describe("CommandExecutor", func() {
 
 		Context("with nil handler", func() {
 			It("should return validation error", func() {
-				command := dcb.NewCommand("test", []byte("{}")
-				_, err := commandExecutor.ExecuteCommand(ctx, command, nil
+				command := dcb.NewCommand("test", []byte("{}"), nil)
+				_, err := commandExecutor.ExecuteCommand(ctx, command, nil, nil)
 				Expect(err).To(HaveOccurred())
 				Expect(err).To(BeAssignableToTypeOf(&dcb.ValidationError{}))
 			})
@@ -80,8 +80,8 @@ var _ = Describe("CommandExecutor", func() {
 
 		Context("with handler that returns no events", func() {
 			It("should return validation error", func() {
-				command := dcb.NewCommand("empty_command", []byte("{}")
-				_, err := commandExecutor.ExecuteCommand(ctx, command, dcb.CommandHandlerFunc(handleEmptyCommand)
+				command := dcb.NewCommand("empty_command", []byte("{}"), nil)
+				_, err := commandExecutor.ExecuteCommand(ctx, command, dcb.CommandHandlerFunc(handleEmptyCommand), nil)
 				Expect(err).To(HaveOccurred())
 				Expect(err).To(BeAssignableToTypeOf(&dcb.ValidationError{}))
 			})

@@ -327,7 +327,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 			}
 
 			// Use longCtx for projection
-			resultChan, _, err := store.ProjectStream(longCtx, projectors
+			resultChan, _, err := store.ProjectStream(longCtx, projectors, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Process results - now we get final aggregated states
