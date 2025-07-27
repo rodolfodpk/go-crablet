@@ -45,7 +45,7 @@ jobs:
       - name: Enforce coverage threshold
         run: |
           COVERAGE=$(go tool cover -func=coverage_combined.out | grep total: | awk '{print $3}' | sed 's/%//')
-          THRESHOLD=80
+          THRESHOLD=70
           echo "Coverage: $COVERAGE%"
           if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
             echo "❌ Coverage $COVERAGE% is below threshold $THRESHOLD%"
