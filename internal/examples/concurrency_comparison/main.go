@@ -279,18 +279,17 @@ func handleCreateConcert(ctx context.Context, store dcb.EventStore, cmd CreateCo
 		return fmt.Errorf("concert %s already exists", cmd.ConcertID)
 	}
 
-	// Create events for this command
+	// Create events for this command using EventBuilder
 	events := []dcb.InputEvent{
-		dcb.NewInputEvent(
-			"ConcertDefined",
-			dcb.NewTags("concert_id", cmd.ConcertID),
-			mustJSON(map[string]any{
+		dcb.NewEvent("ConcertDefined").
+			WithTag("concert_id", cmd.ConcertID).
+			WithData(map[string]any{
 				"Artist":         cmd.Artist,
 				"Venue":          cmd.Venue,
 				"TotalSeats":     cmd.TotalSeats,
 				"PricePerTicket": cmd.PricePerTicket,
-			}),
-		),
+			}).
+			Build(),
 	}
 
 	// Create AppendCondition to ensure concert doesn't exist since our projection
@@ -382,17 +381,17 @@ func handleBookTicketsWithDCBControl(ctx context.Context, store dcb.EventStore, 
 			cmd.ConcertID, cmd.Quantity, availableSeats)
 	}
 
-	// Create booking event
+	// Create booking event using EventBuilder
 	events := []dcb.InputEvent{
-		dcb.NewInputEvent(
-			"TicketsBooked",
-			dcb.NewTags("concert_id", cmd.ConcertID, "customer_id", cmd.CustomerID),
-			mustJSON(map[string]any{
+		dcb.NewEvent("TicketsBooked").
+			WithTag("concert_id", cmd.ConcertID).
+			WithTag("customer_id", cmd.CustomerID).
+			WithData(map[string]any{
 				"quantity":   cmd.Quantity,
 				"totalPrice": float64(cmd.Quantity) * concert.PricePerTicket,
 				"bookedAt":   time.Now().UTC(),
-			}),
-		),
+			}).
+			Build(),
 	}
 
 	// Create AppendCondition to ensure concert state hasn't changed since our projection
@@ -484,17 +483,18 @@ func handleBookTicketsWithAdvisoryLocks(ctx context.Context, store dcb.EventStor
 			cmd.ConcertID, cmd.Quantity, availableSeats)
 	}
 
-	// Create booking event with advisory lock tag
+	// Create booking event with advisory lock tag using EventBuilder
 	events := []dcb.InputEvent{
-		dcb.NewInputEvent(
-			"TicketsBooked",
-			dcb.NewTags("concert_id", cmd.ConcertID, "customer_id", cmd.CustomerID, "lock:concert", cmd.ConcertID),
-			mustJSON(map[string]any{
+		dcb.NewEvent("TicketsBooked").
+			WithTag("concert_id", cmd.ConcertID).
+			WithTag("customer_id", cmd.CustomerID).
+			WithTag("lock:concert", cmd.ConcertID).
+			WithData(map[string]any{
 				"quantity":   cmd.Quantity,
 				"totalPrice": float64(cmd.Quantity) * concert.PricePerTicket,
 				"bookedAt":   time.Now().UTC(),
-			}),
-		),
+			}).
+			Build(),
 	}
 
 	// Create AppendCondition to ensure concert state hasn't changed since our projection

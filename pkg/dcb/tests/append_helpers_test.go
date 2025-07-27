@@ -80,6 +80,75 @@ var _ = Describe("Append Helpers", func() {
 		})
 	})
 
+	Describe("EventBuilder (New API)", func() {
+		It("should create valid input event with EventBuilder", func() {
+			event := dcb.NewEvent("TestEvent").
+				WithTag("key", "value").
+				WithData(map[string]string{"data": "test"}).
+				Build()
+
+			Expect(event.GetType()).To(Equal("TestEvent"))
+			Expect(event.GetTags()).To(HaveLen(1))
+			Expect(event.GetTags()[0].GetKey()).To(Equal("key"))
+			Expect(event.GetTags()[0].GetValue()).To(Equal("value"))
+		})
+
+		It("should validate invalid JSON data with EventBuilder", func() {
+			// Create event with invalid JSON data by using raw bytes
+			event := dcb.NewInputEvent("TestEvent", dcb.NewTags("key", "value"), []byte("invalid json"))
+
+			Expect(event.GetType()).To(Equal("TestEvent"))
+
+			// Try to append the event - this should fail validation
+			events := []dcb.InputEvent{event}
+			err := store.Append(ctx, events)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid input syntax for type json"))
+		})
+
+		It("should validate empty event type with EventBuilder", func() {
+			// Create event with empty type - validation should happen in EventStore operations
+			event := dcb.NewEvent("").
+				WithTag("key", "value").
+				WithData(map[string]string{"data": "test"}).
+				Build()
+
+			Expect(event.GetType()).To(Equal(""))
+
+			// Try to append the event - this should fail validation
+			events := []dcb.InputEvent{event}
+			err := store.Append(ctx, events)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("empty type"))
+		})
+
+		It("should handle multiple tags with EventBuilder", func() {
+			event := dcb.NewEvent("TestEvent").
+				WithTag("key1", "value1").
+				WithTag("key2", "value2").
+				WithData(map[string]string{"data": "test"}).
+				Build()
+
+			Expect(event.GetTags()).To(HaveLen(2))
+			Expect(event.GetTags()[0].GetKey()).To(Equal("key1"))
+			Expect(event.GetTags()[0].GetValue()).To(Equal("value1"))
+			Expect(event.GetTags()[1].GetKey()).To(Equal("key2"))
+			Expect(event.GetTags()[1].GetValue()).To(Equal("value2"))
+		})
+
+		It("should handle tags map with EventBuilder", func() {
+			event := dcb.NewEvent("TestEvent").
+				WithTags(map[string]string{
+					"key1": "value1",
+					"key2": "value2",
+				}).
+				WithData(map[string]string{"data": "test"}).
+				Build()
+
+			Expect(event.GetTags()).To(HaveLen(2))
+		})
+	})
+
 	Describe("NewEventBatch", func() {
 		It("should create event batch from multiple events", func() {
 			event1 := dcb.NewInputEvent("Event1", dcb.NewTags("key1", "value1"), dcb.ToJSON(map[string]string{"data": "value1"}))
@@ -99,12 +168,58 @@ var _ = Describe("Append Helpers", func() {
 			Expect(batch).To(BeEmpty())
 		})
 
-		It("should handle single event", func() {
-			event := dcb.NewInputEvent("SingleEvent", dcb.NewTags("key", "value"), dcb.ToJSON(map[string]string{"data": "test"}))
+		It("should handle single event batch", func() {
+			event := dcb.NewInputEvent("Event1", dcb.NewTags("key1", "value1"), dcb.ToJSON(map[string]string{"data": "value1"}))
 			batch := dcb.NewEventBatch(event)
-
 			Expect(batch).To(HaveLen(1))
 			Expect(batch[0]).To(Equal(event))
+		})
+	})
+
+	Describe("BatchBuilder (New API)", func() {
+		It("should create event batch with BatchBuilder", func() {
+			event1 := dcb.NewEvent("Event1").
+				WithTag("key1", "value1").
+				WithData(map[string]string{"data": "value1"}).
+				Build()
+
+			event2 := dcb.NewEvent("Event2").
+				WithTag("key2", "value2").
+				WithData(map[string]string{"data": "value2"}).
+				Build()
+
+			batch := dcb.NewBatch().
+				AddEvent(event1).
+				AddEvent(event2).
+				Build()
+
+			Expect(batch).To(HaveLen(2))
+			Expect(batch[0].GetType()).To(Equal("Event1"))
+			Expect(batch[1].GetType()).To(Equal("Event2"))
+		})
+
+		It("should create event batch with event builders", func() {
+			batch := dcb.NewBatch().
+				AddEventFromBuilder(
+					dcb.NewEvent("Event1").
+						WithTag("key1", "value1").
+						WithData(map[string]string{"data": "value1"}),
+				).
+				AddEventFromBuilder(
+					dcb.NewEvent("Event2").
+						WithTag("key2", "value2").
+						WithData(map[string]string{"data": "value2"}),
+				).
+				Build()
+
+			Expect(batch).To(HaveLen(2))
+			Expect(batch[0].GetType()).To(Equal("Event1"))
+			Expect(batch[1].GetType()).To(Equal("Event2"))
+		})
+
+		It("should handle empty batch with BatchBuilder", func() {
+			batch := dcb.NewBatch().Build()
+			Expect(batch).To(BeEmpty())
 		})
 	})
 
