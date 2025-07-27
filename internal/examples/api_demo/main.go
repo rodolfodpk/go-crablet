@@ -62,20 +62,34 @@ func main() {
 	fmt.Println("   Old way: dcb.NewQuery(dcb.NewTags(\"user_id\", \"123\"), \"UserRegistered\")")
 	fmt.Println("   New way: dcb.NewQueryBuilder().WithTagAndType(\"user_id\", \"123\", \"UserRegistered\").Build()")
 
-	// Demo 2: Simplified Tag Construction
-	fmt.Println("\n2. Simplified Tag Construction:")
+	// Demo 2: DCB-Compliant OR/AND Semantics
+	fmt.Println("\n2. DCB-Compliant OR/AND Semantics:")
+	fmt.Println("   Single QueryItem (AND conditions):")
+	fmt.Println("     .WithTypes(\"EventA\", \"EventB\").WithTags(\"key1\", \"value1\", \"key2\", \"value2\")")
+	fmt.Println("   Multiple QueryItems (OR conditions):")
+	fmt.Println("     .AddItem().WithType(\"EventA\").WithTag(\"key1\", \"value1\")")
+	fmt.Println("     .AddItem().WithType(\"EventB\").WithTag(\"key2\", \"value2\")")
+
+	// Demo 3: Simplified Tag Construction
+	fmt.Println("\n3. Simplified Tag Construction:")
 	fmt.Println("   Old way: dcb.NewTags(\"user_id\", \"123\", \"email\", \"user@example.com\")")
 	fmt.Println("   New way: dcb.Tags{\"user_id\": \"123\", \"email\": \"user@example.com\"}.ToTags()")
 
-	// Demo 3: Simplified AppendCondition
-	fmt.Println("\n3. Simplified AppendCondition:")
+	// Demo 4: Simplified AppendCondition
+	fmt.Println("\n4. Simplified AppendCondition:")
 	fmt.Println("   Old way: 3-step process with NewQueryItem -> NewQueryFromItems -> NewAppendCondition")
 	fmt.Println("   New way: dcb.FailIfExists(\"user_id\", \"123\")")
 
-	// Demo 4: Projection Helpers
-	fmt.Println("\n4. Projection Helpers:")
+	// Demo 5: Projection Helpers
+	fmt.Println("\n5. Projection Helpers:")
 	fmt.Println("   Counter: dcb.ProjectCounter(\"user_count\", \"UserRegistered\", \"status\", \"active\")")
 	fmt.Println("   Boolean: dcb.ProjectBoolean(\"user_exists\", \"UserRegistered\", \"user_id\", \"123\")")
+
+	// Demo 6: Complex DCB Patterns
+	fmt.Println("\n6. Complex DCB Patterns:")
+	fmt.Println("   Multi-event types: .WithTypes(\"UserRegistered\", \"UserProfileUpdated\")")
+	fmt.Println("   Multi-tags: .WithTags(\"user_id\", \"123\", \"status\", \"active\")")
+	fmt.Println("   OR conditions: .AddItem() for different query patterns")
 
 	// Create a user with simplified API
 	fmt.Println("\n=== Creating User with Simplified API ===")
@@ -192,6 +206,73 @@ func main() {
 
 	userExists := existsStates["user_exists"].(bool)
 	fmt.Printf("✓ User exists: %t\n", userExists)
+
+	// Demo complex DCB patterns
+	fmt.Println("\n=== Complex DCB Patterns Demo ===")
+
+	// Example 1: Single QueryItem with multiple event types and tags (AND conditions)
+	fmt.Println("Example 1: Single QueryItem with multiple event types and tags")
+	complexQuery1 := dcb.NewQueryBuilder().
+		WithTypes("UserRegistered", "UserProfileUpdated").
+		WithTags("user_id", "user_123", "status", "active").
+		Build()
+
+	events1, err := store.Query(ctx, complexQuery1, nil)
+	if err != nil {
+		log.Printf("Complex query 1 failed: %v", err)
+	} else {
+		fmt.Printf("✓ Complex query 1 found %d events\n", len(events1))
+	}
+
+	// Example 2: Multiple QueryItems with OR conditions (DCB specification pattern)
+	fmt.Println("\nExample 2: Multiple QueryItems with OR conditions (DCB specification)")
+	complexQuery2 := dcb.NewQueryBuilder().
+		AddItem().WithTypes("UserRegistered", "UserProfileUpdated").
+		AddItem().WithTags("user_id", "user_123").
+		AddItem().WithTypes("UserProfileUpdated").WithTags("status", "active").
+		Build()
+
+	events2, err := store.Query(ctx, complexQuery2, nil)
+	if err != nil {
+		log.Printf("Complex query 2 failed: %v", err)
+	} else {
+		fmt.Printf("✓ Complex query 2 found %d events\n", len(events2))
+	}
+
+	// Example 3: Complex projection with multiple event types
+	fmt.Println("\nExample 3: Complex projection with multiple event types")
+	complexProjector := dcb.ProjectStateWithTypes("user_activity",
+		[]string{"UserRegistered", "UserProfileUpdated"},
+		"user_id", "user_123",
+		UserState{},
+		func(state any, event dcb.Event) any {
+			userState := state.(UserState)
+
+			if event.Type == "UserRegistered" {
+				var userReg UserRegistered
+				json.Unmarshal(event.Data, &userReg)
+				userState.UserID = userReg.UserID
+				userState.Email = userReg.Email
+				userState.Username = userReg.Username
+				userState.CreatedAt = userReg.CreatedAt
+			} else if event.Type == "UserProfileUpdated" {
+				var profileUpdate UserProfileUpdated
+				json.Unmarshal(event.Data, &profileUpdate)
+				userState.Bio = profileUpdate.Bio
+				userState.AvatarURL = profileUpdate.AvatarURL
+				userState.UpdatedAt = profileUpdate.UpdatedAt
+			}
+
+			return userState
+		})
+
+	complexStates, _, err := store.Project(ctx, []dcb.StateProjector{complexProjector}, nil)
+	if err != nil {
+		log.Printf("Complex projection failed: %v", err)
+	} else {
+		userActivity := complexStates["user_activity"].(UserState)
+		fmt.Printf("✓ Complex projection: User %s (%s)\n", userActivity.Username, userActivity.Email)
+	}
 
 	fmt.Println("\n=== Demo Complete! ===")
 	fmt.Println("The simplified API provides:")

@@ -222,83 +222,93 @@ func NewCommandSimple(commandType string, data []byte) Command {
 // =============================================================================
 
 // QueryBuilder provides a fluent interface for building queries
+// DCB compliant: QueryItems are combined with OR, conditions within QueryItem are AND
 type QueryBuilder struct {
-	items []QueryItem
+	items       []QueryItem
+	currentItem *queryItemBuilder
+}
+
+// queryItemBuilder builds a single QueryItem with AND conditions
+type queryItemBuilder struct {
+	eventTypes []string
+	tags       []Tag
 }
 
 // NewQueryBuilder creates a new QueryBuilder instance
 func NewQueryBuilder() *QueryBuilder {
 	return &QueryBuilder{
-		items: make([]QueryItem, 0),
+		items:       make([]QueryItem, 0),
+		currentItem: &queryItemBuilder{},
 	}
 }
 
-// WithTag adds a single tag condition to the query
-func (qb *QueryBuilder) WithTag(key, value string) *QueryBuilder {
-	tags := []Tag{NewTag(key, value)}
-	item := NewQueryItem(nil, tags)
-	qb.items = append(qb.items, item)
+// AddItem starts a new QueryItem for OR conditions
+// This creates a new QueryItem that will be combined with OR
+func (qb *QueryBuilder) AddItem() *QueryBuilder {
+	// Finalize current item if it has content
+	if len(qb.currentItem.eventTypes) > 0 || len(qb.currentItem.tags) > 0 {
+		item := NewQueryItem(qb.currentItem.eventTypes, qb.currentItem.tags)
+		qb.items = append(qb.items, item)
+	}
+
+	// Start new item
+	qb.currentItem = &queryItemBuilder{}
 	return qb
 }
 
-// WithTags adds multiple tag conditions to the query
+// WithTag adds a single tag condition to the current QueryItem (AND)
+func (qb *QueryBuilder) WithTag(key, value string) *QueryBuilder {
+	qb.currentItem.tags = append(qb.currentItem.tags, NewTag(key, value))
+	return qb
+}
+
+// WithTags adds multiple tag conditions to the current QueryItem (AND)
 func (qb *QueryBuilder) WithTags(kv ...string) *QueryBuilder {
 	if len(kv)%2 != 0 {
 		// Invalid key-value pairs, return builder unchanged
 		return qb
 	}
 
-	tags := make([]Tag, 0, len(kv)/2)
 	for i := 0; i < len(kv); i += 2 {
-		tags = append(tags, NewTag(kv[i], kv[i+1]))
+		qb.currentItem.tags = append(qb.currentItem.tags, NewTag(kv[i], kv[i+1]))
 	}
-
-	item := NewQueryItem(nil, tags)
-	qb.items = append(qb.items, item)
 	return qb
 }
 
-// WithType adds a single event type condition to the query
+// WithType adds a single event type condition to the current QueryItem (OR with existing types)
 func (qb *QueryBuilder) WithType(eventType string) *QueryBuilder {
-	item := NewQueryItem([]string{eventType}, nil)
-	qb.items = append(qb.items, item)
+	qb.currentItem.eventTypes = append(qb.currentItem.eventTypes, eventType)
 	return qb
 }
 
-// WithTypes adds multiple event type conditions to the query
+// WithTypes adds multiple event type conditions to the current QueryItem (OR with existing types)
 func (qb *QueryBuilder) WithTypes(eventTypes ...string) *QueryBuilder {
-	item := NewQueryItem(eventTypes, nil)
-	qb.items = append(qb.items, item)
+	qb.currentItem.eventTypes = append(qb.currentItem.eventTypes, eventTypes...)
 	return qb
 }
 
-// WithTagAndType adds both tag and event type conditions to the query
+// WithTagAndType adds both tag and event type conditions to the current QueryItem
 func (qb *QueryBuilder) WithTagAndType(key, value, eventType string) *QueryBuilder {
-	tags := []Tag{NewTag(key, value)}
-	item := NewQueryItem([]string{eventType}, tags)
-	qb.items = append(qb.items, item)
+	qb.WithTag(key, value)
+	qb.WithType(eventType)
 	return qb
 }
 
-// WithTagsAndTypes adds both tags and event types conditions to the query
+// WithTagsAndTypes adds both tags and event types conditions to the current QueryItem
 func (qb *QueryBuilder) WithTagsAndTypes(eventTypes []string, kv ...string) *QueryBuilder {
-	if len(kv)%2 != 0 {
-		// Invalid key-value pairs, return builder unchanged
-		return qb
-	}
-
-	tags := make([]Tag, 0, len(kv)/2)
-	for i := 0; i < len(kv); i += 2 {
-		tags = append(tags, NewTag(kv[i], kv[i+1]))
-	}
-
-	item := NewQueryItem(eventTypes, tags)
-	qb.items = append(qb.items, item)
+	qb.WithTypes(eventTypes...)
+	qb.WithTags(kv...)
 	return qb
 }
 
 // Build creates the final Query from the builder
 func (qb *QueryBuilder) Build() Query {
+	// Finalize current item if it has content
+	if len(qb.currentItem.eventTypes) > 0 || len(qb.currentItem.tags) > 0 {
+		item := NewQueryItem(qb.currentItem.eventTypes, qb.currentItem.tags)
+		qb.items = append(qb.items, item)
+	}
+
 	if len(qb.items) == 0 {
 		return NewQueryEmpty()
 	}
@@ -393,9 +403,13 @@ func ProjectStateWithTypes(id string, eventTypes []string, key, value string, in
 
 // ProjectStateWithTags creates a projector with multiple tag conditions
 func ProjectStateWithTags(id string, eventType string, tags Tags, initialState any, transitionFn func(any, Event) any) StateProjector {
+	builder := NewQueryBuilder().WithType(eventType)
+	for key, value := range tags {
+		builder.WithTag(key, value)
+	}
 	return StateProjector{
 		ID:           id,
-		Query:        NewQueryBuilder().WithTagAndType("", "", eventType).Build(), // Simplified for now
+		Query:        builder.Build(),
 		InitialState: initialState,
 		TransitionFn: transitionFn,
 	}
