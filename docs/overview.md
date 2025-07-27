@@ -389,16 +389,17 @@ projectors := []dcb.StateProjector{
 states, appendCond, _ := store.Project(ctx, projectors, nil)
 
 if !states["courseExists"].(bool) {
-    // Create course using fluent API
+    // Create course using fluent API with condition to prevent duplicates
     courseEvent := dcb.NewEvent("CourseDefined").
         WithTag("course_id", courseID).
         WithData(CourseDefined{courseID, 2}).
         Build()
-    store.Append(ctx, []dcb.InputEvent{courseEvent}, nil)
+    courseCondition := dcb.FailIfExists("course_id", courseID)
+    store.AppendIf(ctx, []dcb.InputEvent{courseEvent}, courseCondition)
 }
 
 if states["numSubscriptions"].(int) < 2 {
-    // Enroll student using fluent API
+    // Enroll student using fluent API with condition
     enrollmentEvent := dcb.NewEvent("StudentEnrolled").
         WithTag("student_id", studentID).
         WithTag("course_id", courseID).
