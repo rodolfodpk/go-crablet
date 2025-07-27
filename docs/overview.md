@@ -63,14 +63,14 @@ The EventStore is the primary interface for event sourcing. Use this pattern whe
 store, err := dcb.NewEventStore(ctx, pool)
 
 // 2. Use fluent API for events and queries
-event := dcb.NewEvent("UserCreated").
+event := dcb.NewEvent("UserRegistered").
     WithTag("user_id", "123").
     WithData(userData).
     Build()
 
 query := dcb.NewQueryBuilder().
     WithTag("user_id", "123").
-    WithType("UserCreated").
+    WithType("UserRegistered").
     Build()
 
 condition := dcb.FailIfExists("user_id", "123")
@@ -135,11 +135,11 @@ func handleCreateUser(ctx context.Context, store dcb.EventStore, cmd dcb.Command
     }
     
     // Create user registration event
-    event := dcb.NewEvent("UserCreated").
-        WithTag("user_id", data.UserID).
-        WithTag("email", data.Email).
-        WithData(data).
-        Build()
+event := dcb.NewEvent("UserRegistered").
+    WithTag("user_id", data.UserID).
+    WithTag("email", data.Email).
+    WithData(data).
+    Build()
     
     return []dcb.InputEvent{event}, nil
 }
@@ -162,14 +162,14 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd dcb.Comm
     projectors := []dcb.StateProjector{
         dcb.ProjectState("from_balance", "AccountOpened", "account_id", data.FromAccountID, 0.0, func(state any, event dcb.Event) any {
             balance := state.(float64)
-            if event.GetType() == "MoneyDeposited" {
-                var deposit struct{ Amount float64 }
-                json.Unmarshal(event.GetData(), &deposit)
-                balance += deposit.Amount
-            } else if event.GetType() == "MoneyWithdrawn" {
-                var withdrawal struct{ Amount float64 }
-                json.Unmarshal(event.GetData(), &withdrawal)
-                balance -= withdrawal.Amount
+            if event.GetType() == "AccountCredited" {
+                var credit struct{ Amount float64 }
+                json.Unmarshal(event.GetData(), &credit)
+                balance += credit.Amount
+            } else if event.GetType() == "AccountDebited" {
+                var debit struct{ Amount float64 }
+                json.Unmarshal(event.GetData(), &debit)
+                balance -= debit.Amount
             }
             return balance
         }),
@@ -186,7 +186,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd dcb.Comm
     }
     
     // Create transfer events
-    withdrawalEvent := dcb.NewEvent("MoneyWithdrawn").
+    debitEvent := dcb.NewEvent("AccountDebited").
         WithTag("account_id", data.FromAccountID).
         WithTag("transfer_id", fmt.Sprintf("transfer_%d", time.Now().Unix())).
         WithData(map[string]interface{}{
@@ -195,7 +195,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd dcb.Comm
         }).
         Build()
     
-    depositEvent := dcb.NewEvent("MoneyDeposited").
+    creditEvent := dcb.NewEvent("AccountCredited").
         WithTag("account_id", data.ToAccountID).
         WithTag("transfer_id", fmt.Sprintf("transfer_%d", time.Now().Unix())).
         WithData(map[string]interface{}{
@@ -204,7 +204,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd dcb.Comm
         }).
         Build()
     
-    return []dcb.InputEvent{withdrawalEvent, depositEvent}, nil
+    return []dcb.InputEvent{debitEvent, creditEvent}, nil
 }
 
 // 4. Execute commands
@@ -250,7 +250,7 @@ The library provides a fluent API for common operations, reducing boilerplate by
 
 ### EventBuilder
 ```go
-event := dcb.NewEvent("UserCreated").
+event := dcb.NewEvent("UserRegistered").
     WithTag("user_id", "123").
     WithTags(map[string]string{
         "tenant": "acme",
@@ -316,10 +316,10 @@ If you're familiar with the legacy API, here's how to migrate to the new fluent 
 ### Event Creation
 ```go
 // Legacy way
-event := dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", "123"), dcb.ToJSON(userData))
+event := dcb.NewInputEvent("UserRegistered", dcb.NewTags("user_id", "123"), dcb.ToJSON(userData))
 
 // New way
-event := dcb.NewEvent("UserCreated").
+event := dcb.NewEvent("UserRegistered").
     WithTag("user_id", "123").
     WithData(userData).
     Build()
@@ -328,19 +328,19 @@ event := dcb.NewEvent("UserCreated").
 ### Query Building
 ```go
 // Legacy way
-query := dcb.NewQuery(dcb.NewTags("user_id", "123"), "UserCreated")
+query := dcb.NewQuery(dcb.NewTags("user_id", "123"), "UserRegistered")
 
 // New way
 query := dcb.NewQueryBuilder().
     WithTag("user_id", "123").
-    WithType("UserCreated").
+    WithType("UserRegistered").
     Build()
 ```
 
 ### Append Conditions
 ```go
 // Legacy way
-condition := dcb.NewAppendCondition(dcb.NewQuery(dcb.NewTags("user_id", "123"), "UserCreated"))
+condition := dcb.NewAppendCondition(dcb.NewQuery(dcb.NewTags("user_id", "123"), "UserRegistered"))
 
 // New way
 condition := dcb.FailIfExists("user_id", "123")
