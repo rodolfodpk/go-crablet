@@ -54,7 +54,7 @@ type CommandHandler interface {
 
 ## Usage Patterns
 
-### Primary: EventStore Pattern (Direct Event Sourcing)
+### Primary: EventStore Pattern
 
 The EventStore is the primary interface for event sourcing:
 
