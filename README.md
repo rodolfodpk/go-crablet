@@ -40,7 +40,7 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 
 Ready-to-run examples demonstrating different aspects of the DCB pattern:
 
-- **[API Demo](internal/examples/api_demo/main.go)**: Demonstrates the fluent API with 50% less boilerplate
+
 - **[Transfer Example](internal/examples/transfer/main.go)**: Money transfer with DCB concurrency control
 - **[Course Enrollment](internal/examples/enrollment/main.go)**: Student course enrollment with capacity limits
 - **[Streaming](internal/examples/streaming/main.go)**: Event streaming and projection approaches
