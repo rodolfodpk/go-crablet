@@ -36,78 +36,102 @@ type UnenrollStudentCommand struct {
 	CourseID  string
 }
 
-func main() {
-	ctx := context.Background()
+// Helper functions for flatter code structure
+
+// setupDatabase initializes the database connection and event store
+func setupDatabase(ctx context.Context) (*pgxpool.Pool, dcb.EventStore, error) {
 	pool, err := pgxpool.New(ctx, "postgres://crablet:crablet@localhost:5432/crablet?sslmode=disable")
 	if err != nil {
-		log.Fatalf("failed to connect to db: %v", err)
-	}
-	store, err := dcb.NewEventStore(ctx, pool)
-	if err != nil {
-		log.Fatalf("failed to create event store: %v", err)
+		return nil, nil, fmt.Errorf("failed to connect to db: %w", err)
 	}
 
-	// Command 1: Create Course
+	store, err := dcb.NewEventStore(ctx, pool)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create event store: %w", err)
+	}
+
+	// Truncate events table before running the example
+	_, err = pool.Exec(ctx, "TRUNCATE TABLE events RESTART IDENTITY CASCADE")
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to truncate tables: %w", err)
+	}
+
+	return pool, store, nil
+}
+
+// executeCommand executes a command and handles errors with early returns
+func executeCommand[T any](ctx context.Context, store dcb.EventStore, cmd T, handler func(context.Context, dcb.EventStore, T) error, description string) error {
+	if err := handler(ctx, store, cmd); err != nil {
+		return fmt.Errorf("%s failed: %w", description, err)
+	}
+	return nil
+}
+func main() {
+	ctx := context.Background()
+	
+	// Setup database
+	pool, store, err := setupDatabase(ctx)
+	if err != nil {
+		log.Fatalf("Setup failed: %v", err)
+	}
+	defer pool.Close()
+
+	// Execute commands with early returns for failures
+	fmt.Println("=== Command 1: Create Course ===")
 	createCourseCmd := CreateCourseCommand{
 		CourseID:    "course101",
 		Title:       "Introduction to Event Sourcing",
 		MaxStudents: 25,
 	}
-	err = handleCreateCourse(ctx, store, createCourseCmd)
-	if err != nil {
-		log.Fatalf("Create course failed: %v", err)
+	if err := executeCommand(ctx, store, createCourseCmd, handleCreateCourse, "Create course"); err != nil {
+		log.Fatalf("%v", err)
 	}
 
-	// Command 2: Register Student
+	fmt.Println("=== Command 2: Register Student ===")
 	registerStudentCmd := RegisterStudentCommand{
 		StudentID: "student42",
 		Name:      "Alice Johnson",
 		Email:     "alice@example.com",
 	}
-	err = handleRegisterStudent(ctx, store, registerStudentCmd)
-	if err != nil {
-		log.Fatalf("Register student failed: %v", err)
+	if err := executeCommand(ctx, store, registerStudentCmd, handleRegisterStudent, "Register student"); err != nil {
+		log.Fatalf("%v", err)
 	}
 
-	// Command 3: Enroll Student in Course
+	fmt.Println("=== Command 3: Enroll Student in Course ===")
 	enrollCmd := EnrollStudentCommand{
 		StudentID: "student42",
 		CourseID:  "course101",
 	}
-	err = handleEnrollStudent(ctx, store, enrollCmd)
-	if err != nil {
-		log.Fatalf("Enroll student failed: %v", err)
+	if err := executeCommand(ctx, store, enrollCmd, handleEnrollStudent, "Enroll student"); err != nil {
+		log.Fatalf("%v", err)
 	}
 
-	// Command 4: Register another student
+	fmt.Println("=== Command 4: Register another student ===")
 	registerStudent2Cmd := RegisterStudentCommand{
 		StudentID: "student43",
 		Name:      "Bob Smith",
 		Email:     "bob@example.com",
 	}
-	err = handleRegisterStudent(ctx, store, registerStudent2Cmd)
-	if err != nil {
-		log.Fatalf("Register student 2 failed: %v", err)
+	if err := executeCommand(ctx, store, registerStudent2Cmd, handleRegisterStudent, "Register student 2"); err != nil {
+		log.Fatalf("%v", err)
 	}
 
-	// Command 5: Enroll second student
+	fmt.Println("=== Command 5: Enroll second student ===")
 	enroll2Cmd := EnrollStudentCommand{
 		StudentID: "student43",
 		CourseID:  "course101",
 	}
-	err = handleEnrollStudent(ctx, store, enroll2Cmd)
-	if err != nil {
-		log.Fatalf("Enroll student 2 failed: %v", err)
+	if err := executeCommand(ctx, store, enroll2Cmd, handleEnrollStudent, "Enroll student 2"); err != nil {
+		log.Fatalf("%v", err)
 	}
 
-	// Command 6: Unenroll first student
+	fmt.Println("=== Command 6: Unenroll first student ===")
 	unenrollCmd := UnenrollStudentCommand{
 		StudentID: "student42",
 		CourseID:  "course101",
 	}
-	err = handleUnenrollStudent(ctx, store, unenrollCmd)
-	if err != nil {
-		log.Fatalf("Unenroll student failed: %v", err)
+	if err := executeCommand(ctx, store, unenrollCmd, handleUnenrollStudent, "Unenroll student"); err != nil {
+		log.Fatalf("%v", err)
 	}
 
 	fmt.Println("All enrollment commands executed successfully!")
@@ -157,14 +181,8 @@ func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCou
 		),
 	}
 
-	// Create AppendCondition to ensure course doesn't exist since our projection
-	// This prevents race conditions where multiple course creations could succeed
-	item := dcb.NewQueryItem([]string{"CourseDefined"}, []dcb.Tag{dcb.NewTag("course_id", cmd.CourseID)})
-	query := dcb.NewQueryFromItems(item)
-	appendCondition := dcb.NewAppendCondition(query)
-
-	// Append events atomically with DCB concurrency control
-	err = store.AppendIf(ctx, events, appendCondition)
+	// Append events atomically for this command
+	err = store.Append(ctx, events)
 	if err != nil {
 		return fmt.Errorf("failed to create course: %w", err)
 	}
@@ -225,14 +243,8 @@ func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd Regist
 		),
 	}
 
-	// Create AppendCondition to ensure student doesn't exist since our projection
-	// This prevents race conditions where multiple student registrations could succeed
-	item := dcb.NewQueryItem([]string{"StudentRegistered"}, []dcb.Tag{dcb.NewTag("student_id", cmd.StudentID)})
-	query := dcb.NewQueryFromItems(item)
-	appendCondition := dcb.NewAppendCondition(query)
-
-	// Append events atomically with DCB concurrency control
-	err = store.AppendIf(ctx, events, appendCondition)
+	// Append events atomically for this command
+	err = store.Append(ctx, events)
 	if err != nil {
 		return fmt.Errorf("failed to register student: %w", err)
 	}
