@@ -554,70 +554,71 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
+// Helper functions for flatter code structure
+
+// validateAppendRequest validates the HTTP request and returns parsed data
+func (s *Server) validateAppendRequest(w http.ResponseWriter, r *http.Request) ([]dcb.InputEvent, dcb.AppendCondition, bool) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
+		return nil, dcb.NewAppendCondition(dcb.NewQueryEmpty()), false
 	}
 
-	start := time.Now()
 	var req AppendRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
+		return nil, dcb.NewAppendCondition(dcb.NewQueryEmpty()), false
 	}
 
 	// Unmarshal req.Events (json.RawMessage) into interface{}
 	var eventsAny interface{}
 	if err := json.Unmarshal(req.Events, &eventsAny); err != nil {
-		// Debug logging removed for performance
 		http.Error(w, "Invalid events", http.StatusBadRequest)
-		return
+		return nil, dcb.NewAppendCondition(dcb.NewQueryEmpty()), false
 	}
 
 	inputEvents, err := convertInputEvents(eventsAny)
 	if err != nil {
-		// Debug logging removed for performance
 		http.Error(w, "Invalid events", http.StatusBadRequest)
-		return
+		return nil, dcb.NewAppendCondition(dcb.NewQueryEmpty()), false
 	}
-	condition := convertAppendCondition(req.Condition)
 
+	condition := convertAppendCondition(req.Condition)
+	return inputEvents, condition, true
+}
+
+// executeAppend performs the actual append operation based on conditions
+func (s *Server) executeAppend(ctx context.Context, inputEvents []dcb.InputEvent, condition dcb.AppendCondition, r *http.Request) error {
 	// Check if any events have lock: tags to determine if we should use advisory locks
 	useAdvisoryLocks := hasLockTags(inputEvents)
 
-	// Execute append with timeout
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
-
-	// Determine append method based on lock tags
-	var appendErr error
 	if useAdvisoryLocks {
 		// Use advisory lock function when lock: tags are present
-		appendErr = s.appendWithAdvisoryLocks(ctx, inputEvents, condition)
-	} else {
-		// Use standard append methods
-		isolation := r.Header.Get("X-Append-If-Isolation")
-		var store dcb.EventStore
-		switch isolation {
-		case "SERIALIZABLE":
-			store = s.storeSerializable
-		case "REPEATABLE READ":
-			store = s.storeRepeatableRead
-		default:
-			store = s.storeReadCommitted
-		}
-
-		if condition != nil {
-			// Use AppendIf with conditions
-			appendErr = store.AppendIf(ctx, inputEvents, condition)
-		} else {
-			// Simple append without conditions
-			appendErr = store.Append(ctx, inputEvents)
-		}
+		return s.appendWithAdvisoryLocks(ctx, inputEvents, condition)
 	}
-	duration := time.Since(start)
 
+	// Use standard append methods
+	isolation := r.Header.Get("X-Append-If-Isolation")
+	var store dcb.EventStore
+	switch isolation {
+	case "SERIALIZABLE":
+		store = s.storeSerializable
+	case "REPEATABLE READ":
+		store = s.storeRepeatableRead
+	default:
+		store = s.storeReadCommitted
+	}
+
+	if condition != nil {
+		// Use AppendIf with conditions
+		return store.AppendIf(ctx, inputEvents, condition)
+	}
+
+	// Simple append without conditions
+	return store.Append(ctx, inputEvents)
+}
+
+// sendAppendResponse sends the appropriate response based on the append result
+func (s *Server) sendAppendResponse(w http.ResponseWriter, appendErr error, duration time.Duration) {
 	resp := AppendResponse{
 		DurationInMicroseconds: duration.Microseconds(),
 		AppendConditionFailed:  false,
@@ -641,6 +642,26 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
+	// Validate request and get input events
+	inputEvents, condition, ok := s.validateAppendRequest(w, r)
+	if !ok {
+		return
+	}
+
+	// Execute append with timeout
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	// Execute the append operation
+	appendErr := s.executeAppend(ctx, inputEvents, condition, r)
+
+	// Send response
+	s.sendAppendResponse(w, appendErr, time.Since(start))
 }
 
 func (s *Server) handleProject(w http.ResponseWriter, r *http.Request) {

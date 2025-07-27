@@ -105,117 +105,113 @@ func HandleCreateAccount(ctx context.Context, store dcb.EventStore, command dcb.
 func HandleTransferMoney(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, *dcb.AppendCondition, error) {
 	var cmd TransferMoneyCommand
 	if err := json.Unmarshal(command.GetData(), &cmd); err != nil {
-		return nil, nil, fmt.Errorf("failed to unmarshal transfer money command: %w", err)
+		return nil, nil, fmt.Errorf("failed to unmarshal transfer command: %w", err)
 	}
 
-	// Define projectors for account states (DCB pattern)
+	// Validate transfer amount
+	if cmd.Amount <= 0 {
+		return nil, nil, fmt.Errorf("transfer amount must be positive")
+	}
+
+	// Project current state for both accounts - the projection system automatically handles balance calculation
 	projectors := []dcb.StateProjector{
 		{
-			ID:           "fromAccount",
-			Query:        dcb.NewQuery(dcb.NewTags("account_id", cmd.FromAccountID), "AccountOpened"),
-			InitialState: &AccountState{AccountID: cmd.FromAccountID},
+			ID: "fromAccount",
+			Query: dcb.NewQuery(dcb.NewTags("account_id", cmd.FromAccountID), "AccountOpened", "MoneyTransferred"),
+			InitialState: AccountState{},
 			TransitionFn: func(state any, event dcb.Event) any {
-				acc := state.(*AccountState)
-				switch event.Type {
-				case "AccountOpened":
-					var data AccountOpened
-					if err := json.Unmarshal(event.Data, &data); err == nil {
-						acc.Owner = data.Owner
-						acc.Balance = data.InitialBalance
-						acc.CreatedAt = data.OpenedAt
-						acc.UpdatedAt = data.OpenedAt
+				if event.Type == "AccountOpened" {
+					var accountOpened AccountOpened
+					if err := json.Unmarshal(event.Data, &accountOpened); err != nil {
+						return state
+					}
+					return AccountState{
+						AccountID: accountOpened.AccountID,
+						Owner:     accountOpened.Owner,
+						Balance:   accountOpened.InitialBalance,
+						CreatedAt: accountOpened.OpenedAt,
+						UpdatedAt: accountOpened.OpenedAt,
 					}
 				}
-				return acc
-			},
-		},
-		{
-			ID:           "toAccount",
-			Query:        dcb.NewQuery(dcb.NewTags("account_id", cmd.ToAccountID), "AccountOpened"),
-			InitialState: &AccountState{AccountID: cmd.ToAccountID},
-			TransitionFn: func(state any, event dcb.Event) any {
-				acc := state.(*AccountState)
-				switch event.Type {
-				case "AccountOpened":
-					var data AccountOpened
-					if err := json.Unmarshal(event.Data, &data); err == nil {
-						acc.Owner = data.Owner
-						acc.Balance = data.InitialBalance
-						acc.CreatedAt = data.OpenedAt
-						acc.UpdatedAt = data.OpenedAt
-					}
-				}
-				return acc
-			},
-		},
-		{
-			ID:           "allTransfers",
-			Query:        dcb.NewQuery(nil, "MoneyTransferred"),
-			InitialState: []MoneyTransferred{},
-			TransitionFn: func(state any, event dcb.Event) any {
-				transfers := state.([]MoneyTransferred)
 				if event.Type == "MoneyTransferred" {
-					var data MoneyTransferred
-					if err := json.Unmarshal(event.Data, &data); err == nil {
-						transfers = append(transfers, data)
+					var transfer MoneyTransferred
+					if err := json.Unmarshal(event.Data, &transfer); err != nil {
+						return state
+					}
+					if current, ok := state.(AccountState); ok {
+						if transfer.FromAccountID == current.AccountID {
+							current.Balance = transfer.FromBalance
+							current.UpdatedAt = transfer.TransferredAt
+						} else if transfer.ToAccountID == current.AccountID {
+							current.Balance = transfer.ToBalance
+							current.UpdatedAt = transfer.TransferredAt
+						}
+						return current
 					}
 				}
-				return transfers
+				return state
+			},
+		},
+		{
+			ID: "toAccount",
+			Query: dcb.NewQuery(dcb.NewTags("account_id", cmd.ToAccountID), "AccountOpened", "MoneyTransferred"),
+			InitialState: AccountState{},
+			TransitionFn: func(state any, event dcb.Event) any {
+				if event.Type == "AccountOpened" {
+					var accountOpened AccountOpened
+					if err := json.Unmarshal(event.Data, &accountOpened); err != nil {
+						return state
+					}
+					return AccountState{
+						AccountID: accountOpened.AccountID,
+						Owner:     accountOpened.Owner,
+						Balance:   accountOpened.InitialBalance,
+						CreatedAt: accountOpened.OpenedAt,
+						UpdatedAt: accountOpened.OpenedAt,
+					}
+				}
+				if event.Type == "MoneyTransferred" {
+					var transfer MoneyTransferred
+					if err := json.Unmarshal(event.Data, &transfer); err != nil {
+						return state
+					}
+					if current, ok := state.(AccountState); ok {
+						if transfer.FromAccountID == current.AccountID {
+							current.Balance = transfer.FromBalance
+							current.UpdatedAt = transfer.TransferredAt
+						} else if transfer.ToAccountID == current.AccountID {
+							current.Balance = transfer.ToBalance
+							current.UpdatedAt = transfer.TransferredAt
+						}
+						return current
+					}
+				}
+				return state
 			},
 		},
 	}
 
-	// Project the account states
 	states, _, err := store.Project(ctx, projectors, nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to project account states: %w", err)
 	}
 
-	fromAccount, fromOk := states["fromAccount"].(*AccountState)
-	toAccount, toOk := states["toAccount"].(*AccountState)
-	allTransfers, transfersOk := states["allTransfers"].([]MoneyTransferred)
+	fromAccount := states["fromAccount"].(AccountState)
+	toAccount := states["toAccount"].(AccountState)
 
-	if !fromOk || !toOk || !transfersOk {
-		return nil, nil, fmt.Errorf("failed to get account states from projection")
-	}
-
-	// Apply transfer history to calculate current balances
-	for _, transfer := range allTransfers {
-		if transfer.FromAccountID == cmd.FromAccountID {
-			fromAccount.Balance = transfer.FromBalance
-			fromAccount.UpdatedAt = transfer.TransferredAt
-		} else if transfer.ToAccountID == cmd.FromAccountID {
-			fromAccount.Balance = transfer.ToBalance
-			fromAccount.UpdatedAt = transfer.TransferredAt
-		}
-
-		if transfer.FromAccountID == cmd.ToAccountID {
-			toAccount.Balance = transfer.FromBalance
-			toAccount.UpdatedAt = transfer.TransferredAt
-		} else if transfer.ToAccountID == cmd.ToAccountID {
-			toAccount.Balance = transfer.ToBalance
-			toAccount.UpdatedAt = transfer.TransferredAt
-		}
-	}
-
-	// Validate that the FROM account exists (required for transfer)
+	// Validate source account exists and has sufficient funds
 	if fromAccount.Owner == "" {
 		return nil, nil, fmt.Errorf("source account %s does not exist", cmd.FromAccountID)
 	}
-	// Note: TO account can be non-existent - this allows for instant account creation
-	// during transfers, which is a valid business scenario in some banking systems
-	// The transfer will create the destination account with the transferred amount as initial balance
-
-	// Validate transfer
 	if fromAccount.Balance < cmd.Amount {
-		return nil, nil, fmt.Errorf("insufficient funds: account %s has %d, needs %d", cmd.FromAccountID, fromAccount.Balance, cmd.Amount)
+		return nil, nil, fmt.Errorf("insufficient funds in account %s (balance: %d, required: %d)", cmd.FromAccountID, fromAccount.Balance, cmd.Amount)
 	}
 
 	// Calculate new balances
 	newFromBalance := fromAccount.Balance - cmd.Amount
 	newToBalance := toAccount.Balance + cmd.Amount
 
-	// Create transfer event
+	// Create the transfer event
 	transferEvent := MoneyTransferred{
 		TransferID:    cmd.TransferID,
 		FromAccountID: cmd.FromAccountID,
@@ -231,10 +227,10 @@ func HandleTransferMoney(ctx context.Context, store dcb.EventStore, command dcb.
 		return nil, nil, fmt.Errorf("failed to marshal money transferred event: %w", err)
 	}
 
-	// Create AppendCondition to ensure the FROM account still exists when we append
-	// This prevents race conditions where the source account could be deleted between projection and append
-	item1 := dcb.NewQueryItem([]string{"AccountOpened"}, []dcb.Tag{dcb.NewTag("account_id", cmd.FromAccountID)})
-	query := dcb.NewQueryFromItems(item1)
+	// Create AppendCondition to ensure source account hasn't changed since our projection
+	// This prevents race conditions where multiple transfers could succeed
+	item := dcb.NewQueryItem([]string{"AccountOpened", "MoneyTransferred"}, []dcb.Tag{dcb.NewTag("account_id", cmd.FromAccountID)})
+	query := dcb.NewQueryFromItems(item)
 	appendCondition := dcb.NewAppendCondition(query)
 
 	return []dcb.InputEvent{
@@ -246,7 +242,7 @@ func HandleTransferMoney(ctx context.Context, store dcb.EventStore, command dcb.
 	}, &appendCondition, nil
 }
 
-// HandleCommand is a unified command handler function
+// HandleCommand routes commands to appropriate handlers
 func HandleCommand(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, *dcb.AppendCondition, error) {
 	switch command.GetType() {
 	case CommandTypeCreateAccount:
@@ -258,149 +254,77 @@ func HandleCommand(ctx context.Context, store dcb.EventStore, command dcb.Comman
 	}
 }
 
-func main() {
-	// Create context with timeout for the entire application
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+// Helper functions for flatter code structure
 
+// executeCreateAccountCommand executes a create account command and returns success message
+func executeCreateAccountCommand(ctx context.Context, commandExecutor dcb.CommandExecutor, handler dcb.CommandHandler, cmd CreateAccountCommand, requestID string) error {
+	createCmdData, err := json.Marshal(cmd)
+	if err != nil {
+		return fmt.Errorf("failed to marshal create account command: %w", err)
+	}
+
+	command := dcb.NewCommand(CommandTypeCreateAccount, createCmdData, map[string]interface{}{
+		"request_id": requestID,
+		"source":     "web_api",
+	})
+
+	_, err = commandExecutor.ExecuteCommand(ctx, command, handler, nil)
+	if err != nil {
+		return fmt.Errorf("create account failed: %w", err)
+	}
+
+	fmt.Printf("✓ Created account %s for %s with balance %d\n", cmd.AccountID, cmd.Owner, cmd.InitialBalance)
+	return nil
+}
+
+// executeTransferCommand executes a transfer command and returns success message
+func executeTransferCommand(ctx context.Context, commandExecutor dcb.CommandExecutor, handler dcb.CommandHandler, cmd TransferMoneyCommand, requestID string) error {
+	transferCmdData, err := json.Marshal(cmd)
+	if err != nil {
+		return fmt.Errorf("failed to marshal transfer command: %w", err)
+	}
+
+	command := dcb.NewCommand(CommandTypeTransferMoney, transferCmdData, map[string]interface{}{
+		"request_id": requestID,
+		"source":     "web_api",
+	})
+
+	_, err = commandExecutor.ExecuteCommand(ctx, command, handler, nil)
+	if err != nil {
+		return fmt.Errorf("transfer failed: %w", err)
+	}
+
+	fmt.Printf("✓ Transferred %d from %s to %s (%s)\n", cmd.Amount, cmd.FromAccountID, cmd.ToAccountID, cmd.Description)
+	return nil
+}
+
+// setupDatabase initializes the database connection and event store
+func setupDatabase(ctx context.Context) (*pgxpool.Pool, dcb.EventStore, dcb.CommandExecutor, error) {
 	pool, err := pgxpool.New(ctx, "postgres://crablet:crablet@localhost:5432/crablet?sslmode=disable")
 	if err != nil {
-		log.Fatalf("failed to connect to db: %v", err)
+		return nil, nil, nil, fmt.Errorf("failed to connect to db: %w", err)
 	}
 
 	// Truncate events and commands tables before running the example
 	_, err = pool.Exec(ctx, "TRUNCATE TABLE events, commands RESTART IDENTITY CASCADE")
 	if err != nil {
-		log.Fatalf("failed to truncate tables: %v", err)
+		return nil, nil, nil, fmt.Errorf("failed to truncate tables: %w", err)
 	}
 
 	store, err := dcb.NewEventStore(ctx, pool)
 	if err != nil {
-		log.Fatalf("failed to create event store: %v", err)
+		return nil, nil, nil, fmt.Errorf("failed to create event store: %w", err)
 	}
 
-	// Create command executor
 	commandExecutor := dcb.NewCommandExecutor(store)
+	return pool, store, commandExecutor, nil
+}
 
-	// Create command handler
-	handler := dcb.CommandHandlerFunc(func(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, error) {
-		events, _, err := HandleCommand(ctx, store, command)
-		return events, err
-	})
-
-	// Command 1: Create first account
-	fmt.Println("=== Creating First Account ===")
-	createAccount1Cmd := CreateAccountCommand{
-		AccountID:      "acc1",
-		Owner:          "Alice",
-		InitialBalance: 1000,
-	}
-
-	createCmdData1, err := json.Marshal(createAccount1Cmd)
-	if err != nil {
-		log.Fatalf("Failed to marshal create account command: %v", err)
-	}
-
-	command1 := dcb.NewCommand(CommandTypeCreateAccount, createCmdData1, map[string]interface{}{
-		"request_id": "req_001",
-		"source":     "web_api",
-	})
-
-	_, err = commandExecutor.ExecuteCommand(ctx, command1, handler, nil)
-	if err != nil {
-		log.Fatalf("Create account 1 failed: %v", err)
-	}
-	fmt.Printf("✓ Created account %s for %s with balance %d\n", createAccount1Cmd.AccountID, createAccount1Cmd.Owner, createAccount1Cmd.InitialBalance)
-
-	// Command 2: Create second account
-	fmt.Println("\n=== Creating Second Account ===")
-	createAccount2Cmd := CreateAccountCommand{
-		AccountID:      "acc456",
-		Owner:          "Bob",
-		InitialBalance: 500,
-	}
-
-	createCmdData2, err := json.Marshal(createAccount2Cmd)
-	if err != nil {
-		log.Fatalf("Failed to marshal create account command: %v", err)
-	}
-
-	command2 := dcb.NewCommand(CommandTypeCreateAccount, createCmdData2, map[string]interface{}{
-		"request_id": "req_002",
-		"source":     "web_api",
-	})
-
-	_, err = commandExecutor.ExecuteCommand(ctx, command2, handler, nil)
-	if err != nil {
-		log.Fatalf("Create account 2 failed: %v", err)
-	}
-	fmt.Printf("✓ Created account %s for %s with balance %d\n", createAccount2Cmd.AccountID, createAccount2Cmd.Owner, createAccount2Cmd.InitialBalance)
-
-	// Command 3: Transfer money
-	fmt.Println("\n=== Transferring Money ===")
-	transferCmd := TransferMoneyCommand{
-		TransferID:    fmt.Sprintf("tx-%d", time.Now().UnixNano()),
-		FromAccountID: "acc1",
-		ToAccountID:   "acc456",
-		Amount:        300,
-		Description:   "First transfer",
-	}
-
-	transferCmdData, err := json.Marshal(transferCmd)
-	if err != nil {
-		log.Fatalf("Failed to marshal transfer command: %v", err)
-	}
-
-	command3 := dcb.NewCommand(CommandTypeTransferMoney, transferCmdData, map[string]interface{}{
-		"request_id": "req_003",
-		"source":     "web_api",
-	})
-
-	// Use the DCB-compliant handler to get events and append condition
-	_, appendCondition, err := HandleCommand(ctx, store, command3)
-	if err != nil {
-		fmt.Printf("❌ Transfer failed: %v\n", err)
-	} else {
-		_, err = commandExecutor.ExecuteCommand(ctx, command3, handler, appendCondition)
-		if err != nil {
-			fmt.Printf("❌ Transfer failed: %v\n", err)
-		} else {
-			fmt.Printf("✓ Transfer successful! Transfer ID: %s\n", transferCmd.TransferID)
-		}
-	}
-
-	// Second transfer (should fail due to insufficient funds)
-	fmt.Println("\n=== Attempting Second Transfer (should fail due to insufficient funds) ===")
-	secondTransferCmd := TransferMoneyCommand{
-		TransferID:    fmt.Sprintf("tx-%d", time.Now().UnixNano()),
-		FromAccountID: "acc1",
-		ToAccountID:   "acc456",
-		Amount:        800, // This should fail - only 700 left
-		Description:   "Second transfer - should fail",
-	}
-
-	secondTransferCmdData, err := json.Marshal(secondTransferCmd)
-	if err != nil {
-		log.Fatalf("Failed to marshal second transfer command: %v", err)
-	}
-
-	command4 := dcb.NewCommand(CommandTypeTransferMoney, secondTransferCmdData, map[string]interface{}{
-		"request_id": "req_004",
-		"source":     "web_api",
-	})
-
-	_, err = commandExecutor.ExecuteCommand(ctx, command4, handler, nil)
-	if err != nil {
-		fmt.Printf("❌ Second transfer failed (expected): %v\n", err)
-	} else {
-		fmt.Printf("✓ Second transfer succeeded (unexpected)! Transfer ID: %s\n", secondTransferCmd.TransferID)
-	}
-
-	// Show final state
+// showFinalState displays the final events and commands
+func showFinalState(ctx context.Context, pool *pgxpool.Pool) {
 	fmt.Println("\n=== Final Account States ===")
 	utils.DumpEvents(ctx, pool)
 
-	// Show commands that were executed
 	fmt.Println("\n=== Commands Executed ===")
 	rows, err := pool.Query(ctx, `
 		SELECT transaction_id, type, data, metadata, occurred_at
@@ -409,28 +333,123 @@ func main() {
 	`)
 	if err != nil {
 		log.Printf("Failed to query commands: %v", err)
-	} else {
-		defer rows.Close()
-		commandCount := 0
-		for rows.Next() {
-			var (
-				txID        uint64
-				cmdType     string
-				cmdData     []byte
-				cmdMetadata []byte
-				occurredAt  time.Time
-			)
-
-			err := rows.Scan(&txID, &cmdType, &cmdData, &cmdMetadata, &occurredAt)
-			if err != nil {
-				log.Printf("Failed to scan command row: %v", err)
-				continue
-			}
-
-			commandCount++
-			fmt.Printf("  %d. Type: %s, Transaction: %d, At: %s\n",
-				commandCount, cmdType, txID, occurredAt.Format("15:04:05.000"))
-		}
-		fmt.Printf("Total commands executed: %d\n", commandCount)
+		return
 	}
+	defer rows.Close()
+
+	commandCount := 0
+	for rows.Next() {
+		var (
+			txID        uint64
+			cmdType     string
+			cmdData     []byte
+			cmdMetadata []byte
+			occurredAt  time.Time
+		)
+
+		err := rows.Scan(&txID, &cmdType, &cmdData, &cmdMetadata, &occurredAt)
+		if err != nil {
+			log.Printf("Failed to scan command row: %v", err)
+			continue
+		}
+
+		commandCount++
+		fmt.Printf("  %d. Type: %s, Transaction: %d, At: %s\n",
+			commandCount, cmdType, txID, occurredAt.Format("15:04:05.000"))
+	}
+	fmt.Printf("Total commands executed: %d\n", commandCount)
+}
+
+func main() {
+	// Create context with timeout for the entire application
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Setup database and command executor
+	pool, _, commandExecutor, err := setupDatabase(ctx)
+	if err != nil {
+		log.Fatalf("Setup failed: %v", err)
+	}
+	defer pool.Close()
+
+	// Create command handler
+	handler := dcb.CommandHandlerFunc(func(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, error) {
+		events, _, err := HandleCommand(ctx, store, command)
+		return events, err
+	})
+
+	// Execute commands with early returns for failures
+	fmt.Println("=== Creating First Account ===")
+	createAccount1Cmd := CreateAccountCommand{
+		AccountID:      "acc1",
+		Owner:          "Alice",
+		InitialBalance: 1000,
+	}
+	if err := executeCreateAccountCommand(ctx, commandExecutor, handler, createAccount1Cmd, "req_001"); err != nil {
+		log.Fatalf("Create account 1 failed: %v", err)
+	}
+
+	fmt.Println("\n=== Creating Second Account ===")
+	createAccount2Cmd := CreateAccountCommand{
+		AccountID:      "acc456",
+		Owner:          "Bob",
+		InitialBalance: 500,
+	}
+	if err := executeCreateAccountCommand(ctx, commandExecutor, handler, createAccount2Cmd, "req_002"); err != nil {
+		log.Fatalf("Create account 2 failed: %v", err)
+	}
+
+	fmt.Println("\n=== Transferring Money ===")
+	transferCmd := TransferMoneyCommand{
+		TransferID:    fmt.Sprintf("tx-%d", time.Now().UnixNano()),
+		FromAccountID: "acc1",
+		ToAccountID:   "acc456",
+		Amount:        300,
+		Description:   "First transfer",
+	}
+	if err := executeTransferCommand(ctx, commandExecutor, handler, transferCmd, "req_003"); err != nil {
+		log.Fatalf("Transfer failed: %v", err)
+	}
+
+	fmt.Println("\n=== Transferring Money Back ===")
+	transferBackCmd := TransferMoneyCommand{
+		TransferID:    fmt.Sprintf("tx-%d", time.Now().UnixNano()),
+		FromAccountID: "acc456",
+		ToAccountID:   "acc1",
+		Amount:        100,
+		Description:   "Return transfer",
+	}
+	if err := executeTransferCommand(ctx, commandExecutor, handler, transferBackCmd, "req_004"); err != nil {
+		log.Fatalf("Transfer back failed: %v", err)
+	}
+
+	// Test error cases
+	fmt.Println("\n=== Attempting Invalid Transfer (Should Fail) ===")
+	invalidTransferCmd := TransferMoneyCommand{
+		TransferID:    fmt.Sprintf("tx-%d", time.Now().UnixNano()),
+		FromAccountID: "acc456",
+		ToAccountID:   "acc1",
+		Amount:        1000, // More than available balance
+		Description:   "Invalid transfer",
+	}
+	if err := executeTransferCommand(ctx, commandExecutor, handler, invalidTransferCmd, "req_005"); err != nil {
+		fmt.Printf("✗ Expected failure: %v\n", err)
+	} else {
+		fmt.Println("✗ Unexpected success - transfer should have failed")
+	}
+
+	fmt.Println("\n=== Attempting Duplicate Account Creation (Should Fail) ===")
+	duplicateAccountCmd := CreateAccountCommand{
+		AccountID:      "acc1", // Same ID as first account
+		Owner:          "Charlie",
+		InitialBalance: 200,
+	}
+	if err := executeCreateAccountCommand(ctx, commandExecutor, handler, duplicateAccountCmd, "req_006"); err != nil {
+		fmt.Printf("✗ Expected failure: %v\n", err)
+	} else {
+		fmt.Println("✗ Unexpected success - account creation should have failed")
+	}
+
+	showFinalState(ctx, pool)
+	fmt.Println("\n=== Example Completed Successfully ===")
 }
