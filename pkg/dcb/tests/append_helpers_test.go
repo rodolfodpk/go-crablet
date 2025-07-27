@@ -130,10 +130,15 @@ var _ = Describe("Append Helpers", func() {
 				Build()
 
 			Expect(event.GetTags()).To(HaveLen(2))
-			Expect(event.GetTags()[0].GetKey()).To(Equal("key1"))
-			Expect(event.GetTags()[0].GetValue()).To(Equal("value1"))
-			Expect(event.GetTags()[1].GetKey()).To(Equal("key2"))
-			Expect(event.GetTags()[1].GetValue()).To(Equal("value2"))
+
+			// Check that both tags exist without relying on order
+			keys := []string{event.GetTags()[0].GetKey(), event.GetTags()[1].GetKey()}
+			values := []string{event.GetTags()[0].GetValue(), event.GetTags()[1].GetValue()}
+
+			Expect(keys).To(ContainElement("key1"))
+			Expect(keys).To(ContainElement("key2"))
+			Expect(values).To(ContainElement("value1"))
+			Expect(values).To(ContainElement("value2"))
 		})
 
 		It("should handle tags map with EventBuilder", func() {

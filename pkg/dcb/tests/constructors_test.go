@@ -167,10 +167,15 @@ var _ = Describe("New Simplified API", func() {
 			}.ToTags()
 
 			Expect(tags).To(HaveLen(2))
-			Expect(tags[0].GetKey()).To(Equal("key1"))
-			Expect(tags[0].GetValue()).To(Equal("value1"))
-			Expect(tags[1].GetKey()).To(Equal("key2"))
-			Expect(tags[1].GetValue()).To(Equal("value2"))
+
+			// Check that both tags exist without relying on order
+			keys := []string{tags[0].GetKey(), tags[1].GetKey()}
+			values := []string{tags[0].GetValue(), tags[1].GetValue()}
+
+			Expect(keys).To(ContainElement("key1"))
+			Expect(keys).To(ContainElement("key2"))
+			Expect(values).To(ContainElement("value1"))
+			Expect(values).To(ContainElement("value2"))
 		})
 	})
 
