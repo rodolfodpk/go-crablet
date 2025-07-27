@@ -40,7 +40,7 @@ type EventStore interface {
 
 ### Optional: CommandExecutor Interface
 
-The CommandExecutor provides command-driven architecture support:
+The CommandExecutor provides:
 
 ```go
 type CommandExecutor interface {
@@ -56,7 +56,7 @@ type CommandHandler interface {
 
 ### Primary: EventStore Pattern (Direct Event Sourcing)
 
-The EventStore is the primary interface for event sourcing. Use this pattern when you want direct control over event creation and business logic:
+The EventStore is the primary interface for event sourcing:
 
 ```go
 // 1. Create EventStore
@@ -218,7 +218,7 @@ type Command interface {
 
 ## Fluent API
 
-The library provides a fluent API for common operations, reducing boilerplate by 50%:
+The library includes a fluent API for common operations:
 
 ### EventBuilder
 ```go
@@ -383,7 +383,7 @@ if states["numSubscriptions"].(int) < 2 {
 
 ### CommandExecutor Pattern: User Registration
 
-Command-driven approach using the CommandExecutor interface:
+Using the CommandExecutor interface:
 
 ```go
 // Define command type

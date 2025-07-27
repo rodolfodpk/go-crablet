@@ -74,7 +74,7 @@ func main() {
 }
 ```
 
-### Command-Driven Approach with Function-Based Handler
+### Function-Based Handler
 
 ```go
 // Define command handler function
@@ -326,7 +326,7 @@ func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 - **The append condition is the OR-combination of all projector queries**
 - **Only one database round trip is needed for all business rules**
 - **No aggregates or legacy event sourcing patterns required**
-- **Channel-based streaming provides immediate processing feedback**
+- **Channel-based streaming for immediate processing feedback**
 - **Choose the right streaming approach for your dataset size**
 - **DCB concurrency control prevents double-spending** in concurrent scenarios (not classic optimistic locking; transaction IDs ensure correct event ordering)
 
@@ -396,7 +396,7 @@ store, err := dcb.NewEventStoreWithConfig(ctx, pool, config)
 
 ## Query Building with Helper Functions
 
-go-crablet provides concise helper functions to simplify query building:
+Helper functions for query building:
 
 ### Using QItem and QItemKV Helpers
 
