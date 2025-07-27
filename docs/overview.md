@@ -82,9 +82,9 @@ events, err := store.Query(ctx, query, nil)  // Query events
 states, err := store.Project(ctx, projectors, nil)  // Project state
 ```
 
-### Optional: CommandExecutor Pattern (Command-Driven Architecture)
+### Optional: CommandExecutor Pattern (Command-Query Separation)
 
-The CommandExecutor is an optional pattern for command-driven architectures. Use this when you want to separate command handling from event creation:
+The CommandExecutor is an optional pattern for Command-Query Separation (CQS). Use this when you want to separate command handling from event creation:
 
 ```go
 // 1. Create EventStore and CommandExecutor
