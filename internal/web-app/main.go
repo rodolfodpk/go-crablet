@@ -609,11 +609,11 @@ func (s *Server) handleAppend(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if condition != nil {
-			// Use Append with conditions
-			appendErr = store.Append(ctx, inputEvents, &condition)
+			// Use AppendIf with conditions
+			appendErr = store.AppendIf(ctx, inputEvents, condition)
 		} else {
 			// Simple append without conditions
-			appendErr = store.Append(ctx, inputEvents, nil)
+			appendErr = store.Append(ctx, inputEvents)
 		}
 	}
 	duration := time.Since(start)

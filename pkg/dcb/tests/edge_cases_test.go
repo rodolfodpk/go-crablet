@@ -94,7 +94,7 @@ var _ = Describe("Interface Type Guards and Edge Cases", func() {
 		})
 
 		It("should handle nil data", func() {
-			event := dcb.NewInputEvent("TestEvent", dcb.NewTags("key", "value")
+			event := dcb.NewInputEvent("TestEvent", dcb.NewTags("key", "value"), nil)
 			Expect(event.GetData()).To(BeNil())
 		})
 
@@ -208,7 +208,7 @@ var _ = Describe("Interface Type Guards and Edge Cases", func() {
 
 			// Query the event back
 			query := dcb.NewQuery(dcb.NewTags("key", "value"), "TestEvent")
-			events, err := customStore.Query(ctx, query
+			events, err := customStore.Query(ctx, query, nil)
 			Expect(err).To(BeNil())
 			Expect(events).To(HaveLen(1))
 			Expect(events[0].Type).To(Equal("TestEvent"))

@@ -180,7 +180,7 @@ func BenchmarkAppendSingle(b *testing.B, benchCtx *BenchmarkContext) {
 			dcb.NewTags("test", "single", "unique_id", uniqueID),
 			[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, uniqueID)))
 
-		err := benchCtx.Store.Append(ctx, []dcb.InputEvent{event}, nil)
+		err := benchCtx.Store.Append(ctx, []dcb.InputEvent{event})
 		if err != nil {
 			b.Fatalf("Append failed: %v", err)
 		}
@@ -207,7 +207,7 @@ func BenchmarkAppendBatch(b *testing.B, benchCtx *BenchmarkContext, batchSize in
 				[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, eventID)))
 		}
 
-		err := benchCtx.Store.Append(ctx, events, nil)
+		err := benchCtx.Store.Append(ctx, events)
 		if err != nil {
 			b.Fatalf("Batch append failed: %v", err)
 		}
@@ -239,7 +239,7 @@ func BenchmarkAppendIf(b *testing.B, benchCtx *BenchmarkContext, batchSize int) 
 			dcb.NewQuery(dcb.NewTags("test", "conflict"), "ConflictingEvent"),
 		)
 
-		err := benchCtx.Store.Append(ctx, events, &condition)
+		err := benchCtx.Store.AppendIf(ctx, events, condition)
 		if err != nil {
 			b.Fatalf("AppendIf failed: %v", err)
 		}
@@ -272,7 +272,7 @@ func BenchmarkAppendIfWithCondition(b *testing.B, benchCtx *BenchmarkContext, ba
 			dcb.NewQuery(dcb.NewTags("test", "conflict"), "ConflictingEvent"),
 		)
 
-		err := benchCtx.Store.Append(ctx, events, &condition)
+		err := benchCtx.Store.AppendIf(ctx, events, condition)
 		if err != nil {
 			b.Fatalf("AppendIf failed: %v", err)
 		}
@@ -295,7 +295,7 @@ func BenchmarkAppendIfWithConflict(b *testing.B, benchCtx *BenchmarkContext, bat
 			dcb.NewTags("test", "conflict", "unique_id", uniqueID),
 			[]byte(fmt.Sprintf(`{"value": "conflict", "unique_id": "%s"}`, uniqueID)))
 
-		err := benchCtx.Store.Append(ctx, []dcb.InputEvent{conflictEvent}, nil)
+		err := benchCtx.Store.Append(ctx, []dcb.InputEvent{conflictEvent})
 		if err != nil {
 			b.Fatalf("Failed to create conflict event: %v", err)
 		}
@@ -314,7 +314,7 @@ func BenchmarkAppendIfWithConflict(b *testing.B, benchCtx *BenchmarkContext, bat
 		)
 
 		// This should fail due to the conflicting event
-		err = benchCtx.Store.Append(ctx, events, &condition)
+		err = benchCtx.Store.AppendIf(ctx, events, condition)
 		if err == nil {
 			b.Fatalf("AppendIf should have failed due to conflict")
 		}
@@ -338,7 +338,7 @@ func BenchmarkAppendIfWithConflictCondition(b *testing.B, benchCtx *BenchmarkCon
 			dcb.NewTags("test", "conflict", "unique_id", uniqueID),
 			[]byte(fmt.Sprintf(`{"value": "conflict", "unique_id": "%s"}`, uniqueID)))
 
-		err := benchCtx.Store.Append(ctx, []dcb.InputEvent{conflictEvent}, nil)
+		err := benchCtx.Store.Append(ctx, []dcb.InputEvent{conflictEvent})
 		if err != nil {
 			b.Fatalf("Failed to create conflict event: %v", err)
 		}
@@ -357,7 +357,7 @@ func BenchmarkAppendIfWithConflictCondition(b *testing.B, benchCtx *BenchmarkCon
 		)
 
 		// This should fail due to the conflicting event
-		err = benchCtx.Store.Append(ctx, events, &condition)
+		err = benchCtx.Store.AppendIf(ctx, events, condition)
 		if err == nil {
 			b.Fatalf("AppendIf should have failed due to conflict")
 		}
@@ -387,7 +387,7 @@ func BenchmarkAppendMixedEventTypes(b *testing.B, benchCtx *BenchmarkContext, ba
 				[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s", "type": "%s"}`, eventID, eventType)))
 		}
 
-		err := benchCtx.Store.Append(ctx, events, nil)
+		err := benchCtx.Store.Append(ctx, events)
 		if err != nil {
 			b.Fatalf("Mixed event types append failed: %v", err)
 		}
@@ -414,7 +414,7 @@ func BenchmarkAppendHighFrequency(b *testing.B, benchCtx *BenchmarkContext, batc
 				[]byte(fmt.Sprintf(`{"value": %d, "timestamp": "%d", "sensor_id": "%s"}`, j, time.Now().UnixNano(), eventID)))
 		}
 
-		err := benchCtx.Store.Append(ctx, events, nil)
+		err := benchCtx.Store.Append(ctx, events)
 		if err != nil {
 			b.Fatalf("High frequency append failed: %v", err)
 		}
@@ -446,7 +446,7 @@ func BenchmarkAppendAdvisoryLocksWithDCB(b *testing.B, benchCtx *BenchmarkContex
 			dcb.NewQuery(dcb.NewTags("test", "advisory_dcb"), "ConflictingResourceEvent"),
 		)
 
-		err := benchCtx.Store.Append(ctx, events, &condition)
+		err := benchCtx.Store.AppendIf(ctx, events, condition)
 		if err != nil {
 			b.Fatalf("Advisory locks with DCB failed: %v", err)
 		}
