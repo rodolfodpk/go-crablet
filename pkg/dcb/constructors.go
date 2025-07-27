@@ -180,7 +180,7 @@ func NewQueryItem(types []string, tags []Tag) QueryItem {
 // =============================================================================
 
 // NewAppendCondition creates a new AppendCondition with the given fail condition.
-// This is the primary constructor for optimistic locking conditions.
+// This is the primary constructor for DCB concurrency control conditions.
 func NewAppendCondition(failIfEventsMatch Query) AppendCondition {
 	if failIfEventsMatch == nil {
 		return &appendCondition{}

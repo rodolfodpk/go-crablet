@@ -218,7 +218,7 @@ func handleOpenAccount(ctx context.Context, store dcb.EventStore, cmd OpenAccoun
 			toJSON(AccountOpenedData{InitialBalance: cmd.InitialBalance}),
 		),
 	}
-	err = store.Append(ctx, events, &appendCondition)
+	err = store.AppendIf(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to open account: %w", err)
 	}
@@ -268,7 +268,7 @@ func handleProcessTransaction(ctx context.Context, store dcb.EventStore, cmd Pro
 			toJSON(TransactionProcessedData{Amount: cmd.Amount}),
 		),
 	}
-	err = store.Append(ctx, events, &appendCondition)
+	err = store.AppendIf(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to process transaction: %w", err)
 	}
@@ -318,7 +318,7 @@ func handleProcessTransactionWithCondition(ctx context.Context, store dcb.EventS
 			toJSON(TransactionProcessedData{Amount: cmd.Amount}),
 		),
 	}
-	err = store.Append(ctx, events, &condition)
+	err = store.AppendIf(ctx, events, condition)
 	if err != nil {
 		return fmt.Errorf("failed to process transaction with optimistic locking: %w", err)
 	}

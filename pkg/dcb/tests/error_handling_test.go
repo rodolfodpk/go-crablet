@@ -22,7 +22,7 @@ var _ = Describe("Error Handling Helpers", func() {
 	It("detects and extracts ValidationError", func() {
 		invalidEvent := dcb.NewInputEvent("", dcb.NewTags("user_id", "123"), dcb.ToJSON(map[string]string{"name": "John"}))
 		events := []dcb.InputEvent{invalidEvent}
-		err := store.Append(ctx, events, nil)
+		err := store.Append(ctx, events)
 
 		Expect(dcb.IsValidationError(err)).To(BeTrue())
 		validationErr, ok := dcb.GetValidationError(err)
@@ -34,13 +34,13 @@ var _ = Describe("Error Handling Helpers", func() {
 		event := dcb.NewInputEvent("UserRegistered", dcb.NewTags("user_id", "456"), dcb.ToJSON(map[string]string{"name": "Jane"}))
 		events := []dcb.InputEvent{event}
 		// First append should succeed
-		err := store.Append(ctx, events, nil)
+		err := store.Append(ctx, events)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Second append with a condition that will fail
 		query := dcb.NewQuery(dcb.NewTags("user_id", "456"), "UserRegistered")
 		condition := dcb.NewAppendCondition(query)
-		err = store.Append(ctx, events, &condition)
+		err = store.AppendIf(ctx, events, condition)
 
 		Expect(dcb.IsConcurrencyError(err)).To(BeTrue())
 		concurrencyErr, ok := dcb.GetConcurrencyError(err)

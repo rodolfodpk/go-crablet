@@ -300,7 +300,7 @@ func handleCreateConcert(ctx context.Context, store dcb.EventStore, cmd CreateCo
 	appendCondition := dcb.NewAppendCondition(query)
 
 	// Append events atomically with DCB concurrency control
-	err = store.Append(ctx, events, &appendCondition)
+	err = store.AppendIf(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to create concert: %w", err)
 	}
@@ -402,7 +402,7 @@ func handleBookTicketsWithDCBControl(ctx context.Context, store dcb.EventStore, 
 	appendCondition := dcb.NewAppendCondition(query)
 
 	// Append events atomically with DCB concurrency control
-	err = store.Append(ctx, events, &appendCondition)
+	err = store.AppendIf(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to book tickets: %w", err)
 	}
@@ -505,7 +505,7 @@ func handleBookTicketsWithAdvisoryLocks(ctx context.Context, store dcb.EventStor
 	appendCondition := dcb.NewAppendCondition(query)
 
 	// Append events atomically using core API with both advisory locks and DCB control
-	err = store.Append(ctx, events, &appendCondition)
+	err = store.AppendIf(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to book tickets: %w", err)
 	}

@@ -28,15 +28,21 @@ type EventStore interface {
 	// for efficient memory usage and Go-idiomatic streaming
 	QueryStream(ctx context.Context, query Query, after *Cursor) (<-chan Event, error)
 
-	// Append appends events to the store with optional condition
-	// condition == nil: unconditional append
-	// condition != nil: conditional append with optimistic locking
-	Append(ctx context.Context, events []InputEvent, condition *AppendCondition) error
+	// Append appends events to the store without any consistency/concurrency checks
+	// Use this only when there are no business rules or consistency requirements
+	// For operations that require DCB concurrency control, use AppendIf instead
+	Append(ctx context.Context, events []InputEvent) error
+
+	// AppendIf appends events to the store with explicit DCB concurrency control
+	// This method makes it clear when consistency/concurrency checks are required
+	// Use this for operations that need to ensure data hasn't changed since projection
+	// Note: DCB uses its own concurrency control mechanism via AppendCondition
+	AppendIf(ctx context.Context, events []InputEvent, condition AppendCondition) error
 
 	// Project projects state from events matching projectors with optional cursor
 	// after == nil: project from beginning of stream
 	// after != nil: project from specified cursor position
-	// Returns final aggregated states and append condition for optimistic locking
+	// Returns final aggregated states and append condition for DCB concurrency control
 	Project(ctx context.Context, projectors []StateProjector, after *Cursor) (map[string]any, AppendCondition, error)
 
 	// ProjectStream creates a channel-based stream of projected states with optional cursor
@@ -55,28 +61,6 @@ type EventStore interface {
 	GetPool() *pgxpool.Pool
 }
 
-// CommandExecutor executes commands and generates events
-// This is the high-level interface for command-driven event generation
-type CommandExecutor interface {
-	ExecuteCommand(ctx context.Context, command Command, handler CommandHandler, condition *AppendCondition) ([]InputEvent, error)
-}
-
-// =============================================================================
-// SUPPORTING INTERFACES (Used by core abstractions)
-// =============================================================================
-
-// CommandHandler handles command execution and generates events
-type CommandHandler interface {
-	Handle(ctx context.Context, store EventStore, command Command) ([]InputEvent, error)
-}
-
-// CommandHandlerFunc allows using functions as CommandHandler implementations
-type CommandHandlerFunc func(ctx context.Context, store EventStore, command Command) ([]InputEvent, error)
-
-func (f CommandHandlerFunc) Handle(ctx context.Context, store EventStore, command Command) ([]InputEvent, error) {
-	return f(ctx, store, command)
-}
-
 // Query represents a composite query with multiple conditions combined with OR logic
 // This is opaque to consumers - they can only construct it via helper functions
 // Now exposes GetItems for public access
@@ -87,7 +71,7 @@ type Query interface {
 	GetItems() []QueryItem
 }
 
-// AppendCondition represents conditions for optimistic locking during append operations
+// AppendCondition represents conditions for DCB concurrency control during append operations
 // This is opaque to consumers - they can only construct it via helper functions
 type AppendCondition interface {
 	// isAppendCondition is a marker method to make this interface unexported
@@ -108,13 +92,6 @@ type InputEvent interface {
 	GetType() string
 	GetTags() []Tag
 	GetData() []byte
-}
-
-// Command represents a command that triggers event generation
-type Command interface {
-	GetType() string
-	GetData() []byte
-	GetMetadata() map[string]interface{}
 }
 
 // Tag represents a key-value pair for event categorization
@@ -217,6 +194,36 @@ type EventStoreConfig struct {
 	QueryTimeout           int            `json:"query_timeout"`            // Query timeout in milliseconds (defensive against hanging queries)
 	AppendTimeout          int            `json:"append_timeout"`           // Append timeout in milliseconds (defensive against hanging appends)
 	// TargetEventsTable removed - always use 'events' table for maximum performance
+}
+
+// =============================================================================
+// OPTIONAL CONVENIENCE INTERFACES (For user convenience, not used by core)
+// =============================================================================
+
+// CommandExecutor executes commands and generates events
+// This is an optional convenience API for command-driven event generation
+type CommandExecutor interface {
+	ExecuteCommand(ctx context.Context, command Command, handler CommandHandler, condition *AppendCondition) ([]InputEvent, error)
+}
+
+// CommandHandler handles command execution and generates events
+// This is an optional convenience API for users - not used by core abstractions
+type CommandHandler interface {
+	Handle(ctx context.Context, store EventStore, command Command) ([]InputEvent, error)
+}
+
+// CommandHandlerFunc allows using functions as CommandHandler implementations
+type CommandHandlerFunc func(ctx context.Context, store EventStore, command Command) ([]InputEvent, error)
+
+func (f CommandHandlerFunc) Handle(ctx context.Context, store EventStore, command Command) ([]InputEvent, error) {
+	return f(ctx, store, command)
+}
+
+// Command represents a command that triggers event generation
+type Command interface {
+	GetType() string
+	GetData() []byte
+	GetMetadata() map[string]interface{}
 }
 
 // =============================================================================

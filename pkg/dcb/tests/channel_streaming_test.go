@@ -41,7 +41,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 			events := []dcb.InputEvent{event1, event2, event3}
 
-			err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Test channel-based streaming
@@ -78,7 +78,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 			events := []dcb.InputEvent{event1, event2}
 
-			err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Create cancellable context
@@ -110,7 +110,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 				events[i] = event
 			}
 
-			err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Test with small batch size
@@ -137,7 +137,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 			events := []dcb.InputEvent{event1, event2, event3}
 
-			err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Define projectors
@@ -197,7 +197,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 				events[i] = event
 			}
 
-			err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Create cancellable context
@@ -260,7 +260,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 			events := []dcb.InputEvent{event1, event2, event3}
 
-			err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Define projectors for different event types
@@ -312,7 +312,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 			}
 
 			// Use longCtx for append
-			err := store.Append(longCtx, events, nil)
+			err := store.Append(longCtx, events)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Define projector
@@ -327,7 +327,7 @@ var _ = Describe("Channel-Based Streaming", func() {
 			}
 
 			// Use longCtx for projection
-			resultChan, _, err := store.ProjectStream(longCtx, projectors, nil)
+			resultChan, _, err := store.ProjectStream(longCtx, projectors
 			Expect(err).NotTo(HaveOccurred())
 
 			// Process results - now we get final aggregated states

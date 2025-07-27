@@ -46,7 +46,7 @@ func main() {
 	}
 
 	// Append events
-	err = store.Append(ctx, events, nil)
+	err = store.Append(ctx, events)
 	if err != nil {
 		log.Fatalf("Failed to append events: %v", err)
 	}

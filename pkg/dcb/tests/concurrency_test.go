@@ -25,14 +25,14 @@ var _ = Describe("Concurrency and Locking", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	Describe("Optimistic Locking", func() {
-		It("should enforce optimistic locking under true concurrency", func() {
+	Describe("DCB Concurrency Control", func() {
+		It("should enforce DCB concurrency control under true concurrency", func() {
 			// Use a unique key for this test run
 			key := fmt.Sprintf("concurrent-%d", time.Now().UnixNano())
 
 			// First, create an existing event that will be used in the condition
 			existingEvent := dcb.NewInputEvent("ExistingEvent", dcb.NewTags("key", key), dcb.ToJSON(map[string]string{"data": "existing"}))
-			err := store.Append(ctx, []dcb.InputEvent{existingEvent}, nil)
+			err := store.Append(ctx, []dcb.InputEvent{existingEvent})
 			Expect(err).NotTo(HaveOccurred())
 
 			// Create a condition that looks for this existing event
@@ -49,7 +49,7 @@ var _ = Describe("Concurrency and Locking", func() {
 
 			appendFn := func(event dcb.InputEvent) {
 				<-start
-				err := store.Append(ctx, []dcb.InputEvent{event}, &condition)
+				err := store.AppendIf(ctx, []dcb.InputEvent{event}, condition)
 				results <- err
 			}
 
@@ -78,7 +78,7 @@ var _ = Describe("Concurrency and Locking", func() {
 					"max_capacity":  5,
 					"current_usage": 0,
 				}))
-			err := store.Append(ctx, []dcb.InputEvent{resourceEvent}, nil)
+			err := store.Append(ctx, []dcb.InputEvent{resourceEvent})
 			Expect(err).NotTo(HaveOccurred())
 
 			// DCB concurrency control: use AppendCondition to enforce some concurrency limits
@@ -104,7 +104,7 @@ var _ = Describe("Concurrency and Locking", func() {
 						}))
 
 					// DCB concurrency control: AppendCondition enforces some limits
-					err := store.Append(ctx, []dcb.InputEvent{usageEvent}, &condition)
+					err := store.AppendIf(ctx, []dcb.InputEvent{usageEvent}, condition)
 					if err != nil {
 						results <- fmt.Sprintf("User %d: FAILED - %v", userID, err)
 					} else {

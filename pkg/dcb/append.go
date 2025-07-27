@@ -27,25 +27,9 @@ func (es *eventStore) withTimeout(ctx context.Context, defaultTimeoutMs int) (co
 }
 
 // Append appends events to the store with optional condition
-// condition == nil: unconditional append
-// condition != nil: conditional append (optimistic locking)
-func (es *eventStore) Append(ctx context.Context, events []InputEvent, condition *AppendCondition) error {
-	// Validate and prepare condition FIRST (fail early)
-	var conditionJSON []byte
-	if condition != nil {
-		var err error
-		conditionJSON, err = json.Marshal(condition)
-		if err != nil {
-			return &ResourceError{
-				EventStoreError: EventStoreError{
-					Op:  "append",
-					Err: fmt.Errorf("failed to marshal condition: %w", err),
-				},
-				Resource: "json",
-			}
-		}
-	}
-
+// Append appends events to the store without any consistency/concurrency checks
+// Use this only when there are no business rules or consistency requirements
+func (es *eventStore) Append(ctx context.Context, events []InputEvent) error {
 	// Validate events
 	if len(events) == 0 {
 		return &ValidationError{
@@ -76,12 +60,8 @@ func (es *eventStore) Append(ctx context.Context, events []InputEvent, condition
 	}
 	defer tx.Rollback(ctx)
 
-	// Use conditional or unconditional append based on condition parameter
-	if condition != nil {
-		err = es.appendInTx(ctx, tx, events, *condition, conditionJSON)
-	} else {
-		err = es.appendInTx(ctx, tx, events, nil, nil)
-	}
+	// Use unconditional append (no consistency checks)
+	err = es.appendInTx(ctx, tx, events, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -91,6 +71,72 @@ func (es *eventStore) Append(ctx context.Context, events []InputEvent, condition
 		return &ResourceError{
 			EventStoreError: EventStoreError{
 				Op:  "append",
+				Err: fmt.Errorf("failed to commit transaction: %w", err),
+			},
+			Resource: "database",
+		}
+	}
+
+	return nil
+}
+
+// AppendIf appends events to the store with explicit DCB concurrency control
+// This method makes it clear when consistency/concurrency checks are required
+// Note: DCB uses its own concurrency control mechanism via AppendCondition
+func (es *eventStore) AppendIf(ctx context.Context, events []InputEvent, condition AppendCondition) error {
+	// Validate and prepare condition FIRST (fail early)
+	conditionJSON, err := json.Marshal(condition)
+	if err != nil {
+		return &ResourceError{
+			EventStoreError: EventStoreError{
+				Op:  "appendIf",
+				Err: fmt.Errorf("failed to marshal condition: %w", err),
+			},
+			Resource: "json",
+		}
+	}
+
+	// Validate events
+	if len(events) == 0 {
+		return &ValidationError{
+			EventStoreError: EventStoreError{
+				Op:  "appendIf",
+				Err: fmt.Errorf("events slice cannot be empty"),
+			},
+			Field: "events",
+			Value: "empty",
+		}
+	}
+
+	// Start transaction with hybrid timeout (respects caller timeout if set, otherwise uses default)
+	appendCtx, cancel := es.withTimeout(ctx, es.config.AppendTimeout)
+	defer cancel()
+
+	tx, err := es.pool.BeginTx(appendCtx, pgx.TxOptions{
+		IsoLevel: toPgxIsoLevel(es.config.DefaultAppendIsolation),
+	})
+	if err != nil {
+		return &ResourceError{
+			EventStoreError: EventStoreError{
+				Op:  "appendIf",
+				Err: fmt.Errorf("failed to begin transaction: %w", err),
+			},
+			Resource: "database",
+		}
+	}
+	defer tx.Rollback(ctx)
+
+	// Use conditional append with DCB concurrency control
+	err = es.appendInTx(ctx, tx, events, condition, conditionJSON)
+	if err != nil {
+		return err
+	}
+
+	// Commit transaction
+	if err := tx.Commit(ctx); err != nil {
+		return &ResourceError{
+			EventStoreError: EventStoreError{
+				Op:  "appendIf",
 				Err: fmt.Errorf("failed to commit transaction: %w", err),
 			},
 			Resource: "database",
