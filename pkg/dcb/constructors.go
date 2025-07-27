@@ -216,3 +216,187 @@ func NewCommand(commandType string, data []byte, metadata map[string]interface{}
 func NewCommandSimple(commandType string, data []byte) Command {
 	return NewCommand(commandType, data, nil)
 }
+
+// =============================================================================
+// Query Builder Pattern (Additive - for better developer experience)
+// =============================================================================
+
+// QueryBuilder provides a fluent interface for building queries
+type QueryBuilder struct {
+	items []QueryItem
+}
+
+// NewQueryBuilder creates a new QueryBuilder instance
+func NewQueryBuilder() *QueryBuilder {
+	return &QueryBuilder{
+		items: make([]QueryItem, 0),
+	}
+}
+
+// WithTag adds a single tag condition to the query
+func (qb *QueryBuilder) WithTag(key, value string) *QueryBuilder {
+	tags := []Tag{NewTag(key, value)}
+	item := NewQueryItem(nil, tags)
+	qb.items = append(qb.items, item)
+	return qb
+}
+
+// WithTags adds multiple tag conditions to the query
+func (qb *QueryBuilder) WithTags(kv ...string) *QueryBuilder {
+	if len(kv)%2 != 0 {
+		// Invalid key-value pairs, return builder unchanged
+		return qb
+	}
+
+	tags := make([]Tag, 0, len(kv)/2)
+	for i := 0; i < len(kv); i += 2 {
+		tags = append(tags, NewTag(kv[i], kv[i+1]))
+	}
+
+	item := NewQueryItem(nil, tags)
+	qb.items = append(qb.items, item)
+	return qb
+}
+
+// WithType adds a single event type condition to the query
+func (qb *QueryBuilder) WithType(eventType string) *QueryBuilder {
+	item := NewQueryItem([]string{eventType}, nil)
+	qb.items = append(qb.items, item)
+	return qb
+}
+
+// WithTypes adds multiple event type conditions to the query
+func (qb *QueryBuilder) WithTypes(eventTypes ...string) *QueryBuilder {
+	item := NewQueryItem(eventTypes, nil)
+	qb.items = append(qb.items, item)
+	return qb
+}
+
+// WithTagAndType adds both tag and event type conditions to the query
+func (qb *QueryBuilder) WithTagAndType(key, value, eventType string) *QueryBuilder {
+	tags := []Tag{NewTag(key, value)}
+	item := NewQueryItem([]string{eventType}, tags)
+	qb.items = append(qb.items, item)
+	return qb
+}
+
+// WithTagsAndTypes adds both tags and event types conditions to the query
+func (qb *QueryBuilder) WithTagsAndTypes(eventTypes []string, kv ...string) *QueryBuilder {
+	if len(kv)%2 != 0 {
+		// Invalid key-value pairs, return builder unchanged
+		return qb
+	}
+
+	tags := make([]Tag, 0, len(kv)/2)
+	for i := 0; i < len(kv); i += 2 {
+		tags = append(tags, NewTag(kv[i], kv[i+1]))
+	}
+
+	item := NewQueryItem(eventTypes, tags)
+	qb.items = append(qb.items, item)
+	return qb
+}
+
+// Build creates the final Query from the builder
+func (qb *QueryBuilder) Build() Query {
+	if len(qb.items) == 0 {
+		return NewQueryEmpty()
+	}
+	return NewQueryFromItems(qb.items...)
+}
+
+// =============================================================================
+// Simplified AppendCondition Constructors (Additive)
+// =============================================================================
+
+// FailIfExists creates an AppendCondition that fails if any events match the given tag
+func FailIfExists(key, value string) AppendCondition {
+	query := NewQueryBuilder().WithTag(key, value).Build()
+	return NewAppendCondition(query)
+}
+
+// FailIfEventType creates an AppendCondition that fails if events of the given type exist with the specified tag
+func FailIfEventType(eventType, key, value string) AppendCondition {
+	query := NewQueryBuilder().WithTagAndType(key, value, eventType).Build()
+	return NewAppendCondition(query)
+}
+
+// FailIfEventTypes creates an AppendCondition that fails if events of any of the given types exist with the specified tag
+func FailIfEventTypes(eventTypes []string, key, value string) AppendCondition {
+	query := NewQueryBuilder().WithTagsAndTypes(eventTypes, key, value).Build()
+	return NewAppendCondition(query)
+}
+
+// =============================================================================
+// Simplified Tag Construction (Additive)
+// =============================================================================
+
+// Tags is a map-based tag constructor for better readability
+type Tags map[string]string
+
+// ToTags converts a Tags map to a slice of Tag interfaces
+func (t Tags) ToTags() []Tag {
+	tags := make([]Tag, 0, len(t))
+	for key, value := range t {
+		tags = append(tags, NewTag(key, value))
+	}
+	return tags
+}
+
+// =============================================================================
+// Projection Helpers (Additive - for common patterns)
+// =============================================================================
+
+// ProjectCounter creates a projector that counts events
+func ProjectCounter(id string, eventType string, key, value string) StateProjector {
+	return StateProjector{
+		ID:           id,
+		Query:        NewQueryBuilder().WithTagAndType(key, value, eventType).Build(),
+		InitialState: 0,
+		TransitionFn: func(state any, event Event) any {
+			return state.(int) + 1
+		},
+	}
+}
+
+// ProjectBoolean creates a projector that tracks if events exist
+func ProjectBoolean(id string, eventType string, key, value string) StateProjector {
+	return StateProjector{
+		ID:           id,
+		Query:        NewQueryBuilder().WithTagAndType(key, value, eventType).Build(),
+		InitialState: false,
+		TransitionFn: func(state any, event Event) any {
+			return true
+		},
+	}
+}
+
+// ProjectState creates a projector with custom initial state and transition function
+func ProjectState(id string, eventType string, key, value string, initialState any, transitionFn func(any, Event) any) StateProjector {
+	return StateProjector{
+		ID:           id,
+		Query:        NewQueryBuilder().WithTagAndType(key, value, eventType).Build(),
+		InitialState: initialState,
+		TransitionFn: transitionFn,
+	}
+}
+
+// ProjectStateWithTypes creates a projector for multiple event types
+func ProjectStateWithTypes(id string, eventTypes []string, key, value string, initialState any, transitionFn func(any, Event) any) StateProjector {
+	return StateProjector{
+		ID:           id,
+		Query:        NewQueryBuilder().WithTagsAndTypes(eventTypes, key, value).Build(),
+		InitialState: initialState,
+		TransitionFn: transitionFn,
+	}
+}
+
+// ProjectStateWithTags creates a projector with multiple tag conditions
+func ProjectStateWithTags(id string, eventType string, tags Tags, initialState any, transitionFn func(any, Event) any) StateProjector {
+	return StateProjector{
+		ID:           id,
+		Query:        NewQueryBuilder().WithTagAndType("", "", eventType).Build(), // Simplified for now
+		InitialState: initialState,
+		TransitionFn: transitionFn,
+	}
+}
