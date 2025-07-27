@@ -10,7 +10,7 @@ go-crablet is a Go library for event sourcing, exploring concepts inspired by th
 - **Streaming**: Process events efficiently for large datasets
 - **Transaction-based Ordering**: Uses PostgreSQL transaction IDs for true event ordering
 - **Atomic Command Execution**: Execute commands with handler-based event generation
-- **Simplified API**: Fluent interfaces for events, queries, and projections with 50% less boilerplate
+- **Fluent API**: Intuitive interfaces for events, queries, and projections with 50% less boilerplate
 
 ## Core Interfaces
 
@@ -53,7 +53,7 @@ commandExecutor := dcb.NewCommandExecutor(store)
 err = store.Append(ctx, events, condition)  // Direct usage
 err = commandExecutor.ExecuteCommand(ctx, command, handler, condition)  // Command-driven
 
-// 4. Use simplified API for better developer experience
+// 4. Use fluent API for better developer experience
 event := dcb.NewEvent("UserCreated").
     WithTag("user_id", "123").
     WithData(userData).
@@ -98,9 +98,9 @@ type Command interface {
 - Performance: 1 I/O operation when used alone, 2 I/O operations when combined with DCB conditions
 - Use case: Resource serialization without complex business logic validation
 
-## Simplified API
+## Fluent API
 
-The library provides a simplified API for common operations, reducing boilerplate by 50%:
+The library provides a fluent API for common operations, reducing boilerplate by 50%:
 
 ### EventBuilder
 ```go
@@ -137,7 +137,58 @@ projector := dcb.ProjectCounter("user_count", "UserRegistered", "status", "activ
 projector := dcb.ProjectBoolean("user_exists", "UserRegistered", "user_id", "123")
 ```
 
-See [Simplified API Guide](simplified-api.md) for complete documentation.
+See the [Quick Start](quick-start.md) and [Examples](../internal/examples/) for complete usage examples.
+
+## Migration from Legacy API
+
+If you're familiar with the legacy API, here's how to migrate to the new fluent API:
+
+### Event Creation
+```go
+// Legacy way
+event := dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", "123"), dcb.ToJSON(userData))
+
+// New way
+event := dcb.NewEvent("UserCreated").
+    WithTag("user_id", "123").
+    WithData(userData).
+    Build()
+```
+
+### Query Building
+```go
+// Legacy way
+query := dcb.NewQuery(dcb.NewTags("user_id", "123"), "UserCreated")
+
+// New way
+query := dcb.NewQueryBuilder().
+    WithTag("user_id", "123").
+    WithType("UserCreated").
+    Build()
+```
+
+### Append Conditions
+```go
+// Legacy way
+condition := dcb.NewAppendCondition(dcb.NewQuery(dcb.NewTags("user_id", "123"), "UserCreated"))
+
+// New way
+condition := dcb.FailIfExists("user_id", "123")
+```
+
+### Projections
+```go
+// Legacy way
+projector := dcb.StateProjector{
+    ID: "user_count",
+    Query: dcb.NewQuery(dcb.NewTags("status", "active"), "UserRegistered"),
+    InitialState: 0,
+    TransitionFn: func(state any, event dcb.Event) any { return state.(int) + 1 },
+}
+
+// New way
+projector := dcb.ProjectCounter("user_count", "UserRegistered", "status", "active")
+```
 
 ## Configuration
 

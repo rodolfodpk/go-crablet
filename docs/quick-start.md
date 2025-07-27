@@ -60,7 +60,7 @@ func main() {
         log.Fatal(err)
     }
 
-    // Define a simple event using the new simplified API
+    // Define a simple event using the fluent API
     event := dcb.NewEvent("UserCreated").
         WithTag("user_id", "123").
         WithData(map[string]string{
@@ -93,7 +93,7 @@ func main() {
 
     // Conditional append with DCB concurrency control
     if len(events) > 0 {
-        // Use simplified append condition constructor
+        // Use fluent append condition constructor
         condition := dcb.FailIfExists("user_id", "123")
         
         newEvent := dcb.NewEvent("UserUpdated").
@@ -114,7 +114,7 @@ func main() {
 After completing this quick start:
 
 - Read the [Overview](overview.md) to understand DCB concepts and transaction ID ordering
-- Explore the [Simplified API](simplified-api.md) for the new fluent interfaces
+- Explore the [Overview](overview.md) for the fluent API patterns
 - Check out the [Examples](../internal/examples/) directory for complete working examples including money transfers
 
 ## Configuration

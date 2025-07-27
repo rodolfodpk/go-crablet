@@ -40,7 +40,7 @@ func main() {
     courseID := "c1"
     studentID := "s1"
 
-    // Define projectors for the decision model using simplified API
+    // Define projectors for the decision model using fluent API
     projectors := []dcb.StateProjector{
         dcb.ProjectBoolean("courseExists", "CourseDefined", "course_id", courseID),
         dcb.ProjectCounter("numSubscriptions", "StudentSubscribed", "course_id", courseID),
@@ -51,7 +51,7 @@ func main() {
     states, appendCond, err := store.Project(ctx, projectors, nil)
 
     if !states["courseExists"].(bool) {
-        // Append CourseDefined event using simplified API
+        // Append CourseDefined event using fluent API
         event := dcb.NewEvent("CourseDefined").
             WithTag("course_id", courseID).
             WithData(CourseDefined{courseID, 2}).
@@ -64,7 +64,7 @@ func main() {
     if states["numSubscriptions"].(int) >= 2 {
         panic("course is full")
     }
-    // Subscribe student using simplified API
+    // Subscribe student using fluent API
     event := dcb.NewEvent("StudentSubscribed").
         WithTag("student_id", studentID).
         WithTag("course_id", courseID).
