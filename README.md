@@ -33,6 +33,7 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 - [Overview](docs/overview.md): DCB pattern exploration, batch projection, and streaming
 - [Quick Start](docs/quick-start.md): Get started using go-crablet in your project
 - [Getting Started](docs/getting-started.md): Development setup
+- [Simplified API](docs/simplified-api.md): **NEW** - Simplified API constructs for better developer experience
 - [Command Execution Flow](docs/command-execution-flow.md): Sequence diagram and command processing flow
 - [Testing](docs/testing.md): Comprehensive testing guide and test organization
 
@@ -40,6 +41,7 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 
 Ready-to-run examples demonstrating different aspects of the DCB pattern:
 
+- **[API Demo](internal/examples/api_demo/main.go)**: **NEW** - Demonstrates the simplified API with 50% less boilerplate
 - **[Transfer Example](internal/examples/transfer/main.go)**: Money transfer with DCB concurrency control
 - **[Course Enrollment](internal/examples/enrollment/main.go)**: Student course enrollment with capacity limits
 - **[Streaming](internal/examples/streaming/main.go)**: Event streaming and projection approaches

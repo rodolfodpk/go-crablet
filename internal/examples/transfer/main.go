@@ -66,189 +66,160 @@ type TransferMoneyCommand struct {
 }
 
 // HandleCreateAccount handles the creation of an account
-func HandleCreateAccount(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, *dcb.AppendCondition, error) {
-	var cmd CreateAccountCommand
-	if err := json.Unmarshal(command.GetData(), &cmd); err != nil {
-		return nil, nil, fmt.Errorf("failed to unmarshal create account command: %w", err)
-	}
+func HandleCreateAccount(ctx context.Context, store dcb.EventStore, cmd CreateAccountCommand) ([]dcb.InputEvent, error) {
+	// Check if account already exists using simplified query
+	query := dcb.NewQueryBuilder().WithTagAndType("account_id", cmd.AccountID, "AccountOpened").Build()
 
-	// Check for duplicate account
-	query := dcb.NewQuery(dcb.NewTags("account_id", cmd.AccountID), "AccountOpened")
 	events, err := store.Query(ctx, query, nil)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to query for existing account: %w", err)
-	}
-	if len(events) > 0 {
-		return nil, nil, fmt.Errorf("account %s already exists", cmd.AccountID)
+		return nil, fmt.Errorf("failed to query existing account: %w", err)
 	}
 
-	// Create the event
-	event := AccountOpened{
+	if len(events) > 0 {
+		return nil, fmt.Errorf("account %s already exists", cmd.AccountID)
+	}
+
+	// Create account event
+	accountOpened := AccountOpened{
 		AccountID:      cmd.AccountID,
 		Owner:          cmd.Owner,
 		InitialBalance: cmd.InitialBalance,
 		OpenedAt:       time.Now(),
 	}
-	eventData, err := json.Marshal(event)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal account opened event: %w", err)
-	}
 
-	return []dcb.InputEvent{
-		dcb.NewInputEvent("AccountOpened", []dcb.Tag{
-			dcb.NewTag("account_id", cmd.AccountID),
-		}, eventData),
-	}, nil, nil
+	event := dcb.NewInputEvent("AccountOpened", dcb.Tags{"account_id": cmd.AccountID}.ToTags(), dcb.ToJSON(accountOpened))
+	return []dcb.InputEvent{event}, nil
 }
 
 // HandleTransferMoney handles money transfers between accounts
-func HandleTransferMoney(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, *dcb.AppendCondition, error) {
-	var cmd TransferMoneyCommand
-	if err := json.Unmarshal(command.GetData(), &cmd); err != nil {
-		return nil, nil, fmt.Errorf("failed to unmarshal transfer command: %w", err)
-	}
+func HandleTransferMoney(ctx context.Context, store dcb.EventStore, cmd TransferMoneyCommand) ([]dcb.InputEvent, *dcb.AppendCondition, error) {
+	// Project source account state using simplified query
+	fromAccountProjector := dcb.StateProjector{
+		ID:           "fromAccount",
+		Query:        dcb.NewQueryBuilder().WithTagsAndTypes([]string{"AccountOpened", "MoneyTransferred"}, "account_id", cmd.FromAccountID).Build(),
+		InitialState: AccountState{},
+		TransitionFn: func(state any, event dcb.Event) any {
+			accountState := state.(AccountState)
 
-	// Validate transfer amount
-	if cmd.Amount <= 0 {
-		return nil, nil, fmt.Errorf("transfer amount must be positive")
-	}
-
-	// Project current state for both accounts - the projection system automatically handles balance calculation
-	projectors := []dcb.StateProjector{
-		{
-			ID: "fromAccount",
-			Query: dcb.NewQuery(dcb.NewTags("account_id", cmd.FromAccountID), "AccountOpened", "MoneyTransferred"),
-			InitialState: AccountState{},
-			TransitionFn: func(state any, event dcb.Event) any {
-				if event.Type == "AccountOpened" {
-					var accountOpened AccountOpened
-					if err := json.Unmarshal(event.Data, &accountOpened); err != nil {
-						return state
-					}
-					return AccountState{
-						AccountID: accountOpened.AccountID,
-						Owner:     accountOpened.Owner,
-						Balance:   accountOpened.InitialBalance,
-						CreatedAt: accountOpened.OpenedAt,
-						UpdatedAt: accountOpened.OpenedAt,
-					}
+			if event.Type == "AccountOpened" {
+				var accountOpened AccountOpened
+				if err := json.Unmarshal(event.Data, &accountOpened); err != nil {
+					return accountState
 				}
-				if event.Type == "MoneyTransferred" {
-					var transfer MoneyTransferred
-					if err := json.Unmarshal(event.Data, &transfer); err != nil {
-						return state
-					}
-					if current, ok := state.(AccountState); ok {
-						if transfer.FromAccountID == current.AccountID {
-							current.Balance = transfer.FromBalance
-							current.UpdatedAt = transfer.TransferredAt
-						} else if transfer.ToAccountID == current.AccountID {
-							current.Balance = transfer.ToBalance
-							current.UpdatedAt = transfer.TransferredAt
-						}
-						return current
-					}
+				accountState.AccountID = accountOpened.AccountID
+				accountState.Owner = accountOpened.Owner
+				accountState.Balance = accountOpened.InitialBalance
+				accountState.CreatedAt = accountOpened.OpenedAt
+				accountState.UpdatedAt = accountOpened.OpenedAt
+			} else if event.Type == "MoneyTransferred" {
+				var transfer MoneyTransferred
+				if err := json.Unmarshal(event.Data, &transfer); err != nil {
+					return accountState
 				}
-				return state
-			},
-		},
-		{
-			ID: "toAccount",
-			Query: dcb.NewQuery(dcb.NewTags("account_id", cmd.ToAccountID), "AccountOpened", "MoneyTransferred"),
-			InitialState: AccountState{},
-			TransitionFn: func(state any, event dcb.Event) any {
-				if event.Type == "AccountOpened" {
-					var accountOpened AccountOpened
-					if err := json.Unmarshal(event.Data, &accountOpened); err != nil {
-						return state
-					}
-					return AccountState{
-						AccountID: accountOpened.AccountID,
-						Owner:     accountOpened.Owner,
-						Balance:   accountOpened.InitialBalance,
-						CreatedAt: accountOpened.OpenedAt,
-						UpdatedAt: accountOpened.OpenedAt,
-					}
+				if transfer.FromAccountID == cmd.FromAccountID {
+					accountState.Balance = transfer.FromBalance
+					accountState.UpdatedAt = transfer.TransferredAt
+				} else if transfer.ToAccountID == cmd.FromAccountID {
+					accountState.Balance = transfer.ToBalance
+					accountState.UpdatedAt = transfer.TransferredAt
 				}
-				if event.Type == "MoneyTransferred" {
-					var transfer MoneyTransferred
-					if err := json.Unmarshal(event.Data, &transfer); err != nil {
-						return state
-					}
-					if current, ok := state.(AccountState); ok {
-						if transfer.FromAccountID == current.AccountID {
-							current.Balance = transfer.FromBalance
-							current.UpdatedAt = transfer.TransferredAt
-						} else if transfer.ToAccountID == current.AccountID {
-							current.Balance = transfer.ToBalance
-							current.UpdatedAt = transfer.TransferredAt
-						}
-						return current
-					}
-				}
-				return state
-			},
+			}
+			return accountState
 		},
 	}
 
-	states, _, err := store.Project(ctx, projectors, nil)
+	// Project destination account state using simplified query
+	toAccountProjector := dcb.StateProjector{
+		ID:           "toAccount",
+		Query:        dcb.NewQueryBuilder().WithTagsAndTypes([]string{"AccountOpened", "MoneyTransferred"}, "account_id", cmd.ToAccountID).Build(),
+		InitialState: AccountState{},
+		TransitionFn: func(state any, event dcb.Event) any {
+			accountState := state.(AccountState)
+
+			if event.Type == "AccountOpened" {
+				var accountOpened AccountOpened
+				if err := json.Unmarshal(event.Data, &accountOpened); err != nil {
+					return accountState
+				}
+				accountState.AccountID = accountOpened.AccountID
+				accountState.Owner = accountOpened.Owner
+				accountState.Balance = accountOpened.InitialBalance
+				accountState.CreatedAt = accountOpened.OpenedAt
+				accountState.UpdatedAt = accountOpened.OpenedAt
+			} else if event.Type == "MoneyTransferred" {
+				var transfer MoneyTransferred
+				if err := json.Unmarshal(event.Data, &transfer); err != nil {
+					return accountState
+				}
+				if transfer.FromAccountID == cmd.ToAccountID {
+					accountState.Balance = transfer.FromBalance
+					accountState.UpdatedAt = transfer.TransferredAt
+				} else if transfer.ToAccountID == cmd.ToAccountID {
+					accountState.Balance = transfer.ToBalance
+					accountState.UpdatedAt = transfer.TransferredAt
+				}
+			}
+			return accountState
+		},
+	}
+
+	// Project both accounts
+	projectedStates, appendCondition, err := store.Project(ctx, []dcb.StateProjector{fromAccountProjector, toAccountProjector}, nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to project account states: %w", err)
 	}
 
-	fromAccount := states["fromAccount"].(AccountState)
-	toAccount := states["toAccount"].(AccountState)
+	fromAccount := projectedStates["fromAccount"].(AccountState)
+	toAccount := projectedStates["toAccount"].(AccountState)
 
-	// Validate source account exists and has sufficient funds
+	// Validate source account exists
 	if fromAccount.Owner == "" {
-		return nil, nil, fmt.Errorf("source account %s does not exist", cmd.FromAccountID)
+		return nil, nil, fmt.Errorf("source account does not exist")
 	}
+
+	// Validate sufficient funds
 	if fromAccount.Balance < cmd.Amount {
-		return nil, nil, fmt.Errorf("insufficient funds in account %s (balance: %d, required: %d)", cmd.FromAccountID, fromAccount.Balance, cmd.Amount)
+		return nil, nil, fmt.Errorf("insufficient funds: balance %d, requested %d", fromAccount.Balance, cmd.Amount)
 	}
 
-	// Calculate new balances
-	newFromBalance := fromAccount.Balance - cmd.Amount
-	newToBalance := toAccount.Balance + cmd.Amount
-
-	// Create the transfer event
-	transferEvent := MoneyTransferred{
+	// Create transfer event using simplified tags
+	transfer := MoneyTransferred{
 		TransferID:    cmd.TransferID,
 		FromAccountID: cmd.FromAccountID,
 		ToAccountID:   cmd.ToAccountID,
 		Amount:        cmd.Amount,
-		FromBalance:   newFromBalance,
-		ToBalance:     newToBalance,
+		FromBalance:   fromAccount.Balance - cmd.Amount,
+		ToBalance:     toAccount.Balance + cmd.Amount,
 		TransferredAt: time.Now(),
 		Description:   cmd.Description,
 	}
-	eventData, err := json.Marshal(transferEvent)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal money transferred event: %w", err)
-	}
 
-	// Create AppendCondition to ensure source account hasn't changed since our projection
-	// This prevents race conditions where multiple transfers could succeed
-	item := dcb.NewQueryItem([]string{"AccountOpened", "MoneyTransferred"}, []dcb.Tag{dcb.NewTag("account_id", cmd.FromAccountID)})
-	query := dcb.NewQueryFromItems(item)
-	appendCondition := dcb.NewAppendCondition(query)
+	event := dcb.NewInputEvent("MoneyTransferred", dcb.Tags{
+		"transfer_id":     cmd.TransferID,
+		"from_account_id": cmd.FromAccountID,
+		"to_account_id":   cmd.ToAccountID,
+	}.ToTags(), dcb.ToJSON(transfer))
 
-	return []dcb.InputEvent{
-		dcb.NewInputEvent("MoneyTransferred", []dcb.Tag{
-			dcb.NewTag("transfer_id", cmd.TransferID),
-			dcb.NewTag("from_account_id", cmd.FromAccountID),
-			dcb.NewTag("to_account_id", cmd.ToAccountID),
-		}, eventData),
-	}, &appendCondition, nil
+	return []dcb.InputEvent{event}, &appendCondition, nil
 }
 
 // HandleCommand routes commands to appropriate handlers
 func HandleCommand(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, *dcb.AppendCondition, error) {
 	switch command.GetType() {
 	case CommandTypeCreateAccount:
-		return HandleCreateAccount(ctx, store, command)
+		var cmd CreateAccountCommand
+		if err := json.Unmarshal(command.GetData(), &cmd); err != nil {
+			return nil, nil, fmt.Errorf("failed to unmarshal create account command: %w", err)
+		}
+		events, err := HandleCreateAccount(ctx, store, cmd)
+		return events, nil, err
 	case CommandTypeTransferMoney:
-		return HandleTransferMoney(ctx, store, command)
+		var cmd TransferMoneyCommand
+		if err := json.Unmarshal(command.GetData(), &cmd); err != nil {
+			return nil, nil, fmt.Errorf("failed to unmarshal transfer command: %w", err)
+		}
+		events, appendCondition, err := HandleTransferMoney(ctx, store, cmd)
+		return events, appendCondition, err
 	default:
 		return nil, nil, fmt.Errorf("unknown command type: %s", command.GetType())
 	}
