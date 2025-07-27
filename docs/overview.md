@@ -63,17 +63,17 @@ The EventStore is the primary interface for event sourcing. Use this pattern whe
 store, err := dcb.NewEventStore(ctx, pool)
 
 // 2. Use fluent API for events and queries
-event := dcb.NewEvent("UserRegistered").
-    WithTag("user_id", "123").
-    WithData(userData).
+event := dcb.NewEvent("CourseDefined").
+    WithTag("course_id", "CS101").
+    WithData(courseData).
     Build()
 
 query := dcb.NewQueryBuilder().
-    WithTag("user_id", "123").
-    WithType("UserRegistered").
+    WithTag("course_id", "CS101").
+    WithType("CourseDefined").
     Build()
 
-condition := dcb.FailIfExists("user_id", "123")
+condition := dcb.FailIfExists("course_id", "CS101")
 
 // 3. Direct event operations
 err = store.AppendIf(ctx, []dcb.InputEvent{event}, condition)  // Conditional append
@@ -92,125 +92,99 @@ store, err := dcb.NewEventStore(ctx, pool)
 commandExecutor := dcb.NewCommandExecutor(store)
 
 // 2. Define command types
-type CreateUserCommand struct {
-    UserID string `json:"user_id"`
-    Email  string `json:"email"`
-    Name   string `json:"name"`
+type DefineCourseCommand struct {
+    CourseID   string `json:"course_id"`
+    Name       string `json:"name"`
+    Capacity   int    `json:"capacity"`
 }
 
-type TransferMoneyCommand struct {
-    FromAccountID string  `json:"from_account_id"`
-    ToAccountID   string  `json:"to_account_id"`
-    Amount        float64 `json:"amount"`
+type EnrollStudentCommand struct {
+    StudentID string `json:"student_id"`
+    CourseID  string `json:"course_id"`
 }
 
 // 3. Define command handlers
-func handleCreateUser(ctx context.Context, store dcb.EventStore, cmd dcb.Command) ([]dcb.InputEvent, error) {
-    var data CreateUserCommand
+func handleDefineCourse(ctx context.Context, store dcb.EventStore, cmd dcb.Command) ([]dcb.InputEvent, error) {
+    var data DefineCourseCommand
     if err := json.Unmarshal(cmd.GetData(), &data); err != nil {
         return nil, fmt.Errorf("failed to unmarshal command: %w", err)
     }
     
     // Business logic validation
-    if data.Email == "" {
-        return nil, errors.New("email required")
-    }
     if data.Name == "" {
-        return nil, errors.New("name required")
+        return nil, errors.New("course name required")
+    }
+    if data.Capacity <= 0 {
+        return nil, errors.New("capacity must be positive")
     }
     
-    // Check if user already exists
-    query := dcb.NewQueryBuilder().
-        WithTag("email", data.Email).
-        WithType("UserCreated").
+    // Create course definition event
+    event := dcb.NewEvent("CourseDefined").
+        WithTag("course_id", data.CourseID).
+        WithData(data).
         Build()
-    
-    events, err := store.Query(ctx, query, nil)
-    if err != nil {
-        return nil, fmt.Errorf("failed to query existing users: %w", err)
-    }
-    
-    if len(events) > 0 {
-        return nil, fmt.Errorf("user with email %s already exists", data.Email)
-    }
-    
-    // Create user registration event
-event := dcb.NewEvent("UserRegistered").
-    WithTag("user_id", data.UserID).
-    WithTag("email", data.Email).
-    WithData(data).
-    Build()
     
     return []dcb.InputEvent{event}, nil
 }
 
-func handleTransferMoney(ctx context.Context, store dcb.EventStore, cmd dcb.Command) ([]dcb.InputEvent, error) {
-    var data TransferMoneyCommand
+func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd dcb.Command) ([]dcb.InputEvent, error) {
+    var data EnrollStudentCommand
     if err := json.Unmarshal(cmd.GetData(), &data); err != nil {
         return nil, fmt.Errorf("failed to unmarshal command: %w", err)
     }
     
     // Business logic validation
-    if data.Amount <= 0 {
-        return nil, errors.New("amount must be positive")
+    if data.StudentID == "" {
+        return nil, errors.New("student_id required")
     }
-    if data.FromAccountID == data.ToAccountID {
-        return nil, errors.New("cannot transfer to same account")
+    if data.CourseID == "" {
+        return nil, errors.New("course_id required")
     }
     
-    // Project account states to check balances
+    // Project course and enrollment states
     projectors := []dcb.StateProjector{
-        dcb.ProjectState("from_balance", "AccountOpened", "account_id", data.FromAccountID, 0.0, func(state any, event dcb.Event) any {
-            balance := state.(float64)
-            if event.GetType() == "AccountCredited" {
-                var credit struct{ Amount float64 }
-                json.Unmarshal(event.GetData(), &credit)
-                balance += credit.Amount
-            } else if event.GetType() == "AccountDebited" {
-                var debit struct{ Amount float64 }
-                json.Unmarshal(event.GetData(), &debit)
-                balance -= debit.Amount
-            }
-            return balance
-        }),
+        dcb.ProjectBoolean("course_exists", "CourseDefined", "course_id", data.CourseID),
+        dcb.ProjectCounter("enrollment_count", "StudentEnrolled", "course_id", data.CourseID),
+        dcb.ProjectBoolean("already_enrolled", "StudentEnrolled", "student_id", data.StudentID),
     }
     
     states, _, err := store.Project(ctx, projectors, nil)
     if err != nil {
-        return nil, fmt.Errorf("failed to project account state: %w", err)
+        return nil, fmt.Errorf("failed to project course state: %w", err)
     }
     
-    fromBalance := states["from_balance"].(float64)
-    if fromBalance < data.Amount {
-        return nil, fmt.Errorf("insufficient funds: balance %.2f, required %.2f", fromBalance, data.Amount)
+    if !states["course_exists"].(bool) {
+        return nil, fmt.Errorf("course %s does not exist", data.CourseID)
     }
     
-    // Create transfer events
-    debitEvent := dcb.NewEvent("AccountDebited").
-        WithTag("account_id", data.FromAccountID).
-        WithTag("transfer_id", fmt.Sprintf("transfer_%d", time.Now().Unix())).
-        WithData(map[string]interface{}{
-            "amount": data.Amount,
-            "reason": "transfer",
-        }).
+    if states["already_enrolled"].(bool) {
+        return nil, fmt.Errorf("student %s already enrolled in course %s", data.StudentID, data.CourseID)
+    }
+    
+    enrollmentCount := states["enrollment_count"].(int)
+    // Assume course capacity is 30 for this example
+    if enrollmentCount >= 30 {
+        return nil, fmt.Errorf("course %s is full (capacity: 30, enrolled: %d)", data.CourseID, enrollmentCount)
+    }
+    
+    // Create enrollment event
+    event := dcb.NewEvent("StudentEnrolled").
+        WithTag("student_id", data.StudentID).
+        WithTag("course_id", data.CourseID).
+        WithData(data).
         Build()
     
-    creditEvent := dcb.NewEvent("AccountCredited").
-        WithTag("account_id", data.ToAccountID).
-        WithTag("transfer_id", fmt.Sprintf("transfer_%d", time.Now().Unix())).
-        WithData(map[string]interface{}{
-            "amount": data.Amount,
-            "reason": "transfer",
-        }).
-        Build()
-    
-    return []dcb.InputEvent{debitEvent, creditEvent}, nil
+    return []dcb.InputEvent{event}, nil
 }
 
 // 4. Execute commands
-command := dcb.NewCommand("CreateUser", commandData)
-condition := dcb.FailIfExists("email", userEmail)
-err = commandExecutor.ExecuteCommand(ctx, command, handleCreateUser, &condition)
+courseCommand := dcb.NewCommand("DefineCourse", courseData)
+courseCondition := dcb.FailIfExists("course_id", courseID)
+err = commandExecutor.ExecuteCommand(ctx, courseCommand, handleDefineCourse, &courseCondition)
+
+enrollmentCommand := dcb.NewCommand("EnrollStudent", enrollmentData)
+enrollmentCondition := dcb.FailIfExists("student_id", studentID)
+err = commandExecutor.ExecuteCommand(ctx, enrollmentCommand, handleEnrollStudent, &enrollmentCondition)
 ```
 
 ### Supporting Types
@@ -250,31 +224,31 @@ The library provides a fluent API for common operations, reducing boilerplate by
 
 ### EventBuilder
 ```go
-event := dcb.NewEvent("UserRegistered").
-    WithTag("user_id", "123").
+event := dcb.NewEvent("CourseDefined").
+    WithTag("course_id", "CS101").
     WithTags(map[string]string{
-        "tenant": "acme",
-        "version": "1.0",
+        "department": "computer_science",
+        "semester": "fall_2024",
     }).
-    WithData(userData).
+    WithData(courseData).
     Build()
 ```
 
 ### QueryBuilder
 ```go
 query := dcb.NewQueryBuilder().
-    WithTag("user_id", "123").
-    WithType("UserCreated").
+    WithTag("course_id", "CS101").
+    WithType("CourseDefined").
     AddItem().
-    WithTag("user_id", "456").
-    WithType("UserProfileUpdated").
+    WithTag("course_id", "CS102").
+    WithType("CourseDefined").
     Build()
 ```
 
 ### Simplified AppendConditions
 ```go
-condition := dcb.FailIfExists("user_id", "123")
-condition := dcb.FailIfEventType("UserRegistered", "user_id", "123")
+condition := dcb.FailIfExists("course_id", "CS101")
+condition := dcb.FailIfEventType("CourseDefined", "course_id", "CS101")
 ```
 
 ### Projection Helpers
@@ -421,7 +395,7 @@ type RegisterUserCommand struct {
     Name   string `json:"name"`
 }
 
-// Define command handler with complete business logic
+// Define command handler for user registration
 func handleRegisterUser(ctx context.Context, store dcb.EventStore, cmd dcb.Command) ([]dcb.InputEvent, error) {
     var data RegisterUserCommand
     if err := json.Unmarshal(cmd.GetData(), &data); err != nil {
@@ -437,20 +411,6 @@ func handleRegisterUser(ctx context.Context, store dcb.EventStore, cmd dcb.Comma
     }
     if data.UserID == "" {
         return nil, errors.New("user_id required")
-    }
-    
-    // Check if user already exists using projection
-    projectors := []dcb.StateProjector{
-        dcb.ProjectBoolean("user_exists", "UserRegistered", "email", data.Email),
-    }
-    
-    states, _, err := store.Project(ctx, projectors, nil)
-    if err != nil {
-        return nil, fmt.Errorf("failed to check existing user: %w", err)
-    }
-    
-    if states["user_exists"].(bool) {
-        return nil, fmt.Errorf("user with email %s already exists", data.Email)
     }
     
     // Create user registration event
