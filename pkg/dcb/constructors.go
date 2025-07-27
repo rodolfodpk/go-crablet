@@ -312,6 +312,7 @@ func (qb *QueryBuilder) Build() Query {
 	if len(qb.items) == 0 {
 		return NewQueryEmpty()
 	}
+
 	return NewQueryFromItems(qb.items...)
 }
 
