@@ -90,6 +90,96 @@ var _ = Describe("Coverage Improvement Tests", func() {
 		})
 	})
 
+	Describe("New Simplified API Coverage", func() {
+		It("should test EventBuilder", func() {
+			event := dcb.NewEvent("TestEvent").
+				WithTag("key1", "value1").
+				WithTag("key2", "value2").
+				WithData(map[string]string{"data": "test"}).
+				Build()
+
+			Expect(event.GetType()).To(Equal("TestEvent"))
+			Expect(event.GetTags()).To(HaveLen(2))
+		})
+
+		It("should test BatchBuilder", func() {
+			batch := dcb.NewBatch().
+				AddEventFromBuilder(
+					dcb.NewEvent("Event1").
+						WithTag("key1", "value1").
+						WithData(map[string]string{"data": "test1"}),
+				).
+				AddEventFromBuilder(
+					dcb.NewEvent("Event2").
+						WithTag("key2", "value2").
+						WithData(map[string]string{"data": "test2"}),
+				).
+				Build()
+
+			Expect(batch).To(HaveLen(2))
+			Expect(batch[0].GetType()).To(Equal("Event1"))
+			Expect(batch[1].GetType()).To(Equal("Event2"))
+		})
+
+		It("should test QueryBuilder", func() {
+			query := dcb.NewQueryBuilder().
+				WithTag("user_id", "123").
+				WithType("UserRegistered").
+				AddItem().
+				WithTag("user_id", "456").
+				WithType("UserProfileUpdated").
+				Build()
+
+			Expect(query.GetItems()).To(HaveLen(2))
+		})
+
+		It("should test simplified append condition constructors", func() {
+			condition1 := dcb.FailIfExists("user_id", "123")
+			condition2 := dcb.FailIfEventType("UserRegistered", "user_id", "123")
+			condition3 := dcb.FailIfEventTypes([]string{"UserRegistered", "UserProfileUpdated"}, "user_id", "123")
+
+			Expect(condition1).ToNot(BeNil())
+			Expect(condition2).ToNot(BeNil())
+			Expect(condition3).ToNot(BeNil())
+		})
+
+		It("should test projection helpers", func() {
+			counterProjector := dcb.ProjectCounter("user_count", "UserRegistered", "status", "active")
+			booleanProjector := dcb.ProjectBoolean("user_exists", "UserRegistered", "user_id", "123")
+
+			type UserState struct {
+				UserID string
+				Email  string
+			}
+
+			stateProjector := dcb.ProjectState("user_profile", "UserRegistered", "user_id", "123", UserState{}, func(state any, event dcb.Event) any {
+				return state
+			})
+
+			Expect(counterProjector.ID).To(Equal("user_count"))
+			Expect(booleanProjector.ID).To(Equal("user_exists"))
+			Expect(stateProjector.ID).To(Equal("user_profile"))
+		})
+
+		It("should test simplified tags", func() {
+			tags := dcb.Tags{
+				"user_id": "123",
+				"tenant":  "acme",
+			}.ToTags()
+
+			Expect(tags).To(HaveLen(2))
+
+			// Check that both tags exist without relying on order
+			keys := []string{tags[0].GetKey(), tags[1].GetKey()}
+			values := []string{tags[0].GetValue(), tags[1].GetValue()}
+
+			Expect(keys).To(ContainElement("user_id"))
+			Expect(keys).To(ContainElement("tenant"))
+			Expect(values).To(ContainElement("123"))
+			Expect(values).To(ContainElement("acme"))
+		})
+	})
+
 	It("should cover NewQuery and NewQueryEmpty", func() {
 		q := dcb.NewQuery(dcb.NewTags("foo", "bar"), "TypeA", "TypeB")
 		Expect(q).NotTo(BeNil())

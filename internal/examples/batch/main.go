@@ -151,17 +151,17 @@ func handleCreateUser(ctx context.Context, store dcb.EventStore, cmd CreateUserC
 		return fmt.Errorf("email %s already exists", cmd.Email)
 	}
 
-	// Create events for this command
+	// Create events for this command using EventBuilder
 	events := []dcb.InputEvent{
-		dcb.NewInputEvent(
-			"UserCreated",
-			dcb.NewTags("user_id", cmd.UserID, "email", cmd.Email),
-			toJSON(UserCreatedData{
+		dcb.NewEvent("UserCreated").
+			WithTag("user_id", cmd.UserID).
+			WithTag("email", cmd.Email).
+			WithData(UserCreatedData{
 				UserID:   cmd.UserID,
 				Username: cmd.Username,
 				Email:    cmd.Email,
-			}),
-		),
+			}).
+			Build(),
 	}
 
 	// Append events atomically for this command
@@ -220,18 +220,18 @@ func handleCreateOrder(ctx context.Context, store dcb.EventStore, cmd CreateOrde
 		total += float64(item.Quantity) * item.Price
 	}
 
-	// Create events for this command
+	// Create events for this command using EventBuilder
 	events := []dcb.InputEvent{
-		dcb.NewInputEvent(
-			"OrderCreated",
-			dcb.NewTags("order_id", cmd.OrderID, "user_id", cmd.UserID),
-			toJSON(OrderCreatedData{
+		dcb.NewEvent("OrderCreated").
+			WithTag("order_id", cmd.OrderID).
+			WithTag("user_id", cmd.UserID).
+			WithData(OrderCreatedData{
 				OrderID: cmd.OrderID,
 				UserID:  cmd.UserID,
 				Items:   cmd.Items,
 				Total:   total,
-			}),
-		),
+			}).
+			Build(),
 	}
 
 	// Append events atomically for this command
@@ -290,19 +290,21 @@ func handleBatchCreateUsers(ctx context.Context, store dcb.EventStore, commands 
 		}
 	}
 
-	// Create events for all commands in the batch
-	events := []dcb.InputEvent{}
+	// Create events for all commands in the batch using BatchBuilder
+	batch := dcb.NewBatch()
 	for _, cmd := range commands {
-		events = append(events, dcb.NewInputEvent(
-			"UserCreated",
-			dcb.NewTags("user_id", cmd.UserID, "email", cmd.Email),
-			toJSON(UserCreatedData{
-				UserID:   cmd.UserID,
-				Username: cmd.Username,
-				Email:    cmd.Email,
-			}),
-		))
+		batch.AddEventFromBuilder(
+			dcb.NewEvent("UserCreated").
+				WithTag("user_id", cmd.UserID).
+				WithTag("email", cmd.Email).
+				WithData(UserCreatedData{
+					UserID:   cmd.UserID,
+					Username: cmd.Username,
+					Email:    cmd.Email,
+				}),
+		)
 	}
+	events := batch.Build()
 
 	// Append events atomically for this batch
 	err = store.Append(ctx, events)
@@ -360,8 +362,8 @@ func handleBatchCreateOrders(ctx context.Context, store dcb.EventStore, commands
 		}
 	}
 
-	// Create events for all commands in the batch
-	events := []dcb.InputEvent{}
+	// Create events for all commands in the batch using BatchBuilder
+	batch := dcb.NewBatch()
 	for _, cmd := range commands {
 		// Calculate total for this order
 		total := 0.0
@@ -369,17 +371,19 @@ func handleBatchCreateOrders(ctx context.Context, store dcb.EventStore, commands
 			total += float64(item.Quantity) * item.Price
 		}
 
-		events = append(events, dcb.NewInputEvent(
-			"OrderCreated",
-			dcb.NewTags("order_id", cmd.OrderID, "user_id", cmd.UserID),
-			toJSON(OrderCreatedData{
-				OrderID: cmd.OrderID,
-				UserID:  cmd.UserID,
-				Items:   cmd.Items,
-				Total:   total,
-			}),
-		))
+		batch.AddEventFromBuilder(
+			dcb.NewEvent("OrderCreated").
+				WithTag("order_id", cmd.OrderID).
+				WithTag("user_id", cmd.UserID).
+				WithData(OrderCreatedData{
+					OrderID: cmd.OrderID,
+					UserID:  cmd.UserID,
+					Items:   cmd.Items,
+					Total:   total,
+				}),
+		)
 	}
+	events := batch.Build()
 
 	// Append events atomically for this batch
 	err = store.Append(ctx, events)

@@ -68,7 +68,7 @@ func executeCommand[T any](ctx context.Context, store dcb.EventStore, cmd T, han
 }
 func main() {
 	ctx := context.Background()
-	
+
 	// Setup database
 	pool, store, err := setupDatabase(ctx)
 	if err != nil {
@@ -169,16 +169,15 @@ func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCou
 		return fmt.Errorf("course %s already exists", cmd.CourseID)
 	}
 
-	// Create events for this command
+	// Create events for this command using EventBuilder
 	events := []dcb.InputEvent{
-		dcb.NewInputEvent(
-			"CourseDefined",
-			dcb.NewTags("course_id", cmd.CourseID),
-			mustJSON(map[string]any{
+		dcb.NewEvent("CourseDefined").
+			WithTag("course_id", cmd.CourseID).
+			WithData(map[string]any{
 				"Title":       cmd.Title,
 				"MaxStudents": cmd.MaxStudents,
-			}),
-		),
+			}).
+			Build(),
 	}
 
 	// Append events atomically for this command
@@ -231,16 +230,16 @@ func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd Regist
 		return fmt.Errorf("email %s already exists", cmd.Email)
 	}
 
-	// Create events for this command
+	// Create events for this command using EventBuilder
 	events := []dcb.InputEvent{
-		dcb.NewInputEvent(
-			"StudentRegistered",
-			dcb.NewTags("student_id", cmd.StudentID, "email", cmd.Email),
-			mustJSON(map[string]any{
+		dcb.NewEvent("StudentRegistered").
+			WithTag("student_id", cmd.StudentID).
+			WithTag("email", cmd.Email).
+			WithData(map[string]any{
 				"Name":  cmd.Name,
 				"Email": cmd.Email,
-			}),
-		),
+			}).
+			Build(),
 	}
 
 	// Append events atomically for this command
@@ -373,16 +372,13 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollSt
 		return fmt.Errorf("student %s is already enrolled in 10 courses", cmd.StudentID)
 	}
 
-	// Create events for this command
+	// Create events for this command using EventBuilder
 	events := []dcb.InputEvent{
-		dcb.NewInputEvent(
-			"StudentEnrolled",
-			dcb.NewTags(
-				"course_id", cmd.CourseID,
-				"student_id", cmd.StudentID,
-			),
-			mustJSON(map[string]any{"CourseID": cmd.CourseID, "StudentID": cmd.StudentID}),
-		),
+		dcb.NewEvent("StudentEnrolled").
+			WithTag("course_id", cmd.CourseID).
+			WithTag("student_id", cmd.StudentID).
+			WithData(map[string]any{"CourseID": cmd.CourseID, "StudentID": cmd.StudentID}).
+			Build(),
 	}
 
 	// Append events atomically for this command with optimistic concurrency control
@@ -435,16 +431,13 @@ func handleUnenrollStudent(ctx context.Context, store dcb.EventStore, cmd Unenro
 		return fmt.Errorf("student %s is not enrolled in course %s", cmd.StudentID, cmd.CourseID)
 	}
 
-	// Create events for this command
+	// Create events for this command using EventBuilder
 	events := []dcb.InputEvent{
-		dcb.NewInputEvent(
-			"StudentUnenrolled",
-			dcb.NewTags(
-				"course_id", cmd.CourseID,
-				"student_id", cmd.StudentID,
-			),
-			mustJSON(map[string]any{"CourseID": cmd.CourseID, "StudentID": cmd.StudentID}),
-		),
+		dcb.NewEvent("StudentUnenrolled").
+			WithTag("course_id", cmd.CourseID).
+			WithTag("student_id", cmd.StudentID).
+			WithData(map[string]any{"CourseID": cmd.CourseID, "StudentID": cmd.StudentID}).
+			Build(),
 	}
 
 	// Append events atomically for this command with optimistic concurrency control

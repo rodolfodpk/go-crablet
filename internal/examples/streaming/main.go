@@ -36,14 +36,35 @@ func main() {
 		log.Fatalf("Failed to create event store: %v", err)
 	}
 
-	// Create test events
-	events := []dcb.InputEvent{
-		dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", "user-1"), []byte(`{"name": "Alice"}`)),
-		dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", "user-2"), []byte(`{"name": "Bob"}`)),
-		dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", "user-3"), []byte(`{"name": "Charlie"}`)),
-		dcb.NewInputEvent("UserUpdated", dcb.NewTags("user_id", "user-1"), []byte(`{"name": "Alice Smith"}`)),
-		dcb.NewInputEvent("UserUpdated", dcb.NewTags("user_id", "user-2"), []byte(`{"name": "Bob Johnson"}`)),
-	}
+	// Create test events using EventBuilder and BatchBuilder
+	batch := dcb.NewBatch().
+		AddEventFromBuilder(
+			dcb.NewEvent("UserCreated").
+				WithTag("user_id", "user-1").
+				WithData(map[string]string{"name": "Alice"}),
+		).
+		AddEventFromBuilder(
+			dcb.NewEvent("UserCreated").
+				WithTag("user_id", "user-2").
+				WithData(map[string]string{"name": "Bob"}),
+		).
+		AddEventFromBuilder(
+			dcb.NewEvent("UserCreated").
+				WithTag("user_id", "user-3").
+				WithData(map[string]string{"name": "Charlie"}),
+		).
+		AddEventFromBuilder(
+			dcb.NewEvent("UserUpdated").
+				WithTag("user_id", "user-1").
+				WithData(map[string]string{"name": "Alice Smith"}),
+		).
+		AddEventFromBuilder(
+			dcb.NewEvent("UserUpdated").
+				WithTag("user_id", "user-2").
+				WithData(map[string]string{"name": "Bob Johnson"}),
+		)
+
+	events := batch.Build()
 
 	// Append events
 	err = store.Append(ctx, events)
