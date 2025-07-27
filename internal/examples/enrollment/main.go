@@ -157,8 +157,14 @@ func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCou
 		),
 	}
 
-	// Append events atomically for this command
-	err = store.Append(ctx, events, nil)
+	// Create AppendCondition to ensure course doesn't exist since our projection
+	// This prevents race conditions where multiple course creations could succeed
+	item := dcb.NewQueryItem([]string{"CourseDefined"}, []dcb.Tag{dcb.NewTag("course_id", cmd.CourseID)})
+	query := dcb.NewQueryFromItems(item)
+	appendCondition := dcb.NewAppendCondition(query)
+
+	// Append events atomically with DCB concurrency control
+	err = store.AppendIf(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to create course: %w", err)
 	}
@@ -219,8 +225,14 @@ func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd Regist
 		),
 	}
 
-	// Append events atomically for this command
-	err = store.Append(ctx, events, nil)
+	// Create AppendCondition to ensure student doesn't exist since our projection
+	// This prevents race conditions where multiple student registrations could succeed
+	item := dcb.NewQueryItem([]string{"StudentRegistered"}, []dcb.Tag{dcb.NewTag("student_id", cmd.StudentID)})
+	query := dcb.NewQueryFromItems(item)
+	appendCondition := dcb.NewAppendCondition(query)
+
+	// Append events atomically with DCB concurrency control
+	err = store.AppendIf(ctx, events, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to register student: %w", err)
 	}
@@ -362,7 +374,7 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollSt
 	}
 
 	// Append events atomically for this command with optimistic concurrency control
-	err = store.Append(ctx, events, &appendCond)
+	err = store.AppendIf(ctx, events, appendCond)
 	if err != nil {
 		return fmt.Errorf("failed to enroll student: %w", err)
 	}
@@ -424,7 +436,7 @@ func handleUnenrollStudent(ctx context.Context, store dcb.EventStore, cmd Unenro
 	}
 
 	// Append events atomically for this command with optimistic concurrency control
-	err = store.Append(ctx, events, &appendCond)
+	err = store.AppendIf(ctx, events, appendCond)
 	if err != nil {
 		return fmt.Errorf("failed to unenroll student: %w", err)
 	}

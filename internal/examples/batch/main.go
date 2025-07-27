@@ -165,7 +165,7 @@ func handleCreateUser(ctx context.Context, store dcb.EventStore, cmd CreateUserC
 	}
 
 	// Append events atomically for this command
-	err = store.Append(ctx, events, nil)
+	err = store.Append(ctx, events)
 	if err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
@@ -235,7 +235,7 @@ func handleCreateOrder(ctx context.Context, store dcb.EventStore, cmd CreateOrde
 	}
 
 	// Append events atomically for this command
-	err = store.Append(ctx, events, nil)
+	err = store.Append(ctx, events)
 	if err != nil {
 		return fmt.Errorf("failed to create order: %w", err)
 	}
@@ -305,7 +305,7 @@ func handleBatchCreateUsers(ctx context.Context, store dcb.EventStore, commands 
 	}
 
 	// Append events atomically for this batch
-	err = store.Append(ctx, events, nil)
+	err = store.Append(ctx, events)
 	if err != nil {
 		return fmt.Errorf("failed to batch create users: %w", err)
 	}
@@ -382,7 +382,7 @@ func handleBatchCreateOrders(ctx context.Context, store dcb.EventStore, commands
 	}
 
 	// Append events atomically for this batch
-	err = store.Append(ctx, events, nil)
+	err = store.Append(ctx, events)
 	if err != nil {
 		return fmt.Errorf("failed to batch create orders: %w", err)
 	}

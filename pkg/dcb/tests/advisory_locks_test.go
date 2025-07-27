@@ -37,7 +37,7 @@ var _ = Describe("Advisory Locks", func() {
 				dcb.ToJSON(map[string]string{"amount": "100", "currency": "USD"}))
 
 			// Append events with advisory locks
-			err := store.Append(ctx, []dcb.InputEvent{event1, event2}, nil)
+			err := store.Append(ctx, []dcb.InputEvent{event1, event2})
 			Expect(err).NotTo(HaveOccurred())
 
 			// Verify events were stored (without lock: prefix in tags)
@@ -72,7 +72,7 @@ var _ = Describe("Advisory Locks", func() {
 
 			appendFn := func(event dcb.InputEvent) {
 				<-start
-				err := store.Append(ctx, []dcb.InputEvent{event}, nil)
+				err := store.Append(ctx, []dcb.InputEvent{event})
 				results <- err
 			}
 
@@ -106,7 +106,7 @@ var _ = Describe("Advisory Locks", func() {
 					"max_capacity":  maxCapacity,
 					"current_usage": 0,
 				}))
-			err := store.Append(ctx, []dcb.InputEvent{resourceEvent}, nil)
+			err := store.Append(ctx, []dcb.InputEvent{resourceEvent})
 			Expect(err).NotTo(HaveOccurred())
 
 			// Test 1: Advisory locks WITHOUT AppendCondition - all users should succeed due to serialization
@@ -133,7 +133,7 @@ var _ = Describe("Advisory Locks", func() {
 						}))
 
 					// No AppendCondition - advisory locks serialize access but don't enforce business limits
-					err := store.Append(ctx, []dcb.InputEvent{usageEvent}, nil)
+					err := store.Append(ctx, []dcb.InputEvent{usageEvent})
 					if err != nil {
 						results1 <- fmt.Sprintf("User %d: FAILED - %v", userID, err)
 					} else {
@@ -172,7 +172,7 @@ var _ = Describe("Advisory Locks", func() {
 					"max_capacity":  maxCapacity,
 					"current_usage": 0,
 				}))
-			err = store.Append(ctx, []dcb.InputEvent{resourceEvent2}, nil)
+			err = store.Append(ctx, []dcb.InputEvent{resourceEvent2})
 			Expect(err).NotTo(HaveOccurred())
 
 			// Test 2: Advisory locks WITH AppendCondition - should enforce business limits
@@ -202,7 +202,7 @@ var _ = Describe("Advisory Locks", func() {
 						}))
 
 					// With AppendCondition - advisory locks + DCB concurrency control
-					err := store.Append(ctx, []dcb.InputEvent{usageEvent}, &condition)
+					err := store.AppendIf(ctx, []dcb.InputEvent{usageEvent}, condition)
 					if err != nil {
 						results2 <- fmt.Sprintf("User %d: FAILED - %v", userID, err)
 					} else {
@@ -262,7 +262,7 @@ var _ = Describe("Advisory Locks", func() {
 				dcb.ToJSON(map[string]string{"data": "test"}))
 
 			// Append event
-			err := store.Append(ctx, []dcb.InputEvent{event}, nil)
+			err := store.Append(ctx, []dcb.InputEvent{event})
 			Expect(err).NotTo(HaveOccurred())
 
 			// Query the event

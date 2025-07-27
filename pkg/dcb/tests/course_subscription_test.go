@@ -280,7 +280,7 @@ func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCou
 	}
 
 	condition := dcb.NewAppendCondition(dcb.NewQuery(dcb.NewTags("course_id", cmd.CourseID), "CourseDefined"))
-	err = store.Append(ctx, []dcb.InputEvent{NewCourseDefinedEvent(cmd.CourseID, cmd.Name, cmd.Instructor, cmd.Capacity)}, &condition)
+	err = store.AppendIf(ctx, []dcb.InputEvent{NewCourseDefinedEvent(cmd.CourseID, cmd.Name, cmd.Instructor, cmd.Capacity)}, condition)
 	if err != nil {
 		return fmt.Errorf("failed to create course: %w", err)
 	}
@@ -308,7 +308,7 @@ func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd Regist
 	}
 
 	condition := dcb.NewAppendCondition(dcb.NewQuery(dcb.NewTags("student_id", cmd.StudentID), "StudentRegistered"))
-	err = store.Append(ctx, []dcb.InputEvent{NewStudentRegisteredEvent(cmd.StudentID, cmd.Name, cmd.Email)}, &condition)
+	err = store.AppendIf(ctx, []dcb.InputEvent{NewStudentRegisteredEvent(cmd.StudentID, cmd.Name, cmd.Email)}, condition)
 	if err != nil {
 		return fmt.Errorf("failed to register student: %w", err)
 	}
@@ -393,7 +393,7 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollSt
 	enrollmentQuery := dcb.NewQuery(dcb.NewTags("student_id", cmd.StudentID, "course_id", cmd.CourseID), "StudentEnrolledInCourse")
 	appendCondition := dcb.NewAppendCondition(enrollmentQuery)
 
-	err = store.Append(ctx, []dcb.InputEvent{NewStudentEnrolledEvent(cmd.StudentID, cmd.CourseID, time.Now().Format(time.RFC3339))}, &appendCondition)
+	err = store.AppendIf(ctx, []dcb.InputEvent{NewStudentEnrolledEvent(cmd.StudentID, cmd.CourseID, time.Now().Format(time.RFC3339))}, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to enroll student: %w", err)
 	}
@@ -424,10 +424,10 @@ func handleDropStudent(ctx context.Context, store dcb.EventStore, cmd DropStuden
 
 	// DCB-compliant approach: for drop operations, we don't need FailIfEventsMatch
 	// because we've already verified the student is enrolled through the projection
-	// We only need optimistic locking to ensure no concurrent changes
+	// We only need DCB concurrency control to ensure no concurrent changes
 	appendCondition := dcb.NewAppendCondition(nil) // No need to check for existing events
 
-	err = store.Append(ctx, []dcb.InputEvent{NewStudentDroppedEvent(cmd.StudentID, cmd.CourseID, time.Now().Format(time.RFC3339))}, &appendCondition)
+	err = store.AppendIf(ctx, []dcb.InputEvent{NewStudentDroppedEvent(cmd.StudentID, cmd.CourseID, time.Now().Format(time.RFC3339))}, appendCondition)
 	if err != nil {
 		return fmt.Errorf("failed to drop student: %w", err)
 	}
@@ -467,9 +467,9 @@ func handleChangeCourseCapacity(ctx context.Context, store dcb.EventStore, cmd C
 	// Create capacity change event
 	event := NewCourseCapacityChangedEvent(courseID, newCapacity)
 
-	// Append with optimistic locking using the same query
+	// Append with DCB concurrency control using the same query
 	appendCondition := dcb.NewAppendCondition(dcb.NewQuery(dcb.NewTags("course_id", courseID), "CourseCapacityChanged"))
-	err = store.Append(ctx, []dcb.InputEvent{event}, &appendCondition)
+	err = store.AppendIf(ctx, []dcb.InputEvent{event}, appendCondition)
 	if err != nil {
 		return err
 	}
@@ -945,7 +945,7 @@ var _ = Describe("Course Subscription Domain", func() {
 			Expect(courseState.Capacity).To(Equal(30))
 			Expect(courseState.Exists).To(BeTrue())
 
-			// Test optimistic locking with append condition
+			// Test DCB concurrency control with append condition
 			changeCapacityCmd := ChangeCourseCapacityCommand{
 				CourseID:    "math-101",
 				NewCapacity: 40,

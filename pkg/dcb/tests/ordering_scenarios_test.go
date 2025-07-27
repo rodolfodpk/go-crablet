@@ -38,14 +38,14 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			go func() {
 				defer wg.Done()
 				event := dcb.NewInputEvent("TestEvent", dcb.NewTags("test", "1"), []byte(`{"data": "success"}`))
-				err := store.Append(context.Background(), []dcb.InputEvent{event}, nil)
+				err := store.Append(context.Background(), []dcb.InputEvent{event})
 				if err != nil {
 					errors <- err
 					return
 				}
 				// Read the event to get its position
 				query := dcb.NewQuery(dcb.NewTags("test", "1"), "TestEvent")
-				events, err := store.Query(context.Background(), query, nil)
+				events, err := store.Query(context.Background(), query
 				if err != nil {
 					errors <- err
 					return
@@ -61,7 +61,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 				defer wg.Done()
 				// This will create a gap in the sequence
 				event := dcb.NewInputEvent("TestEvent", dcb.NewTags("test", "2"), []byte(`{"data": "will_rollback"}`))
-				err := store.Append(context.Background(), []dcb.InputEvent{event}, nil)
+				err := store.Append(context.Background(), []dcb.InputEvent{event}
 				if err != nil {
 					// Simulate rollback by not sending result
 					return
@@ -75,14 +75,14 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			go func() {
 				defer wg.Done()
 				event := dcb.NewInputEvent("TestEvent", dcb.NewTags("test", "3"), []byte(`{"data": "success"}`))
-				err := store.Append(context.Background(), []dcb.InputEvent{event}, nil)
+				err := store.Append(context.Background(), []dcb.InputEvent{event}
 				if err != nil {
 					errors <- err
 					return
 				}
 				// Read the event to get its position
 				query := dcb.NewQuery(dcb.NewTags("test", "3"), "TestEvent")
-				events, err := store.Query(context.Background(), query, nil)
+				events, err := store.Query(context.Background(), query
 				if err != nil {
 					errors <- err
 					return
@@ -132,14 +132,14 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 				time.Sleep(100 * time.Millisecond)
 
 				event := dcb.NewInputEvent("SlowEvent", dcb.NewTags("test", "slow"), []byte(`{"data": "slow"}`))
-				err := store.Append(context.Background(), []dcb.InputEvent{event}, nil)
+				err := store.Append(context.Background(), []dcb.InputEvent{event}
 				if err != nil {
 					return
 				}
 
 				// Read the event to get its position and transaction ID
 				query := dcb.NewQuery(dcb.NewTags("test", "slow"), "SlowEvent")
-				events, err := store.Query(context.Background(), query, nil)
+				events, err := store.Query(context.Background(), query
 				if err != nil {
 					return
 				}
@@ -167,14 +167,14 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 				time.Sleep(10 * time.Millisecond)
 
 				event := dcb.NewInputEvent("FastEvent", dcb.NewTags("test", "fast"), []byte(`{"data": "fast"}`))
-				err := store.Append(context.Background(), []dcb.InputEvent{event}, nil)
+				err := store.Append(context.Background(), []dcb.InputEvent{event}
 				if err != nil {
 					return
 				}
 
 				// Read the event to get its position and transaction ID
 				query := dcb.NewQuery(dcb.NewTags("test", "fast"), "FastEvent")
-				events, err := store.Query(context.Background(), query, nil)
+				events, err := store.Query(context.Background(), query
 				if err != nil {
 					return
 				}
@@ -201,14 +201,14 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 				time.Sleep(50 * time.Millisecond)
 
 				event := dcb.NewInputEvent("MediumEvent", dcb.NewTags("test", "medium"), []byte(`{"data": "medium"}`))
-				err := store.Append(context.Background(), []dcb.InputEvent{event}, nil)
+				err := store.Append(context.Background(), []dcb.InputEvent{event}
 				if err != nil {
 					return
 				}
 
 				// Read the event to get its position and transaction ID
 				query := dcb.NewQuery(dcb.NewTags("test", "medium"), "MediumEvent")
-				events, err := store.Query(context.Background(), query, nil)
+				events, err := store.Query(context.Background(), query
 				if err != nil {
 					return
 				}
@@ -300,7 +300,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 
 			// Read events ordered by transaction_id, position
 			query := dcb.NewQuery(dcb.NewTags("test"), "TestEvent")
-			events, err := store.Query(context.Background(), query, nil)
+			events, err := store.Query(context.Background(), query
 			Expect(err).ToNot(HaveOccurred())
 
 			if len(events) < 2 {
@@ -308,12 +308,12 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 				event1 := dcb.NewInputEvent("TestEvent", dcb.NewTags("test", "order1"), []byte(`{"data": "1"}`))
 				event2 := dcb.NewInputEvent("TestEvent", dcb.NewTags("test", "order2"), []byte(`{"data": "2"}`))
 
-				err = store.Append(context.Background(), []dcb.InputEvent{event1}, nil)
+				err = store.Append(context.Background(), []dcb.InputEvent{event1}
 				Expect(err).ToNot(HaveOccurred())
-				err = store.Append(context.Background(), []dcb.InputEvent{event2}, nil)
+				err = store.Append(context.Background(), []dcb.InputEvent{event2}
 				Expect(err).ToNot(HaveOccurred())
 
-				events, err = store.Query(context.Background(), query, nil)
+				events, err = store.Query(context.Background(), query
 				Expect(err).ToNot(HaveOccurred())
 			}
 
@@ -348,14 +348,14 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			event1 := dcb.NewInputEvent("TestEvent", dcb.NewTags("unique", uniqueTag), []byte(`{"data": "1"}`))
 			event2 := dcb.NewInputEvent("TestEvent", dcb.NewTags("unique", uniqueTag), []byte(`{"data": "2"}`))
 
-			err := store.Append(context.Background(), []dcb.InputEvent{event1}, nil)
+			err := store.Append(context.Background(), []dcb.InputEvent{event1}
 			Expect(err).ToNot(HaveOccurred())
-			err = store.Append(context.Background(), []dcb.InputEvent{event2}, nil)
+			err = store.Append(context.Background(), []dcb.InputEvent{event2}
 			Expect(err).ToNot(HaveOccurred())
 
 			// Read the events to get their positions and transaction IDs
 			query := dcb.NewQueryFromItems(dcb.NewQueryItem([]string{"TestEvent"}, dcb.NewTags("unique", uniqueTag)))
-			events, err := store.Query(context.Background(), query, nil)
+			events, err := store.Query(context.Background(), query
 			Expect(err).ToNot(HaveOccurred())
 			Expect(events).To(HaveLen(2))
 
@@ -371,7 +371,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			}
 
 			// Read events after the cursor using ReadStream
-			eventsChan, err := store.QueryStream(context.Background(), query, nil)
+			eventsChan, err := store.QueryStream(context.Background(), query
 			Expect(err).ToNot(HaveOccurred())
 
 			// Collect events after the cursor
@@ -408,12 +408,12 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			}
 
 			// Append all events in a single transaction
-			err := store.Append(context.Background(), events, nil)
+			err := store.Append(context.Background(), events
 			Expect(err).ToNot(HaveOccurred())
 
 			// Read the events back
 			query := dcb.NewQueryFromItems(dcb.NewQueryItem([]string{"MultiEvent"}, dcb.NewTags("unique", uniqueTag)))
-			readEvents, err := store.Query(context.Background(), query, nil)
+			readEvents, err := store.Query(context.Background(), query
 			Expect(err).ToNot(HaveOccurred())
 			Expect(readEvents).To(HaveLen(4))
 
@@ -440,7 +440,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			}
 
 			// Read events after the cursor
-			eventsChan, err := store.QueryStream(context.Background(), query, nil)
+			eventsChan, err := store.QueryStream(context.Background(), query
 			Expect(err).ToNot(HaveOccurred())
 
 			// Collect events after the cursor
@@ -467,7 +467,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			}
 
 			// Read events after the middle cursor
-			eventsChan2, err := store.QueryStream(context.Background(), query, nil)
+			eventsChan2, err := store.QueryStream(context.Background(), query
 			Expect(err).ToNot(HaveOccurred())
 
 			// Collect events after the middle cursor

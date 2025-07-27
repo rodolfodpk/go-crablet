@@ -58,7 +58,7 @@ var _ = Describe("Validation", func() {
 		})
 
 		It("should validate event with nil data", func() {
-			event := NewInputEvent("TestEvent", NewTags("key", "value"), nil)
+			event := NewInputEvent("TestEvent", NewTags("key", "value")
 
 			err := validateEvent(event, 0)
 			Expect(err).To(HaveOccurred())

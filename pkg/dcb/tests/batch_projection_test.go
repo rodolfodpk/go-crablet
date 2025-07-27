@@ -201,7 +201,7 @@ var _ = Describe("Batch Projection", func() {
 				dcb.NewInputEvent("StudentEnrolled", []dcb.Tag{dcb.NewTag("course_id", "c1"), dcb.NewTag("student_id", "s1")}, dcb.ToJSON(map[string]string{"enrolled_at": "2024-01-01"})),
 				dcb.NewInputEvent("StudentEnrolled", []dcb.Tag{dcb.NewTag("course_id", "c1"), dcb.NewTag("student_id", "s2")}, dcb.ToJSON(map[string]string{"enrolled_at": "2024-01-02"})),
 			}
-			err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events)
 			Expect(err).To(BeNil())
 
 			// Define projectors
@@ -248,7 +248,7 @@ var _ = Describe("Batch Projection", func() {
 			events := []dcb.InputEvent{event1, event2}
 
 			// Append events
-			err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events)
 			Expect(err).To(BeNil())
 
 			// Define projectors with different initial states
@@ -292,7 +292,7 @@ var _ = Describe("Batch Projection", func() {
 			events := []dcb.InputEvent{event1, event2}
 
 			// Append events
-			err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events)
 			Expect(err).To(BeNil())
 
 			// Define projector with complex state
@@ -360,7 +360,7 @@ var _ = Describe("Batch Projection", func() {
 			events := []dcb.InputEvent{event1, event2, event3, event4}
 
 			// Append events
-			err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events)
 			Expect(err).To(BeNil())
 
 			// Define projectors with different query types
@@ -411,7 +411,7 @@ var _ = Describe("Batch Projection", func() {
 			}
 
 			// Append events
-			err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events)
 			Expect(err).To(BeNil())
 
 			// Define projector
@@ -440,7 +440,7 @@ var _ = Describe("Batch Projection", func() {
 			dcb.NewInputEvent("EnrollmentStarted", dcb.NewTags("student_id", "123"), dcb.ToJSON(map[string]string{"course": "math"})),
 			dcb.NewInputEvent("EnrollmentCompleted", dcb.NewTags("student_id", "123"), dcb.ToJSON(map[string]string{"course": "math"})),
 		}
-		err := store.Append(ctx, events, nil)
+		err := store.Append(ctx, events)
 		Expect(err).To(BeNil())
 
 		// Create projector
@@ -527,7 +527,7 @@ var _ = Describe("Batch Projection", func() {
 			dcb.NewInputEvent("EnrollmentStarted", dcb.NewTags("student_id", "123"), dcb.ToJSON(map[string]string{"course": "math"})),
 			dcb.NewInputEvent("EnrollmentStarted", dcb.NewTags("student_id", "456"), dcb.ToJSON(map[string]string{"course": "science"})),
 		}
-		err := store.Append(ctx, events, nil)
+		err := store.Append(ctx, events)
 		Expect(err).To(BeNil())
 
 		// Create projectors for different students
@@ -571,7 +571,7 @@ var _ = Describe("Batch Projection", func() {
 			dcb.NewInputEvent("PaymentReceived", dcb.NewTags("student_id", "123"), dcb.ToJSON(map[string]string{"amount": "100"})),
 			dcb.NewInputEvent("EnrollmentCompleted", dcb.NewTags("student_id", "123"), dcb.ToJSON(map[string]string{"course": "math"})),
 		}
-		err := store.Append(ctx, events, nil)
+		err := store.Append(ctx, events)
 		Expect(err).To(BeNil())
 
 		// Create projector with complex state machine

@@ -24,7 +24,7 @@ var _ = Describe("Cursor-based operations", func() {
 			}
 
 			// Append events
-			err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Read first event to get cursor
@@ -59,7 +59,7 @@ var _ = Describe("Cursor-based operations", func() {
 			}
 
 			// Append events
-			err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Read with nil cursor should work like regular Read
@@ -85,7 +85,7 @@ var _ = Describe("Cursor-based operations", func() {
 			}
 
 			// Append events
-			err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Read first event to get cursor
@@ -144,7 +144,7 @@ var _ = Describe("Cursor-based operations", func() {
 			}
 
 			// Append events
-			err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Read first event to get cursor

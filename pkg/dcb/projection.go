@@ -217,7 +217,7 @@ func (es *eventStore) eventMatchesProjector(event Event, projector StateProjecto
 // Project projects state from events matching projectors with optional cursor
 // cursor == nil: project from beginning of stream
 // cursor != nil: project from specified cursor position
-// Returns final aggregated states and append condition for optimistic locking
+// Returns final aggregated states and append condition for DCB concurrency control
 func (es *eventStore) Project(ctx context.Context, projectors []StateProjector, after *Cursor) (map[string]any, AppendCondition, error) {
 	// Validate projectors
 	for _, bp := range projectors {
@@ -357,7 +357,7 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 		}
 	}
 
-	// Build append condition from projector queries for optimistic locking
+	// Build append condition from projector queries for DCB concurrency control
 	appendCondition := es.buildAppendConditionFromQuery(query)
 
 	// Set cursor in append condition if we have events
@@ -462,7 +462,7 @@ func (es *eventStore) projectDecisionModelWithQueryFromCursor(ctx context.Contex
 		}
 	}
 
-	// Build append condition from projector queries for optimistic locking
+	// Build append condition from projector queries for DCB concurrency control
 	appendCondition := es.buildAppendConditionFromQuery(query)
 
 	// Set cursor in append condition if we have events
@@ -578,7 +578,7 @@ func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProje
 			projectorStates[projector.ID] = projector.InitialState
 		}
 
-		// Build AppendCondition from projector queries for optimistic locking (same as Project)
+		// Build AppendCondition from projector queries for DCB concurrency control (same as Project)
 		appendCondition := es.buildAppendConditionFromQuery(query)
 
 		// Track latest cursor (same as Project)

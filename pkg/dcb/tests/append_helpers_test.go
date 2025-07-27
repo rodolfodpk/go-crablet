@@ -40,7 +40,7 @@ var _ = Describe("Append Helpers", func() {
 
 			// Try to append the event - this should fail validation
 			events := []dcb.InputEvent{event}
-			err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("invalid input syntax for type json"))
 		})
@@ -52,7 +52,7 @@ var _ = Describe("Append Helpers", func() {
 
 			// Try to append the event - this should fail validation
 			events := []dcb.InputEvent{event}
-			err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("empty type"))
 		})
@@ -114,7 +114,7 @@ var _ = Describe("Append Helpers", func() {
 			event2 := dcb.NewInputEvent("TestEvent", dcb.NewTags("key", "value2"), dcb.ToJSON(map[string]string{"data": "value2"}))
 			events := []dcb.InputEvent{event1, event2}
 
-			err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -122,7 +122,7 @@ var _ = Describe("Append Helpers", func() {
 			// First append
 			event1 := dcb.NewInputEvent("TestEvent", dcb.NewTags("key", "value"), dcb.ToJSON(map[string]string{"data": "test"}))
 			events1 := []dcb.InputEvent{event1}
-			err := store.Append(ctx, events1, nil)
+			err := store.Append(ctx, events1)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Second append with After condition (using cursor-based approach)
@@ -131,7 +131,7 @@ var _ = Describe("Append Helpers", func() {
 			// Use cursor-based condition that doesn't match the first event
 			query := dcb.NewQuery(dcb.NewTags("key", "different"), "TestEvent")
 			condition := dcb.NewAppendCondition(query)
-			err = store.Append(ctx, events2, &condition)
+			err = store.AppendIf(ctx, events2, condition)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -142,7 +142,7 @@ var _ = Describe("Append Helpers", func() {
 			// Use cursor-based condition for non-existent events
 			query := dcb.NewQuery(dcb.NewTags("non_existent", "value"), "NonExistentEvent")
 			condition := dcb.NewAppendCondition(query)
-			err := store.Append(ctx, events, &condition)
+			err := store.AppendIf(ctx, events, condition)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -151,7 +151,7 @@ var _ = Describe("Append Helpers", func() {
 			events := []dcb.InputEvent{
 				dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", "123"), dcb.ToJSON(map[string]string{"name": "John"})),
 			}
-			err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Second append with FailIfEventsMatch condition
@@ -160,7 +160,7 @@ var _ = Describe("Append Helpers", func() {
 			}
 			query := dcb.NewQuery(dcb.NewTags("user_id", "123"), "UserCreated")
 			condition := dcb.NewAppendCondition(query)
-			err = store.Append(ctx, events2, &condition)
+			err = store.AppendIf(ctx, events2, condition)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("append condition violated"))
 		})
@@ -172,20 +172,20 @@ var _ = Describe("Append Helpers", func() {
 			}
 			query := dcb.NewQuery(dcb.NewTags("user_id", "123"), "UserNameChanged")
 			condition := dcb.NewAppendCondition(query)
-			err := store.Append(ctx, events, &condition)
+			err := store.AppendIf(ctx, events, condition)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Describe("Append validation", func() {
 		It("should validate empty events slice", func() {
-			err := store.Append(ctx, []dcb.InputEvent{}, nil)
+			err := store.Append(ctx, []dcb.InputEvent{})
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("empty"))
 		})
 
 		It("should validate nil events slice", func() {
-			err := store.Append(ctx, nil, nil)
+			err := store.Append(ctx, nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("empty"))
 		})
@@ -197,7 +197,7 @@ var _ = Describe("Append Helpers", func() {
 				events[i] = dcb.NewInputEvent("TestEvent", dcb.NewTags("test", fmt.Sprintf("value%d", i)), dcb.ToJSON(map[string]string{"index": fmt.Sprintf("%d", i)}))
 			}
 
-			err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("exceeds maximum"))
 		})
@@ -209,7 +209,7 @@ var _ = Describe("Append Helpers", func() {
 			events := []dcb.InputEvent{
 				dcb.NewInputEvent("UserCreated", dcb.NewTags("user_id", "123"), dcb.ToJSON(map[string]string{"name": "John"})),
 			}
-			err := store.Append(ctx, events, nil)
+			err := store.Append(ctx, events)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Second append with same condition - should fail
@@ -218,7 +218,7 @@ var _ = Describe("Append Helpers", func() {
 			}
 			query := dcb.NewQuery(dcb.NewTags("user_id", "123"), "UserCreated")
 			condition := dcb.NewAppendCondition(query)
-			err = store.Append(ctx, events2, &condition)
+			err = store.AppendIf(ctx, events2, condition)
 
 			Expect(err).To(HaveOccurred())
 			// Check for specific error type
