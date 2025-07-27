@@ -54,7 +54,7 @@ type CommandHandler interface {
 
 ## Usage Patterns
 
-### Primary: EventStore Pattern
+### EventStore
 
 The EventStore is the primary interface for event sourcing:
 
@@ -82,7 +82,7 @@ events, err := store.Query(ctx, query, nil)  // Query events
 states, err := store.Project(ctx, projectors, nil)  // Project state
 ```
 
-### Optional: CommandExecutor Pattern
+### CommandExecutor
 
 ```go
 // 1. Create EventStore and CommandExecutor
