@@ -60,6 +60,35 @@ sequenceDiagram
     end
 
     Note over Client, Events Table: Command execution complete<br/>Events persisted to database<br/>Command metadata stored for audit
+
+## Database Persistence Example
+
+After successful command execution, the database contains:
+
+### Events Table (Primary Data)
+```sql
+SELECT * FROM events WHERE transaction_id = 123 ORDER BY position;
+```
+
+| type | tags | data | transaction_id | position | occurred_at |
+|------|------|------|----------------|----------|-------------|
+| CourseDefined | {"course_id:CS101"} | {"course_id":"CS101","name":"Math 101","capacity":30} | 123 | 1 | 2024-01-15 10:30:00 |
+| StudentEnrolled | {"student_id:student123","course_id:CS101"} | {"student_id":"student123","course_id":"CS101"} | 123 | 2 | 2024-01-15 10:30:00 |
+
+### Commands Table (Audit Trail)
+```sql
+SELECT * FROM commands WHERE transaction_id = 123;
+```
+
+| transaction_id | type | data | metadata | occurred_at |
+|----------------|------|------|----------|-------------|
+| 123 | EnrollStudent | {"student_id":"student123","course_id":"CS101"} | {"user_id":"user456","session_id":"sess789"} | 2024-01-15 10:30:00 |
+
+**Key Points:**
+- **Same transaction_id**: Both events and command share transaction_id 123
+- **Sequential positions**: Events are ordered by position (1, 2)
+- **Atomic operation**: All data persisted in single transaction
+- **Complete audit trail**: Command metadata preserved for debugging/auditing
 ```
 
 ## Key Components

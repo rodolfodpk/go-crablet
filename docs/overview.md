@@ -184,6 +184,20 @@ err = commandExecutor.ExecuteCommand(ctx, courseCommand, handleDefineCourse, &co
 enrollmentCommand := dcb.NewCommand("EnrollStudent", enrollmentData)
 enrollmentCondition := dcb.FailIfExists("student_id", studentID)
 err = commandExecutor.ExecuteCommand(ctx, enrollmentCommand, handleEnrollStudent, &enrollmentCondition)
+
+// 5. What gets persisted in the database:
+
+// Events table (primary data):
+// | type | tags | data | transaction_id | position | occurred_at |
+// |------|------|------|----------------|----------|-------------|
+// | CourseDefined | {"course_id:CS101"} | {"course_id":"CS101","name":"Math 101","capacity":30} | 123 | 1 | 2024-01-15 10:30:00 |
+// | StudentEnrolled | {"student_id:student123","course_id:CS101"} | {"student_id":"student123","course_id":"CS101"} | 124 | 2 | 2024-01-15 10:31:00 |
+
+// Commands table (audit trail):
+// | transaction_id | type | data | metadata | occurred_at |
+// |----------------|------|------|----------|-------------|
+// | 123 | DefineCourse | {"course_id":"CS101","name":"Math 101","capacity":30} | null | 2024-01-15 10:30:00 |
+// | 124 | EnrollStudent | {"student_id":"student123","course_id":"CS101"} | null | 2024-01-15 10:31:00 |
 ```
 
 ### CommandExecutor with Advisory Locks
