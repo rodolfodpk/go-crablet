@@ -337,10 +337,10 @@ go-crablet primarily uses DCB concurrency control via transaction IDs and append
 
 ```go
 // Simple append (no conditions) - uses default isolation level
-store.Append(ctx, events, nil)
+store.Append(ctx, events)
 
 // Conditional append - uses default isolation level with DCB concurrency control
-store.Append(ctx, events, &condition)
+store.AppendIf(ctx, events, condition)
 ```
 
 ### Optional: Advisory Locks (Experimental)
@@ -370,15 +370,15 @@ go-crablet uses configurable PostgreSQL transaction isolation levels for append 
 
 ```go
 // Simple append (no conditions) - uses default isolation level
-store.Append(ctx, events, nil)
+store.Append(ctx, events)
 
 // Conditional append - uses default isolation level
-store.Append(ctx, events, &condition)
+store.AppendIf(ctx, events, condition)
 ```
 
 **When to use different methods:**
-- **Append (nil condition)**: Fastest, safe for simple appends
-- **Append (with condition)**: Good for conditional appends, prevents phantom reads with DCB concurrency control
+- **Append**: Fastest, safe for simple appends without consistency checks
+- **AppendIf**: Good for conditional appends, prevents phantom reads with DCB concurrency control
 
 The isolation level and other settings can be configured when creating the EventStore via `EventStoreConfig`:
 

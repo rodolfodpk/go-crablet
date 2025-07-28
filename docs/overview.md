@@ -25,7 +25,7 @@ type EventStore interface {
     QueryStream(ctx context.Context, query Query, cursor *Cursor) (<-chan Event, error)
     
     // Append operations
-    Append(ctx context.Context, events []InputEvent, condition *AppendCondition) error
+    Append(ctx context.Context, events []InputEvent) error
     AppendIf(ctx context.Context, events []InputEvent, condition AppendCondition) error
     
     // Projection operations
@@ -78,7 +78,7 @@ condition := dcb.FailIfExists("course_id", "CS101")
 
 // 3. Direct event operations
 err = store.AppendIf(ctx, []dcb.InputEvent{event}, condition)  // Conditional append
-err = store.Append(ctx, events, nil)  // Unconditional append
+err = store.Append(ctx, events)  // Unconditional append
 events, err := store.Query(ctx, query, nil)  // Query events
 states, err := store.Project(ctx, projectors, nil)  // Project state
 ```
