@@ -27,15 +27,15 @@ sequenceDiagram
         CommandExecutor->>Database: Begin transaction
         Note right of Database: Start PostgreSQL transaction<br/>with appropriate isolation level
 
-            CommandExecutor->>CommandExecutor: Execute command logic
-    Note right of CommandExecutor: Calls command handler<br/>Handler applies business logic<br/>Returns []InputEvent
+        CommandExecutor->>CommandExecutor: Execute command logic
+        Note right of CommandExecutor: Calls command handler<br/>Handler applies business logic<br/>Returns []InputEvent
 
-    alt Command Execution Failed
-        CommandExecutor->>Database: Rollback transaction
-        CommandExecutor-->>Client: Return execution error
-    else Command Execution Successful
-        CommandExecutor->>EventStore: Append(events, condition)
-        Note right of EventStore: Validate events<br/>Check MaxBatchSize limit<br/>Apply DCB concurrency control conditions
+        alt Command Execution Failed
+            CommandExecutor->>Database: Rollback transaction
+            CommandExecutor-->>Client: Return execution error
+        else Command Execution Successful
+            CommandExecutor->>EventStore: Append(events, condition)
+            Note right of EventStore: Validate events<br/>Check MaxBatchSize limit<br/>Apply DCB concurrency control conditions
 
             EventStore->>Database: Check append conditions
             Note right of Database: DCB concurrency control:<br/>- Check for conflicting events<br/>- Use transaction_id for ordering<br/>- No advisory locks (optional feature unused)
@@ -60,6 +60,7 @@ sequenceDiagram
     end
 
     Note over Client, Events Table: Command execution complete<br/>Events persisted to database<br/>Command metadata stored for audit
+```
 
 ## Database Persistence Example
 
@@ -89,7 +90,6 @@ SELECT * FROM commands WHERE transaction_id = 123;
 - **Sequential positions**: Events are ordered by position (1, 2)
 - **Atomic operation**: All data persisted in single transaction
 - **Complete audit trail**: Command metadata preserved for debugging/auditing
-```
 
 ## Key Components
 
