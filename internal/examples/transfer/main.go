@@ -99,7 +99,7 @@ func HandleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 	// Project source account state using simplified query
 	fromAccountProjector := dcb.StateProjector{
 		ID:           "fromAccount",
-		Query:        dcb.NewQueryBuilder().WithTagsAndTypes([]string{"AccountOpened", "MoneyTransferred"}, "account_id", cmd.FromAccountID).Build(),
+		Query:        dcb.NewQueryBuilder().WithTypes("AccountOpened", "MoneyTransferred").WithTag("account_id", cmd.FromAccountID).Build(),
 		InitialState: AccountState{},
 		TransitionFn: func(state any, event dcb.Event) any {
 			accountState := state.(AccountState)
@@ -134,7 +134,7 @@ func HandleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 	// Project destination account state using simplified query
 	toAccountProjector := dcb.StateProjector{
 		ID:           "toAccount",
-		Query:        dcb.NewQueryBuilder().WithTagsAndTypes([]string{"AccountOpened", "MoneyTransferred"}, "account_id", cmd.ToAccountID).Build(),
+		Query:        dcb.NewQueryBuilder().WithTypes("AccountOpened", "MoneyTransferred").WithTag("account_id", cmd.ToAccountID).Build(),
 		InitialState: AccountState{},
 		TransitionFn: func(state any, event dcb.Event) any {
 			accountState := state.(AccountState)
