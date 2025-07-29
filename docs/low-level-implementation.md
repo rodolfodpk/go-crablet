@@ -550,4 +550,3 @@ ORDER BY occurred_at DESC;
 ```
 
 This low-level documentation provides the foundation for understanding how go-crablet works internally, enabling developers to optimize, debug, and extend the system effectively. 
-This low-level documentation provides the foundation for understanding how go-crablet works internally, enabling developers to optimize, debug, and extend the system effectively. 
