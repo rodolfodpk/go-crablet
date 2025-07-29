@@ -64,3 +64,4 @@ benchmarks
 command_execution
 internal/web-app/web-app
 
+concurrency_comparison

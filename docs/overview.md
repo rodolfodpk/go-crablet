@@ -1,472 +1,239 @@
-# Overview: Dynamic Consistency Boundary (DCB) in go-crablet
+# go-crablet Overview
 
-go-crablet is a Go library for event sourcing, exploring concepts inspired by the [Dynamic Consistency Boundary (DCB)](https://dcb.events/) pattern.
+A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini's Dynamic Consistency Boundary (DCB) pattern. This library provides both low-level event store operations and high-level command execution patterns.
 
-## Key Concepts
+## Core Concepts
 
-- **Batch Projection**: Project multiple states in one database query
-- **Combined Append Condition**: Use OR-combined queries for DCB concurrency control
-- **Tag-based Queries**: Flexible, cross-entity queries using tags
-- **Streaming**: Process events efficiently for large datasets
-- **Transaction-based Ordering**: Uses PostgreSQL transaction IDs for true event ordering
-- **Atomic Command Execution**: Execute commands with handler-based event generation
-- **Fluent API**: Intuitive interfaces for events, queries, and projections with 50% less boilerplate
+### Event Sourcing
+- **Events**: Immutable records of what happened
+- **Event Store**: Append-only storage for events
+- **Projections**: State reconstruction from events
+- **DCB**: Dynamic Consistency Boundary for concurrency control
 
-## Core Interfaces
+### Key Components
 
-### Primary: EventStore Interface
-
-The EventStore is the main interface for event sourcing operations:
-
+#### 1. EventStore (Core API)
 ```go
 type EventStore interface {
-    // Query operations
-    Query(ctx context.Context, query Query, cursor *Cursor) ([]Event, error)
-    QueryStream(ctx context.Context, query Query, cursor *Cursor) (<-chan Event, error)
-    
-    // Append operations
     Append(ctx context.Context, events []InputEvent) error
     AppendIf(ctx context.Context, events []InputEvent, condition AppendCondition) error
-    
-    // Projection operations
-    Project(ctx context.Context, projectors []StateProjector, cursor *Cursor) (map[string]any, AppendCondition, error)
-    ProjectStream(ctx context.Context, projectors []StateProjector, cursor *Cursor) (<-chan map[string]any, <-chan AppendCondition, error)
-    
-    // Configuration
-    GetConfig() EventStoreConfig
-    GetPool() *pgxpool.Pool
+    Query(ctx context.Context, query Query, after *Cursor) ([]Event, error)
+    QueryStream(ctx context.Context, query Query, after *Cursor) (<-chan Event, error)
+    Project(ctx context.Context, projectors []StateProjector, after *Cursor) (map[string]any, *Cursor, error)
+    ProjectStream(ctx context.Context, projectors []StateProjector, after *Cursor) (<-chan map[string]any, <-chan *Cursor, error)
 }
 ```
 
-### Optional: CommandExecutor Interface
-
-The CommandExecutor provides:
-
+#### 2. CommandExecutor (High-Level API)
 ```go
 type CommandExecutor interface {
     ExecuteCommand(ctx context.Context, command Command, handler CommandHandler, condition *AppendCondition) ([]InputEvent, error)
-    ExecuteCommandWithLocks(ctx context.Context, command Command, handler CommandHandler, locks []string, condition *AppendCondition) ([]InputEvent, error)
-}
-
-type CommandHandler interface {
-    Handle(ctx context.Context, store EventStore, command Command) ([]InputEvent, error)
 }
 ```
 
-## Usage Patterns
+## Architecture
 
-### EventStore
-
-The EventStore is the primary interface for event sourcing:
-
-```go
-// 1. Create EventStore
-store, err := dcb.NewEventStore(ctx, pool)
-
-// 2. Use fluent API for events and queries
-event := dcb.NewEvent("CourseDefined").
-    WithTag("course_id", "CS101").
-    WithData(courseData).
-    Build()
-
-query := dcb.NewQueryBuilder().
-    WithTag("course_id", "CS101").
-    WithType("CourseDefined").
-    Build()
-
-condition := dcb.FailIfExists("course_id", "CS101")
-
-// 3. Direct event operations
-err = store.AppendIf(ctx, []dcb.InputEvent{event}, condition)  // Conditional append
-err = store.Append(ctx, events)  // Unconditional append
-events, err := store.Query(ctx, query, nil)  // Query events
-states, err := store.Project(ctx, projectors, nil)  // Project state
+### EventStore Flow
+```
+Client → EventStore → PostgreSQL
+                ↓
+            Events Table
+            - type, tags, data
+            - transaction_id, position
+            - occurred_at
 ```
 
-### CommandExecutor
+### CommandExecutor Flow
+```
+Client → CommandExecutor → CommandHandler → EventStore → PostgreSQL
+                                    ↓
+                                Events + Commands Tables
+```
+
+## DCB Concurrency Control
+
+DCB (Dynamic Consistency Boundary) provides event-level concurrency control:
 
 ```go
-// 1. Create EventStore and CommandExecutor
-store, err := dcb.NewEventStore(ctx, pool)
-commandExecutor := dcb.NewCommandExecutor(store)
+// Define condition to prevent conflicts
+condition := dcb.NewAppendCondition(
+    dcb.NewQuery(
+        dcb.NewTags("account_id", "123"),
+        "AccountCreated",
+    ),
+)
 
-// 2. Define command types
-type DefineCourseCommand struct {
-    CourseID   string `json:"course_id"`
-    Name       string `json:"name"`
-    Capacity   int    `json:"capacity"`
+// Append with condition - fails if account doesn't exist
+err := store.AppendIf(ctx, events, condition)
+```
+
+**Benefits:**
+- **Fail-fast**: Immediate detection of conflicts
+- **Business rules**: Enforce domain-specific constraints
+- **Performance**: No blocking, no waiting
+- **Scalability**: Works across multiple instances
+
+## Usage Examples
+
+### Simple Event Store Usage
+
+```go
+// Create EventStore
+store, err := dcb.NewEventStore(ctx, "postgres://user:pass@localhost:5432/db")
+if err != nil {
+    log.Fatal(err)
+}
+defer store.Close()
+
+// Create events
+events := []dcb.InputEvent{
+    dcb.NewEvent("UserRegistered").
+        WithTag("user_id", "123").
+        WithData(map[string]any{"name": "John Doe"}).
+        Build(),
 }
 
-type EnrollStudentCommand struct {
-    StudentID string `json:"student_id"`
-    CourseID  string `json:"course_id"`
-}
+// Append events
+err = store.Append(ctx, events)
+```
 
-// 3. Define command handlers
-func handleDefineCourse(ctx context.Context, store dcb.EventStore, cmd dcb.Command) ([]dcb.InputEvent, error) {
-    var data DefineCourseCommand
-    if err := json.Unmarshal(cmd.GetData(), &data); err != nil {
-        return nil, fmt.Errorf("failed to unmarshal command: %w", err)
+### Command Execution
+
+```go
+// Create command
+command := dcb.NewCommand("EnrollStudent", dcb.ToJSON(map[string]any{
+    "student_id": "student123",
+    "course_id": "CS101",
+}), nil)
+
+// Define command handler
+handler := dcb.CommandHandlerFunc(func(ctx context.Context, store dcb.EventStore, cmd dcb.Command) ([]dcb.InputEvent, error) {
+    var data map[string]any
+    json.Unmarshal(cmd.GetData(), &data)
+    
+    // Business logic
+    events := []dcb.InputEvent{
+        dcb.NewEvent("StudentEnrolled").
+            WithTag("student_id", data["student_id"].(string)).
+            WithTag("course_id", data["course_id"].(string)).
+            WithData(map[string]any{"enrolled_at": time.Now()}).
+            Build(),
     }
     
-    // Business logic validation
-    if data.Name == "" {
-        return nil, errors.New("course name required")
-    }
-    if data.Capacity <= 0 {
-        return nil, errors.New("capacity must be positive")
-    }
-    
-    // Create course definition event
-    event := dcb.NewEvent("CourseDefined").
-        WithTag("course_id", data.CourseID).
-        WithData(data).
-        Build()
-    
-    return []dcb.InputEvent{event}, nil
-}
+    return events, nil
+})
 
-func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd dcb.Command) ([]dcb.InputEvent, error) {
-    var data EnrollStudentCommand
-    if err := json.Unmarshal(cmd.GetData(), &data); err != nil {
-        return nil, fmt.Errorf("failed to unmarshal command: %w", err)
-    }
-    
-    // Business logic validation
-    if data.StudentID == "" {
-        return nil, errors.New("student_id required")
-    }
-    if data.CourseID == "" {
-        return nil, errors.New("course_id required")
-    }
-    
-    // Project course and enrollment states
-    projectors := []dcb.StateProjector{
-        dcb.ProjectBoolean("course_exists", "CourseDefined", "course_id", data.CourseID),
-        dcb.ProjectCounter("enrollment_count", "StudentEnrolled", "course_id", data.CourseID),
-        dcb.ProjectBoolean("already_enrolled", "StudentEnrolled", "student_id", data.StudentID),
-    }
-    
-    states, _, err := store.Project(ctx, projectors, nil)
-    if err != nil {
-        return nil, fmt.Errorf("failed to project course state: %w", err)
-    }
-    
-    if !states["course_exists"].(bool) {
-        return nil, fmt.Errorf("course %s does not exist", data.CourseID)
-    }
-    
-    if states["already_enrolled"].(bool) {
-        return nil, fmt.Errorf("student %s already enrolled in course %s", data.StudentID, data.CourseID)
-    }
-    
-    enrollmentCount := states["enrollment_count"].(int)
-    // Assume course capacity is 30 for this example
-    if enrollmentCount >= 30 {
-        return nil, fmt.Errorf("course %s is full (capacity: 30, enrolled: %d)", data.CourseID, enrollmentCount)
-    }
-    
-    // Create enrollment event
-    event := dcb.NewEvent("StudentEnrolled").
-        WithTag("student_id", data.StudentID).
-        WithTag("course_id", data.CourseID).
-        WithData(data).
-        Build()
-    
-    return []dcb.InputEvent{event}, nil
-}
-
-// 4. Execute commands
-courseCommand := dcb.NewCommand("DefineCourse", courseData)
-courseCondition := dcb.FailIfExists("course_id", courseID)
-err = commandExecutor.ExecuteCommand(ctx, courseCommand, handleDefineCourse, &courseCondition)
-
-enrollmentCommand := dcb.NewCommand("EnrollStudent", enrollmentData)
-enrollmentCondition := dcb.FailIfExists("student_id", studentID)
-err = commandExecutor.ExecuteCommand(ctx, enrollmentCommand, handleEnrollStudent, &enrollmentCondition)
-
-// 5. What gets persisted in the database:
-
-// Events table (primary data):
-// | type | tags | data | transaction_id | position | occurred_at |
-// |------|------|------|----------------|----------|-------------|
-// | CourseDefined | {"course_id:CS101"} | {"course_id":"CS101","name":"Math 101","capacity":30} | 123 | 1 | 2024-01-15 10:30:00 |
-// | StudentEnrolled | {"student_id:student123","course_id:CS101"} | {"student_id":"student123","course_id":"CS101"} | 124 | 2 | 2024-01-15 10:31:00 |
-
-// Commands table (audit trail):
-// | transaction_id | type | data | metadata | occurred_at |
-// |----------------|------|------|----------|-------------|
-// | 123 | DefineCourse | {"course_id":"CS101","name":"Math 101","capacity":30} | null | 2024-01-15 10:30:00 |
-// | 124 | EnrollStudent | {"student_id":"student123","course_id":"CS101"} | null | 2024-01-15 10:31:00 |
+// Execute command
+events, err := commandExecutor.ExecuteCommand(ctx, command, handler, nil)
 ```
 
-### CommandExecutor with Advisory Locks
-
-For scenarios requiring resource-level consistency, use `ExecuteCommandWithLocks`:
+### Concurrency Control
 
 ```go
-// Execute command with advisory locks for resource consistency
-locks := []string{"course:CS101", "student:student123"}
-err = commandExecutor.ExecuteCommandWithLocks(ctx, enrollmentCommand, handleEnrollStudent, locks, &enrollmentCondition)
-```
+// Create condition to prevent duplicate enrollment
+enrollmentCondition := dcb.NewAppendCondition(
+    dcb.NewQuery(
+        dcb.NewTags("student_id", "student123", "course_id", "CS101"),
+        "StudentEnrolled",
+    ),
+)
 
-**Key features:**
-- **Advisory locks acquired first**: Locks are acquired at the beginning of the command's transaction
-- **Deadlock prevention**: Locks are sorted and acquired in consistent order
-- **Event validation**: Events generated by the handler must NOT contain `lock:` prefixed tags
-- **Transaction-scoped**: Locks are automatically released on commit/rollback
-- **Consistent projections**: All projections within the command handler see consistent state
-```
-
-### Supporting Types
-
-```go
-type Cursor struct {
-    TransactionID uint64 `json:"transaction_id"`
-    Position      int64  `json:"position"`
-}
-
-type Command interface {
-    GetType() string
-    GetData() []byte
-    GetMetadata() map[string]interface{}
-}
-```
-
-## Concurrency Control
-
-### Primary: DCB Concurrency Control
-- Uses `AppendCondition` to check for existing events before appending
-- Conflict detection: Only one append succeeds when conditions match
-- No blocking: Failed appends return immediately with `ConcurrencyError`
-- Event ordering: Transaction IDs ensure correct, gapless ordering
-
-### Optional: Advisory Locks
-- **Event-level locking**: Add tags with `lock:` prefix (e.g., "lock:user-123") to events
-- **Command-level locking**: Use `ExecuteCommandWithLocks` to acquire locks at the beginning of command execution
-- Automatic acquisition: Database functions acquire locks on these keys before DCB condition checks
-- Deadlock prevention: Locks sorted and acquired in consistent order
-- Transaction-scoped: Automatically released on commit/rollback
-- Performance: 1 I/O operation when used alone, 2 I/O operations when combined with DCB conditions
-- Use case: Resource serialization without complex business logic validation
-
-## Fluent API
-
-The library includes a fluent API for common operations:
-
-### EventBuilder
-```go
-event := dcb.NewEvent("CourseDefined").
-    WithTag("course_id", "CS101").
-    WithTags(map[string]string{
-        "department": "computer_science",
-        "semester": "fall_2024",
-    }).
-    WithData(courseData).
-    Build()
-```
-
-### QueryBuilder
-```go
-query := dcb.NewQueryBuilder().
-    WithTag("course_id", "CS101").
-    WithType("CourseDefined").
-    AddItem().
-    WithTag("course_id", "CS102").
-    WithType("CourseDefined").
-    Build()
-```
-
-### Simplified AppendConditions
-```go
-condition := dcb.FailIfExists("course_id", "CS101")
-condition := dcb.FailIfEventType("CourseDefined", "course_id", "CS101")
-```
-
-### Projection Helpers
-```go
-projector := dcb.ProjectCounter("user_count", "UserRegistered", "status", "active")
-projector := dcb.ProjectBoolean("user_exists", "UserRegistered", "user_id", "123")
-```
-
-### BatchBuilder
-```go
-batch := dcb.NewBatch().
-    AddEvent(event1).
-    AddEvent(event2).
-    AddEventFromBuilder(eventBuilder).
-    Build()
-```
-
-### Convenience Functions
-```go
-// Append single event with tags
-err := dcb.AppendSingleEvent(ctx, store, "UserLogin", map[string]string{
-    "user_id": "123",
-    "ip": "192.168.1.1",
-}, loginData)
-
-// Append single event with condition
-err := dcb.AppendSingleEventIf(ctx, store, "UserProfileUpdated", 
-    map[string]string{"user_id": "123"}, 
-    userData, 
-    dcb.FailIfExists("user_id", "123"))
-```
-
-See the [Quick Start](quick-start.md) and [Examples](../internal/examples/) for complete usage examples.
-
-## Migration from Legacy API
-
-If you're familiar with the legacy API, here's how to migrate to the new fluent API:
-
-### Event Creation
-```go
-// Legacy way
-event := dcb.NewInputEvent("UserRegistered", dcb.NewTags("user_id", "123"), dcb.ToJSON(userData))
-
-// New way
-event := dcb.NewEvent("UserRegistered").
-    WithTag("user_id", "123").
-    WithData(userData).
-    Build()
-```
-
-### Query Building
-```go
-// Legacy way
-query := dcb.NewQuery(dcb.NewTags("user_id", "123"), "UserRegistered")
-
-// New way
-query := dcb.NewQueryBuilder().
-    WithTag("user_id", "123").
-    WithType("UserRegistered").
-    Build()
-```
-
-### Append Conditions
-```go
-// Legacy way
-condition := dcb.NewAppendCondition(dcb.NewQuery(dcb.NewTags("user_id", "123"), "UserRegistered"))
-
-// New way
-condition := dcb.FailIfExists("user_id", "123")
-```
-
-### Projections
-```go
-// Legacy way
-projector := dcb.StateProjector{
-    ID: "user_count",
-    Query: dcb.NewQuery(dcb.NewTags("status", "active"), "UserRegistered"),
-    InitialState: 0,
-    TransitionFn: func(state any, event dcb.Event) any { return state.(int) + 1 },
-}
-
-// New way
-projector := dcb.ProjectCounter("user_count", "UserRegistered", "status", "active")
+// Execute with condition
+events, err := commandExecutor.ExecuteCommand(ctx, enrollmentCommand, handleEnrollStudent, &enrollmentCondition)
 ```
 
 ## Configuration
 
-```go
-type EventStoreConfig struct {
-    MaxBatchSize           int            `json:"max_batch_size"`           // Default: 1000
-    LockTimeout            int            `json:"lock_timeout"`             // Default: 5000ms
-    StreamBuffer           int            `json:"stream_buffer"`            // Default: 1000
-    DefaultAppendIsolation IsolationLevel `json:"default_append_isolation"` // Default: Read Committed
-    QueryTimeout           int            `json:"query_timeout"`            // Default: 15000ms
-    AppendTimeout          int            `json:"append_timeout"`           // Default: 10000ms
-}
-```
-
-## Examples
-
-### EventStore Pattern: Course Subscription
-
-Direct event sourcing approach using the EventStore interface:
+### EventStore Configuration
 
 ```go
-// Define projectors using fluent API
-projectors := []dcb.StateProjector{
-    dcb.ProjectBoolean("courseExists", "CourseDefined", "course_id", courseID),
-    dcb.ProjectCounter("numSubscriptions", "StudentEnrolled", "course_id", courseID),
+config := dcb.EventStoreConfig{
+    MaxBatchSize:           1000,
+    StreamBuffer:           1000,
+    DefaultAppendIsolation: dcb.IsolationLevelReadCommitted,
+    QueryTimeout:           15000, // 15 seconds
+    AppendTimeout:          10000, // 10 seconds
 }
 
-states, appendCond, _ := store.Project(ctx, projectors, nil)
-
-if !states["courseExists"].(bool) {
-    // Create course using fluent API with condition to prevent duplicates
-    courseEvent := dcb.NewEvent("CourseDefined").
-        WithTag("course_id", courseID).
-        WithData(CourseDefined{courseID, 2}).
-        Build()
-    courseCondition := dcb.FailIfExists("course_id", courseID)
-    store.AppendIf(ctx, []dcb.InputEvent{courseEvent}, courseCondition)
-}
-
-if states["numSubscriptions"].(int) < 2 {
-    // Enroll student using fluent API with condition
-    enrollmentEvent := dcb.NewEvent("StudentEnrolled").
-        WithTag("student_id", studentID).
-        WithTag("course_id", courseID).
-        WithData(StudentEnrolled{studentID, courseID}).
-        Build()
-    store.AppendIf(ctx, []dcb.InputEvent{enrollmentEvent}, appendCond)
-}
+store, err := dcb.NewEventStoreWithConfig(ctx, pool, config)
 ```
 
-### CommandExecutor Pattern: User Registration
+### Database Schema
 
-Using the CommandExecutor interface:
+```sql
+-- Events table (primary data)
+CREATE TABLE events (
+    type VARCHAR(64) NOT NULL,
+    tags TEXT[] NOT NULL,
+    data JSON NOT NULL,
+    transaction_id xid8 NOT NULL,
+    position BIGSERIAL NOT NULL PRIMARY KEY,
+    occurred_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
-```go
-// Define command type
-type RegisterUserCommand struct {
-    UserID string `json:"user_id"`
-    Email  string `json:"email"`
-    Name   string `json:"name"`
-}
-
-// Define command handler for user registration
-func handleRegisterUser(ctx context.Context, store dcb.EventStore, cmd dcb.Command) ([]dcb.InputEvent, error) {
-    var data RegisterUserCommand
-    if err := json.Unmarshal(cmd.GetData(), &data); err != nil {
-        return nil, fmt.Errorf("failed to unmarshal command: %w", err)
-    }
-    
-    // Business logic validation
-    if data.Email == "" {
-        return nil, errors.New("email required")
-    }
-    if data.Name == "" {
-        return nil, errors.New("name required")
-    }
-    if data.UserID == "" {
-        return nil, errors.New("user_id required")
-    }
-    
-    // Create user registration event
-    event := dcb.NewEvent("UserRegistered").
-        WithTag("user_id", data.UserID).
-        WithTag("email", data.Email).
-        WithData(data).
-        Build()
-    
-    return []dcb.InputEvent{event}, nil
-}
-
-// Execute command with condition
-command := dcb.NewCommand("RegisterUser", commandData)
-condition := dcb.FailIfExists("email", userEmail)
-err = commandExecutor.ExecuteCommand(ctx, command, handleRegisterUser, &condition)
+-- Commands table (metadata for CommandExecutor)
+CREATE TABLE commands (
+    transaction_id xid8 NOT NULL PRIMARY KEY,
+    type VARCHAR(64) NOT NULL,
+    data JSONB NOT NULL,
+    metadata JSONB,
+    occurred_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
-## Performance
+## Performance Characteristics
 
-See [benchmarks documentation](benchmarks.md) for detailed performance analysis.
+### EventStore Performance
+- **Append**: ~1,000 ops/s (simple append)
+- **AppendIf**: ~800 ops/s (with DCB conditions)
+- **Query**: ~2,000 ops/s (tag-based filtering)
+- **Project**: ~500 ops/s (state reconstruction)
 
-## Table Validation
+### Memory Usage
+- **Low overhead**: ~6KB per operation
+- **Efficient batching**: Up to 1,000 events per batch
+- **Streaming support**: Memory-efficient for large datasets
 
-The library validates that the `events` table exists and has the correct structure:
-- Required columns: `type`, `tags`, `data`, `transaction_id`, `position`, `occurred_at`
-- Returns `TableStructureError` with detailed validation failure information
+## Best Practices
+
+### 1. Event Design
+- Use descriptive event types
+- Include relevant tags for querying
+- Keep data JSON-serializable
+- Avoid large event payloads
+
+### 2. Concurrency Control
+- Use DCB conditions for business rules
+- Design idempotent operations
+- Handle concurrency errors gracefully
+
+### 3. Performance
+- Batch events when possible
+- Use streaming for large datasets
+- Optimize tag-based queries
+- Monitor transaction sizes
+
+### 4. Error Handling
+- Check for concurrency errors
+- Validate events before appending
+- Handle database connection issues
+- Implement retry logic for transient failures
+
+## Getting Started
+
+1. **Install**: `go get github.com/rodolfodpk/go-crablet`
+2. **Setup Database**: Use provided Docker Compose or PostgreSQL
+3. **Create EventStore**: Use `dcb.NewEventStore()` or `dcb.NewEventStoreWithConfig()`
+4. **Start Appending**: Use `store.Append()` or `store.AppendIf()`
+
+## Documentation
+
+- [Quick Start](docs/quick-start.md): Get started in minutes
+- [EventStore Flow](docs/eventstore-flow.md): Direct event operations
+- [Command Execution Flow](docs/command-execution-flow.md): High-level command pattern
+- [Low-Level Implementation](docs/low-level-implementation.md): Database schema and internals
+- [Testing](docs/testing.md): Comprehensive testing guide
+- [Benchmarks](docs/benchmarks.md): Performance analysis
+- [Examples](docs/examples.md): Complete usage examples
+
+This library provides a solid foundation for event sourcing with DCB concurrency control, suitable for both simple event logging and complex business applications.

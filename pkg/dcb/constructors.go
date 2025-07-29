@@ -26,7 +26,6 @@ func NewEventStore(ctx context.Context, pool *pgxpool.Pool) (EventStore, error) 
 
 	config := EventStoreConfig{
 		MaxBatchSize:           1000,
-		LockTimeout:            5000,
 		StreamBuffer:           1000,
 		DefaultAppendIsolation: IsolationLevelReadCommitted,
 		QueryTimeout:           15000, // 15 seconds default
@@ -56,7 +55,6 @@ func NewEventStoreWithConfig(ctx context.Context, pool *pgxpool.Pool, config Eve
 func NewEventStoreFromPool(pool *pgxpool.Pool) EventStore {
 	cfg := EventStoreConfig{
 		MaxBatchSize:           1000,
-		LockTimeout:            5000,
 		StreamBuffer:           1000,
 		DefaultAppendIsolation: IsolationLevelReadCommitted,
 		QueryTimeout:           15000, // 15 seconds default

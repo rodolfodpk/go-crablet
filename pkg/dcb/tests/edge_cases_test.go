@@ -153,13 +153,11 @@ var _ = Describe("Interface Type Guards and Edge Cases", func() {
 		It("should handle zero values in config", func() {
 			config := dcb.EventStoreConfig{
 				MaxBatchSize:           0,
-				LockTimeout:            0,
 				StreamBuffer:           0,
 				DefaultAppendIsolation: dcb.IsolationLevelReadCommitted,
 				QueryTimeout:           0,
 			}
 			Expect(config.MaxBatchSize).To(Equal(0))
-			Expect(config.LockTimeout).To(Equal(0))
 			Expect(config.StreamBuffer).To(Equal(0))
 			Expect(config.QueryTimeout).To(Equal(0))
 		})
@@ -167,13 +165,11 @@ var _ = Describe("Interface Type Guards and Edge Cases", func() {
 		It("should handle extreme values in config", func() {
 			config := dcb.EventStoreConfig{
 				MaxBatchSize:           999999,
-				LockTimeout:            999999,
 				StreamBuffer:           999999,
 				DefaultAppendIsolation: dcb.IsolationLevelSerializable,
 				QueryTimeout:           999999,
 			}
 			Expect(config.MaxBatchSize).To(Equal(999999))
-			Expect(config.LockTimeout).To(Equal(999999))
 			Expect(config.StreamBuffer).To(Equal(999999))
 			Expect(config.QueryTimeout).To(Equal(999999))
 		})
@@ -181,7 +177,6 @@ var _ = Describe("Interface Type Guards and Edge Cases", func() {
 		It("should create EventStore with custom config using NewEventStoreFromPoolWithConfig", func() {
 			customConfig := dcb.EventStoreConfig{
 				MaxBatchSize:           500,
-				LockTimeout:            3000,
 				StreamBuffer:           500,
 				DefaultAppendIsolation: dcb.IsolationLevelRepeatableRead,
 				QueryTimeout:           8000,
@@ -195,7 +190,6 @@ var _ = Describe("Interface Type Guards and Edge Cases", func() {
 			// Verify the config was applied correctly
 			retrievedConfig := customStore.GetConfig()
 			Expect(retrievedConfig.MaxBatchSize).To(Equal(500))
-			Expect(retrievedConfig.LockTimeout).To(Equal(3000))
 			Expect(retrievedConfig.StreamBuffer).To(Equal(500))
 			Expect(retrievedConfig.DefaultAppendIsolation).To(Equal(dcb.IsolationLevelRepeatableRead))
 			Expect(retrievedConfig.QueryTimeout).To(Equal(8000))

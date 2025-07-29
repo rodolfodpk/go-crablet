@@ -42,7 +42,7 @@ var _ = Describe("Append Helpers", func() {
 			events := []dcb.InputEvent{event}
 			err := store.Append(ctx, events)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("invalid input syntax for type json"))
+			Expect(err.Error()).To(ContainSubstring("invalid JSON data"))
 		})
 
 		It("should validate empty event type", func() {
@@ -103,7 +103,7 @@ var _ = Describe("Append Helpers", func() {
 			events := []dcb.InputEvent{event}
 			err := store.Append(ctx, events)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("invalid input syntax for type json"))
+			Expect(err.Error()).To(ContainSubstring("invalid JSON data"))
 		})
 
 		It("should validate empty event type with EventBuilder", func() {

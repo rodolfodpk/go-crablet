@@ -1,51 +1,355 @@
 # Getting Started
 
-If you're new to Go and want to run the examples, follow these essential steps:
+This guide will help you set up and start using go-crablet for event sourcing with DCB concurrency control.
 
 ## Prerequisites
 
-1. **Install Go** (1.24.5+): Download from [golang.org](https://golang.org/dl/)
-2. **Install Docker**: Download from [docker.com](https://docker.com/get-started/)
-3. **Install Git**: Download from [git-scm.com](https://git-scm.com/)
+- **Go 1.21+**: Required for the latest Go features
+- **PostgreSQL 15+**: Database for event storage
+- **Docker**: For running PostgreSQL locally (optional)
 
-## Quick Start
+## Quick Setup
 
-1. **Clone the repository:**
+### 1. Install go-crablet
+
+```bash
+go get github.com/rodolfodpk/go-crablet
+```
+
+### 2. Start PostgreSQL
+
+Using Docker Compose (recommended):
+
+```bash
+# Clone the repository
+git clone https://github.com/rodolfodpk/go-crablet.git
+cd go-crablet
+
+# Start PostgreSQL with Docker Compose
+docker-compose up -d
+
+# Wait for database to be ready
+sleep 5
+```
+
+Or using a local PostgreSQL instance:
+
+```bash
+# Create database
+createdb crablet
+
+# Run schema setup
+psql -d crablet -f docker-entrypoint-initdb.d/schema.sql
+```
+
+### 3. Run Examples
+
+```bash
+# Simple event store usage
+go run internal/examples/transfer/main.go
+
+# Command execution with concurrency control
+go run internal/examples/concurrency_comparison/main.go
+
+# Complex decision model
+go run internal/examples/decision_model/main.go
+```
+
+## Basic Usage
+
+### 1. Create EventStore
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+    
+    "github.com/rodolfodpk/go-crablet/pkg/dcb"
+)
+
+func main() {
+    ctx := context.Background()
+    
+    // Create EventStore
+    store, err := dcb.NewEventStore(ctx, "postgres://user:pass@localhost:5432/crablet")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer store.Close()
+    
+    // Your event sourcing code here...
+}
+```
+
+### 2. Append Events
+
+```go
+// Create events
+events := []dcb.InputEvent{
+    dcb.NewEvent("UserRegistered").
+        WithTag("user_id", "123").
+        WithData(map[string]any{
+            "name": "John Doe",
+            "email": "john@example.com",
+        }).
+        Build(),
+}
+
+// Simple append (no consistency checks)
+err = store.Append(ctx, events)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+### 3. Use DCB Concurrency Control
+
+```go
+// Create condition to prevent conflicts
+condition := dcb.NewAppendCondition(
+    dcb.NewQuery(
+        dcb.NewTags("user_id", "123"),
+        "UserRegistered",
+    ),
+)
+
+// Append with condition (fails if user already exists)
+err = store.AppendIf(ctx, events, condition)
+if err != nil {
+    if dcb.IsConcurrencyError(err) {
+        log.Println("User already exists")
+    } else {
+        log.Fatal(err)
+    }
+}
+```
+
+### 4. Query Events
+
+```go
+// Query events by tags
+query := dcb.NewQuery(
+    dcb.NewTags("user_id", "123"),
+)
+
+events, err := store.Query(ctx, query, nil)
+if err != nil {
+    log.Fatal(err)
+}
+
+log.Printf("Found %d events for user 123", len(events))
+```
+
+### 5. Project State
+
+```go
+// Define state projector
+projector := dcb.StateProjector{
+    ID: "UserState",
+    Query: dcb.NewQuery(
+        dcb.NewTags("user_id", "123"),
+    ),
+    InitialState: map[string]any{
+        "name": "",
+        "email": "",
+        "registered": false,
+    },
+    TransitionFn: func(state any, event dcb.Event) any {
+        currentState := state.(map[string]any)
+        switch event.GetType() {
+        case "UserRegistered":
+            var data map[string]any
+            json.Unmarshal(event.GetData(), &data)
+            currentState["name"] = data["name"]
+            currentState["email"] = data["email"]
+            currentState["registered"] = true
+        }
+        return currentState
+    },
+}
+
+// Execute projection
+finalState, cursor, err := store.Project(ctx, []dcb.StateProjector{projector}, nil)
+if err != nil {
+    log.Fatal(err)
+}
+
+userState := finalState["UserState"].(map[string]any)
+log.Printf("User: %s (%s)", userState["name"], userState["email"])
+```
+
+## Command Execution
+
+### 1. Create CommandExecutor
+
+```go
+commandExecutor := dcb.NewCommandExecutor(store)
+```
+
+### 2. Define Command Handler
+
+```go
+func handleRegisterUser(ctx context.Context, store dcb.EventStore, cmd dcb.Command) ([]dcb.InputEvent, error) {
+    var data map[string]any
+    json.Unmarshal(cmd.GetData(), &data)
+    
+    // Business logic validation
+    if data["email"] == "" {
+        return nil, errors.New("email required")
+    }
+    
+    // Create event
+    event := dcb.NewEvent("UserRegistered").
+        WithTag("user_id", data["user_id"].(string)).
+        WithData(data).
+        Build()
+    
+    return []dcb.InputEvent{event}, nil
+}
+```
+
+### 3. Execute Command
+
+```go
+// Create command
+command := dcb.NewCommand("RegisterUser", dcb.ToJSON(map[string]any{
+    "user_id": "123",
+    "name": "John Doe",
+    "email": "john@example.com",
+}), nil)
+
+// Execute command
+events, err := commandExecutor.ExecuteCommand(ctx, command, handleRegisterUser, nil)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+## Configuration
+
+### EventStore Configuration
+
+```go
+config := dcb.EventStoreConfig{
+    MaxBatchSize:           1000,
+    StreamBuffer:           1000,
+    DefaultAppendIsolation: dcb.IsolationLevelReadCommitted,
+    QueryTimeout:           15000, // 15 seconds
+    AppendTimeout:          10000, // 10 seconds
+}
+
+store, err := dcb.NewEventStoreWithConfig(ctx, pool, config)
+```
+
+### Connection Pool Configuration
+
+```go
+pool, err := pgxpool.New(ctx, "postgres://user:pass@localhost:5432/crablet")
+if err != nil {
+    log.Fatal(err)
+}
+defer pool.Close()
+
+// Configure pool
+pool.Config().MaxConns = 20
+pool.Config().MinConns = 5
+```
+
+## Examples
+
+The `internal/examples/` directory contains complete, runnable examples:
+
+- **`internal/examples/transfer/`** - Money transfer system with DCB concurrency control
+- **`internal/examples/concurrency_comparison/`** - Concert ticket booking comparing DCB concurrency control
+- **`internal/examples/decision_model/`** - Complex decision model with multiple projectors
+- **`internal/examples/batch/`** - Batch event processing examples
+
+Run any example with: `go run internal/examples/[example-name]/main.go`
+
+## Testing
+
+### Run Tests
+
+```bash
+# Run all tests
+make test
+
+# Run tests with coverage
+make test-coverage
+
+# Run specific test package
+go test -v ./pkg/dcb/tests/...
+```
+
+### Run Benchmarks
+
+```bash
+# Run Go library benchmarks
+make benchmark-go
+
+# Run web app benchmarks
+make benchmark-web-app
+
+# Run all benchmarks
+make benchmark-all
+```
+
+## Next Steps
+
+1. **Read the Documentation**:
+   - [Overview](docs/overview.md): Core concepts and architecture
+   - [EventStore Flow](docs/eventstore-flow.md): Direct event operations
+   - [Command Execution Flow](docs/command-execution-flow.md): High-level command pattern
+   - [Examples](docs/examples.md): Complete usage examples
+
+2. **Explore Examples**:
+   - Start with `internal/examples/transfer/` for basic usage
+   - Try `internal/examples/concurrency_comparison/` for DCB concurrency control
+   - Check `internal/examples/decision_model/` for complex scenarios
+
+3. **Run Benchmarks**:
+   - Use `make benchmark-go` to test performance
+   - Check `docs/benchmarks.md` for detailed results
+
+4. **Production Setup**:
+   - Configure connection pooling
+   - Set up monitoring and alerting
+   - Implement proper error handling
+   - Consider backup and recovery strategies
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Database Connection**:
    ```bash
-   git clone https://github.com/rodolfodpk/go-crablet.git
-   cd go-crablet
+   # Check if PostgreSQL is running
+   docker-compose ps
+   
+   # Check connection
+   psql -h localhost -p 5432 -U postgres -d crablet
    ```
 
-2. **Start PostgreSQL database:**
+2. **Schema Issues**:
    ```bash
+   # Recreate database
+   docker-compose down
    docker-compose up -d
    ```
 
-3. **Run an example:**
+3. **Test Failures**:
    ```bash
-   go run internal/examples/decision_model/main.go
+   # Clean and rebuild
+   go clean -cache
+   go test ./...
    ```
 
-## Available Examples
+### Getting Help
 
-All examples are located in `internal/examples/` and demonstrate different aspects of the DCB pattern:
+- **Issues**: Create an issue on GitHub
+- **Discussions**: Use GitHub Discussions
+- **Documentation**: Check the docs/ directory
 
-- `internal/examples/decision_model/main.go` - Exploring Dynamic Consistency Boundary concepts
-- `internal/examples/enrollment/main.go` - Course enrollment with business rules
-- `internal/examples/transfer/main.go` - Money transfer between accounts
-- `internal/examples/streaming/main.go` - Event streaming basics
-- `internal/examples/batch/main.go` - Multiple events in single append calls
-- `internal/examples/concurrency_comparison/main.go` - Concert ticket booking comparing DCB concurrency control vs PostgreSQL advisory locks
-- `internal/examples/utils/main.go` - Utility functions and helpers
-
-### Running Examples with Parameters
-
-Some examples support command-line parameters for testing different scenarios:
-
-```bash
-# Ticket booking example with custom parameters
-go run internal/examples/concurrency_comparison/main.go -users 50 -seats 30 -tickets 1
-
-# Show help for available options
-go run internal/examples/concurrency_comparison/main.go -h
-```
+This getting started guide provides the foundation for using go-crablet. Explore the examples and documentation to learn more about advanced features and best practices.

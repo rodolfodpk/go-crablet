@@ -38,7 +38,7 @@ sequenceDiagram
             Note right of EventStore: Validate events<br/>Check MaxBatchSize limit<br/>Apply DCB concurrency control conditions
 
             EventStore->>Database: Check append conditions
-            Note right of Database: DCB concurrency control:<br/>- Check for conflicting events<br/>- Use transaction_id for ordering<br/>- No advisory locks (optional feature unused)
+            Note right of Database: DCB concurrency control:<br/>- Check for conflicting events<br/>- Use transaction_id for ordering
 
             alt Condition Check Failed
                 EventStore->>Database: Rollback transaction
@@ -122,7 +122,7 @@ type Command interface {
 ### 4. Database Operations
 - **Transaction Management**: Ensures atomicity
 - **DCB Concurrency Control**: Primary mechanism using transaction IDs and append conditions (not classic optimistic locking)
-- **Advisory Locks**: Optional feature via `lock:` prefixed tags (fully implemented)
+
 - **Event Storage**: Persists events with metadata
 - **Command Tracking**: Stores command execution history (separate from EventStore)
 
@@ -132,8 +132,7 @@ type Command interface {
 2. **Transaction Start**: Begin database transaction with appropriate isolation
 3. **Command Execution**: Execute command handler to apply business logic and generate events
 4. **Event Validation**: Check event batch size and structure
-5. **Advisory Lock Acquisition**: If events have `lock:` tags, acquire PostgreSQL advisory locks first
-6. **DCB Condition Check**: Apply concurrency control via append conditions (both advisory locks and DCB checks occur when lock tags are present)
+5. **DCB Condition Check**: Apply concurrency control via append conditions
 6. **Event Persistence**: Insert events into events table
 7. **Command Tracking**: Store command metadata in commands table (separate from EventStore)
 8. **Transaction Commit**: Commit all changes atomically
@@ -154,7 +153,7 @@ type Command interface {
 - **Error Recovery**: Automatic rollback on failures
 - **Performance**: Optimized for typical event sourcing workloads
 - **Simplicity**: No complex locking mechanisms - pure DCB approach
-- **Experimental Advisory Locks**: PostgreSQL advisory lock support exists as an experimental, optional feature (not enabled by default)
+
 
 ## Example Usage
 
@@ -178,4 +177,4 @@ This flow ensures reliable command execution with full audit trail and proper er
 ## References
 
 - [Ordering in Postgres Outbox: Why Transaction IDs Matter](https://event-driven.io/en/ordering_in_postgres_outbox/)
-- PostgreSQL advisory lock support in go-crablet is fully implemented and optional; when `lock:` tags are present, advisory locks are acquired FIRST, then DCB concurrency checks are performed. Both mechanisms work together for comprehensive concurrency control.
+

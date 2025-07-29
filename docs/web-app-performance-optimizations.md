@@ -194,31 +194,7 @@ srv := &http.Server{
 
 **Expected Improvement**: Better resource utilization and connection handling
 
-### 6. **Optimize Lock Tag Detection**
 
-**Current Code**:
-```go
-useAdvisoryLocks := hasLockTags(inputEvents)
-```
-
-**Optimized Approach**:
-```go
-// Check for lock tags more efficiently during conversion
-useAdvisoryLocks := false
-for _, event := range inputEvents {
-    for _, tag := range event.GetTags() {
-        if strings.HasPrefix(tag.GetKey(), "lock:") {
-            useAdvisoryLocks = true
-            break
-        }
-    }
-    if useAdvisoryLocks {
-        break
-    }
-}
-```
-
-**Expected Improvement**: Eliminates extra iteration over events
 
 ## Implementation Priority
 
@@ -229,7 +205,6 @@ for _, event := range inputEvents {
 
 ### Phase 2: Medium Impact, Medium Risk
 4. **JSON Processing Optimization** - Requires request structure changes
-5. **Lock Tag Detection** - Minor code refactoring
 
 ### Phase 3: High Impact, Higher Risk
 6. **Response Caching** - Requires careful cache invalidation logic

@@ -115,14 +115,3 @@ func BenchmarkAppendHighFrequency_Tiny(b *testing.B) {
 	benchCtx := SetupBenchmarkContext(b, "tiny")
 	BenchmarkAppendHighFrequency(b, benchCtx, 50)
 }
-
-// Advisory locks with DCB benchmarks (matching web-app scenarios)
-func BenchmarkAppendAdvisoryLocksWithDCB_Small(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small")
-	BenchmarkAppendAdvisoryLocksWithDCB(b, benchCtx, 10)
-}
-
-func BenchmarkAppendAdvisoryLocksWithDCB_Tiny(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "tiny")
-	BenchmarkAppendAdvisoryLocksWithDCB(b, benchCtx, 10)
-}

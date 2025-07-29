@@ -23,7 +23,7 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 
 ## 📊 Performance
 
-- **[Benchmarks](docs/benchmarks.md)**: Comprehensive performance analysis including Go library, HTTP API, and advisory locks
+- **[Benchmarks](docs/benchmarks.md)**: Comprehensive performance analysis including Go library and HTTP API
 - **[Performance Comparison](docs/performance-comparison.md)**: Go library vs web-app performance analysis and recommendations
 - **[Performance Analysis](docs/performance-improvements.md)**: Technical optimizations and I/O operation analysis
 
@@ -48,7 +48,7 @@ Ready-to-run examples demonstrating different aspects of the DCB pattern:
 - **[Streaming](internal/examples/streaming/main.go)**: Event streaming and projection approaches
 - **[Decision Model](internal/examples/decision_model/main.go)**: DCB decision model with multiple projectors
 - **[Multiple Events](internal/examples/batch/main.go)**: Multiple events in single append calls
-- **[Concurrency Comparison](internal/examples/concurrency_comparison/main.go)**: Concert ticket booking comparing DCB concurrency control vs PostgreSQL advisory locks with performance metrics
+- **[Concurrency Comparison](internal/examples/concurrency_comparison/main.go)**: Concert ticket booking comparing DCB concurrency control with performance metrics
 
 Run any example with: `go run internal/examples/[example-name]/main.go`
 

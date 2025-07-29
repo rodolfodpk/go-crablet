@@ -292,15 +292,30 @@ export function setup() {
         throw new Error(`Cleanup failed: status ${cleanupRes.status}`);
     }
 
-    // Test 5: Load test data from SQLite cache
+    // Test 5: Get test data directly from SQLite (fast) instead of HTTP conversion (slow)
     const datasetSize = __ENV.DATASET_SIZE || 'tiny';
-    const loadDataRes = http.post(`${BASE_URL}/load-test-data?size=${datasetSize}`, null, params);
-    if (loadDataRes.status !== 200) {
-        throw new Error(`Load test data failed: status ${loadDataRes.status} body: ${loadDataRes.body}`);
+    
+    // Option A: Use direct SQLite endpoint (47% faster than PostgreSQL conversion)
+    const testDataRes = http.get(`${BASE_URL}/read-test-data?size=${datasetSize}`, params);
+    if (testDataRes.status !== 200) {
+        throw new Error(`Test data access failed: status ${testDataRes.status} body: ${testDataRes.body}`);
     }
 
-    const loadData = JSON.parse(loadDataRes.body);
-    console.log(`📊 Test data loaded: ${loadData.courses} courses, ${loadData.students} students, ${loadData.enrollments} enrollments`);
+    const testData = JSON.parse(testDataRes.body);
+    console.log(`📊 Test data loaded directly from SQLite: ${testData.courses.length} courses, ${testData.students.length} students, ${testData.enrollments.length} enrollments`);
+    console.log(`⚡ Data source: ${testData.source} (${testData.source === 'sqlite_cache' ? 'fast' : 'slow'})`);
+
+    // Only load into PostgreSQL if specifically testing DCB functionality
+    if (__ENV.TEST_DCB === 'true') {
+        console.log('🔄 Loading test data into PostgreSQL for DCB testing...');
+        const loadDataRes = http.post(`${BASE_URL}/load-test-data?size=${datasetSize}`, null, params);
+        if (loadDataRes.status !== 200) {
+            throw new Error(`Load test data failed: status ${loadDataRes.status} body: ${loadDataRes.body}`);
+        }
+        console.log('✅ Test data loaded into PostgreSQL for DCB operations');
+    } else {
+        console.log('🚀 Using direct SQLite access - skipping PostgreSQL conversion');
+    }
 
     // Test 6: Create conditional test event for failure scenarios
     const conditionalTestEvent = {
@@ -315,6 +330,9 @@ export function setup() {
     }
 
     console.log('✅ Basic functionality validated - proceeding with append benchmark');
+    
+    // Return test data for use in benchmark
+    return { testData };
 }
 
 // Teardown function

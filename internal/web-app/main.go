@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/rodolfodpk/go-crablet/internal/benchmarks/setup"
@@ -123,7 +122,6 @@ func main() {
 	// Create event stores for each isolation level
 	storeReadCommitted, err := dcb.NewEventStoreWithConfig(ctx, pool, dcb.EventStoreConfig{
 		MaxBatchSize:           1000,
-		LockTimeout:            5000,
 		StreamBuffer:           1000,
 		DefaultAppendIsolation: dcb.IsolationLevelReadCommitted,
 	})
@@ -133,7 +131,6 @@ func main() {
 
 	storeRepeatableRead, err := dcb.NewEventStoreWithConfig(ctx, pool, dcb.EventStoreConfig{
 		MaxBatchSize:           1000,
-		LockTimeout:            5000,
 		StreamBuffer:           1000,
 		DefaultAppendIsolation: dcb.IsolationLevelRepeatableRead,
 	})
@@ -143,7 +140,6 @@ func main() {
 
 	storeSerializable, err := dcb.NewEventStoreWithConfig(ctx, pool, dcb.EventStoreConfig{
 		MaxBatchSize:           1000,
-		LockTimeout:            5000,
 		StreamBuffer:           1000,
 		DefaultAppendIsolation: dcb.IsolationLevelSerializable,
 	})
@@ -202,15 +198,73 @@ func main() {
 		log.Printf("Database cleaned up successfully")
 	})
 
-	http.HandleFunc("/load-test-data", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
+	// Smart test data endpoint - automatically chooses best data source
+	http.HandleFunc("/smart-test-data", func(w http.ResponseWriter, r *http.Request) {
+		datasetSize := r.URL.Query().Get("size")
+		if datasetSize == "" {
+			datasetSize = "tiny"
+		}
+
+		// Check if we need DCB functionality
+		useDCB := r.URL.Query().Get("dcb") == "true"
+
+		if useDCB {
+			// Use PostgreSQL for DCB operations
+			log.Printf("🔄 Using PostgreSQL for DCB operations: %s dataset", datasetSize)
+
+			// Load into PostgreSQL if not already loaded
+			if err := loadTestDataIfNeeded(ctx, pool, datasetSize); err != nil {
+				http.Error(w, fmt.Sprintf("Failed to load test data: %v", err), http.StatusInternalServerError)
+				return
+			}
+
+			response := map[string]interface{}{
+				"success":      true,
+				"dataset_size": datasetSize,
+				"source":       "postgresql_dcb",
+				"message":      "Data loaded into PostgreSQL for DCB operations",
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(response)
+
+		} else {
+			// Use SQLite for fast data access
+			log.Printf("⚡ Using SQLite for fast data access: %s dataset", datasetSize)
+
+			// Initialize cache if needed
+			if err := setup.InitGlobalCache(); err != nil {
+				http.Error(w, fmt.Sprintf("Failed to initialize cache: %v", err), http.StatusInternalServerError)
+				return
+			}
+
+			// Get dataset from SQLite cache
+			config := getDatasetConfig(datasetSize)
+			dataset, err := setup.GetCachedDataset(config)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("Failed to get cached dataset: %v", err), http.StatusInternalServerError)
+				return
+			}
+
+			response := map[string]interface{}{
+				"success":      true,
+				"dataset_size": datasetSize,
+				"courses":      dataset.Courses,
+				"students":     dataset.Students,
+				"enrollments":  dataset.Enrollments,
+				"source":       "sqlite_fast",
+				"message":      "Data served directly from SQLite cache",
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Cache-Control", "public, max-age=3600") // Cache for 1 hour
+			json.NewEncoder(w).Encode(response)
+		}
+	})
+
+	http.HandleFunc("/benchmark-data", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-
-		// Add timeout to load test data context
-		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-		defer cancel()
 
 		// Get dataset size from query parameter
 		datasetSize := r.URL.Query().Get("size")
@@ -232,7 +286,7 @@ func main() {
 			return
 		}
 
-		// Get dataset from cache (or generate if not cached)
+		// Get dataset directly from SQLite cache (no PostgreSQL conversion)
 		dataset, err := setup.GetCachedDataset(config)
 		if err != nil {
 			log.Printf("Failed to get cached dataset: %v", err)
@@ -240,27 +294,177 @@ func main() {
 			return
 		}
 
-		// Load dataset into PostgreSQL
-		if err := setup.LoadDatasetIntoStore(ctx, server.storeReadCommitted, dataset); err != nil {
-			log.Printf("Failed to load dataset into store: %v", err)
-			http.Error(w, fmt.Sprintf("Failed to load dataset into store: %v", err), http.StatusInternalServerError)
-			return
-		}
-
+		// Return benchmark-optimized data structure
 		response := map[string]interface{}{
-			"success": true,
-			"message": fmt.Sprintf("Test data loaded successfully: %d courses, %d students, %d enrollments",
-				len(dataset.Courses), len(dataset.Students), len(dataset.Enrollments)),
-			"dataset_size": datasetSize,
-			"courses":      len(dataset.Courses),
-			"students":     len(dataset.Students),
-			"enrollments":  len(dataset.Enrollments),
+			"success":       true,
+			"dataset_size":  datasetSize,
+			"courses":       dataset.Courses,
+			"students":      dataset.Students,
+			"enrollments":   dataset.Enrollments,
+			"source":        "sqlite_cache",
+			"optimized_for": "benchmarks",
+			"cache_headers": map[string]string{
+				"cache_control": "public, max-age=3600",
+				"etag":          fmt.Sprintf("dataset-%s-%d", datasetSize, len(dataset.Courses)),
+			},
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Cache-Control", "public, max-age=3600") // Cache for 1 hour since data is immutable
+		w.Header().Set("ETag", fmt.Sprintf("dataset-%s-%d", datasetSize, len(dataset.Courses)))
 		json.NewEncoder(w).Encode(response)
-		log.Printf("Test data loaded successfully: %s dataset", datasetSize)
+		log.Printf("Benchmark data served directly from SQLite cache: %s dataset", datasetSize)
+	})
+
+	http.HandleFunc("/query-test-data", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Get dataset size from query parameter
+		datasetSize := r.URL.Query().Get("size")
+		if datasetSize == "" {
+			datasetSize = "tiny" // Default to tiny dataset
+		}
+
+		// Validate dataset size
+		config, exists := setup.DatasetSizes[datasetSize]
+		if !exists {
+			http.Error(w, fmt.Sprintf("Invalid dataset size: %s. Available: tiny, small", datasetSize), http.StatusBadRequest)
+			return
+		}
+
+		// Initialize SQLite cache
+		if err := setup.InitGlobalCache(); err != nil {
+			log.Printf("Failed to initialize cache: %v", err)
+			http.Error(w, fmt.Sprintf("Failed to initialize cache: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Get dataset directly from SQLite cache
+		dataset, err := setup.GetCachedDataset(config)
+		if err != nil {
+			log.Printf("Failed to get cached dataset: %v", err)
+			http.Error(w, fmt.Sprintf("Failed to get cached dataset: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Get query parameters for filtering
+		category := r.URL.Query().Get("category")
+		major := r.URL.Query().Get("major")
+		courseID := r.URL.Query().Get("course_id")
+		studentID := r.URL.Query().Get("student_id")
+
+		// Filter data based on query parameters
+		var filteredCourses []setup.CourseData
+		var filteredStudents []setup.StudentData
+		var filteredEnrollments []setup.EnrollmentData
+
+		// Filter courses
+		if category != "" {
+			for _, course := range dataset.Courses {
+				if course.Category == category {
+					filteredCourses = append(filteredCourses, course)
+				}
+			}
+		} else {
+			filteredCourses = dataset.Courses
+		}
+
+		// Filter students
+		if major != "" {
+			for _, student := range dataset.Students {
+				if student.Major == major {
+					filteredStudents = append(filteredStudents, student)
+				}
+			}
+		} else {
+			filteredStudents = dataset.Students
+		}
+
+		// Filter enrollments
+		if courseID != "" || studentID != "" {
+			for _, enrollment := range dataset.Enrollments {
+				if (courseID == "" || enrollment.CourseID == courseID) &&
+					(studentID == "" || enrollment.StudentID == studentID) {
+					filteredEnrollments = append(filteredEnrollments, enrollment)
+				}
+			}
+		} else {
+			filteredEnrollments = dataset.Enrollments
+		}
+
+		// Return filtered data
+		response := map[string]interface{}{
+			"success":      true,
+			"dataset_size": datasetSize,
+			"courses":      filteredCourses,
+			"students":     filteredStudents,
+			"enrollments":  filteredEnrollments,
+			"filters": map[string]string{
+				"category":   category,
+				"major":      major,
+				"course_id":  courseID,
+				"student_id": studentID,
+			},
+			"source": "sqlite_cache",
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "public, max-age=3600") // Cache for 1 hour since data is immutable
+		json.NewEncoder(w).Encode(response)
+		log.Printf("Filtered test data served from SQLite cache: %s dataset", datasetSize)
+	})
+
+	http.HandleFunc("/read-test-data", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Get dataset size from query parameter
+		datasetSize := r.URL.Query().Get("size")
+		if datasetSize == "" {
+			datasetSize = "tiny" // Default to tiny dataset
+		}
+
+		// Validate dataset size
+		config, exists := setup.DatasetSizes[datasetSize]
+		if !exists {
+			http.Error(w, fmt.Sprintf("Invalid dataset size: %s. Available: tiny, small", datasetSize), http.StatusBadRequest)
+			return
+		}
+
+		// Initialize SQLite cache
+		if err := setup.InitGlobalCache(); err != nil {
+			log.Printf("Failed to initialize cache: %v", err)
+			http.Error(w, fmt.Sprintf("Failed to initialize cache: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Get dataset directly from SQLite cache (no PostgreSQL conversion)
+		dataset, err := setup.GetCachedDataset(config)
+		if err != nil {
+			log.Printf("Failed to get cached dataset: %v", err)
+			http.Error(w, fmt.Sprintf("Failed to get cached dataset: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Return structured data directly from SQLite
+		response := map[string]interface{}{
+			"success":      true,
+			"dataset_size": datasetSize,
+			"courses":      dataset.Courses,
+			"students":     dataset.Students,
+			"enrollments":  dataset.Enrollments,
+			"source":       "sqlite_cache",
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "public, max-age=3600") // Cache for 1 hour since data is immutable
+		json.NewEncoder(w).Encode(response)
+		log.Printf("Test data served directly from SQLite cache: %s dataset", datasetSize)
 	})
 
 	http.HandleFunc("/read", server.handleRead)
@@ -588,14 +792,6 @@ func (s *Server) validateAppendRequest(w http.ResponseWriter, r *http.Request) (
 
 // executeAppend performs the actual append operation based on conditions
 func (s *Server) executeAppend(ctx context.Context, inputEvents []dcb.InputEvent, condition dcb.AppendCondition, r *http.Request) error {
-	// Check if any events have lock: tags to determine if we should use advisory locks
-	useAdvisoryLocks := hasLockTags(inputEvents)
-
-	if useAdvisoryLocks {
-		// Use advisory lock function when lock: tags are present
-		return s.appendWithAdvisoryLocks(ctx, inputEvents, condition)
-	}
-
 	// Use standard append methods
 	isolation := r.Header.Get("X-Append-If-Isolation")
 	var store dcb.EventStore
@@ -753,76 +949,6 @@ func (s *Server) handleProject(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// hasLockTags checks if any events have tags starting with "lock:"
-func hasLockTags(events []dcb.InputEvent) bool {
-	for _, event := range events {
-		for _, tag := range event.GetTags() {
-			if strings.HasPrefix(tag.GetKey(), "lock:") {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// appendWithAdvisoryLocks calls the PostgreSQL advisory lock function directly
-func (s *Server) appendWithAdvisoryLocks(ctx context.Context, events []dcb.InputEvent, condition dcb.AppendCondition) error {
-	// Prepare data for the function
-	types := make([]string, len(events))
-	tags := make([]string, len(events))
-	data := make([][]byte, len(events))
-
-	for i, event := range events {
-		types[i] = event.GetType()
-		tags[i] = encodeTagsArrayLiteral(event.GetTags())
-		data[i] = event.GetData()
-	}
-
-	// Convert condition to JSON
-	var conditionJSON []byte
-	var err error
-	if condition != nil {
-		conditionJSON, err = json.Marshal(condition)
-		if err != nil {
-			return fmt.Errorf("failed to marshal condition: %w", err)
-		}
-	}
-
-	// Get lock timeout from EventStore config
-	lockTimeout := s.storeReadCommitted.GetConfig().LockTimeout // Assuming a default or common lock timeout
-
-	// Call the advisory lock function directly with timeout
-	var result []byte
-	err = s.pool.QueryRow(ctx, `
-		SELECT append_events_with_advisory_locks($1, $2, $3, $4, $5)
-	`, types, tags, data, conditionJSON, lockTimeout).Scan(&result)
-
-	if err != nil {
-		return fmt.Errorf("failed to append events with advisory locks: %w", err)
-	}
-
-	// Check result for conditional append
-	if condition != nil && len(result) > 0 {
-		var resultMap map[string]interface{}
-		if err := json.Unmarshal(result, &resultMap); err != nil {
-			return fmt.Errorf("failed to parse advisory lock result: %w", err)
-		}
-
-		// Check if the operation was successful
-		if success, ok := resultMap["success"].(bool); !ok || !success {
-			// This is a concurrency violation
-			return &dcb.ConcurrencyError{
-				EventStoreError: dcb.EventStoreError{
-					Op:  "append",
-					Err: fmt.Errorf("append condition violated: %v", resultMap["message"]),
-				},
-			}
-		}
-	}
-
-	return nil
-}
-
 // encodeTagsArrayLiteral converts tags to PostgreSQL array literal format
 func encodeTagsArrayLiteral(tags []dcb.Tag) string {
 	result := "{"
@@ -834,4 +960,45 @@ func encodeTagsArrayLiteral(tags []dcb.Tag) string {
 	}
 	result += "}"
 	return result
+}
+
+// loadTestDataIfNeeded loads test data into PostgreSQL if not already loaded
+func loadTestDataIfNeeded(ctx context.Context, pool *pgxpool.Pool, datasetSize string) error {
+	// Get dataset configuration
+	config := getDatasetConfig(datasetSize)
+
+	// Initialize cache if needed
+	if err := setup.InitGlobalCache(); err != nil {
+		return fmt.Errorf("failed to initialize cache: %v", err)
+	}
+
+	// Get dataset from SQLite cache
+	dataset, err := setup.GetCachedDataset(config)
+	if err != nil {
+		return fmt.Errorf("failed to get cached dataset: %v", err)
+	}
+
+	// Create EventStore for loading data
+	store, err := dcb.NewEventStore(ctx, pool)
+	if err != nil {
+		return fmt.Errorf("failed to create event store: %v", err)
+	}
+
+	// Load dataset into PostgreSQL
+	if err := setup.LoadDatasetIntoStore(ctx, store, dataset); err != nil {
+		return fmt.Errorf("failed to load dataset into store: %v", err)
+	}
+
+	log.Printf("Test data loaded successfully: %s dataset", datasetSize)
+	return nil
+}
+
+// getDatasetConfig returns the dataset configuration for the given size
+func getDatasetConfig(datasetSize string) setup.DatasetConfig {
+	config, exists := setup.DatasetSizes[datasetSize]
+	if !exists {
+		// Default to tiny if size is invalid
+		return setup.DatasetSizes["tiny"]
+	}
+	return config
 }

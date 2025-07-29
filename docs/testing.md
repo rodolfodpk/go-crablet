@@ -64,13 +64,12 @@ go test ./pkg/dcb/tests/... -v -run "Batch"
 ### Run Concurrency Tests
 ```bash
 # Run all concurrency-related tests
-go test ./pkg/dcb/tests/concurrency_test.go ./pkg/dcb/tests/advisory_locks_test.go ./pkg/dcb/tests/setup_test.go -v
+go test ./pkg/dcb/tests/concurrency_test.go ./pkg/dcb/tests/setup_test.go -v
 
 # Run DCB concurrency control tests only
 go test ./pkg/dcb/tests/... -v -run "Concurrency.*DCB"
 
-# Run advisory locks tests only
-go test ./pkg/dcb/tests/... -v -run "Advisory.*Lock"
+
 
 # Run the concurrency comparison example
 go run internal/examples/concurrency_comparison/main.go -users 50 -seats 30
@@ -144,18 +143,16 @@ Test complete workflows:
 Test concurrent operations and race conditions:
 - Multiple concurrent appends with DCB concurrency control
 - Concurrent projections
-- Advisory locks vs DCB concurrency control comparison
+
 - N-user concurrent scenarios (10+ users) to demonstrate real-world concurrency
 
 **Key Test Files:**
 - `concurrency_test.go` - Tests DCB concurrency control with N concurrent users
-- `advisory_locks_test.go` - Tests advisory locks with and without AppendCondition
-- `concurrency_comparison/main.go` - Performance comparison between DCB and advisory locks
+
+- `concurrency_comparison/main.go` - Performance demonstration of DCB concurrency control
 
 **Test Scenarios:**
 - **DCB Concurrency Control**: Uses `AppendCondition` to enforce business rules
-- **Advisory Locks**: Serialize access but don't enforce business limits without conditions
-- **Both Combined**: Serialize access AND enforce business rules
 - **N-User Testing**: Demonstrates real concurrent scenarios (10+ users) instead of just 2
 
 ## Example Demonstrations
@@ -189,7 +186,7 @@ go run internal/examples/transfer/main.go
 ```
 
 ### Concurrency Comparison Example
-The concurrency comparison example demonstrates performance differences between DCB concurrency control and advisory locks:
+The concurrency comparison example demonstrates DCB concurrency control performance:
 
 **Usage:**
 ```bash
@@ -198,15 +195,11 @@ go run internal/examples/concurrency_comparison/main.go
 
 # Run with custom settings
 go run internal/examples/concurrency_comparison/main.go -users 50 -seats 30 -tickets 1
-
-# Test only advisory locks
-go run internal/examples/concurrency_comparison/main.go -advisory-locks -users 50 -seats 30
 ```
 
 **What It Tests:**
 - **DCB Concurrency Control**: Uses `AppendCondition` to enforce business rules
-- **Advisory Locks**: Serialize access but don't enforce business limits without conditions
-- **Performance Comparison**: Benchmarks both approaches with timing and throughput metrics
+- **Performance Metrics**: Benchmarks timing and throughput metrics
 - **Real-world Scenarios**: Concert ticket booking with limited seats
 
 ## Test Data Management
