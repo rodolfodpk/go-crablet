@@ -109,50 +109,9 @@ END;
 $$ LANGUAGE plpgsql;
 ```
 
-#### 2. `append_events_with_condition()` - Conditional Append
 
-```sql
-CREATE OR REPLACE FUNCTION append_events_with_condition(
-    p_types TEXT[],
-    p_tags TEXT[], -- array of Postgres array literals as strings
-    p_data JSONB[],
-    p_condition JSONB DEFAULT NULL
-) RETURNS JSONB AS $$
-DECLARE
-    fail_if_events_match JSONB;
-    after_cursor JSONB;
-    condition_result JSONB;
-BEGIN
-    -- Extract condition parameters
-    IF p_condition IS NOT NULL THEN
-        fail_if_events_match := p_condition->'fail_if_events_match';
-        IF p_condition->'after_cursor' IS NOT NULL AND p_condition->'after_cursor' != 'null' THEN
-            after_cursor := p_condition->'after_cursor';
-        END IF;
-    END IF;
-    
-    -- Check append conditions first
-    condition_result := check_append_condition(fail_if_events_match, after_cursor);
-    
-    -- If conditions failed, return the failure status
-    IF (condition_result->>'success')::boolean = false THEN
-        RETURN condition_result;
-    END IF;
-    
-    -- If conditions pass, insert events using UNNEST for all cases
-    PERFORM append_events_batch(p_types, p_tags, p_data);
-    
-    -- Return success status
-    RETURN jsonb_build_object(
-        'success', true,
-        'message', 'events appended successfully',
-        'events_count', array_length(p_types, 1)
-    );
-END;
-$$ LANGUAGE plpgsql;
-```
 
-#### 3. `append_events_with_condition()` - Conditional Append with DCB
+#### 2. `append_events_with_condition()` - Conditional Append with DCB
 
 ```sql
 CREATE OR REPLACE FUNCTION append_events_with_condition(
