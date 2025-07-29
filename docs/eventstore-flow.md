@@ -88,19 +88,13 @@ err := store.Append(ctx, events)
 ### Conditional Append (DCB Concurrency Control)
 
 ```go
-// Define append condition
-condition := dcb.AppendCondition{
-    AfterCursor: &dcb.Cursor{
-        TransactionID: 123,
-        Position:      5,
-    },
-    FailIfEventsMatch: &dcb.Query{
-        Tags: []dcb.Tag{
-            {Key: "course_id", Value: "CS101"},
-            {Key: "student_id", Value: "student123"},
-        },
-    },
-}
+// Define append condition using helper functions
+condition := dcb.NewAppendCondition(
+    dcb.NewQuery(
+        dcb.NewTags("course_id", "CS101", "student_id", "student123"),
+        "StudentEnrolled",
+    ),
+)
 
 // Append with condition
 err := store.AppendIf(ctx, events, condition)
@@ -114,10 +108,10 @@ err := store.AppendIf(ctx, events, condition)
 5. **Insert events** - Batch insert with `append_events_with_condition()`
 6. **Commit transaction** - All events become visible atomically
 
-### Advisory Lock Append (Experimental)
+### Advisory Lock Append (Automatic)
 
 ```go
-// Events with lock tags
+// Events with lock tags - advisory locks are handled automatically
 events := []dcb.InputEvent{
     dcb.NewEvent("AccountDebited").
         WithTag("account_id", "acc-001").
@@ -128,17 +122,17 @@ events := []dcb.InputEvent{
         Build(),
 }
 
-// Append with advisory locks
-err := store.AppendWithLocks(ctx, events, nil)
+// Append with advisory locks (automatic when lock: tags present)
+err := store.Append(ctx, events) // or store.AppendIf(ctx, events, condition)
 ```
 
 **Flow:**
 1. **Validate events** - Check event structure and constraints
 2. **Begin transaction** - Start PostgreSQL transaction
-3. **Acquire advisory locks** - Lock resources using `lock:` tags
+3. **Acquire advisory locks** - Lock resources using `lock:` tags (automatic)
 4. **Check conditions** - If specified, verify no conflicts
 5. **Generate transaction ID** - Use `pg_current_xact_id()`
-6. **Insert events** - Batch insert with `append_events_with_advisory_locks()`
+6. **Insert events** - Batch insert with appropriate SQL function
 7. **Commit transaction** - Locks released, events become visible
 
 ## Event Query Flow
@@ -146,12 +140,11 @@ err := store.AppendWithLocks(ctx, events, nil)
 ### Batch Query
 
 ```go
-// Define query
-query := dcb.Query{
-    Tags: []dcb.Tag{
-        {Key: "course_id", Value: "CS101"},
-    },
-}
+// Define query using helper functions
+query := dcb.NewQuery(
+    dcb.NewTags("course_id", "CS101"),
+    "CourseCreated",
+)
 
 // Execute batch query
 events, err := store.Query(ctx, query, nil)
@@ -192,20 +185,25 @@ for event := range eventChan {
 ```go
 // Define state projector
 projector := dcb.StateProjector{
-    Name: "CourseEnrollment",
-    Tags: []dcb.Tag{{Key: "course_id", Value: "CS101"}},
+    ID: "CourseEnrollment",
+    Query: dcb.NewQuery(
+        dcb.NewTags("course_id", "CS101"),
+    ),
     InitialState: map[string]interface{}{
         "enrolled_students": []string{},
         "capacity": 30,
     },
-    Apply: func(state map[string]interface{}, event dcb.Event) map[string]interface{} {
+    TransitionFn: func(state any, event dcb.Event) any {
+        currentState := state.(map[string]interface{})
         switch event.GetType() {
         case "StudentEnrolled":
-            students := state["enrolled_students"].([]string)
-            studentID := event.GetData()["student_id"].(string)
-            state["enrolled_students"] = append(students, studentID)
+            students := currentState["enrolled_students"].([]string)
+            var eventData map[string]interface{}
+            json.Unmarshal(event.GetData(), &eventData)
+            studentID := eventData["student_id"].(string)
+            currentState["enrolled_students"] = append(students, studentID)
         }
-        return state
+        return currentState
     },
 }
 
@@ -275,6 +273,13 @@ Unlike the CommandExecutor flow, direct EventStore operations do **not** use the
 ### Simple Course Management
 
 ```go
+import (
+    "context"
+    "encoding/json"
+    "fmt"
+    "time"
+)
+
 func main() {
     ctx := context.Background()
     
@@ -318,9 +323,9 @@ func main() {
     }
     
     // Query course events
-    query := dcb.Query{
-        Tags: []dcb.Tag{{Key: "course_id", Value: "CS101"}},
-    }
+    query := dcb.NewQuery(
+        dcb.NewTags("course_id", "CS101"),
+    )
     
     events, err := store.Query(ctx, query, nil)
     if err != nil {
@@ -331,24 +336,30 @@ func main() {
     
     // Project course state
     projector := dcb.StateProjector{
-        Name: "CourseState",
-        Tags: []dcb.Tag{{Key: "course_id", Value: "CS101"}},
+        ID: "CourseState",
+        Query: dcb.NewQuery(
+            dcb.NewTags("course_id", "CS101"),
+        ),
         InitialState: map[string]interface{}{
             "name": "",
             "capacity": 0,
             "enrolled_students": []string{},
         },
-        Apply: func(state map[string]interface{}, event dcb.Event) map[string]interface{} {
+        TransitionFn: func(state any, event dcb.Event) any {
+            currentState := state.(map[string]interface{})
+            var eventData map[string]interface{}
+            json.Unmarshal(event.GetData(), &eventData)
+            
             switch event.GetType() {
             case "CourseCreated":
-                state["name"] = event.GetData()["name"]
-                state["capacity"] = event.GetData()["capacity"]
+                currentState["name"] = eventData["name"]
+                currentState["capacity"] = eventData["capacity"]
             case "StudentEnrolled":
-                students := state["enrolled_students"].([]string)
-                studentID := event.GetData()["student_id"].(string)
-                state["enrolled_students"] = append(students, studentID)
+                students := currentState["enrolled_students"].([]string)
+                studentID := eventData["student_id"].(string)
+                currentState["enrolled_students"] = append(students, studentID)
             }
-            return state
+            return currentState
         },
     }
     
@@ -365,14 +376,12 @@ func main() {
 
 ```go
 // Check if student is already enrolled before enrolling
-condition := dcb.AppendCondition{
-    FailIfEventsMatch: &dcb.Query{
-        Tags: []dcb.Tag{
-            {Key: "course_id", Value: "CS101"},
-            {Key: "student_id", Value: "student123"},
-        },
-    },
-}
+condition := dcb.NewAppendCondition(
+    dcb.NewQuery(
+        dcb.NewTags("course_id", "CS101", "student_id", "student123"),
+        "StudentEnrolled",
+    ),
+)
 
 enrollmentEvents := []dcb.InputEvent{
     dcb.NewEvent("StudentEnrolled").
