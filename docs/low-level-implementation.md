@@ -369,7 +369,7 @@ const (
 1. **Begin Transaction**: Start with specified isolation level
 2. **Acquire Locks**: If advisory locks are needed
 3. **Validate Conditions**: Check append conditions
-4. **Generate Transaction ID**: Update sequences table
+4. **Generate Transaction ID**: Use PostgreSQL's built-in `pg_current_xact_id()`
 5. **Insert Events**: Batch insert all events
 6. **Insert Command**: Store command for audit trail
 7. **Commit**: All changes become visible
