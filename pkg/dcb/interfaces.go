@@ -204,6 +204,7 @@ type EventStoreConfig struct {
 // This is an optional convenience API for command-driven event generation
 type CommandExecutor interface {
 	ExecuteCommand(ctx context.Context, command Command, handler CommandHandler, condition *AppendCondition) ([]InputEvent, error)
+	ExecuteCommandWithLocks(ctx context.Context, command Command, handler CommandHandler, locks []string, condition *AppendCondition) ([]InputEvent, error)
 }
 
 // CommandHandler handles command execution and generates events

@@ -70,7 +70,7 @@ func main() {
         Build()
 
     // Append event (simple, no conditions)
-    err = store.Append(ctx, []dcb.InputEvent{event}, nil)
+    err = store.Append(ctx, []dcb.InputEvent{event})
     if err != nil {
         log.Fatal(err)
     }

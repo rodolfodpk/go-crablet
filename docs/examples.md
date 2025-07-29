@@ -157,7 +157,102 @@ func main() {
     if err != nil {
         panic(err)
     }
+    
+    // What gets persisted in the database:
+    
+    // Events table (primary data):
+    // | type | tags | data | transaction_id | position | occurred_at |
+    // |------|------|------|----------------|----------|-------------|
+    // | StudentSubscribed | {"student_id:s1","course_id:c1"} | {"student_id":"s1","course_id":"c1"} | 123 | 1 | 2024-01-15 10:30:00 |
+    
+    // Commands table (audit trail):
+    // | transaction_id | type | data | metadata | occurred_at |
+    // |----------------|------|------|----------|-------------|
+    // | 123 | SubscribeStudent | {"student_id":"s1","course_id":"c1"} | null | 2024-01-15 10:30:00 |
 }
+
+### Complex Command Example: Money Transfer
+
+Here's an example showing how a single command can generate multiple events:
+
+```go
+// Command handler that generates multiple events
+func handleMoneyTransfer(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, error) {
+    var cmdData TransferCommand
+    if err := json.Unmarshal(command.GetData(), &cmdData); err != nil {
+        return nil, fmt.Errorf("failed to unmarshal command: %w", err)
+    }
+
+    // Business logic validation and state projection...
+    
+    // Generate multiple events for a single transfer
+    events := []dcb.InputEvent{
+        dcb.NewEvent("AccountDebited").
+            WithTag("account_id", cmdData.FromAccount).
+            WithTag("transfer_id", cmdData.TransferID).
+            WithData(map[string]interface{}{
+                "amount": cmdData.Amount,
+                "balance_after": 1000 - cmdData.Amount,
+            }).
+            Build(),
+        
+        dcb.NewEvent("AccountCredited").
+            WithTag("account_id", cmdData.ToAccount).
+            WithTag("transfer_id", cmdData.TransferID).
+            WithData(map[string]interface{}{
+                "amount": cmdData.Amount,
+                "balance_after": 500 + cmdData.Amount,
+            }).
+            Build(),
+        
+        dcb.NewEvent("TransferCompleted").
+            WithTag("transfer_id", cmdData.TransferID).
+            WithTag("from_account", cmdData.FromAccount).
+            WithTag("to_account", cmdData.ToAccount).
+            WithData(map[string]interface{}{
+                "amount": cmdData.Amount,
+                "completed_at": time.Now(),
+            }).
+            Build(),
+    }
+    
+    return events, nil
+}
+
+// Execute the transfer command
+transferCmd := dcb.NewCommand("TransferMoney", dcb.ToJSON(TransferCommand{
+    TransferID: "txn-123",
+    FromAccount: "acc-001", 
+    ToAccount: "acc-002",
+    Amount: 100,
+}), map[string]interface{}{
+    "user_id": "user-456",
+    "session_id": "sess-789",
+})
+
+events, err := commandExecutor.ExecuteCommand(ctx, transferCmd, handleMoneyTransfer, nil)
+
+// What gets persisted in the database:
+
+// Events table (primary data) - all events in same transaction:
+// | type | tags | data | transaction_id | position | occurred_at |
+// |------|------|------|----------------|----------|-------------|
+// | AccountDebited | {"account_id:acc-001","transfer_id:txn-123"} | {"amount":100,"balance_after":900} | 125 | 3 | 2024-01-15 10:35:00 |
+// | AccountCredited | {"account_id:acc-002","transfer_id:txn-123"} | {"amount":100,"balance_after":600} | 125 | 4 | 2024-01-15 10:35:00 |
+// | TransferCompleted | {"transfer_id:txn-123","from_account:acc-001","to_account:acc-002"} | {"amount":100,"completed_at":"2024-01-15T10:35:00Z"} | 125 | 5 | 2024-01-15 10:35:00 |
+
+// Commands table (audit trail):
+// | transaction_id | type | data | metadata | occurred_at |
+// |----------------|------|------|----------|-------------|
+// | 125 | TransferMoney | {"transfer_id":"txn-123","from_account":"acc-001","to_account":"acc-002","amount":100} | {"user_id":"user-456","session_id":"sess-789"} | 2024-01-15 10:35:00 |
+```
+
+**Key points:**
+- **Single command → Multiple events**: One `TransferMoney` command generates three events
+- **Same transaction**: All events share the same `transaction_id` (125) for atomicity
+- **Sequential positions**: Events are stored with sequential `position` values (3, 4, 5)
+- **Metadata preserved**: Command metadata (user_id, session_id) is stored for audit
+- **Event relationships**: All events share the `transfer_id` tag for correlation
 ```
 
 ### Channel-Based Approach (New!)
@@ -337,10 +432,10 @@ go-crablet primarily uses DCB concurrency control via transaction IDs and append
 
 ```go
 // Simple append (no conditions) - uses default isolation level
-store.Append(ctx, events, nil)
+store.Append(ctx, events)
 
 // Conditional append - uses default isolation level with DCB concurrency control
-store.Append(ctx, events, &condition)
+store.AppendIf(ctx, events, condition)
 ```
 
 ### Optional: Advisory Locks (Experimental)
@@ -370,15 +465,15 @@ go-crablet uses configurable PostgreSQL transaction isolation levels for append 
 
 ```go
 // Simple append (no conditions) - uses default isolation level
-store.Append(ctx, events, nil)
+store.Append(ctx, events)
 
 // Conditional append - uses default isolation level
-store.Append(ctx, events, &condition)
+store.AppendIf(ctx, events, condition)
 ```
 
 **When to use different methods:**
-- **Append (nil condition)**: Fastest, safe for simple appends
-- **Append (with condition)**: Good for conditional appends, prevents phantom reads with DCB concurrency control
+- **Append**: Fastest, safe for simple appends without consistency checks
+- **AppendIf**: Good for conditional appends, prevents phantom reads with DCB concurrency control
 
 The isolation level and other settings can be configured when creating the EventStore via `EventStoreConfig`:
 
