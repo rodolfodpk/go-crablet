@@ -59,7 +59,7 @@ This project provides comprehensive performance testing for the DCB event sourci
 - **Request Rate:** ~62.3 req/s
 - **p99 Latency:** 6.2s (threshold crossed)
 - **Success:** 100%
-- **Use Case:** High-volume event streaming and data ingestion
+- **Use Case:** High-volume event ingestion and data writing
 
 #### Append-If Benchmark
 - **Iterations:** ~7,080
@@ -85,13 +85,13 @@ This project provides comprehensive performance testing for the DCB event sourci
 ### Performance Summary
 - **Read operations:** Excellent performance (~1,660 req/s) - suitable for real-time dashboards
 - **Projection operations:** Excellent performance (~670 req/s) - suitable for aggregations
-- **Basic Append operations (writes):** Good throughput (~62.3 req/s) - suitable for event streaming
+- **Basic Append operations (writes):** Good throughput (~62.3 req/s) - suitable for event ingestion
 - **Conditional Append operations (writes):** Lower throughput (~27 req/s) - due to DCB concurrency control
 - **All operations:** 100% reliability with no errors
 
 ### Use Case Recommendations
 - **High-frequency reads:** Excellent performance (~1,660 req/s), suitable for real-time dashboards and analytics
-- **Event streaming (writes):** Good performance (~62.3 req/s), suitable for moderate throughput event ingestion
+- **Event ingestion (writes):** Good performance (~62.3 req/s), suitable for moderate throughput event writing
 - **Complex business logic (conditional writes):** Acceptable performance (~27 req/s), suitable for business-critical operations with DCB concurrency control
 - **Real-time aggregations:** Excellent performance (~670 req/s), suitable for live dashboards and reporting
 
