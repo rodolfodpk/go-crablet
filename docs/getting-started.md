@@ -104,15 +104,15 @@ if err != nil {
 }
 ```
 
-### 3. Use DCB Concurrency Control
+### 3. DCB Concurrency Control
 
 ```go
-// Create condition to prevent conflicts
+// Create condition to prevent conflicts using QueryBuilder
 condition := dcb.NewAppendCondition(
-    dcb.NewQuery(
-        dcb.NewTags("user_id", "123"),
-        "UserRegistered",
-    ),
+    dcb.NewQueryBuilder().
+        WithTag("user_id", "123").
+        WithType("UserRegistered").
+        Build(),
 )
 
 // Append with condition (fails if user already exists)
@@ -129,10 +129,10 @@ if err != nil {
 ### 4. Query Events
 
 ```go
-// Query events by tags
-query := dcb.NewQuery(
-    dcb.NewTags("user_id", "123"),
-)
+// Query events by tags using QueryBuilder
+query := dcb.NewQueryBuilder().
+    WithTag("user_id", "123").
+    Build()
 
 events, err := store.Query(ctx, query, nil)
 if err != nil {
@@ -145,12 +145,12 @@ log.Printf("Found %d events for user 123", len(events))
 ### 5. Project State
 
 ```go
-// Define state projector
+// Define state projector using QueryBuilder
 projector := dcb.StateProjector{
     ID: "UserState",
-    Query: dcb.NewQuery(
-        dcb.NewTags("user_id", "123"),
-    ),
+    Query: dcb.NewQueryBuilder().
+        WithTag("user_id", "123").
+        Build(),
     InitialState: map[string]any{
         "name": "",
         "email": "",

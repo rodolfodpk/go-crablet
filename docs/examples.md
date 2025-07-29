@@ -64,11 +64,11 @@ events := []dcb.InputEvent{
         Build(),
 }
 
-// Create condition to ensure accounts exist
-query := dcb.NewQuery(
-    dcb.NewTags("account_id", "acc-001"),
-    "AccountCreated",
-)
+// Create condition to ensure accounts exist using QueryBuilder
+query := dcb.NewQueryBuilder().
+    WithTag("account_id", "acc-001").
+    WithType("AccountCreated").
+    Build()
 condition := dcb.NewAppendCondition(query)
 
 // Append with DCB concurrency control
@@ -136,12 +136,13 @@ if err != nil {
 ### 2. Command with Concurrency Control
 
 ```go
-// Create condition to prevent duplicate enrollment
+// Create condition to prevent duplicate enrollment using QueryBuilder
 enrollmentCondition := dcb.NewAppendCondition(
-    dcb.NewQuery(
-        dcb.NewTags("student_id", "student123", "course_id", "CS101"),
-        "StudentEnrolled",
-    ),
+    dcb.NewQueryBuilder().
+        WithTag("student_id", "student123").
+        WithTag("course_id", "CS101").
+        WithType("StudentEnrolled").
+        Build(),
 )
 
 // Execute command with condition
@@ -160,11 +161,11 @@ if err != nil {
 ### 1. Simple Query
 
 ```go
-// Query events by tags
-query := dcb.NewQuery(
-    dcb.NewTags("course_id", "CS101"),
-    "StudentEnrolled",
-)
+// Query events by tags using QueryBuilder
+query := dcb.NewQueryBuilder().
+    WithTag("course_id", "CS101").
+    WithType("StudentEnrolled").
+    Build()
 
 events, err := store.Query(ctx, query, nil)
 if err != nil {
@@ -188,15 +189,33 @@ for event := range eventChan {
 }
 ```
 
-### 3. State Projection
+### 3. Time-Based Query
 
 ```go
-// Define state projector
+// Query events from the last hour using QueryBuilder
+recentQuery := dcb.NewQueryBuilder().
+    WithTag("course_id", "CS101").
+    WithType("StudentEnrolled").
+    SinceDuration(1 * time.Hour).
+    Build()
+
+recentEvents, err := store.Query(ctx, recentQuery, nil)
+if err != nil {
+    log.Fatal(err)
+}
+
+log.Printf("Found %d recent enrollments for course CS101", len(recentEvents))
+```
+
+### 4. State Projection
+
+```go
+// Define state projector using QueryBuilder
 projector := dcb.StateProjector{
     ID: "CourseEnrollment",
-    Query: dcb.NewQuery(
-        dcb.NewTags("course_id", "CS101"),
-    ),
+    Query: dcb.NewQueryBuilder().
+        WithTag("course_id", "CS101").
+        Build(),
     InitialState: map[string]any{
         "enrolled_students": []string{},
         "capacity": 30,
@@ -256,26 +275,38 @@ err = store.Append(ctx, events)
 ### 2. Complex Conditions
 
 ```go
-// Create complex condition with multiple queries
-query1 := dcb.NewQuery(
-    dcb.NewTags("course_id", "CS101"),
-    "CourseCreated",
-)
-query2 := dcb.NewQuery(
-    dcb.NewTags("student_id", "student123"),
-    "StudentRegistered",
-)
+// Create complex condition with multiple queries using QueryBuilder
+// This creates an OR condition: (course exists) OR (student is registered)
+complexQuery := dcb.NewQueryBuilder().
+    WithTag("course_id", "CS101").
+    WithType("CourseCreated").
+    AddItem().
+    WithTag("student_id", "student123").
+    WithType("StudentRegistered").
+    Build()
 
-// Combine queries (OR logic)
-combinedQuery := dcb.NewQueryFromItems(
-    dcb.NewQueryItem([]string{"CourseCreated"}, []dcb.Tag{dcb.NewTag("course_id", "CS101")}),
-    dcb.NewQueryItem([]string{"StudentRegistered"}, []dcb.Tag{dcb.NewTag("student_id", "student123")}),
-)
-
-condition := dcb.NewAppendCondition(combinedQuery)
+condition := dcb.NewAppendCondition(complexQuery)
 ```
 
-### 3. Error Handling
+### 3. Complex Queries with Time Filtering
+
+```go
+// Query events with multiple conditions and time filtering
+complexQuery := dcb.NewQueryBuilder().
+    WithTag("user_id", "123").
+    WithTypes("OrderCreated", "OrderCancelled").
+    SinceDuration(24 * time.Hour).
+    Build()
+
+events, err := store.Query(ctx, complexQuery, nil)
+if err != nil {
+    log.Fatal(err)
+}
+
+log.Printf("Found %d order events for user 123 in the last 24 hours", len(events))
+```
+
+### 4. Error Handling
 
 ```go
 // Handle different types of errors
@@ -407,7 +438,7 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd dcb.Comm
         return nil, fmt.Errorf("failed to unmarshal command: %w", err)
     }
     
-    // Project current state
+    // Project current state using QueryBuilder
     projectors := []dcb.StateProjector{
         dcb.ProjectBoolean("courseExists", "CourseCreated", "course_id", data.CourseID),
         dcb.ProjectCounter("enrollmentCount", "StudentEnrolled", "course_id", data.CourseID),
@@ -464,7 +495,10 @@ func main() {
     }), nil)
     
     courseCondition := dcb.NewAppendCondition(
-        dcb.NewQuery(dcb.NewTags("course_id", "CS101"), "CourseCreated"),
+        dcb.NewQueryBuilder().
+            WithTag("course_id", "CS101").
+            WithType("CourseCreated").
+            Build(),
     )
     
     _, err = commandExecutor.ExecuteCommand(ctx, courseCmd, handleCreateCourse, &courseCondition)
@@ -483,10 +517,11 @@ func main() {
     }), nil)
     
     enrollmentCondition := dcb.NewAppendCondition(
-        dcb.NewQuery(
-            dcb.NewTags("student_id", "student123", "course_id", "CS101"),
-            "StudentEnrolled",
-        ),
+        dcb.NewQueryBuilder().
+            WithTag("student_id", "student123").
+            WithTag("course_id", "CS101").
+            WithType("StudentEnrolled").
+            Build(),
     )
     
     _, err = commandExecutor.ExecuteCommand(ctx, enrollmentCmd, handleEnrollStudent, &enrollmentCondition)
