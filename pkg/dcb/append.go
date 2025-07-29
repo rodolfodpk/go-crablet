@@ -192,139 +192,46 @@ func (es *eventStore) appendInTx(ctx context.Context, tx pgx.Tx, events []InputE
 		}
 	}
 
-	if len(events) > es.config.MaxBatchSize {
-		return &ValidationError{
-			EventStoreError: EventStoreError{
-				Op:  "appendInTx",
-				Err: fmt.Errorf("batch size %d exceeds maximum of %d", len(events), es.config.MaxBatchSize),
-			},
-			Field: "events",
-			Value: fmt.Sprintf("count:%d", len(events)),
-		}
+	// Validate batch size
+	if err := es.validateBatchSize(events, "appendInTx"); err != nil {
+		return err
 	}
 
-	// Validate individual events
+	// Validate each event
 	for i, event := range events {
-		if event.GetType() == "" {
-			return &ValidationError{
-				EventStoreError: EventStoreError{
-					Op:  "appendInTx",
-					Err: fmt.Errorf("event at index %d has empty type", i),
-				},
-				Field: "type",
-				Value: "empty",
-			}
-		}
-
-		// Validate tags
-		tagKeys := make(map[string]bool)
-		for j, tag := range event.GetTags() {
-			if tag.GetKey() == "" {
-				return &ValidationError{
-					EventStoreError: EventStoreError{
-						Op:  "appendInTx",
-						Err: fmt.Errorf("empty tag key at index %d", j),
-					},
-					Field: "tag.key",
-					Value: "empty",
-				}
-			}
-			if tag.GetValue() == "" {
-				return &ValidationError{
-					EventStoreError: EventStoreError{
-						Op:  "appendInTx",
-						Err: fmt.Errorf("empty tag value for key %s", tag.GetKey()),
-					},
-					Field: "tag.value",
-					Value: "empty",
-				}
-			}
-			if tagKeys[tag.GetKey()] {
-				return &ValidationError{
-					EventStoreError: EventStoreError{
-						Op:  "appendInTx",
-						Err: fmt.Errorf("event at index %d has duplicate tag key: %s", i, tag.GetKey()),
-					},
-					Field: "tag.key",
-					Value: tag.GetKey(),
-				}
-			}
-			tagKeys[tag.GetKey()] = true
-		}
-	}
-
-	// Check if any events have lock: tags to determine which SQL function to use
-	hasLockTags := false
-	for _, event := range events {
-		for _, tag := range event.GetTags() {
-			if strings.HasPrefix(tag.GetKey(), "lock:") {
-				hasLockTags = true
-				break
-			}
-		}
-		if hasLockTags {
-			break
+		if err := validateEvent(event, i); err != nil {
+			return err
 		}
 	}
 
 	// Prepare data for batch insert
 	types := make([]string, len(events))
-	tags := make([]string, len(events))     // array literal strings for storage
-	lockTags := make([]string, len(events)) // array literal strings for advisory locks
+	tags := make([]string, len(events)) // array literal strings for storage
 	data := make([][]byte, len(events))
 
 	for i, event := range events {
 		types[i] = event.GetType()
 		data[i] = event.GetData()
 
-		// Separate lock tags from regular tags
-		var regularTags []string
-		var lockKeys []string
-
+		// Encode tags for storage
+		var tagStrings []string
 		for _, tag := range event.GetTags() {
-			if strings.HasPrefix(tag.GetKey(), "lock:") {
-				// Extract the lock key (remove "lock:" prefix)
-				lockKey := strings.TrimPrefix(tag.GetKey(), "lock:")
-				lockKeys = append(lockKeys, lockKey)
-			} else {
-				// Regular tag for storage
-				regularTags = append(regularTags, tag.GetKey()+":"+tag.GetValue())
-			}
+			tagStrings = append(tagStrings, tag.GetKey()+":"+tag.GetValue())
 		}
-
-		// Encode tags for storage (without lock: prefix)
-		tags[i] = encodeTagsArrayLiteral(regularTags)
-
-		// Encode lock keys for advisory locks (without lock: prefix)
-		lockTags[i] = encodeTagsArrayLiteral(lockKeys)
+		tags[i] = encodeTagsArrayLiteral(tagStrings)
 
 		// Debug logging removed for performance
 	}
 
 	// Execute append operation using appropriate PostgreSQL function
-	// Use advisory locks if any lock: tags are present, otherwise use regular functions
 	var result []byte
 	var err error
-	if hasLockTags {
-		// Use advisory lock function with separate lock tags parameter
-		if condition != nil {
-			err = tx.QueryRow(ctx, `
-				SELECT append_events_with_advisory_locks($1, $2, $3, $4, $5, $6)
-			`, types, tags, data, lockTags, conditionJSON, es.config.LockTimeout).Scan(&result)
-		} else {
-			err = tx.QueryRow(ctx, `
-				SELECT append_events_with_advisory_locks($1, $2, $3, $4, $5, $6)
-			`, types, tags, data, lockTags, nil, es.config.LockTimeout).Scan(&result)
-		}
+	if condition != nil {
+		err = tx.QueryRow(ctx, `
+			SELECT append_events_with_condition($1, $2, $3, $4)
+		`, types, tags, data, conditionJSON).Scan(&result)
 	} else {
-		// Use regular functions (no advisory locks)
-		if condition != nil {
-			err = tx.QueryRow(ctx, `
-				SELECT append_events_with_condition($1, $2, $3, $4)
-			`, types, tags, data, conditionJSON).Scan(&result)
-		} else {
-			_, err = tx.Exec(ctx, `SELECT append_events_batch($1, $2, $3)`, types, tags, data)
-		}
+		_, err = tx.Exec(ctx, `SELECT append_events_batch($1, $2, $3)`, types, tags, data)
 	}
 
 	if err != nil {
@@ -337,8 +244,8 @@ func (es *eventStore) appendInTx(ctx context.Context, tx pgx.Tx, events []InputE
 		}
 	}
 
-	// Check result for conditional append or advisory lock operations
-	if (condition != nil || hasLockTags) && len(result) > 0 {
+	// Check result for conditional append operations
+	if condition != nil && len(result) > 0 {
 		var resultMap map[string]interface{}
 		if err := json.Unmarshal(result, &resultMap); err != nil {
 			return &ResourceError{
@@ -352,7 +259,7 @@ func (es *eventStore) appendInTx(ctx context.Context, tx pgx.Tx, events []InputE
 
 		// Check if the operation was successful
 		if success, ok := resultMap["success"].(bool); !ok || !success {
-			// This is a concurrency violation or lock acquisition failure
+			// This is a concurrency violation
 			return &ConcurrencyError{
 				EventStoreError: EventStoreError{
 					Op:  "appendInTx",

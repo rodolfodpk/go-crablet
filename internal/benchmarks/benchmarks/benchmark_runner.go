@@ -89,18 +89,18 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
 	// Create event stores with different configurations
 	readCommittedConfig := dcb.EventStoreConfig{
 		MaxBatchSize:           1000,
-		LockTimeout:            5000,
 		StreamBuffer:           1000,
 		DefaultAppendIsolation: dcb.IsolationLevelReadCommitted,
 		QueryTimeout:           15000,
+		AppendTimeout:          15000,
 	}
 
 	repeatableReadConfig := dcb.EventStoreConfig{
 		MaxBatchSize:           1000,
-		LockTimeout:            5000,
 		StreamBuffer:           1000,
 		DefaultAppendIsolation: dcb.IsolationLevelRepeatableRead,
 		QueryTimeout:           15000,
+		AppendTimeout:          15000,
 	}
 
 	store, err := dcb.NewEventStoreWithConfig(ctx, pool, readCommittedConfig)
@@ -417,38 +417,6 @@ func BenchmarkAppendHighFrequency(b *testing.B, benchCtx *BenchmarkContext, batc
 		err := benchCtx.Store.Append(ctx, events)
 		if err != nil {
 			b.Fatalf("High frequency append failed: %v", err)
-		}
-	}
-}
-
-// BenchmarkAppendAdvisoryLocksWithDCB benchmarks advisory locks with DCB conditions (matching web-app scenarios)
-func BenchmarkAppendAdvisoryLocksWithDCB(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
-	// Create context with timeout for each benchmark iteration
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		events := make([]dcb.InputEvent, batchSize)
-		uniqueID := fmt.Sprintf("advisory_dcb_%d_%d", time.Now().UnixNano(), i)
-
-		for j := 0; j < batchSize; j++ {
-			eventID := fmt.Sprintf("%s_%d", uniqueID, j)
-			events[j] = dcb.NewInputEvent("ResourceEvent",
-				dcb.NewTags("lock:resource", fmt.Sprintf("resource_%d", j), "test", "advisory_dcb", "unique_id", eventID),
-				[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, eventID)))
-		}
-
-		// Create a condition that should pass (no conflicting events)
-		condition := dcb.NewAppendCondition(
-			dcb.NewQuery(dcb.NewTags("test", "advisory_dcb"), "ConflictingResourceEvent"),
-		)
-
-		err := benchCtx.Store.AppendIf(ctx, events, condition)
-		if err != nil {
-			b.Fatalf("Advisory locks with DCB failed: %v", err)
 		}
 	}
 }

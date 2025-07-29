@@ -44,47 +44,46 @@ CREATE OR REPLACE FUNCTION check_append_condition(
 ) RETURNS JSONB AS $$
 DECLARE
     condition_count INTEGER;
-    query_text TEXT;
     result JSONB;
+    event_types TEXT[];
+    required_tags TEXT[];
+    cursor_tx_id xid8;
+    cursor_position BIGINT;
 BEGIN
     -- Initialize result
     result := '{"success": true, "message": "condition check passed"}'::JSONB;
     
     -- Check FailIfEventsMatch condition (with optional after cursor scope)
     IF p_fail_if_events_match IS NOT NULL THEN
-        -- Build query for events table (no dynamic table name needed)
-        query_text := '
-            WITH condition_queries AS (
-                SELECT 
-                    jsonb_array_elements($1->''items'') AS query_item
-            ),
-            event_matches AS (
-                SELECT DISTINCT e.position
-                FROM events e
-                CROSS JOIN condition_queries cq
-                WHERE (
-                    -- Check event types if specified
-                    (cq.query_item->''event_types'' IS NULL OR 
-                     e.type = ANY(SELECT jsonb_array_elements_text(cq.query_item->''event_types'')))
-                    AND
-                    -- Check tags if specified (using GIN index efficiently for TEXT[] arrays)
-                    (cq.query_item->''tags'' IS NULL OR 
-                     e.tags @> (
-                         SELECT array_agg((obj->>''key'') || '':'' || (obj->>''value''))
-                         FROM jsonb_array_elements((cq.query_item->''tags'')::jsonb) AS obj
-                     )::TEXT[])
-                )
-                -- Apply cursor-based after condition using (transaction_id, position)
-                AND ($2 IS NULL OR 
-                     (e.transaction_id > ($2->>''transaction_id'')::xid8) OR
-                     (e.transaction_id = ($2->>''transaction_id'')::xid8 AND e.position > ($2->>''position'')::BIGINT))
-                -- Only consider committed transactions for proper ordering
-                AND e.transaction_id < pg_snapshot_xmin(pg_current_snapshot())
-            )
-            SELECT COUNT(*) FROM event_matches
-        ';
+        -- Extract cursor information for efficient filtering
+        IF p_after_cursor IS NOT NULL THEN
+            cursor_tx_id := (p_after_cursor->>'transaction_id')::xid8;
+            cursor_position := (p_after_cursor->>'position')::BIGINT;
+        END IF;
         
-        EXECUTE query_text INTO condition_count USING p_fail_if_events_match, p_after_cursor;
+        -- Optimized query: Parse JSONB once, use simple WHERE conditions
+        SELECT COUNT(DISTINCT e.position)
+        INTO condition_count
+        FROM events e,
+             jsonb_array_elements(p_fail_if_events_match->'items') AS item
+        WHERE (
+            -- Check event types if specified (use ANY for array comparison)
+            (item->'event_types' IS NULL OR 
+             e.type = ANY(SELECT jsonb_array_elements_text(item->'event_types')))
+            AND
+            -- Check tags if specified (use GIN index efficiently)
+            (item->'tags' IS NULL OR 
+             e.tags @> (
+                 SELECT array_agg((obj->>'key') || ':' || (obj->>'value'))
+                 FROM jsonb_array_elements((item->'tags')::jsonb) AS obj
+             )::TEXT[])
+        )
+        -- Apply cursor-based after condition using (transaction_id, position)
+        AND (p_after_cursor IS NULL OR 
+             (e.transaction_id > cursor_tx_id) OR
+             (e.transaction_id = cursor_tx_id AND e.position > cursor_position))
+        -- Only consider committed transactions for proper ordering
+        AND e.transaction_id < pg_snapshot_xmin(pg_current_snapshot());
         
         IF condition_count > 0 THEN
             -- Return failure status instead of raising exception
@@ -162,87 +161,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to acquire advisory locks based on separate lock tags parameter
--- This function takes storage tags and lock tags as separate parameters
--- Returns JSONB with status instead of raising exceptions for better performance
--- Always uses 'events' table for maximum performance
-CREATE OR REPLACE FUNCTION append_events_with_advisory_locks(
-    p_types TEXT[],
-    p_tags TEXT[], -- array of Postgres array literals as strings for storage
-    p_data JSONB[],
-    p_lock_tags TEXT[], -- array of Postgres array literals as strings for advisory locks
-    p_condition JSONB DEFAULT NULL,
-    p_lock_timeout_ms INTEGER DEFAULT 5000 -- 5 second default timeout
-) RETURNS JSONB AS $$
-DECLARE
-    fail_if_events_match JSONB;
-    after_cursor JSONB;
-    lock_keys TEXT[];
-    tag_array TEXT[];
-    lock_key TEXT;
-    i INTEGER;
-    lock_timeout_setting TEXT;
-    condition_result JSONB;
-BEGIN
-    -- Set lock timeout for this transaction
-    lock_timeout_setting := current_setting('lock_timeout', true);
-    PERFORM set_config('lock_timeout', p_lock_timeout_ms::TEXT, false);
-    
-    -- Extract condition parameters
-    IF p_condition IS NOT NULL THEN
-        fail_if_events_match := p_condition->'fail_if_events_match';
-        IF p_condition->'after_cursor' IS NOT NULL AND p_condition->'after_cursor' != 'null' THEN
-            after_cursor := p_condition->'after_cursor';
-        END IF;
-    END IF;
-    
-        -- Process each event's lock tags to acquire advisory locks
-    FOR i IN 1..array_length(p_lock_tags, 1) LOOP
-        -- Parse the lock tags array string into actual array
-        tag_array := p_lock_tags[i]::TEXT[];
-        
-        -- Acquire advisory locks for all lock keys (sorted to prevent deadlocks)
-        IF array_length(tag_array, 1) > 0 THEN
-            -- Sort lock keys to prevent deadlocks
-            SELECT array_agg(key ORDER BY key) INTO lock_keys FROM unnest(tag_array) AS key;
-            
-            -- Acquire locks for each key
-            FOREACH lock_key IN ARRAY lock_keys LOOP
-                -- Use pg_advisory_xact_lock for transaction-scoped locks
-                -- Convert string to hash for advisory lock
-                PERFORM pg_advisory_xact_lock(hashtext(lock_key));
-            END LOOP;
-        END IF;
-    END LOOP;
-    
-    -- Check append conditions first
-    condition_result := check_append_condition(fail_if_events_match, after_cursor);
-    
-    -- If conditions failed, return the failure status
-    IF (condition_result->>'success')::boolean = false THEN
-        -- Restore original lock timeout setting
-        IF lock_timeout_setting IS NOT NULL THEN
-            PERFORM set_config('lock_timeout', lock_timeout_setting, false);
-        END IF;
-        RETURN condition_result;
-    END IF;
-    
-    -- If conditions pass, insert events using UNNEST for all cases
-    PERFORM append_events_batch(p_types, p_tags, p_data);
-    
-    -- Restore original lock timeout setting
-    IF lock_timeout_setting IS NOT NULL THEN
-        PERFORM set_config('lock_timeout', lock_timeout_setting, false);
-    END IF;
-    
-    -- Return success status
-    RETURN jsonb_build_object(
-        'success', true,
-        'message', 'events appended successfully with advisory locks',
-        'events_count', array_length(p_types, 1)
-    );
-END;
-$$ LANGUAGE plpgsql;
+
 
 -- Removed backward compatibility functions - now using simplified functions directly
 -- All functions now use the 'events' table for maximum performance
