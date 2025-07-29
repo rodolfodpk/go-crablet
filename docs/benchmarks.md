@@ -83,15 +83,17 @@ This project provides comprehensive performance testing for the DCB event sourci
 - **Use Case:** Real-time state projections and aggregations
 
 ### Performance Summary
-- **Read/Projection operations:** Excellent performance (1,600+ req/s)
-- **Basic Append operations:** Good throughput (~62.3 req/s)
-- **Conditional Append operations:** Lower throughput (~27 req/s) due to DCB logic complexity
+- **Read operations:** Excellent performance (~1,660 req/s) - suitable for real-time dashboards
+- **Projection operations:** Excellent performance (~670 req/s) - suitable for aggregations
+- **Basic Append operations (writes):** Good throughput (~62.3 req/s) - suitable for event streaming
+- **Conditional Append operations (writes):** Lower throughput (~27 req/s) - due to DCB concurrency control
 - **All operations:** 100% reliability with no errors
 
 ### Use Case Recommendations
-- **High-frequency reads:** Excellent performance, suitable for real-time dashboards
-- **Event streaming:** Good performance for moderate throughput requirements
-- **Complex business logic:** Acceptable performance with DCB concurrency control
+- **High-frequency reads:** Excellent performance (~1,660 req/s), suitable for real-time dashboards and analytics
+- **Event streaming (writes):** Good performance (~62.3 req/s), suitable for moderate throughput event ingestion
+- **Complex business logic (conditional writes):** Acceptable performance (~27 req/s), suitable for business-critical operations with DCB concurrency control
+- **Real-time aggregations:** Excellent performance (~670 req/s), suitable for live dashboards and reporting
 
 ## Go Library vs Web-App Comparison
 
@@ -102,7 +104,8 @@ For a comprehensive performance comparison between the Go library and web-app im
 - **Web-App API**: Best for distributed systems, microservices, and HTTP-based integrations
 
 ### Performance Characteristics
-- **Write Operations**: Go library significantly outperforms web-app (1,028x lower latency)
-- **Read Operations**: More comparable performance (1.6x latency difference)
+- **Write Operations (Append)**: Go library (939 ops/sec) vs Web-app (~62.3 req/s) - Go library 15x faster
+- **Read Operations**: Go library (2,789 ops/sec) vs Web-app (~1,660 req/s) - Go library 1.7x faster
+- **Projection Operations**: Go library (2,755 ops/sec) vs Web-app (~670 req/s) - Go library 4.1x faster
 - **Reliability**: Both achieve 100% success rates in benchmarks
-- Web-app suitable for development/testing, Go library recommended for high-throughput production
+- **Use Case**: Web-app suitable for HTTP-based integrations, Go library for high-throughput production
