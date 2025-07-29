@@ -55,12 +55,12 @@ Client → CommandExecutor → CommandHandler → EventStore → PostgreSQL
 DCB (Dynamic Consistency Boundary) provides event-level concurrency control:
 
 ```go
-// Define condition to prevent conflicts
+// Define condition to prevent conflicts using QueryBuilder
 condition := dcb.NewAppendCondition(
-    dcb.NewQuery(
-        dcb.NewTags("account_id", "123"),
-        "AccountCreated",
-    ),
+    dcb.NewQueryBuilder().
+        WithTag("account_id", "123").
+        WithType("AccountCreated").
+        Build(),
 )
 
 // Append with condition - fails if account doesn't exist
@@ -130,12 +130,13 @@ events, err := commandExecutor.ExecuteCommand(ctx, command, handler, nil)
 ### Concurrency Control
 
 ```go
-// Create condition to prevent duplicate enrollment
+// Create condition to prevent duplicate enrollment using QueryBuilder
 enrollmentCondition := dcb.NewAppendCondition(
-    dcb.NewQuery(
-        dcb.NewTags("student_id", "student123", "course_id", "CS101"),
-        "StudentEnrolled",
-    ),
+    dcb.NewQueryBuilder().
+        WithTag("student_id", "student123").
+        WithTag("course_id", "CS101").
+        WithType("StudentEnrolled").
+        Build(),
 )
 
 // Execute with condition
