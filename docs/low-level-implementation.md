@@ -6,10 +6,11 @@ This document provides detailed information about the internal implementation of
 
 1. [Database Schema](#database-schema)
 2. [SQL Functions](#sql-functions)
-3. [Advisory Locks Implementation](#advisory-locks-implementation)
-4. [Transaction Management](#transaction-management)
-5. [Error Handling](#error-handling)
-6. [Performance Considerations](#performance-considerations)
+3. [Query and Projection Implementation](#query-and-projection-implementation)
+4. [Advisory Locks Implementation](#advisory-locks-implementation)
+5. [Transaction Management](#transaction-management)
+6. [Error Handling](#error-handling)
+7. [Performance Considerations](#performance-considerations)
 
 ## Database Schema
 
@@ -211,96 +212,98 @@ END;
 $$ LANGUAGE plpgsql;
 ```
 
-### Query Functions
+### Query and Projection Implementation
 
-#### `query_events()` - Event Querying
+**Note**: go-crablet implements querying and projection using **Go code with channels and goroutines** rather than SQL functions. This approach provides better performance, memory efficiency, and flexibility than SQL-based streaming.
 
-```sql
-CREATE OR REPLACE FUNCTION query_events(
-    query_type TEXT DEFAULT NULL,
-    query_tags TEXT[] DEFAULT NULL,
-    query_data JSONB DEFAULT NULL,
-    cursor_transaction_id BIGINT DEFAULT NULL,
-    cursor_position INTEGER DEFAULT NULL,
-    limit_count INTEGER DEFAULT 100
-) RETURNS TABLE(
-    id BIGINT,
-    type TEXT,
-    tags TEXT[],
-    data JSONB,
-    transaction_id BIGINT,
-    position INTEGER,
-    occurred_at TIMESTAMP WITH TIME ZONE
-) AS $$
-BEGIN
-    RETURN QUERY
-    SELECT 
-        e.id,
-        e.type,
-        e.tags,
-        e.data,
-        e.transaction_id,
-        e.position,
-        e.occurred_at
-    FROM events e
-    WHERE (query_type IS NULL OR e.type = query_type)
-        AND (query_tags IS NULL OR e.tags @> query_tags)
-        AND (query_data IS NULL OR e.data @> query_data)
-        AND (
-            cursor_transaction_id IS NULL 
-            OR e.transaction_id > cursor_transaction_id
-            OR (e.transaction_id = cursor_transaction_id AND e.position > cursor_position)
-        )
-    ORDER BY e.transaction_id ASC, e.position ASC
-    LIMIT limit_count;
-END;
-$$ LANGUAGE plpgsql;
+#### Query Operations
+
+Querying is handled by the Go `Query()` and `QueryStream()` methods:
+
+```go
+// Batch query - returns all matching events at once
+func (es *eventStore) Query(ctx context.Context, query Query, after *Cursor) ([]Event, error)
+
+// Stream query - returns events through a channel for memory efficiency
+func (es *eventStore) QueryStream(ctx context.Context, query Query, after *Cursor) (<-chan Event, error)
 ```
 
-### Projection Functions
+**Key Benefits of Go-based Querying:**
+- **Memory Efficiency**: Streaming prevents loading large datasets into memory
+- **Backpressure**: Go channels provide natural backpressure control
+- **Flexibility**: Complex query logic can be implemented in Go
+- **Performance**: Direct database queries with optimized SQL generation
 
-#### `project_state()` - State Projection
+#### Projection Operations
 
-```sql
-CREATE OR REPLACE FUNCTION project_state(
-    projector_configs JSONB,
-    cursor_transaction_id BIGINT DEFAULT NULL,
-    cursor_position INTEGER DEFAULT NULL
-) RETURNS JSONB AS $$
-DECLARE
-    projector_config JSONB;
-    projector_type TEXT;
-    projector_tags TEXT[];
-    projector_data JSONB;
-    projector_result JSONB;
-    final_result JSONB := '{}'::JSONB;
-BEGIN
-    -- Process each projector configuration
-    FOR projector_config IN SELECT * FROM jsonb_array_elements(projector_configs) LOOP
-        projector_type := projector_config->>'type';
-        projector_tags := ARRAY(SELECT jsonb_array_elements_text(projector_config->'tags'));
-        projector_data := projector_config->'data';
-        
-        -- Apply projector logic based on type
-        CASE projector_type
-            WHEN 'count' THEN
-                projector_result := project_count(projector_tags, projector_data, cursor_transaction_id, cursor_position);
-            WHEN 'sum' THEN
-                projector_result := project_sum(projector_tags, projector_data, cursor_transaction_id, cursor_position);
-            WHEN 'custom' THEN
-                projector_result := project_custom(projector_tags, projector_data, cursor_transaction_id, cursor_position);
-            ELSE
-                RAISE EXCEPTION 'Unknown projector type: %', projector_type;
-        END CASE;
-        
-        -- Merge result into final result
-        final_result := final_result || projector_result;
-    END LOOP;
+Projection is handled by the Go `Project()` and `ProjectStream()` methods:
+
+```go
+// Batch projection - returns final states after processing all events
+func (es *eventStore) Project(ctx context.Context, projectors []StateProjector, after *Cursor) (map[string]any, AppendCondition, error)
+
+// Stream projection - returns intermediate states through channels
+func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProjector, after *Cursor) (<-chan map[string]any, <-chan AppendCondition, error)
+```
+
+**Key Benefits of Go-based Projection:**
+- **State Management**: Complex state transitions handled in Go
+- **Multiple Projectors**: Efficiently process multiple projections in parallel
+- **Cursor Tracking**: Automatic cursor management for DCB concurrency control
+- **Memory Optimization**: Streaming prevents memory exhaustion with large datasets
+
+#### SQL Query Generation
+
+Both query and projection operations use the same optimized SQL generation:
+
+```go
+func (es *eventStore) buildReadQuerySQL(query Query, after *Cursor, limit *int) (string, []interface{}, error)
+```
+
+This generates efficient SQL queries with:
+- **Tag-based filtering** using PostgreSQL's `@>` operator
+- **Cursor-based pagination** for proper event ordering
+- **GIN index utilization** for fast tag queries
+- **Transaction ID ordering** for true event ordering guarantees
+
+#### Streaming Architecture
+
+The streaming implementation uses Go's concurrency primitives for optimal performance:
+
+```go
+// QueryStream architecture
+func (es *eventStore) QueryStream(ctx context.Context, query Query, after *Cursor) (<-chan Event, error) {
+    // Create buffered channel for backpressure control
+    eventChan := make(chan Event, es.config.StreamBuffer)
     
-    RETURN final_result;
-END;
-$$ LANGUAGE plpgsql;
+    // Start goroutine for database querying
+    go func() {
+        defer close(eventChan)
+        
+        // Execute database query with timeout
+        rows, err := es.pool.Query(ctx, sqlQuery, args...)
+        defer rows.Close()
+        
+        // Stream events through channel
+        for rows.Next() {
+            event := convertRowToEvent(row)
+            select {
+            case eventChan <- event:
+            case <-ctx.Done():
+                return // Handle cancellation
+            }
+        }
+    }()
+    
+    return eventChan, nil
+}
 ```
+
+**Key Streaming Features:**
+- **Buffered Channels**: Configurable buffer size for backpressure control
+- **Context Cancellation**: Proper cleanup on timeout or cancellation
+- **Goroutine Management**: Efficient concurrent processing
+- **Memory Safety**: Events streamed one at a time to prevent memory exhaustion
 
 ## Advisory Locks Implementation
 
