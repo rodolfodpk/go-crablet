@@ -7,7 +7,7 @@ This document provides detailed information about the internal implementation of
 1. [Database Schema](#database-schema)
 2. [SQL Functions](#sql-functions)
 3. [Query and Projection Implementation](#query-and-projection-implementation)
-
+4. [Advisory Locks Implementation](#advisory-locks-implementation)
 5. [Transaction Management](#transaction-management)
 6. [Error Handling](#error-handling)
 7. [Performance Considerations](#performance-considerations)
@@ -152,7 +152,72 @@ END;
 $$ LANGUAGE plpgsql;
 ```
 
+#### 3. `append_events_with_advisory_locks()` - Advisory Lock Append
 
+```sql
+CREATE OR REPLACE FUNCTION append_events_with_advisory_locks(
+    p_types TEXT[],
+    p_tags TEXT[], -- array of Postgres array literals as strings for storage
+    p_data JSONB[],
+    p_lock_tags TEXT[], -- array of Postgres array literals as strings for advisory locks
+    p_condition JSONB DEFAULT NULL,
+    p_lock_timeout_ms INTEGER DEFAULT 5000 -- 5 second default timeout
+) RETURNS JSONB AS $$
+DECLARE
+    fail_if_events_match JSONB;
+    after_cursor JSONB;
+    lock_keys TEXT[];
+    tag_array TEXT[];
+    lock_key TEXT;
+    i INTEGER;
+    lock_timeout_setting TEXT;
+    condition_result JSONB;
+BEGIN
+    -- Set lock timeout for this transaction
+    lock_timeout_setting := current_setting('lock_timeout', true);
+    PERFORM set_config('lock_timeout', p_lock_timeout_ms::TEXT, false);
+    
+    -- Extract condition parameters
+    IF p_condition IS NOT NULL THEN
+        fail_if_events_match := p_condition->'fail_if_events_match';
+        IF p_condition->'after_cursor' IS NOT NULL AND p_condition->'after_cursor' != 'null' THEN
+            after_cursor := p_condition->'after_cursor';
+        END IF;
+    END IF;
+    
+    -- Process each event's lock tags to acquire advisory locks
+    FOR i IN 1..array_length(p_lock_tags, 1) LOOP
+        -- Parse the lock tags array string into actual array
+        tag_array := p_lock_tags[i]::TEXT[];
+        
+        -- Acquire advisory locks for all lock keys (sorted to prevent deadlocks)
+        IF array_length(tag_array, 1) > 0 THEN
+            FOR lock_key IN SELECT unnest(tag_array ORDER BY tag_array) LOOP
+                PERFORM pg_advisory_xact_lock(hashtext(lock_key));
+            END LOOP;
+        END IF;
+    END LOOP;
+    
+    -- Check append conditions
+    condition_result := check_append_condition(fail_if_events_match, after_cursor);
+    
+    -- If conditions failed, return the failure status
+    IF (condition_result->>'success')::boolean = false THEN
+        RETURN condition_result;
+    END IF;
+    
+    -- If conditions pass, insert events using UNNEST for all cases
+    PERFORM append_events_batch(p_types, p_tags, p_data);
+    
+    -- Return success status
+    RETURN jsonb_build_object(
+        'success', true,
+        'message', 'events appended successfully with advisory locks',
+        'events_count', array_length(p_types, 1)
+    );
+END;
+$$ LANGUAGE plpgsql;
+```
 
 ### Query and Projection Implementation
 
@@ -247,7 +312,46 @@ func (es *eventStore) QueryStream(ctx context.Context, query Query, after *Curso
 - **Goroutine Management**: Efficient concurrent processing
 - **Memory Safety**: Events streamed one at a time to prevent memory exhaustion
 
+## Advisory Locks Implementation
 
+### Lock Key Generation
+
+Lock keys are generated from event tags with the `lock:` prefix:
+
+```go
+// In Go code
+for _, tag := range event.GetTags() {
+    if strings.HasPrefix(tag.GetKey(), "lock:") {
+        lockKey := strings.TrimPrefix(tag.GetKey(), "lock:")
+        lockKeys = append(lockKeys, lockKey)
+    }
+}
+```
+
+### Lock Acquisition Strategy
+
+```sql
+-- In SQL function
+FOR lock_key IN SELECT unnest(lock_tags[i]::TEXT[]) LOOP
+    PERFORM pg_advisory_xact_lock(hashtext(lock_key));
+END LOOP;
+```
+
+**Key Characteristics:**
+- **Transaction-scoped**: Locks are automatically released when transaction commits/rolls back
+- **Hash-based**: Uses `hashtext()` for consistent lock key generation
+- **Ordered**: Locks are acquired in a consistent order to prevent deadlocks
+- **Timeout-protected**: Uses `lock_timeout` setting to prevent indefinite waiting
+
+### Lock Key Examples
+
+```go
+// Example lock keys
+"course:CS101"           // Lock specific course
+"student:student123"     // Lock specific student
+"enrollment:CS101"       // Lock enrollment operations for course
+"account:account456"     // Lock specific account
+```
 
 ## Transaction Management
 
@@ -270,7 +374,7 @@ const (
 ### Transaction Flow
 
 1. **Begin Transaction**: Start with specified isolation level
-2. **Validate Events**: Check event structure and batch size
+2. **Acquire Locks**: If advisory locks are needed (only for events with `lock:` tags)
 3. **Validate Conditions**: Check append conditions (only for `AppendIf` operations)
 4. **Generate Transaction ID**: Use PostgreSQL's built-in `pg_current_xact_id()`
 5. **Insert Events**: Batch insert all events using `append_events_batch()` or related functions
@@ -359,7 +463,12 @@ CREATE UNIQUE INDEX idx_events_transaction_position ON events(transaction_id, po
 - **Array Parameters**: Use PostgreSQL arrays for efficient batch inserts
 - **Transaction Scope**: All events in a batch share the same transaction ID
 
+### Lock Performance
 
+- **Hash-based Keys**: Fast lock key generation and comparison
+- **Transaction-scoped**: No manual lock cleanup required
+- **Timeout Protection**: Prevents indefinite waiting
+- **Ordered Acquisition**: Prevents deadlocks
 
 ### Query Optimization
 
@@ -383,7 +492,24 @@ WHERE occurred_at >= NOW() - INTERVAL '24 hours'
 GROUP BY hour
 ORDER BY hour;
 
-
+-- Lock contention
+SELECT 
+    locktype,
+    database,
+    relation,
+    page,
+    tuple,
+    virtualxid,
+    transactionid,
+    classid,
+    objid,
+    objsubid,
+    virtualtransaction,
+    pid,
+    mode,
+    granted
+FROM pg_locks 
+WHERE locktype = 'advisory';
 
 -- Transaction distribution
 SELECT 
