@@ -88,12 +88,13 @@ err := store.Append(ctx, events)
 ### Conditional Append (DCB Concurrency Control)
 
 ```go
-// Define append condition using helper functions
+// Define append condition using QueryBuilder
 condition := dcb.NewAppendCondition(
-    dcb.NewQuery(
-        dcb.NewTags("course_id", "CS101", "student_id", "student123"),
-        "StudentEnrolled",
-    ),
+    dcb.NewQueryBuilder().
+        WithTag("course_id", "CS101").
+        WithTag("student_id", "student123").
+        WithType("StudentEnrolled").
+        Build(),
 )
 
 // Append with condition
@@ -138,11 +139,11 @@ err := store.AppendIf(ctx, events, condition)
 ### Batch Query
 
 ```go
-// Define query using helper functions
-query := dcb.NewQuery(
-    dcb.NewTags("course_id", "CS101"),
-    "CourseCreated",
-)
+// Define query using QueryBuilder
+query := dcb.NewQueryBuilder().
+    WithTag("course_id", "CS101").
+    WithType("CourseCreated").
+    Build()
 
 // Execute batch query
 events, err := store.Query(ctx, query, nil)
@@ -181,22 +182,22 @@ for event := range eventChan {
 ### Batch Projection
 
 ```go
-// Define state projector
+// Define state projector using QueryBuilder
 projector := dcb.StateProjector{
     ID: "CourseEnrollment",
-    Query: dcb.NewQuery(
-        dcb.NewTags("course_id", "CS101"),
-    ),
-    InitialState: map[string]interface{}{
+    Query: dcb.NewQueryBuilder().
+        WithTag("course_id", "CS101").
+        Build(),
+    InitialState: map[string]any{
         "enrolled_students": []string{},
         "capacity": 30,
     },
     TransitionFn: func(state any, event dcb.Event) any {
-        currentState := state.(map[string]interface{})
+        currentState := state.(map[string]any)
         switch event.GetType() {
         case "StudentEnrolled":
             students := currentState["enrolled_students"].([]string)
-            var eventData map[string]interface{}
+            var eventData map[string]any
             json.Unmarshal(event.GetData(), &eventData)
             studentID := eventData["student_id"].(string)
             currentState["enrolled_students"] = append(students, studentID)
@@ -320,10 +321,10 @@ func main() {
         panic(err)
     }
     
-    // Query course events
-    query := dcb.NewQuery(
-        dcb.NewTags("course_id", "CS101"),
-    )
+    // Query course events using QueryBuilder
+    query := dcb.NewQueryBuilder().
+        WithTag("course_id", "CS101").
+        Build()
     
     events, err := store.Query(ctx, query, nil)
     if err != nil {
@@ -332,20 +333,20 @@ func main() {
     
     fmt.Printf("Found %d events for course CS101\n", len(events))
     
-    // Project course state
+    // Project course state using QueryBuilder
     projector := dcb.StateProjector{
         ID: "CourseState",
-        Query: dcb.NewQuery(
-            dcb.NewTags("course_id", "CS101"),
-        ),
-        InitialState: map[string]interface{}{
+        Query: dcb.NewQueryBuilder().
+            WithTag("course_id", "CS101").
+            Build(),
+        InitialState: map[string]any{
             "name": "",
             "capacity": 0,
             "enrolled_students": []string{},
         },
         TransitionFn: func(state any, event dcb.Event) any {
-            currentState := state.(map[string]interface{})
-            var eventData map[string]interface{}
+            currentState := state.(map[string]any)
+            var eventData map[string]any
             json.Unmarshal(event.GetData(), &eventData)
             
             switch event.GetType() {
@@ -373,12 +374,13 @@ func main() {
 ### Conditional Append with Concurrency Control
 
 ```go
-// Check if student is already enrolled before enrolling
+// Check if student is already enrolled before enrolling using QueryBuilder
 condition := dcb.NewAppendCondition(
-    dcb.NewQuery(
-        dcb.NewTags("course_id", "CS101", "student_id", "student123"),
-        "StudentEnrolled",
-    ),
+    dcb.NewQueryBuilder().
+        WithTag("course_id", "CS101").
+        WithTag("student_id", "student123").
+        WithType("StudentEnrolled").
+        Build(),
 )
 
 enrollmentEvents := []dcb.InputEvent{
