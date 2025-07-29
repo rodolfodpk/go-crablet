@@ -307,14 +307,17 @@ func (es *eventStore) appendInTx(ctx context.Context, tx pgx.Tx, events []InputE
 	var err error
 	if hasLockTags {
 		// Use advisory lock function with separate lock tags parameter
+		// Skip DCB conditions when advisory locks are present to avoid redundant checks
+		skipDCBConditions := condition != nil // Skip DCB conditions when we have both locks and conditions
+
 		if condition != nil {
 			err = tx.QueryRow(ctx, `
-				SELECT append_events_with_advisory_locks($1, $2, $3, $4, $5, $6)
-			`, types, tags, data, lockTags, conditionJSON, es.config.LockTimeout).Scan(&result)
+				SELECT append_events_with_advisory_locks($1, $2, $3, $4, $5, $6, $7)
+			`, types, tags, data, lockTags, conditionJSON, es.config.LockTimeout, skipDCBConditions).Scan(&result)
 		} else {
 			err = tx.QueryRow(ctx, `
-				SELECT append_events_with_advisory_locks($1, $2, $3, $4, $5, $6)
-			`, types, tags, data, lockTags, nil, es.config.LockTimeout).Scan(&result)
+				SELECT append_events_with_advisory_locks($1, $2, $3, $4, $5, $6, $7)
+			`, types, tags, data, lockTags, nil, es.config.LockTimeout, false).Scan(&result)
 		}
 	} else {
 		// Use regular functions (no advisory locks)

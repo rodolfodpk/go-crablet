@@ -172,7 +172,8 @@ CREATE OR REPLACE FUNCTION append_events_with_advisory_locks(
     p_data JSONB[],
     p_lock_tags TEXT[], -- array of Postgres array literals as strings for advisory locks
     p_condition JSONB DEFAULT NULL,
-    p_lock_timeout_ms INTEGER DEFAULT 5000 -- 5 second default timeout
+    p_lock_timeout_ms INTEGER DEFAULT 5000, -- 5 second default timeout
+    p_skip_dcb_conditions BOOLEAN DEFAULT FALSE -- Skip DCB conditions when advisory locks provide consistency
 ) RETURNS JSONB AS $$
 DECLARE
     fail_if_events_match JSONB;
@@ -215,16 +216,19 @@ BEGIN
         END IF;
     END LOOP;
     
-    -- Check append conditions first
-    condition_result := check_append_condition(fail_if_events_match, after_cursor);
-    
-    -- If conditions failed, return the failure status
-    IF (condition_result->>'success')::boolean = false THEN
-        -- Restore original lock timeout setting
-        IF lock_timeout_setting IS NOT NULL THEN
-            PERFORM set_config('lock_timeout', lock_timeout_setting, false);
+    -- Check append conditions only if not skipping DCB conditions
+    -- When advisory locks provide consistency, DCB conditions may be redundant
+    IF NOT p_skip_dcb_conditions THEN
+        condition_result := check_append_condition(fail_if_events_match, after_cursor);
+        
+        -- If conditions failed, return the failure status
+        IF (condition_result->>'success')::boolean = false THEN
+            -- Restore original lock timeout setting
+            IF lock_timeout_setting IS NOT NULL THEN
+                PERFORM set_config('lock_timeout', lock_timeout_setting, false);
+            END IF;
+            RETURN condition_result;
         END IF;
-        RETURN condition_result;
     END IF;
     
     -- If conditions pass, insert events using UNNEST for all cases
