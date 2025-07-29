@@ -67,11 +67,11 @@ condition := dcb.NewAppendCondition(
 err := store.AppendIf(ctx, events, condition)
 ```
 
-**Benefits:**
-- **Fail-fast**: Immediate detection of conflicts
-- **Business rules**: Enforce domain-specific constraints
-- **Performance**: No blocking, no waiting
-- **Scalability**: Works across multiple instances
+**What DCB Provides:**
+- **Conflict Detection**: Identifies when business rules are violated during event appends
+- **Domain Constraints**: Allows you to define conditions that must be met before events can be stored
+- **Non-blocking**: Doesn't wait for locks or other resources
+- **Multi-instance Support**: Can work across different application instances
 
 ## Usage Examples
 
