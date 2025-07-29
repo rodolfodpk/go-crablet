@@ -56,7 +56,7 @@ This project provides comprehensive performance testing for the DCB event sourci
 
 #### Append Benchmark
 - **Iterations:** ~15,200
-- **Request Rate:** ~58 req/s
+- **Request Rate:** ~62.3 req/s
 - **p99 Latency:** 6.2s (threshold crossed)
 - **Success:** 100%
 - **Use Case:** High-volume event streaming and data ingestion
@@ -84,7 +84,7 @@ This project provides comprehensive performance testing for the DCB event sourci
 
 ### Performance Summary
 - **Read/Projection operations:** Excellent performance (1,600+ req/s)
-- **Basic Append operations:** Good throughput (~58 req/s)
+- **Basic Append operations:** Good throughput (~62.3 req/s)
 - **Conditional Append operations:** Lower throughput (~27 req/s) due to DCB logic complexity
 - **All operations:** 100% reliability with no errors
 
