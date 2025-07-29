@@ -33,8 +33,8 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 - [Overview](docs/overview.md): DCB pattern exploration, batch projection, and streaming
 - [Quick Start](docs/quick-start.md): Get started using go-crablet in your project
 - [Getting Started](docs/getting-started.md): Development setup
-- [Command Execution Flow](docs/command-execution-flow.md): Sequence diagram and command processing flow
 - [EventStore Flow](docs/eventstore-flow.md): Direct event operations without commands
+- [Command Execution Flow](docs/command-execution-flow.md): Sequence diagram and command processing flow
 - [Low-Level Implementation](docs/low-level-implementation.md): Database schema, SQL functions, and internal architecture
 - [Testing](docs/testing.md): Comprehensive testing guide and test organization
 
