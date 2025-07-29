@@ -58,9 +58,11 @@ CREATE TABLE commands (
 ```
 
 **Purpose:**
-- **Audit Trail**: Track all commands for debugging and compliance
+- **Audit Trail**: Track all commands for debugging and compliance (only when using CommandExecutor)
 - **Correlation**: Link commands to their generated events via `transaction_id`
 - **Metadata**: Store additional information about command execution
+
+**Note**: The commands table is only populated when using the optional `CommandExecutor` API. The core `EventStore` operations do not store commands.
 
 ### Transaction ID Generation
 
@@ -367,12 +369,13 @@ const (
 ### Transaction Flow
 
 1. **Begin Transaction**: Start with specified isolation level
-2. **Acquire Locks**: If advisory locks are needed
-3. **Validate Conditions**: Check append conditions
+2. **Acquire Locks**: If advisory locks are needed (only for events with `lock:` tags)
+3. **Validate Conditions**: Check append conditions (only for `AppendIf` operations)
 4. **Generate Transaction ID**: Use PostgreSQL's built-in `pg_current_xact_id()`
-5. **Insert Events**: Batch insert all events
-6. **Insert Command**: Store command for audit trail
-7. **Commit**: All changes become visible
+5. **Insert Events**: Batch insert all events using `append_events_batch()` or related functions
+6. **Commit**: All changes become visible
+
+**Note**: Command persistence is handled separately by the optional `CommandExecutor` API, not by the core `EventStore` operations.
 
 ### Timeout Management
 
