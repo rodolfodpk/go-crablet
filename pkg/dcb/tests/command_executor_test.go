@@ -87,6 +87,134 @@ var _ = Describe("CommandExecutor", func() {
 			})
 		})
 	})
+
+	Describe("ExecuteCommandWithLocks", func() {
+		It("should acquire advisory locks and execute command successfully", func() {
+			// Create a simple command handler that generates events without lock tags
+			handler := dcb.CommandHandlerFunc(func(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, error) {
+				// Create events without lock tags (as required by ExecuteCommandWithLocks)
+				events := []dcb.InputEvent{
+					dcb.NewEvent("CourseDefined").
+						WithTag("course_id", "CS101").
+						WithData(map[string]string{"name": "Computer Science 101"}).
+						Build(),
+				}
+				return events, nil
+			})
+
+			// Create command
+			command := dcb.NewCommand("DefineCourse", dcb.ToJSON(map[string]string{"course_id": "CS101"}), nil)
+
+			// Execute command with advisory locks
+			locks := []string{"course:CS101"}
+			events, err := commandExecutor.ExecuteCommandWithLocks(ctx, command, handler, locks, nil)
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(events).To(HaveLen(1))
+			Expect(events[0].GetType()).To(Equal("CourseDefined"))
+		})
+
+		It("should validate that events do not contain lock tags", func() {
+			// Create a command handler that generates events WITH lock tags (should fail)
+			handler := dcb.CommandHandlerFunc(func(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, error) {
+				// Create events WITH lock tags (this should cause validation to fail)
+				events := []dcb.InputEvent{
+					dcb.NewEvent("CourseDefined").
+						WithTag("course_id", "CS101").
+						WithTag("lock:course", "CS101"). // This should cause validation to fail
+						WithData(map[string]string{"name": "Computer Science 101"}).
+						Build(),
+				}
+				return events, nil
+			})
+
+			// Create command
+			command := dcb.NewCommand("DefineCourse", dcb.ToJSON(map[string]string{"course_id": "CS101"}), nil)
+
+			// Execute command with advisory locks - should fail validation
+			locks := []string{"course:CS101"}
+			_, err := commandExecutor.ExecuteCommandWithLocks(ctx, command, handler, locks, nil)
+
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("lock tags are not allowed when using ExecuteCommandWithLocks"))
+		})
+
+		It("should validate that locks slice is not empty", func() {
+			// Create a simple command handler
+			handler := dcb.CommandHandlerFunc(func(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, error) {
+				events := []dcb.InputEvent{
+					dcb.NewEvent("CourseDefined").
+						WithTag("course_id", "CS101").
+						WithData(map[string]string{"name": "Computer Science 101"}).
+						Build(),
+				}
+				return events, nil
+			})
+
+			// Create command
+			command := dcb.NewCommand("DefineCourse", dcb.ToJSON(map[string]string{"course_id": "CS101"}), nil)
+
+			// Execute command with empty locks slice - should fail validation
+			_, err := commandExecutor.ExecuteCommandWithLocks(ctx, command, handler, []string{}, nil)
+
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("locks slice cannot be empty"))
+		})
+
+		It("should acquire multiple advisory locks in sorted order", func() {
+			// Create a simple command handler
+			handler := dcb.CommandHandlerFunc(func(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, error) {
+				events := []dcb.InputEvent{
+					dcb.NewEvent("TransferCompleted").
+						WithTag("from_account", "123").
+						WithTag("to_account", "456").
+						WithData(map[string]string{"amount": "100"}).
+						Build(),
+				}
+				return events, nil
+			})
+
+			// Create command
+			command := dcb.NewCommand("TransferMoney", dcb.ToJSON(map[string]string{"amount": "100"}), nil)
+
+			// Execute command with multiple locks in unsorted order
+			// The method should sort them to prevent deadlocks
+			locks := []string{"account:456", "account:123"} // Unsorted order
+			events, err := commandExecutor.ExecuteCommandWithLocks(ctx, command, handler, locks, nil)
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(events).To(HaveLen(1))
+			Expect(events[0].GetType()).To(Equal("TransferCompleted"))
+		})
+
+		It("should work with AppendCondition", func() {
+			// Create a command handler that generates events
+			handler := dcb.CommandHandlerFunc(func(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, error) {
+				events := []dcb.InputEvent{
+					dcb.NewEvent("StudentEnrolled").
+						WithTag("student_id", "student1").
+						WithTag("course_id", "CS101").
+						WithData(map[string]string{"enrolled_at": "2024-01-01"}).
+						Build(),
+				}
+				return events, nil
+			})
+
+			// Create command
+			command := dcb.NewCommand("EnrollStudent", dcb.ToJSON(map[string]string{"student_id": "student1"}), nil)
+
+			// Create AppendCondition
+			condition := dcb.FailIfExists("student_id", "student1")
+
+			// Execute command with advisory locks and condition
+			locks := []string{"course:CS101"}
+			events, err := commandExecutor.ExecuteCommandWithLocks(ctx, command, handler, locks, &condition)
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(events).To(HaveLen(1))
+			Expect(events[0].GetType()).To(Equal("StudentEnrolled"))
+		})
+	})
 })
 
 // Test command handler functions
