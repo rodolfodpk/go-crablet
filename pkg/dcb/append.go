@@ -182,12 +182,13 @@ func toPgxIsoLevel(level IsolationLevel) pgx.TxIsoLevel {
 func (es *eventStore) appendInTx(ctx context.Context, tx pgx.Tx, events []InputEvent, condition AppendCondition, conditionJSON []byte) error {
 	// Validate events
 	if len(events) == 0 {
-		return &ResourceError{
+		return &ValidationError{
 			EventStoreError: EventStoreError{
 				Op:  "appendInTx",
-				Err: fmt.Errorf("no events to append"),
+				Err: fmt.Errorf("events slice cannot be empty"),
 			},
-			Resource: "events",
+			Field: "events",
+			Value: "empty",
 		}
 	}
 
