@@ -961,3 +961,44 @@ func encodeTagsArrayLiteral(tags []dcb.Tag) string {
 	result += "}"
 	return result
 }
+
+// loadTestDataIfNeeded loads test data into PostgreSQL if not already loaded
+func loadTestDataIfNeeded(ctx context.Context, pool *pgxpool.Pool, datasetSize string) error {
+	// Get dataset configuration
+	config := getDatasetConfig(datasetSize)
+
+	// Initialize cache if needed
+	if err := setup.InitGlobalCache(); err != nil {
+		return fmt.Errorf("failed to initialize cache: %v", err)
+	}
+
+	// Get dataset from SQLite cache
+	dataset, err := setup.GetCachedDataset(config)
+	if err != nil {
+		return fmt.Errorf("failed to get cached dataset: %v", err)
+	}
+
+	// Create EventStore for loading data
+	store, err := dcb.NewEventStore(ctx, pool)
+	if err != nil {
+		return fmt.Errorf("failed to create event store: %v", err)
+	}
+
+	// Load dataset into PostgreSQL
+	if err := setup.LoadDatasetIntoStore(ctx, store, dataset); err != nil {
+		return fmt.Errorf("failed to load dataset into store: %v", err)
+	}
+
+	log.Printf("Test data loaded successfully: %s dataset", datasetSize)
+	return nil
+}
+
+// getDatasetConfig returns the dataset configuration for the given size
+func getDatasetConfig(datasetSize string) setup.DatasetConfig {
+	config, exists := setup.DatasetSizes[datasetSize]
+	if !exists {
+		// Default to tiny if size is invalid
+		return setup.DatasetSizes["tiny"]
+	}
+	return config
+}
