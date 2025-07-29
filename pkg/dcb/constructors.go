@@ -292,12 +292,8 @@ func (qb *QueryBuilder) WithTagAndType(key, value, eventType string) *QueryBuild
 	return qb
 }
 
-// WithTagsAndTypes adds both tags and event types conditions to the current QueryItem
-func (qb *QueryBuilder) WithTagsAndTypes(eventTypes []string, kv ...string) *QueryBuilder {
-	qb.WithTypes(eventTypes...)
-	qb.WithTags(kv...)
-	return qb
-}
+// WithTagsAndTypes method removed - use WithTypes() and WithTags() separately for clarity
+// Example: qb.WithTypes("Type1", "Type2").WithTags("key1", "value1", "key2", "value2")
 
 // Build creates the final Query from the builder
 func (qb *QueryBuilder) Build() Query {
@@ -332,7 +328,7 @@ func FailIfEventType(eventType, key, value string) AppendCondition {
 
 // FailIfEventTypes creates an AppendCondition that fails if events of any of the given types exist with the specified tag
 func FailIfEventTypes(eventTypes []string, key, value string) AppendCondition {
-	query := NewQueryBuilder().WithTagsAndTypes(eventTypes, key, value).Build()
+	query := NewQueryBuilder().WithTypes(eventTypes...).WithTag(key, value).Build()
 	return NewAppendCondition(query)
 }
 
@@ -394,7 +390,7 @@ func ProjectState(id string, eventType string, key, value string, initialState a
 func ProjectStateWithTypes(id string, eventTypes []string, key, value string, initialState any, transitionFn func(any, Event) any) StateProjector {
 	return StateProjector{
 		ID:           id,
-		Query:        NewQueryBuilder().WithTagsAndTypes(eventTypes, key, value).Build(),
+		Query:        NewQueryBuilder().WithTypes(eventTypes...).WithTag(key, value).Build(),
 		InitialState: initialState,
 		TransitionFn: transitionFn,
 	}
