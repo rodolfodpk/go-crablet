@@ -43,9 +43,11 @@ CREATE INDEX idx_events_type ON events(type);
 - **`occurred_at`**: Business timestamp (when the event logically occurred)
 - **Type constraint**: Maximum 64 characters for event type names
 
-### Commands Table
+### Commands Table (Optional)
 
-Audit trail for all commands executed:
+**⚠️ IMPORTANT**: This table is **optional** and only used when implementing the `CommandExecutor` API. The core `EventStore` operations do not use this table.
+
+Audit trail for commands executed via the CommandExecutor API:
 
 ```sql
 CREATE TABLE commands (
@@ -57,12 +59,15 @@ CREATE TABLE commands (
 );
 ```
 
-**Purpose:**
-- **Audit Trail**: Track all commands for debugging and compliance (only when using CommandExecutor)
+**Purpose (CommandExecutor only):**
+- **Audit Trail**: Track all commands for debugging and compliance
 - **Correlation**: Link commands to their generated events via `transaction_id`
 - **Metadata**: Store additional information about command execution
 
-**Note**: The commands table is only populated when using the optional `CommandExecutor` API. The core `EventStore` operations do not store commands.
+**Usage:**
+- **With CommandExecutor**: Table is populated automatically when commands are executed
+- **Without CommandExecutor**: Table remains empty and unused
+- **Core EventStore**: Never writes to this table, only handles events
 
 ### Transaction ID Generation
 
