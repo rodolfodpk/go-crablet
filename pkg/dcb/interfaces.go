@@ -188,7 +188,6 @@ func ParseIsolationLevel(s string) (IsolationLevel, error) {
 // EventStoreConfig contains configuration for EventStore behavior
 type EventStoreConfig struct {
 	MaxBatchSize           int            `json:"max_batch_size"`
-	LockTimeout            int            `json:"lock_timeout"`             // Lock timeout in milliseconds for advisory locks (optional feature, currently unused)
 	StreamBuffer           int            `json:"stream_buffer"`            // Channel buffer size for streaming operations
 	DefaultAppendIsolation IsolationLevel `json:"default_append_isolation"` // Default isolation level for Append operations
 	QueryTimeout           int            `json:"query_timeout"`            // Query timeout in milliseconds (defensive against hanging queries)
@@ -204,7 +203,6 @@ type EventStoreConfig struct {
 // This is an optional convenience API for command-driven event generation
 type CommandExecutor interface {
 	ExecuteCommand(ctx context.Context, command Command, handler CommandHandler, condition *AppendCondition) ([]InputEvent, error)
-	ExecuteCommandWithLocks(ctx context.Context, command Command, handler CommandHandler, locks []string, condition *AppendCondition) ([]InputEvent, error)
 }
 
 // CommandHandler handles command execution and generates events
