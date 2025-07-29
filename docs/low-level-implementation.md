@@ -7,7 +7,7 @@ This document provides detailed information about the internal implementation of
 1. [Database Schema](#database-schema)
 2. [SQL Functions](#sql-functions)
 3. [Query and Projection Implementation](#query-and-projection-implementation)
-4. [Advisory Locks Implementation](#advisory-locks-implementation)
+4. [DCB Implementation](#dcb-implementation)
 5. [Transaction Management](#transaction-management)
 6. [Error Handling](#error-handling)
 7. [Performance Considerations](#performance-considerations)
@@ -152,31 +152,20 @@ END;
 $$ LANGUAGE plpgsql;
 ```
 
-#### 3. `append_events_with_advisory_locks()` - Advisory Lock Append
+#### 3. `append_events_with_condition()` - Conditional Append with DCB
 
 ```sql
-CREATE OR REPLACE FUNCTION append_events_with_advisory_locks(
+CREATE OR REPLACE FUNCTION append_events_with_condition(
     p_types TEXT[],
     p_tags TEXT[], -- array of Postgres array literals as strings for storage
     p_data JSONB[],
-    p_lock_tags TEXT[], -- array of Postgres array literals as strings for advisory locks
-    p_condition JSONB DEFAULT NULL,
-    p_lock_timeout_ms INTEGER DEFAULT 5000 -- 5 second default timeout
+    p_condition JSONB DEFAULT NULL
 ) RETURNS JSONB AS $$
 DECLARE
     fail_if_events_match JSONB;
     after_cursor JSONB;
-    lock_keys TEXT[];
-    tag_array TEXT[];
-    lock_key TEXT;
-    i INTEGER;
-    lock_timeout_setting TEXT;
     condition_result JSONB;
 BEGIN
-    -- Set lock timeout for this transaction
-    lock_timeout_setting := current_setting('lock_timeout', true);
-    PERFORM set_config('lock_timeout', p_lock_timeout_ms::TEXT, false);
-    
     -- Extract condition parameters
     IF p_condition IS NOT NULL THEN
         fail_if_events_match := p_condition->'fail_if_events_match';
@@ -185,20 +174,7 @@ BEGIN
         END IF;
     END IF;
     
-    -- Process each event's lock tags to acquire advisory locks
-    FOR i IN 1..array_length(p_lock_tags, 1) LOOP
-        -- Parse the lock tags array string into actual array
-        tag_array := p_lock_tags[i]::TEXT[];
-        
-        -- Acquire advisory locks for all lock keys (sorted to prevent deadlocks)
-        IF array_length(tag_array, 1) > 0 THEN
-            FOR lock_key IN SELECT unnest(tag_array ORDER BY tag_array) LOOP
-                PERFORM pg_advisory_xact_lock(hashtext(lock_key));
-            END LOOP;
-        END IF;
-    END LOOP;
-    
-    -- Check append conditions
+    -- Check append conditions using DCB
     condition_result := check_append_condition(fail_if_events_match, after_cursor);
     
     -- If conditions failed, return the failure status
@@ -212,7 +188,7 @@ BEGIN
     -- Return success status
     RETURN jsonb_build_object(
         'success', true,
-        'message', 'events appended successfully with advisory locks',
+        'message', 'events appended successfully with DCB',
         'events_count', array_length(p_types, 1)
     );
 END;
@@ -312,45 +288,45 @@ func (es *eventStore) QueryStream(ctx context.Context, query Query, after *Curso
 - **Goroutine Management**: Efficient concurrent processing
 - **Memory Safety**: Events streamed one at a time to prevent memory exhaustion
 
-## Advisory Locks Implementation
+## DCB Implementation
 
-### Lock Key Generation
+### Dynamic Consistency Boundary
 
-Lock keys are generated from event tags with the `lock:` prefix:
+The DCB (Dynamic Consistency Boundary) pattern provides concurrency control without explicit locking:
 
 ```go
-// In Go code
-for _, tag := range event.GetTags() {
-    if strings.HasPrefix(tag.GetKey(), "lock:") {
-        lockKey := strings.TrimPrefix(tag.GetKey(), "lock:")
-        lockKeys = append(lockKeys, lockKey)
-    }
-}
+// In Go code - DCB uses event-based consistency checks
+condition := dcb.NewAppendCondition().
+    FailIfEventsMatch(dcb.NewEventMatch().
+        WithEventTypes("AccountDebited").
+        WithTags(dcb.NewTags("account_id", "acc-001")).
+        Build()).
+    Build()
 ```
 
-### Lock Acquisition Strategy
+### DCB Strategy
 
 ```sql
--- In SQL function
-FOR lock_key IN SELECT unnest(lock_tags[i]::TEXT[]) LOOP
-    PERFORM pg_advisory_xact_lock(hashtext(lock_key));
-END LOOP;
+-- In SQL function - check conditions before appending
+condition_result := check_append_condition(fail_if_events_match, after_cursor);
+IF (condition_result->>'success')::boolean = false THEN
+    RETURN condition_result;
+END IF;
 ```
 
 **Key Characteristics:**
-- **Transaction-scoped**: Locks are automatically released when transaction commits/rolls back
-- **Hash-based**: Uses `hashtext()` for consistent lock key generation
-- **Ordered**: Locks are acquired in a consistent order to prevent deadlocks
-- **Timeout-protected**: Uses `lock_timeout` setting to prevent indefinite waiting
+- **Event-based**: Uses event patterns to define consistency boundaries
+- **Conditional**: Only applies when specific conditions are violated
+- **Non-blocking**: No locks required, uses event matching instead
+- **Flexible**: Can define complex consistency rules using event types and tags
 
-### Lock Key Examples
+### DCB Examples
 
 ```go
-// Example lock keys
-"course:CS101"           // Lock specific course
-"student:student123"     // Lock specific student
-"enrollment:CS101"       // Lock enrollment operations for course
-"account:account456"     // Lock specific account
+// Example DCB conditions
+"Fail if AccountDebited exists for account_id"     // Prevent double-debiting
+"Fail if StudentEnrolled exists for course_id"     // Prevent duplicate enrollment
+"Fail if OrderPlaced exists for order_id"          // Prevent duplicate orders
 ```
 
 ## Transaction Management
@@ -374,7 +350,7 @@ const (
 ### Transaction Flow
 
 1. **Begin Transaction**: Start with specified isolation level
-2. **Acquire Locks**: If advisory locks are needed (only for events with `lock:` tags)
+2. **Check Conditions**: If DCB conditions are specified (only for `AppendIf` operations)
 3. **Validate Conditions**: Check append conditions (only for `AppendIf` operations)
 4. **Generate Transaction ID**: Use PostgreSQL's built-in `pg_current_xact_id()`
 5. **Insert Events**: Batch insert all events using `append_events_batch()` or related functions

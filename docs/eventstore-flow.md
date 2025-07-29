@@ -108,32 +108,30 @@ err := store.AppendIf(ctx, events, condition)
 5. **Insert events** - Batch insert with `append_events_with_condition()`
 6. **Commit transaction** - All events become visible atomically
 
-### Advisory Lock Append (Automatic)
+### Conditional Append with DCB
 
 ```go
-// Events with lock tags - advisory locks are handled automatically
+// Events with business logic validation
 events := []dcb.InputEvent{
     dcb.NewEvent("AccountDebited").
         WithTag("account_id", "acc-001").
-        WithTag("lock:account_id", "acc-001"). // Advisory lock tag
         WithData(map[string]interface{}{
             "amount": 100,
         }).
         Build(),
 }
 
-// Append with advisory locks (automatic when lock: tags present)
-err := store.Append(ctx, events) // or store.AppendIf(ctx, events, condition)
+// Append with DCB concurrency control
+err := store.AppendIf(ctx, events, condition)
 ```
 
 **Flow:**
 1. **Validate events** - Check event structure and constraints
 2. **Begin transaction** - Start PostgreSQL transaction
-3. **Acquire advisory locks** - Lock resources using `lock:` tags (automatic)
-4. **Check conditions** - If specified, verify no conflicts
-5. **Generate transaction ID** - Use `pg_current_xact_id()`
-6. **Insert events** - Batch insert with appropriate SQL function
-7. **Commit transaction** - Locks released, events become visible
+3. **Check conditions** - If specified, verify no conflicts using DCB
+4. **Generate transaction ID** - Use `pg_current_xact_id()`
+5. **Insert events** - Batch insert with appropriate SQL function
+6. **Commit transaction** - Events become visible atomically
 
 ## Event Query Flow
 
