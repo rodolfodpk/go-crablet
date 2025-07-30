@@ -67,11 +67,11 @@ The web app performance is significantly lower than the Go library due to:
 3. **Conflict Detection**: Fail-fast on concurrent modifications
 4. **Domain Logic**: Enforce business constraints
 
-#### Benefits
-- **Fail-fast**: Immediate conflict detection
-- **Business rules**: Domain-specific validation
-- **Scalability**: Works across multiple instances
-- **Predictable**: Consistent performance characteristics
+#### What DCB Provides
+- **Conflict Detection**: Identifies when business rules are violated during event appends
+- **Domain Constraints**: Allows you to define conditions that must be met before events can be stored
+- **Multi-instance Support**: Can work across different application instances
+- **Consistent Performance**: Predictable behavior under load
 
 #### Trade-offs
 - **Performance**: Slightly slower than simple append
@@ -92,8 +92,8 @@ The web app performance is significantly lower than the Go library due to:
 3. **High-throughput Scenarios**: Bulk data ingestion
 4. **Simple Workflows**: No business rule requirements
 
-#### Benefits
-- **Maximum Performance**: Fastest option available
+#### Characteristics
+- **Higher Performance**: Faster than DCB operations due to no condition checking
 - **Simplicity**: No condition setup required
 - **Low Memory**: Minimal overhead
 - **Reliability**: Consistent performance
