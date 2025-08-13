@@ -6,25 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
-
-// withTimeout creates a new context with timeout, respecting caller's timeout if set
-// If caller provides context with deadline: use caller's timeout
-// If caller provides context without deadline: use default from config
-func (es *eventStore) withTimeout(ctx context.Context, defaultTimeoutMs int) (context.Context, context.CancelFunc) {
-	if deadline, ok := ctx.Deadline(); ok {
-		// Caller already set a timeout, use it
-		// Use context.Background() as parent to avoid inheriting cancellation from original context
-		return context.WithDeadline(context.Background(), deadline)
-	}
-	// No caller timeout, use default
-	// Use context.Background() as parent to avoid inheriting cancellation from original context
-	return context.WithTimeout(context.Background(), time.Duration(defaultTimeoutMs)*time.Millisecond)
-}
 
 // Append appends events to the store with optional condition
 // Append appends events to the store without any consistency/concurrency checks
@@ -42,11 +27,8 @@ func (es *eventStore) Append(ctx context.Context, events []InputEvent) error {
 		}
 	}
 
-	// Start transaction with hybrid timeout (respects caller timeout if set, otherwise uses default)
-	appendCtx, cancel := es.withTimeout(ctx, es.config.AppendTimeout)
-	defer cancel()
-
-	tx, err := es.pool.BeginTx(appendCtx, pgx.TxOptions{
+	// Start transaction using caller's context (caller controls timeout)
+	tx, err := es.pool.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel: toPgxIsoLevel(es.config.DefaultAppendIsolation),
 	})
 	if err != nil {
@@ -108,11 +90,8 @@ func (es *eventStore) AppendIf(ctx context.Context, events []InputEvent, conditi
 		}
 	}
 
-	// Start transaction with hybrid timeout (respects caller timeout if set, otherwise uses default)
-	appendCtx, cancel := es.withTimeout(ctx, es.config.AppendTimeout)
-	defer cancel()
-
-	tx, err := es.pool.BeginTx(appendCtx, pgx.TxOptions{
+	// Start transaction using caller's context (caller controls timeout)
+	tx, err := es.pool.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel: toPgxIsoLevel(es.config.DefaultAppendIsolation),
 	})
 	if err != nil {
