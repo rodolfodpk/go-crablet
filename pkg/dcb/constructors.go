@@ -9,14 +9,8 @@ import (
 )
 
 // =============================================================================
-// EventStore Implementation
+// EventStore Constructor Helpers
 // =============================================================================
-
-// eventStore implements the EventStore interface using PostgreSQL
-type eventStore struct {
-	pool   *pgxpool.Pool
-	config EventStoreConfig
-}
 
 func newEventStore(pool *pgxpool.Pool, cfg EventStoreConfig) *eventStore {
 	// Validate configuration
@@ -38,16 +32,6 @@ func newEventStore(pool *pgxpool.Pool, cfg EventStoreConfig) *eventStore {
 		pool:   pool,
 		config: cfg,
 	}
-}
-
-// GetConfig returns the current EventStore configuration
-func (es *eventStore) GetConfig() EventStoreConfig {
-	return es.config
-}
-
-// GetPool returns the underlying database pool
-func (es *eventStore) GetPool() *pgxpool.Pool {
-	return es.pool
 }
 
 // =============================================================================

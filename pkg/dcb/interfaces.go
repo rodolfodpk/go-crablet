@@ -61,6 +61,26 @@ type EventStore interface {
 	GetPool() *pgxpool.Pool
 }
 
+// =============================================================================
+// EventStore Implementation
+// =============================================================================
+
+// eventStore implements the EventStore interface using PostgreSQL
+type eventStore struct {
+	pool   *pgxpool.Pool
+	config EventStoreConfig
+}
+
+// GetConfig returns the current EventStore configuration
+func (es *eventStore) GetConfig() EventStoreConfig {
+	return es.config
+}
+
+// GetPool returns the underlying database pool
+func (es *eventStore) GetPool() *pgxpool.Pool {
+	return es.pool
+}
+
 // Query represents a composite query with multiple conditions combined with OR logic
 // This is opaque to consumers - they can only construct it via helper functions
 // Now exposes GetItems for public access
