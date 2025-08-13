@@ -53,8 +53,6 @@ func (c *command) GetType() string                     { return c.commandType }
 func (c *command) GetData() []byte                     { return c.data }
 func (c *command) GetMetadata() map[string]interface{} { return c.metadata }
 
-
-
 type commandExecutor struct {
 	eventStore EventStore
 }
