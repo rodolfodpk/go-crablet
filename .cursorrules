@@ -79,7 +79,7 @@ The project uses a sophisticated coverage system with **gocovmerge** to combine 
 - `IsTableStructureError` (errors.go:83) - Public API, may need tests if used
 - `GetTableStructureError` (errors.go:120) - Public API, may need tests if used
 - `AsConcurrencyError`, `AsResourceError`, `AsTableStructureError` (errors.go) - Simple aliases, tested through Get* functions
-- `isInputEvent`, `isTag`, `isQuery`, `isQueryItem`, `isAppendCondition` (interfaces.go) - Interface markers, no implementation to test
+- `isInputEvent`, `isTag`, `isQuery`, `isQueryItem`, `isAppendCondition` (types.go) - Interface markers, no implementation to test
 
 ### Coverage Accuracy
 The 80% coverage is legitimate because:

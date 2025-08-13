@@ -2,6 +2,7 @@ package dcb
 
 import (
 	"context"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -75,4 +76,4 @@ func (es *eventStore) GetConfig() EventStoreConfig {
 // GetPool returns the underlying database pool
 func (es *eventStore) GetPool() *pgxpool.Pool {
 	return es.pool
-} 
+}
