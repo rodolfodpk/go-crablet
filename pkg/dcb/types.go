@@ -1,7 +1,6 @@
 package dcb
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -92,36 +91,7 @@ type EventStoreConfig struct {
 	// TargetEventsTable removed - always use 'events' table for maximum performance
 }
 
-// =============================================================================
-// OPTIONAL CONVENIENCE INTERFACES (For user convenience, not used by core)
-// =============================================================================
 
-// CommandExecutor executes commands and generates events
-// This is an optional convenience API for command-driven event generation
-type CommandExecutor interface {
-	ExecuteCommand(ctx context.Context, command Command, handler CommandHandler, condition *AppendCondition) ([]InputEvent, error)
-	ExecuteCommandWithLocks(ctx context.Context, command Command, handler CommandHandler, locks []string, condition *AppendCondition) ([]InputEvent, error)
-}
-
-// CommandHandler handles command execution and generates events
-// This is an optional convenience API for users - not used by core abstractions
-type CommandHandler interface {
-	Handle(ctx context.Context, store EventStore, command Command) ([]InputEvent, error)
-}
-
-// CommandHandlerFunc allows using functions as CommandHandler implementations
-type CommandHandlerFunc func(ctx context.Context, store EventStore, command Command) ([]InputEvent, error)
-
-func (f CommandHandlerFunc) Handle(ctx context.Context, store EventStore, command Command) ([]InputEvent, error) {
-	return f(ctx, store, command)
-}
-
-// Command represents a command that triggers event generation
-type Command interface {
-	GetType() string
-	GetData() []byte
-	GetMetadata() map[string]interface{}
-}
 
 // =============================================================================
 // INTERNAL IMPLEMENTATIONS (Private)
@@ -136,15 +106,7 @@ func (t *tag) isTag()           {}
 func (t *tag) GetKey() string   { return t.key }
 func (t *tag) GetValue() string { return t.value }
 
-type command struct {
-	commandType string
-	data        []byte
-	metadata    map[string]interface{}
-}
 
-func (c *command) GetType() string                     { return c.commandType }
-func (c *command) GetData() []byte                     { return c.data }
-func (c *command) GetMetadata() map[string]interface{} { return c.metadata }
 
 // MarshalJSON ensures Tag is marshaled as {"key":..., "value":...}
 func (t *tag) MarshalJSON() ([]byte, error) {
