@@ -91,8 +91,6 @@ type EventStoreConfig struct {
 	// TargetEventsTable removed - always use 'events' table for maximum performance
 }
 
-
-
 // =============================================================================
 // INTERNAL IMPLEMENTATIONS (Private)
 // =============================================================================
@@ -105,8 +103,6 @@ type tag struct {
 func (t *tag) isTag()           {}
 func (t *tag) GetKey() string   { return t.key }
 func (t *tag) GetValue() string { return t.value }
-
-
 
 // MarshalJSON ensures Tag is marshaled as {"key":..., "value":...}
 func (t *tag) MarshalJSON() ([]byte, error) {
