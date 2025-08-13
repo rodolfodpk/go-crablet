@@ -19,9 +19,11 @@ var _ = Describe("Batch Projection", func() {
 	)
 
 	BeforeEach(func() {
-		store = dcb.NewEventStoreFromPool(pool)
+		var err error
 		ctx = context.Background()
-		err := truncateEventsTable(ctx, pool)
+		store, err = dcb.NewEventStore(ctx, pool)
+		Expect(err).NotTo(HaveOccurred())
+		err = truncateEventsTable(ctx, pool)
 		Expect(err).NotTo(HaveOccurred())
 	})
 

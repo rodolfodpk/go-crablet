@@ -19,16 +19,13 @@ var _ = Describe("Channel-Based Streaming", func() {
 
 	BeforeEach(func() {
 		// Use shared PostgreSQL container and truncate events between tests
-		store = dcb.NewEventStoreFromPool(pool)
-		var ok bool
-		store, ok = store.(dcb.EventStore)
-		Expect(ok).To(BeTrue(), "Store should implement EventStore")
-
-		// Create context for each test
+		var err error
 		ctx = context.Background()
+		store, err = dcb.NewEventStore(ctx, pool)
+		Expect(err).NotTo(HaveOccurred())
 
 		// Truncate events table before each test
-		err := truncateEventsTable(ctx, pool)
+		err = truncateEventsTable(ctx, pool)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
