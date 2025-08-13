@@ -12,8 +12,21 @@ import (
 // Database Validation Functions
 // =============================================================================
 
-// validateEventsTableExists validates that the target events table exists with correct structure
-func validateEventsTableExists(ctx context.Context, pool *pgxpool.Pool, tableName string) error {
+// validateEventsTableExists validates that the events table exists with correct structure
+// This is a required table for EventStore to function
+func validateEventsTableExists(ctx context.Context, pool *pgxpool.Pool) error {
+	return validateTableExists(ctx, pool, "events", true)
+}
+
+// validateCommandsTableExists validates that the commands table exists with correct structure
+// This is an optional table for command tracking functionality
+func validateCommandsTableExists(ctx context.Context, pool *pgxpool.Pool) error {
+	return validateTableExists(ctx, pool, "commands", false)
+}
+
+// validateTableExists validates that a table exists with correct structure
+// required: if true, missing table is an error; if false, missing table is just logged
+func validateTableExists(ctx context.Context, pool *pgxpool.Pool, tableName string, required bool) error {
 	// Check if table exists
 	var exists bool
 	err := pool.QueryRow(ctx, `
@@ -28,27 +41,31 @@ func validateEventsTableExists(ctx context.Context, pool *pgxpool.Pool, tableNam
 	}
 
 	if !exists {
-		return &TableStructureError{
-			EventStoreError: EventStoreError{
-				Op:  "validate_events_table_exists",
-				Err: fmt.Errorf("table %s does not exist", tableName),
-			},
-			TableName: tableName,
-			Issue:     "table does not exist",
+		if required {
+			return &TableStructureError{
+				EventStoreError: EventStoreError{
+					Op:  "validate_table_exists",
+					Err: fmt.Errorf("required table %s does not exist", tableName),
+				},
+				TableName: tableName,
+				Issue:     "required table does not exist",
+			}
 		}
+		// Optional table missing - just log and continue
+		return nil
 	}
 
 	// Table exists, validate its structure
 	if err := validateTableStructure(ctx, pool, tableName); err != nil {
 		// If it's already a TableStructureError, wrap it with more context
 		if tableErr, ok := err.(*TableStructureError); ok {
-			tableErr.EventStoreError.Op = "validate_events_table_exists"
+			tableErr.EventStoreError.Op = "validate_table_exists"
 			return tableErr
 		}
 		// Otherwise, wrap it as a generic error
 		return &TableStructureError{
 			EventStoreError: EventStoreError{
-				Op:  "validate_events_table_exists",
+				Op:  "validate_table_exists",
 				Err: err,
 			},
 			TableName: tableName,
@@ -80,17 +97,48 @@ func validateTableStructure(ctx context.Context, pool *pgxpool.Pool, tableName s
 	}
 	defer rows.Close()
 
-	expectedColumns := map[string]struct {
+	// Define expected columns for each table
+	var expectedColumns map[string]struct {
 		dataType   string
 		isNullable string
 		hasDefault bool
-	}{
-		"type":           {dataType: "character varying", isNullable: "NO", hasDefault: false},
-		"tags":           {dataType: "ARRAY", isNullable: "NO", hasDefault: false},
-		"data":           {dataType: "json", isNullable: "NO", hasDefault: false},
-		"transaction_id": {dataType: "xid8", isNullable: "NO", hasDefault: false},
-		"position":       {dataType: "bigint", isNullable: "NO", hasDefault: false},
-		"occurred_at":    {dataType: "timestamp with time zone", isNullable: "NO", hasDefault: true},
+	}
+
+	switch tableName {
+	case "events":
+		expectedColumns = map[string]struct {
+			dataType   string
+			isNullable string
+			hasDefault bool
+		}{
+			"type":           {dataType: "character varying", isNullable: "NO", hasDefault: false},
+			"tags":           {dataType: "ARRAY", isNullable: "NO", hasDefault: false},
+			"data":           {dataType: "json", isNullable: "NO", hasDefault: false},
+			"transaction_id": {dataType: "xid8", isNullable: "NO", hasDefault: false},
+			"position":       {dataType: "bigint", isNullable: "NO", hasDefault: false},
+			"occurred_at":    {dataType: "timestamp with time zone", isNullable: "NO", hasDefault: true},
+		}
+	case "commands":
+		expectedColumns = map[string]struct {
+			dataType   string
+			isNullable string
+			hasDefault bool
+		}{
+			"transaction_id": {dataType: "xid8", isNullable: "NO", hasDefault: false},
+			"type":           {dataType: "character varying", isNullable: "NO", hasDefault: false},
+			"data":           {dataType: "jsonb", isNullable: "NO", hasDefault: false},
+			"metadata":       {dataType: "jsonb", isNullable: "YES", hasDefault: false},
+			"occurred_at":    {dataType: "timestamp with time zone", isNullable: "NO", hasDefault: true},
+		}
+	default:
+		return &TableStructureError{
+			EventStoreError: EventStoreError{
+				Op:  "validate_table_structure",
+				Err: fmt.Errorf("unknown table '%s' for validation", tableName),
+			},
+			TableName: tableName,
+			Issue:     "unknown table for validation",
+		}
 	}
 
 	foundColumns := make(map[string]bool)
