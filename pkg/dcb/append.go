@@ -76,8 +76,6 @@ func (e *inputEvent) GetType() string { return e.eventType }
 func (e *inputEvent) GetTags() []Tag  { return e.tags }
 func (e *inputEvent) GetData() []byte { return e.data }
 
-
-
 // Append appends events to the store with optional condition
 // Append appends events to the store without any consistency/concurrency checks
 // Use this only when there are no business rules or consistency requirements

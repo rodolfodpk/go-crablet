@@ -127,8 +127,6 @@ type Command interface {
 // INTERNAL IMPLEMENTATIONS (Private)
 // =============================================================================
 
-
-
 type tag struct {
 	key   string
 	value string
@@ -158,7 +156,3 @@ func (t *tag) MarshalJSON() ([]byte, error) {
 		Value: t.value,
 	})
 }
-
-
-
-
