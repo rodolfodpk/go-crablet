@@ -46,8 +46,13 @@ func NewEventStore(ctx context.Context, pool *pgxpool.Pool) (EventStore, error) 
 	}
 
 	// Validate that the events table exists with correct structure
-	if err := validateEventsTableExists(ctx, pool, "events"); err != nil {
+	if err := validateEventsTableExists(ctx, pool); err != nil {
 		return nil, fmt.Errorf("failed to validate events table: %w", err)
+	}
+
+	// Optionally validate commands table (if it exists)
+	if err := validateCommandsTableExists(ctx, pool); err != nil {
+		return nil, fmt.Errorf("failed to validate commands table: %w", err)
 	}
 
 	config := EventStoreConfig{
@@ -69,8 +74,13 @@ func NewEventStoreWithConfig(ctx context.Context, pool *pgxpool.Pool, config Eve
 	}
 
 	// Validate that the events table exists with correct structure
-	if err := validateEventsTableExists(ctx, pool, "events"); err != nil {
+	if err := validateEventsTableExists(ctx, pool); err != nil {
 		return nil, fmt.Errorf("failed to validate events table: %w", err)
+	}
+
+	// Optionally validate commands table (if it exists)
+	if err := validateCommandsTableExists(ctx, pool); err != nil {
+		return nil, fmt.Errorf("failed to validate commands table: %w", err)
 	}
 
 	return newEventStore(pool, config), nil
