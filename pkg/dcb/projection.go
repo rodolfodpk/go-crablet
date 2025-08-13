@@ -135,11 +135,6 @@ func CombineProjectorQueries(projectors []StateProjector) Query {
 	return &query{Items: allItems}
 }
 
-// Optimizes by merging QueryItems with the same tags but different event types
-func (es *eventStore) combineProjectorQueries(projectors []StateProjector) Query {
-	return CombineProjectorQueries(projectors)
-}
-
 // tagsToKey creates a consistent key from tags for grouping
 func tagsToKey(tags []Tag) string {
 	if len(tags) == 0 {
@@ -209,11 +204,6 @@ func EventMatchesProjector(event Event, projector StateProjector) bool {
 	return false
 }
 
-// eventMatchesProjector checks if an event matches a projector's query
-func (es *eventStore) eventMatchesProjector(event Event, projector StateProjector) bool {
-	return EventMatchesProjector(event, projector)
-}
-
 // Project projects state from events matching projectors with optional cursor
 // cursor == nil: project from beginning of stream
 // cursor != nil: project from specified cursor position
@@ -254,7 +244,7 @@ func (es *eventStore) Project(ctx context.Context, projectors []StateProjector, 
 	}
 
 	// Combine all projector queries for the append condition
-	combinedQuery := es.combineProjectorQueries(projectors)
+	combinedQuery := CombineProjectorQueries(projectors)
 
 	// Use cursor-based or full projection based on cursor parameter
 	if after != nil {
@@ -340,7 +330,7 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 
 		// Apply event to matching projectors
 		for _, projector := range projectors {
-			if es.eventMatchesProjector(event, projector) {
+			if EventMatchesProjector(event, projector) {
 				states[projector.ID] = projector.TransitionFn(states[projector.ID], event)
 			}
 		}
@@ -358,7 +348,7 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 	}
 
 	// Build append condition from projector queries for DCB concurrency control
-	appendCondition := es.buildAppendConditionFromQuery(query)
+	appendCondition := BuildAppendConditionFromQuery(query)
 
 	// Set cursor in append condition if we have events
 	if latestCursor != nil {
@@ -445,7 +435,7 @@ func (es *eventStore) projectDecisionModelWithQueryFromCursor(ctx context.Contex
 
 		// Apply event to matching projectors
 		for _, projector := range projectors {
-			if es.eventMatchesProjector(event, projector) {
+			if EventMatchesProjector(event, projector) {
 				states[projector.ID] = projector.TransitionFn(states[projector.ID], event)
 			}
 		}
@@ -463,7 +453,7 @@ func (es *eventStore) projectDecisionModelWithQueryFromCursor(ctx context.Contex
 	}
 
 	// Build append condition from projector queries for DCB concurrency control
-	appendCondition := es.buildAppendConditionFromQuery(query)
+	appendCondition := BuildAppendConditionFromQuery(query)
 
 	// Set cursor in append condition if we have events
 	if latestCursor != nil {
@@ -471,13 +461,6 @@ func (es *eventStore) projectDecisionModelWithQueryFromCursor(ctx context.Contex
 	}
 
 	return states, appendCondition, nil
-}
-
-// buildAppendConditionFromQuery builds an AppendCondition from a specific query
-// This aligns with DCB specification: each append operation should use the same query
-// that was used when building the Decision Model
-func (es *eventStore) buildAppendConditionFromQuery(query Query) AppendCondition {
-	return NewAppendCondition(query)
 }
 
 // BuildAppendConditionFromQuery builds an AppendCondition from a specific query
@@ -513,7 +496,7 @@ func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProje
 	}
 
 	// Build combined query from all projectors
-	query := es.combineProjectorQueries(projectors)
+	query := CombineProjectorQueries(projectors)
 
 	// Validate that the combined query is not empty (same validation as Read method)
 	if len(query.GetItems()) == 0 {
@@ -576,7 +559,7 @@ func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProje
 		}
 
 		// Build AppendCondition from projector queries for DCB concurrency control (same as Project)
-		appendCondition := es.buildAppendConditionFromQuery(query)
+		appendCondition := BuildAppendConditionFromQuery(query)
 
 		// Track latest cursor (same as Project)
 		var latestCursor *Cursor
@@ -616,7 +599,7 @@ func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProje
 				// Process event with each projector
 				for _, projector := range projectors {
 					// Check if projector should process this event
-					if !es.eventMatchesProjector(event, projector) {
+					if !EventMatchesProjector(event, projector) {
 						continue
 					}
 

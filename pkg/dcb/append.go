@@ -3,12 +3,10 @@ package dcb
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // Append appends events to the store with optional condition
@@ -249,17 +247,4 @@ func (es *eventStore) appendInTx(ctx context.Context, tx pgx.Tx, events []InputE
 	}
 
 	return nil
-}
-
-// isConcurrencyError checks if the error is a concurrency error raised by SQL
-func isConcurrencyError(err error) bool {
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		// Check for our custom error code DCB01 which indicates concurrency violations
-		return pgErr.Code == "DCB01"
-	}
-
-	// Fallback: check for the error message pattern (for backward compatibility)
-	// This can be removed once we're confident all deployments use the new error codes
-	return err != nil && strings.Contains(err.Error(), "append condition violated:")
 }
