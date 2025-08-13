@@ -11,6 +11,50 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// =============================================================================
+// COMMAND-RELATED TYPES
+// =============================================================================
+
+// CommandExecutor executes commands and generates events
+// This is an optional convenience API for command-driven event generation
+type CommandExecutor interface {
+	ExecuteCommand(ctx context.Context, command Command, handler CommandHandler, condition *AppendCondition) ([]InputEvent, error)
+	ExecuteCommandWithLocks(ctx context.Context, command Command, handler CommandHandler, locks []string, condition *AppendCondition) ([]InputEvent, error)
+}
+
+// CommandHandler handles command execution and generates events
+// This is an optional convenience API for users - not used by core abstractions
+type CommandHandler interface {
+	Handle(ctx context.Context, store EventStore, command Command) ([]InputEvent, error)
+}
+
+// CommandHandlerFunc allows using functions as CommandHandler implementations
+type CommandHandlerFunc func(ctx context.Context, store EventStore, command Command) ([]InputEvent, error)
+
+func (f CommandHandlerFunc) Handle(ctx context.Context, store EventStore, command Command) ([]InputEvent, error) {
+	return f(ctx, store, command)
+}
+
+// Command represents a command that triggers event generation
+type Command interface {
+	GetType() string
+	GetData() []byte
+	GetMetadata() map[string]interface{}
+}
+
+// command is the internal implementation
+type command struct {
+	commandType string
+	data        []byte
+	metadata    map[string]interface{}
+}
+
+func (c *command) GetType() string                     { return c.commandType }
+func (c *command) GetData() []byte                     { return c.data }
+func (c *command) GetMetadata() map[string]interface{} { return c.metadata }
+
+
+
 type commandExecutor struct {
 	eventStore EventStore
 }
