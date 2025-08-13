@@ -9,6 +9,75 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// =============================================================================
+// APPEND-RELATED TYPES
+// =============================================================================
+
+// AppendCondition represents conditions for DCB concurrency control during append operations
+// This is opaque to consumers - they can only construct it via helper functions
+type AppendCondition interface {
+	// isAppendCondition is a marker method to make this interface unexported
+	isAppendCondition()
+	// setAfterCursor sets the after cursor for proper (transaction_id, position) tracking
+	setAfterCursor(after *Cursor)
+	// getFailIfEventsMatch returns the internal query (used by event store)
+	getFailIfEventsMatch() *Query
+	// getAfterCursor returns the internal after cursor (used by event store)
+	getAfterCursor() *Cursor
+}
+
+// InputEvent represents an event to be appended to the store
+// This is now an opaque type: construct only via NewInputEvent
+// and access fields only via methods
+type InputEvent interface {
+	isInputEvent()
+	GetType() string
+	GetTags() []Tag
+	GetData() []byte
+}
+
+// appendCondition is the internal implementation
+type appendCondition struct {
+	FailIfEventsMatch *query  `json:"fail_if_events_match"`
+	AfterCursor       *Cursor `json:"after_cursor"`
+}
+
+// isAppendCondition implements AppendCondition
+func (ac *appendCondition) isAppendCondition() {}
+
+// setAfterCursor sets the after cursor for proper (transaction_id, position) tracking
+func (ac *appendCondition) setAfterCursor(after *Cursor) {
+	ac.AfterCursor = after
+}
+
+// getFailIfEventsMatch returns the internal query (used by event store)
+func (ac *appendCondition) getFailIfEventsMatch() *Query {
+	if ac.FailIfEventsMatch == nil {
+		return nil
+	}
+	var q Query = ac.FailIfEventsMatch
+	return &q
+}
+
+// getAfterCursor returns the internal after cursor (used by event store)
+func (ac *appendCondition) getAfterCursor() *Cursor {
+	return ac.AfterCursor
+}
+
+// inputEvent is the internal implementation
+type inputEvent struct {
+	eventType string
+	tags      []Tag
+	data      []byte
+}
+
+func (e *inputEvent) isInputEvent()   {}
+func (e *inputEvent) GetType() string { return e.eventType }
+func (e *inputEvent) GetTags() []Tag  { return e.tags }
+func (e *inputEvent) GetData() []byte { return e.data }
+
+
+
 // Append appends events to the store with optional condition
 // Append appends events to the store without any consistency/concurrency checks
 // Use this only when there are no business rules or consistency requirements

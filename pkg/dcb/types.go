@@ -11,39 +11,6 @@ import (
 // SUPPORTING INTERFACES AND TYPES
 // =============================================================================
 
-// Query represents a composite query with multiple conditions combined with OR logic
-// This is opaque to consumers - they can only construct it via helper functions
-// Now exposes GetItems for public access
-type Query interface {
-	// isQuery is a marker method to make this interface unexported
-	isQuery()
-	// GetItems returns the internal query items (used by event store)
-	GetItems() []QueryItem
-}
-
-// AppendCondition represents conditions for DCB concurrency control during append operations
-// This is opaque to consumers - they can only construct it via helper functions
-type AppendCondition interface {
-	// isAppendCondition is a marker method to make this interface unexported
-	isAppendCondition()
-	// setAfterCursor sets the after cursor for proper (transaction_id, position) tracking
-	setAfterCursor(after *Cursor)
-	// getFailIfEventsMatch returns the internal query (used by event store)
-	getFailIfEventsMatch() *Query
-	// getAfterCursor returns the internal after cursor (used by event store)
-	getAfterCursor() *Cursor
-}
-
-// InputEvent represents an event to be appended to the store
-// This is now an opaque type: construct only via NewInputEvent
-// and access fields only via methods
-type InputEvent interface {
-	isInputEvent()
-	GetType() string
-	GetTags() []Tag
-	GetData() []byte
-}
-
 // Tag represents a key-value pair for event categorization
 // This is now an opaque type: construct only via NewTag
 // and access fields only via methods
@@ -51,18 +18,6 @@ type Tag interface {
 	isTag()
 	GetKey() string
 	GetValue() string
-}
-
-// QueryItem represents a single atomic query condition
-// This is opaque to consumers - they can only construct it via helper functions
-// Now exposes GetEventTypes and GetTags for public access
-type QueryItem interface {
-	// isQueryItem is a marker method to make this interface unexported
-	isQueryItem()
-	// GetEventTypes returns the internal event types (used by event store)
-	GetEventTypes() []string
-	// GetTags returns the internal tags (used by event store)
-	GetTags() []Tag
 }
 
 // =============================================================================
@@ -85,14 +40,6 @@ type Event struct {
 type Cursor struct {
 	TransactionID uint64 `json:"transaction_id"`
 	Position      int64  `json:"position"`
-}
-
-// StateProjector defines how to project a state from events
-type StateProjector struct {
-	ID           string                           `json:"id"`
-	Query        Query                            `json:"query"`
-	InitialState any                              `json:"initial_state"`
-	TransitionFn func(state any, event Event) any `json:"-"`
 }
 
 // =============================================================================
@@ -180,16 +127,7 @@ type Command interface {
 // INTERNAL IMPLEMENTATIONS (Private)
 // =============================================================================
 
-type inputEvent struct {
-	eventType string
-	tags      []Tag
-	data      []byte
-}
 
-func (e *inputEvent) isInputEvent()   {}
-func (e *inputEvent) GetType() string { return e.eventType }
-func (e *inputEvent) GetTags() []Tag  { return e.tags }
-func (e *inputEvent) GetData() []byte { return e.data }
 
 type tag struct {
 	key   string
@@ -221,62 +159,6 @@ func (t *tag) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// query is the internal implementation
-type query struct {
-	Items []QueryItem `json:"items"`
-}
 
-// isQuery implements Query
-func (q *query) isQuery() {}
 
-// GetItems returns the internal query items (used by event store)
-func (q *query) GetItems() []QueryItem {
-	return q.Items
-}
 
-// queryItem is the internal implementation
-type queryItem struct {
-	EventTypes []string `json:"event_types"`
-	Tags       []Tag    `json:"tags"`
-}
-
-// isQueryItem implements QueryItem
-func (qi *queryItem) isQueryItem() {}
-
-// GetEventTypes returns the internal event types (used by event store)
-func (qi *queryItem) GetEventTypes() []string {
-	return qi.EventTypes
-}
-
-// GetTags returns the internal tags (used by event store)
-func (qi *queryItem) GetTags() []Tag {
-	return qi.Tags
-}
-
-// appendCondition is the internal implementation
-type appendCondition struct {
-	FailIfEventsMatch *query  `json:"fail_if_events_match"`
-	AfterCursor       *Cursor `json:"after_cursor"`
-}
-
-// isAppendCondition implements AppendCondition
-func (ac *appendCondition) isAppendCondition() {}
-
-// setAfterCursor sets the after cursor for proper (transaction_id, position) tracking
-func (ac *appendCondition) setAfterCursor(after *Cursor) {
-	ac.AfterCursor = after
-}
-
-// getFailIfEventsMatch returns the internal query (used by event store)
-func (ac *appendCondition) getFailIfEventsMatch() *Query {
-	if ac.FailIfEventsMatch == nil {
-		return nil
-	}
-	var q Query = ac.FailIfEventsMatch
-	return &q
-}
-
-// getAfterCursor returns the internal after cursor (used by event store)
-func (ac *appendCondition) getAfterCursor() *Cursor {
-	return ac.AfterCursor
-}

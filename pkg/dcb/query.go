@@ -7,6 +7,64 @@ import (
 	"strings"
 )
 
+// =============================================================================
+// QUERY-RELATED TYPES
+// =============================================================================
+
+// Query represents a composite query with multiple conditions combined with OR logic
+// This is opaque to consumers - they can only construct it via helper functions
+// Now exposes GetItems for public access
+type Query interface {
+	// isQuery is a marker method to make this interface unexported
+	isQuery()
+	// GetItems returns the internal query items (used by event store)
+	GetItems() []QueryItem
+}
+
+// QueryItem represents a single atomic query condition
+// This is opaque to consumers - they can only construct it via helper functions
+// Now exposes GetEventTypes and GetTags for public access
+type QueryItem interface {
+	// isQueryItem is a marker method to make this interface unexported
+	isQueryItem()
+	// GetEventTypes returns the internal event types (used by event store)
+	GetEventTypes() []string
+	// GetTags returns the internal tags (used by event store)
+	GetTags() []Tag
+}
+
+// query is the internal implementation
+type query struct {
+	Items []QueryItem `json:"items"`
+}
+
+// isQuery implements Query
+func (q *query) isQuery() {}
+
+// GetItems returns the internal query items (used by event store)
+func (q *query) GetItems() []QueryItem {
+	return q.Items
+}
+
+// queryItem is the internal implementation
+type queryItem struct {
+	EventTypes []string `json:"event_types"`
+	Tags       []Tag    `json:"tags"`
+}
+
+// isQueryItem implements QueryItem
+func (qi *queryItem) isQueryItem() {}
+
+// GetEventTypes returns the internal event types (used by event store)
+func (qi *queryItem) GetEventTypes() []string {
+	return qi.EventTypes
+}
+
+// GetTags returns the internal tags (used by event store)
+func (qi *queryItem) GetTags() []Tag {
+	return qi.Tags
+}
+
 // Query reads events matching the query with optional cursor
 // cursor == nil: query from beginning of stream
 // cursor != nil: query from specified cursor position

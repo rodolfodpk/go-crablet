@@ -9,6 +9,20 @@ import (
 	"time"
 )
 
+// =============================================================================
+// PROJECTION-RELATED TYPES
+// =============================================================================
+
+// StateProjector defines how to project a state from events
+type StateProjector struct {
+	ID           string                           `json:"id"`
+	Query        Query                            `json:"query"`
+	InitialState any                              `json:"initial_state"`
+	TransitionFn func(state any, event Event) any `json:"-"`
+}
+
+
+
 // rowEvent is a helper struct for scanning database rows.
 type rowEvent struct {
 	Type          string
