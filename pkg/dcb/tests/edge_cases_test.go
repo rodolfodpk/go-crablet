@@ -1,6 +1,8 @@
 package dcb
 
 import (
+	"context"
+
 	"github.com/rodolfodpk/go-crablet/pkg/dcb"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -174,7 +176,7 @@ var _ = Describe("Interface Type Guards and Edge Cases", func() {
 			Expect(config.QueryTimeout).To(Equal(999999))
 		})
 
-		It("should create EventStore with custom config using NewEventStoreFromPoolWithConfig", func() {
+		It("should create EventStore with custom config using NewEventStoreWithConfig", func() {
 			customConfig := dcb.EventStoreConfig{
 				MaxBatchSize:           500,
 				StreamBuffer:           500,
@@ -184,7 +186,10 @@ var _ = Describe("Interface Type Guards and Edge Cases", func() {
 			}
 
 			// Create EventStore with custom config
-			customStore := dcb.NewEventStoreFromPoolWithConfig(pool, customConfig)
+			var err error
+			var customStore dcb.EventStore
+			customStore, err = dcb.NewEventStoreWithConfig(context.Background(), pool, customConfig)
+			Expect(err).NotTo(HaveOccurred())
 			Expect(customStore).NotTo(BeNil())
 
 			// Verify the config was applied correctly
@@ -197,12 +202,13 @@ var _ = Describe("Interface Type Guards and Edge Cases", func() {
 
 			// Verify it can perform basic operations
 			event := dcb.NewInputEvent("TestEvent", dcb.NewTags("key", "value"), dcb.ToJSON(map[string]string{"data": "test"}))
-			err := customStore.Append(ctx, []dcb.InputEvent{event})
+			err = customStore.Append(ctx, []dcb.InputEvent{event})
 			Expect(err).To(BeNil())
 
 			// Query the event back
 			query := dcb.NewQuery(dcb.NewTags("key", "value"), "TestEvent")
-			events, err := customStore.Query(ctx, query, nil)
+			var events []dcb.Event
+			events, err = customStore.Query(ctx, query, nil)
 			Expect(err).To(BeNil())
 			Expect(events).To(HaveLen(1))
 			Expect(events[0].Type).To(Equal("TestEvent"))

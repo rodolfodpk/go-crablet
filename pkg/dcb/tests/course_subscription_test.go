@@ -98,7 +98,7 @@ type EnrollmentState struct {
 
 // Event Constructors
 func NewCourseDefinedEvent(courseID, name, instructor string, capacity int) dcb.InputEvent {
-	return dcb.NewInputEventUnsafe("CourseDefined", dcb.NewTags("course_id", courseID), toJSON(CourseDefined{
+	return dcb.NewInputEvent("CourseDefined", dcb.NewTags("course_id", courseID), toJSON(CourseDefined{
 		CourseID:   courseID,
 		Name:       name,
 		Capacity:   capacity,
@@ -107,7 +107,7 @@ func NewCourseDefinedEvent(courseID, name, instructor string, capacity int) dcb.
 }
 
 func NewStudentRegisteredEvent(studentID, name, email string) dcb.InputEvent {
-	return dcb.NewInputEventUnsafe("StudentRegistered", dcb.NewTags("student_id", studentID), toJSON(StudentRegistered{
+	return dcb.NewInputEvent("StudentRegistered", dcb.NewTags("student_id", studentID), toJSON(StudentRegistered{
 		StudentID: studentID,
 		Name:      name,
 		Email:     email,
@@ -115,7 +115,7 @@ func NewStudentRegisteredEvent(studentID, name, email string) dcb.InputEvent {
 }
 
 func NewStudentEnrolledEvent(studentID, courseID, enrolledAt string) dcb.InputEvent {
-	return dcb.NewInputEventUnsafe("StudentEnrolledInCourse", dcb.NewTags("student_id", studentID, "course_id", courseID), toJSON(StudentEnrolledInCourse{
+	return dcb.NewInputEvent("StudentEnrolledInCourse", dcb.NewTags("student_id", studentID, "course_id", courseID), toJSON(StudentEnrolledInCourse{
 		StudentID:  studentID,
 		CourseID:   courseID,
 		EnrolledAt: enrolledAt,
@@ -123,7 +123,7 @@ func NewStudentEnrolledEvent(studentID, courseID, enrolledAt string) dcb.InputEv
 }
 
 func NewStudentDroppedEvent(studentID, courseID, droppedAt string) dcb.InputEvent {
-	return dcb.NewInputEventUnsafe("StudentDroppedFromCourse", dcb.NewTags("student_id", studentID, "course_id", courseID), toJSON(StudentDroppedFromCourse{
+	return dcb.NewInputEvent("StudentDroppedFromCourse", dcb.NewTags("student_id", studentID, "course_id", courseID), toJSON(StudentDroppedFromCourse{
 		StudentID: studentID,
 		CourseID:  courseID,
 		DroppedAt: droppedAt,
@@ -131,7 +131,7 @@ func NewStudentDroppedEvent(studentID, courseID, droppedAt string) dcb.InputEven
 }
 
 func NewCourseCapacityChangedEvent(courseID string, newCapacity int) dcb.InputEvent {
-	return dcb.NewInputEventUnsafe("CourseCapacityChanged", dcb.NewTags("course_id", courseID), toJSON(CourseCapacityChanged{
+	return dcb.NewInputEvent("CourseCapacityChanged", dcb.NewTags("course_id", courseID), toJSON(CourseCapacityChanged{
 		CourseID:    courseID,
 		NewCapacity: newCapacity,
 	}))
@@ -486,14 +486,13 @@ var _ = Describe("Course Subscription Domain", func() {
 
 	BeforeEach(func() {
 		// Use shared PostgreSQL container and truncate events between tests
-		store = dcb.NewEventStoreFromPool(pool)
-		store = store.(dcb.EventStore)
-
-		// Create context for each test
+		var err error
 		ctx = context.Background()
+		store, err = dcb.NewEventStore(ctx, pool)
+		Expect(err).NotTo(HaveOccurred())
 
 		// Truncate events table before each test
-		err := truncateEventsTable(ctx, pool)
+		err = truncateEventsTable(ctx, pool)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
