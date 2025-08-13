@@ -86,31 +86,6 @@ func NewEventStoreWithConfig(ctx context.Context, pool *pgxpool.Pool, config Eve
 	return newEventStore(pool, config), nil
 }
 
-// NewEventStoreFromPool creates a new EventStore from an existing pool without connection testing.
-// This is used for tests that share a PostgreSQL container.
-func NewEventStoreFromPool(pool *pgxpool.Pool) EventStore {
-	cfg := EventStoreConfig{
-		MaxBatchSize:           1000,
-		StreamBuffer:           1000,
-		DefaultAppendIsolation: IsolationLevelReadCommitted,
-		QueryTimeout:           15000, // 15 seconds default
-		AppendTimeout:          10000, // 10 seconds default
-		// TargetEventsTable removed - always use 'events' table for maximum performance
-	}
-	return &eventStore{
-		pool:   pool,
-		config: cfg,
-	}
-}
-
-// NewEventStoreFromPoolWithConfig creates a new EventStore from an existing pool with custom configuration.
-func NewEventStoreFromPoolWithConfig(pool *pgxpool.Pool, config EventStoreConfig) EventStore {
-	return &eventStore{
-		pool:   pool,
-		config: config,
-	}
-}
-
 // =============================================================================
 // Event Constructors
 // =============================================================================
@@ -118,16 +93,6 @@ func NewEventStoreFromPoolWithConfig(pool *pgxpool.Pool, config EventStoreConfig
 // NewInputEvent creates a new InputEvent with the given type, tags, and data.
 // Validation is performed when the event is used in EventStore operations.
 func NewInputEvent(eventType string, tags []Tag, data []byte) InputEvent {
-	return &inputEvent{
-		eventType: eventType,
-		tags:      tags,
-		data:      data,
-	}
-}
-
-// NewInputEventUnsafe creates a new InputEvent without validation.
-// Use this only when you're certain the data is valid and you need maximum performance.
-func NewInputEventUnsafe(eventType string, tags []Tag, data []byte) InputEvent {
 	return &inputEvent{
 		eventType: eventType,
 		tags:      tags,
@@ -244,11 +209,6 @@ func NewCommand(commandType string, data []byte, metadata map[string]interface{}
 		data:        data,
 		metadata:    metadata,
 	}
-}
-
-// NewCommandSimple creates a new Command with type and data only
-func NewCommandSimple(commandType string, data []byte) Command {
-	return NewCommand(commandType, data, nil)
 }
 
 // =============================================================================
