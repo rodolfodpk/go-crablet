@@ -17,7 +17,7 @@ import (
 type Query interface {
 	// isQuery is a marker method to make this interface unexported
 	isQuery()
-	// getItems returns the internal query items (used by event store)
+	// GetItems returns the internal query items (used by event store)
 	GetItems() []QueryItem
 }
 
@@ -59,9 +59,9 @@ type Tag interface {
 type QueryItem interface {
 	// isQueryItem is a marker method to make this interface unexported
 	isQueryItem()
-	// getEventTypes returns the internal event types (used by event store)
+	// GetEventTypes returns the internal event types (used by event store)
 	GetEventTypes() []string
-	// getTags returns the internal tags (used by event store)
+	// GetTags returns the internal tags (used by event store)
 	GetTags() []Tag
 }
 
@@ -229,7 +229,7 @@ type query struct {
 // isQuery implements Query
 func (q *query) isQuery() {}
 
-// getItems returns the internal query items (used by event store)
+// GetItems returns the internal query items (used by event store)
 func (q *query) GetItems() []QueryItem {
 	return q.Items
 }
@@ -243,12 +243,12 @@ type queryItem struct {
 // isQueryItem implements QueryItem
 func (qi *queryItem) isQueryItem() {}
 
-// getEventTypes returns the internal event types (used by event store)
+// GetEventTypes returns the internal event types (used by event store)
 func (qi *queryItem) GetEventTypes() []string {
 	return qi.EventTypes
 }
 
-// getTags returns the internal tags (used by event store)
+// GetTags returns the internal tags (used by event store)
 func (qi *queryItem) GetTags() []Tag {
 	return qi.Tags
 }
