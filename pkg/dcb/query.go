@@ -36,10 +36,7 @@ func (es *eventStore) Query(ctx context.Context, query Query, after *Cursor) ([]
 		}
 	}
 
-	// Execute query with hybrid timeout (respects caller timeout if set, otherwise uses default)
-	ctx, cancel := es.withTimeout(ctx, es.config.QueryTimeout)
-	defer cancel()
-
+	// Execute query using caller's context (caller controls timeout)
 	rows, err := es.pool.Query(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, &EventStoreError{
@@ -116,11 +113,8 @@ func (es *eventStore) QueryStream(ctx context.Context, query Query, after *Curso
 			return
 		}
 
-		// Execute query with hybrid timeout (respects caller timeout if set, otherwise uses default)
-		queryCtx, cancel := es.withTimeout(ctx, es.config.QueryTimeout)
-		defer cancel()
-
-		rows, err := es.pool.Query(queryCtx, sqlQuery, args...)
+		// Execute query using caller's context (caller controls timeout)
+		rows, err := es.pool.Query(ctx, sqlQuery, args...)
 		if err != nil {
 			return
 		}

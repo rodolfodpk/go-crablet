@@ -538,11 +538,8 @@ func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProje
 		return nil, nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	// Execute the query with hybrid timeout (respects caller timeout if set, otherwise uses default)
-	queryCtx, cancel := es.withTimeout(ctx, es.config.QueryTimeout)
-	// Don't defer cancel() here - let the goroutine handle it
-
-	rows, err := es.pool.Query(queryCtx, sqlQuery, args...)
+	// Use caller's context directly (caller controls timeout)
+	rows, err := es.pool.Query(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, nil, &ResourceError{
 			EventStoreError: EventStoreError{
@@ -569,7 +566,7 @@ func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProje
 			rows.Close()
 			close(resultChan)
 			close(appendConditionChan)
-			cancel() // Cancel the context when goroutine is done
+			// No need to cancel - using caller's context
 		}()
 
 		// Initialize projector states
@@ -588,7 +585,7 @@ func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProje
 		// Process events using the same context as the database query
 		for rows.Next() {
 			select {
-			case <-queryCtx.Done():
+			case <-ctx.Done():
 				// Context cancelled - exit cleanly
 				return
 			default:
@@ -651,14 +648,14 @@ func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProje
 		// Send final aggregated states (same as batch version)
 		select {
 		case resultChan <- projectorStates:
-		case <-queryCtx.Done():
+		case <-ctx.Done():
 			// Context cancelled while trying to send final states
 		}
 
 		// Send complete AppendCondition with cursor
 		select {
 		case appendConditionChan <- appendCondition:
-		case <-queryCtx.Done():
+		case <-ctx.Done():
 			// Context cancelled while trying to send AppendCondition
 		}
 	}()
