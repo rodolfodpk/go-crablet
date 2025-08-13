@@ -9,6 +9,48 @@ import (
 )
 
 // =============================================================================
+// EventStore Implementation
+// =============================================================================
+
+// eventStore implements the EventStore interface using PostgreSQL
+type eventStore struct {
+	pool   *pgxpool.Pool
+	config EventStoreConfig
+}
+
+func newEventStore(pool *pgxpool.Pool, cfg EventStoreConfig) *eventStore {
+	// Validate configuration
+	if cfg.MaxBatchSize <= 0 {
+		cfg.MaxBatchSize = 1000 // Default batch size
+	}
+	if cfg.StreamBuffer <= 0 {
+		cfg.StreamBuffer = 1000 // Default stream buffer size
+	}
+	if cfg.QueryTimeout <= 0 {
+		cfg.QueryTimeout = 15000 // 15 seconds default
+	}
+	if cfg.AppendTimeout <= 0 {
+		cfg.AppendTimeout = 10000 // 10 seconds default
+	}
+	// TargetEventsTable removed - always use 'events' table for maximum performance
+
+	return &eventStore{
+		pool:   pool,
+		config: cfg,
+	}
+}
+
+// GetConfig returns the current EventStore configuration
+func (es *eventStore) GetConfig() EventStoreConfig {
+	return es.config
+}
+
+// GetPool returns the underlying database pool
+func (es *eventStore) GetPool() *pgxpool.Pool {
+	return es.pool
+}
+
+// =============================================================================
 // EventStore Constructors
 // =============================================================================
 
