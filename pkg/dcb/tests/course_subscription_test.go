@@ -13,7 +13,7 @@ import (
 )
 
 // Command types - following the command pattern from examples
-type CreateCourseCommand struct {
+type ScheduleCourseCommand struct {
 	CourseID   string
 	Name       string
 	Instructor string
@@ -260,7 +260,7 @@ func StudentEnrollmentStateProjector(studentID, courseID string) dcb.StateProjec
 }
 
 // Command handlers - following the command pattern from examples
-func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCourseCommand) error {
+func handleScheduleCourse(ctx context.Context, store dcb.EventStore, cmd ScheduleCourseCommand) error {
 	projectors := []dcb.StateProjector{
 		{
 			ID:           "courseExists",
@@ -499,15 +499,15 @@ var _ = Describe("Course Subscription Domain", func() {
 
 	Describe("Core EventStore Operations", func() {
 		It("should append and read events", func() {
-			// Create course using command pattern
-			createCourseCmd := CreateCourseCommand{
+			// Schedule course using command pattern
+			scheduleCourseCmd := ScheduleCourseCommand{
 				CourseID:   "course-1",
 				Name:       "Math 101",
 				Instructor: "Dr. Smith",
 				Capacity:   25,
 			}
 			store := store.(dcb.EventStore)
-			err := handleCreateCourse(ctx, store, createCourseCmd)
+			err := handleScheduleCourse(ctx, store, scheduleCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Read events
@@ -522,13 +522,13 @@ var _ = Describe("Course Subscription Domain", func() {
 			// Create multiple courses using command pattern
 			store := store.(dcb.EventStore)
 			for i := 1; i <= 5; i++ {
-				createCourseCmd := CreateCourseCommand{
+				scheduleCourseCmd := ScheduleCourseCommand{
 					CourseID:   fmt.Sprintf("course-%d", i),
 					Name:       fmt.Sprintf("Course %d", i),
 					Instructor: "Instructor",
 					Capacity:   20,
 				}
-				err := handleCreateCourse(ctx, store, createCourseCmd)
+				err := handleScheduleCourse(ctx, store, scheduleCourseCmd)
 				Expect(err).NotTo(HaveOccurred())
 			}
 
@@ -546,8 +546,8 @@ var _ = Describe("Course Subscription Domain", func() {
 	})
 
 	Describe("Command Pattern Operations", func() {
-		It("should create course successfully", func() {
-			cmd := CreateCourseCommand{
+		It("should schedule course successfully", func() {
+			cmd := ScheduleCourseCommand{
 				CourseID:   "math-101",
 				Name:       "Mathematics 101",
 				Instructor: "Dr. Johnson",
@@ -555,7 +555,7 @@ var _ = Describe("Course Subscription Domain", func() {
 			}
 
 			store := store.(dcb.EventStore)
-			err := handleCreateCourse(ctx, store, cmd)
+			err := handleScheduleCourse(ctx, store, cmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Verify course was created
@@ -565,8 +565,8 @@ var _ = Describe("Course Subscription Domain", func() {
 			Expect(events).To(HaveLen(1))
 		})
 
-		It("should prevent duplicate course creation", func() {
-			cmd := CreateCourseCommand{
+		It("should prevent duplicate course scheduling", func() {
+			cmd := ScheduleCourseCommand{
 				CourseID:   "math-101",
 				Name:       "Mathematics 101",
 				Instructor: "Dr. Johnson",
@@ -574,12 +574,12 @@ var _ = Describe("Course Subscription Domain", func() {
 			}
 
 			store := store.(dcb.EventStore)
-			// Create course first time
-			err := handleCreateCourse(ctx, store, cmd)
+			// Schedule course first time
+			err := handleScheduleCourse(ctx, store, cmd)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Try to create same course again
-			err = handleCreateCourse(ctx, store, cmd)
+			// Try to schedule same course again
+			err = handleScheduleCourse(ctx, store, cmd)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("already exists"))
 		})
@@ -621,15 +621,15 @@ var _ = Describe("Course Subscription Domain", func() {
 		})
 
 		It("should enroll student in course successfully", func() {
-			// Create course first
-			createCourseCmd := CreateCourseCommand{
+			// Schedule course first
+			scheduleCourseCmd := ScheduleCourseCommand{
 				CourseID:   "math-101",
 				Name:       "Mathematics 101",
 				Instructor: "Dr. Johnson",
 				Capacity:   30,
 			}
 			store := store.(dcb.EventStore)
-			err := handleCreateCourse(ctx, store, createCourseCmd)
+			err := handleScheduleCourse(ctx, store, scheduleCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Register student
@@ -678,15 +678,15 @@ var _ = Describe("Course Subscription Domain", func() {
 		})
 
 		It("should prevent enrollment of non-existent student", func() {
-			// Create course
-			createCourseCmd := CreateCourseCommand{
+			// Schedule course
+			scheduleCourseCmd := ScheduleCourseCommand{
 				CourseID:   "math-101",
 				Name:       "Mathematics 101",
 				Instructor: "Dr. Johnson",
 				Capacity:   30,
 			}
 			store := store.(dcb.EventStore)
-			err := handleCreateCourse(ctx, store, createCourseCmd)
+			err := handleScheduleCourse(ctx, store, scheduleCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Try to enroll non-existent student
@@ -700,15 +700,15 @@ var _ = Describe("Course Subscription Domain", func() {
 		})
 
 		It("should prevent duplicate enrollment", func() {
-			// Create course
-			createCourseCmd := CreateCourseCommand{
+			// Schedule course
+			scheduleCourseCmd := ScheduleCourseCommand{
 				CourseID:   "math-101",
 				Name:       "Mathematics 101",
 				Instructor: "Dr. Johnson",
 				Capacity:   30,
 			}
 			store := store.(dcb.EventStore)
-			err := handleCreateCourse(ctx, store, createCourseCmd)
+			err := handleScheduleCourse(ctx, store, scheduleCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Register student
@@ -736,13 +736,13 @@ var _ = Describe("Course Subscription Domain", func() {
 
 		It("should prevent enrollment when course is full", func() {
 			// Create course with capacity 1
-			createCourseCmd := CreateCourseCommand{
+			createCourseCmd := ScheduleCourseCommand{
 				CourseID:   "math-101",
 				Name:       "Mathematics 101",
 				Instructor: "Dr. Johnson",
 				Capacity:   1,
 			}
-			err := handleCreateCourse(ctx, store, createCourseCmd)
+			err := handleScheduleCourse(ctx, store, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Register two students
@@ -776,13 +776,13 @@ var _ = Describe("Course Subscription Domain", func() {
 
 		It("should drop student from course successfully", func() {
 			// Create course
-			createCourseCmd := CreateCourseCommand{
+			createCourseCmd := ScheduleCourseCommand{
 				CourseID:   "math-101",
 				Name:       "Mathematics 101",
 				Instructor: "Dr. Johnson",
 				Capacity:   30,
 			}
-			err := handleCreateCourse(ctx, store, createCourseCmd)
+			err := handleScheduleCourse(ctx, store, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Register student
@@ -819,13 +819,13 @@ var _ = Describe("Course Subscription Domain", func() {
 
 		It("should prevent dropping non-enrolled student", func() {
 			// Create course
-			createCourseCmd := CreateCourseCommand{
+			createCourseCmd := ScheduleCourseCommand{
 				CourseID:   "math-101",
 				Name:       "Mathematics 101",
 				Instructor: "Dr. Johnson",
 				Capacity:   30,
 			}
-			err := handleCreateCourse(ctx, store, createCourseCmd)
+			err := handleScheduleCourse(ctx, store, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Register student
@@ -849,13 +849,13 @@ var _ = Describe("Course Subscription Domain", func() {
 
 		It("should change course capacity successfully", func() {
 			// Create course
-			createCourseCmd := CreateCourseCommand{
+			createCourseCmd := ScheduleCourseCommand{
 				CourseID:   "math-101",
 				Name:       "Mathematics 101",
 				Instructor: "Dr. Johnson",
 				Capacity:   30,
 			}
-			err := handleCreateCourse(ctx, store, createCourseCmd)
+			err := handleScheduleCourse(ctx, store, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Change capacity
@@ -875,13 +875,13 @@ var _ = Describe("Course Subscription Domain", func() {
 
 		It("should prevent capacity reduction below enrollment count", func() {
 			// Create course with capacity 2
-			createCourseCmd := CreateCourseCommand{
+			createCourseCmd := ScheduleCourseCommand{
 				CourseID:   "math-101",
 				Name:       "Mathematics 101",
 				Instructor: "Dr. Johnson",
 				Capacity:   2,
 			}
-			err := handleCreateCourse(ctx, store, createCourseCmd)
+			err := handleScheduleCourse(ctx, store, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Register and enroll two students
@@ -916,13 +916,13 @@ var _ = Describe("Course Subscription Domain", func() {
 	Describe("Decision Model Projection", func() {
 		It("should project course state correctly", func() {
 			// Create course
-			createCourseCmd := CreateCourseCommand{
+			createCourseCmd := ScheduleCourseCommand{
 				CourseID:   "math-101",
 				Name:       "Mathematics 101",
 				Instructor: "Dr. Johnson",
 				Capacity:   30,
 			}
-			err := handleCreateCourse(ctx, store, createCourseCmd)
+			err := handleScheduleCourse(ctx, store, createCourseCmd)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Project course state
