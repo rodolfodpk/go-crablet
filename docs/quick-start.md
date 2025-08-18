@@ -113,9 +113,9 @@ func main() {
 
 After completing this quick start:
 
-- Read the [Overview](overview.md) to understand DCB concepts and transaction ID ordering
-- Explore the [Overview](overview.md) for the fluent API patterns
-- Check out the [Examples](../internal/examples/) directory for complete working examples including money transfers
+- Read the [Overview](docs/overview.md) to understand DCB concepts and transaction ID ordering
+- Explore the [Overview](docs/overview.md) for the fluent API patterns
+- Check out the [Examples](docs/examples.md) for complete working examples including money transfers
 
 ## Configuration
 
