@@ -1,6 +1,8 @@
 # Getting Started with go-crablet
 
-This guide will help you get started with go-crablet, a Go library for event sourcing with Dynamic Consistency Boundary (DCB) concurrency control.
+This guide will help you get started with go-crablet, a Go library **exploring** event sourcing concepts with Dynamic Consistency Boundary (DCB) patterns. 
+
+**Note: This is an exploration project for learning and experimenting with DCB concepts, not a production-ready solution.**
 
 ## Quick Start
 
