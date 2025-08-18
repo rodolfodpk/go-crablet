@@ -133,25 +133,4 @@ func (es *eventStore) validateBatchSize(events []InputEvent, operation string) e
 	return nil
 }
 
-// validateEvents validates all events in a batch
-func validateEvents(events []InputEvent) error {
-	// Check batch size limit (default 1000)
-	const maxBatchSize = 1000
-	if len(events) > maxBatchSize {
-		return &ValidationError{
-			EventStoreError: EventStoreError{
-				Op:  "validateEvents",
-				Err: fmt.Errorf("batch size %d exceeds maximum %d", len(events), maxBatchSize),
-			},
-			Field: "batchSize",
-			Value: fmt.Sprintf("%d", len(events)),
-		}
-	}
 
-	for i, event := range events {
-		if err := validateEvent(event, i); err != nil {
-			return err
-		}
-	}
-	return nil
-}
