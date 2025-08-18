@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -106,13 +105,9 @@ func (ce *commandExecutor) ExecuteCommand(ctx context.Context, command Command, 
 	// Get config from EventStore
 	config := ce.eventStore.GetConfig()
 
-	// Start transaction with EventStore's isolation level
-	executeCtx, cancel := ce.withTimeout(ctx, config.AppendTimeout)
-	defer cancel()
-
 	// Get pool and start transaction
 	pool := ce.eventStore.GetPool()
-	tx, err := pool.BeginTx(executeCtx, pgx.TxOptions{
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel: toPgxIsoLevel(config.DefaultAppendIsolation),
 	})
 	if err != nil {
@@ -297,13 +292,9 @@ func (ce *commandExecutor) ExecuteCommandWithLocks(ctx context.Context, command 
 	// Get config from EventStore
 	config := ce.eventStore.GetConfig()
 
-	// Start transaction with EventStore's isolation level
-	executeCtx, cancel := ce.withTimeout(ctx, config.AppendTimeout)
-	defer cancel()
-
 	// Get pool and start transaction
 	pool := ce.eventStore.GetPool()
-	tx, err := pool.BeginTx(executeCtx, pgx.TxOptions{
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel: toPgxIsoLevel(config.DefaultAppendIsolation),
 	})
 	if err != nil {
@@ -470,10 +461,4 @@ func (ce *commandExecutor) ExecuteCommandWithLocks(ctx context.Context, command 
 	return events, nil
 }
 
-// Helper methods
-func (ce *commandExecutor) withTimeout(ctx context.Context, defaultTimeoutMs int) (context.Context, context.CancelFunc) {
-	if deadline, ok := ctx.Deadline(); ok {
-		return context.WithDeadline(context.Background(), deadline)
-	}
-	return context.WithTimeout(context.Background(), time.Duration(defaultTimeoutMs)*time.Millisecond)
-}
+
