@@ -294,14 +294,14 @@ CREATE TABLE commands (
 
 ## Documentation
 
-- [Quick Start](docs/quick-start.md): Get started in minutes
-- [Getting Started](docs/getting-started.md): Comprehensive setup guide
-- [EventStore Flow](docs/eventstore-flow.md): Direct event operations
-- [Command Execution Flow](docs/command-execution-flow.md): High-level command pattern
-- [Examples](docs/examples.md): Complete usage examples
-- [Testing](docs/testing.md): Comprehensive testing guide
-- [Benchmarks](docs/benchmarks.md): Performance analysis
-- [Performance Improvements](docs/performance-improvements.md): Optimization strategies
-- [Low-Level Implementation](docs/low-level-implementation.md): Database schema and internals
+- [Quick Start](quick-start.md): Get started in minutes
+- [Getting Started](getting-started.md): Comprehensive setup guide
+- [EventStore Flow](eventstore-flow.md): Direct event operations
+- [Command Execution Flow](command-execution-flow.md): High-level command pattern
+- [Examples](examples.md): Complete usage examples
+- [Testing](testing.md): Comprehensive testing guide
+- [Benchmarks](benchmarks.md): Performance analysis
+- [Performance Improvements](performance-improvements.md): Optimization strategies
+- [Low-Level Implementation](low-level-implementation.md): Database schema and internals
 
 This library provides a solid foundation for event sourcing with DCB concurrency control, suitable for both simple event logging and complex business applications.
