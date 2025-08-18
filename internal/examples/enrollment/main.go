@@ -43,8 +43,16 @@ type UnenrollStudentCommand struct {
 	CourseID  string
 }
 
+// Event types as constants for type safety
+const (
+	EventTypeCourseScheduled   = "CourseScheduled"
+	EventTypeStudentRegistered = "StudentRegistered"
+	EventTypeStudentEnrolled   = "StudentEnrolled"
+	EventTypeStudentUnenrolled = "StudentUnenrolled"
+)
+
 // Event data structures for type safety and better performance
-type CourseDefinedData struct {
+type CourseScheduledData struct {
 	Title       string `json:"Title"`
 	MaxStudents int    `json:"MaxStudents"`
 }
@@ -55,12 +63,12 @@ type StudentRegisteredData struct {
 }
 
 type StudentEnrolledData struct {
-	CourseID string `json:"CourseID"`
+	CourseID  string `json:"CourseID"`
 	StudentID string `json:"StudentID"`
 }
 
 type StudentUnenrolledData struct {
-	CourseID string `json:"CourseID"`
+	CourseID  string `json:"CourseID"`
 	StudentID string `json:"StudentID"`
 }
 
@@ -199,9 +207,9 @@ func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCou
 
 	// Create events for this command using EventBuilder
 	events := []dcb.InputEvent{
-		dcb.NewEvent("CourseDefined").
+		dcb.NewEvent(EventTypeCourseScheduled).
 			WithTag("course_id", cmd.CourseID).
-			WithData(CourseDefinedData{
+			WithData(CourseScheduledData{
 				Title:       cmd.Title,
 				MaxStudents: cmd.MaxStudents,
 			}).
@@ -260,7 +268,7 @@ func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd Regist
 
 	// Create events for this command using EventBuilder
 	events := []dcb.InputEvent{
-		dcb.NewEvent("StudentRegistered").
+		dcb.NewEvent(EventTypeStudentRegistered).
 			WithTag("student_id", cmd.StudentID).
 			WithTag("email", cmd.Email).
 			WithData(StudentRegisteredData{
@@ -285,23 +293,23 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollSt
 	courseProjector := dcb.StateProjector{
 		Query: dcb.NewQuery(
 			dcb.NewTags("course_id", cmd.CourseID),
-			"CourseDefined", "StudentEnrolled", "StudentUnenrolled",
+			EventTypeCourseScheduled, EventTypeStudentEnrolled, EventTypeStudentUnenrolled,
 		),
 		InitialState: &CourseState{MaxStudents: 30},
 		TransitionFn: func(state any, event dcb.Event) any {
 			course := state.(*CourseState)
 			switch event.Type {
-			case "CourseDefined":
-				var data CourseDefinedData
+			case EventTypeCourseScheduled:
+				var data CourseScheduledData
 				if err := json.Unmarshal(event.Data, &data); err == nil {
 					course.Title = data.Title
 					if data.MaxStudents > 0 {
 						course.MaxStudents = data.MaxStudents
 					}
 				}
-			case "StudentEnrolled":
+			case EventTypeStudentEnrolled:
 				course.EnrolledStudents++
-			case "StudentUnenrolled":
+			case EventTypeStudentUnenrolled:
 				if course.EnrolledStudents > 0 {
 					course.EnrolledStudents--
 				}
@@ -319,18 +327,18 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollSt
 		TransitionFn: func(state any, event dcb.Event) any {
 			student := state.(*StudentState)
 			switch event.Type {
-			case "StudentRegistered":
+			case EventTypeStudentRegistered:
 				var data StudentRegisteredData
 				if err := json.Unmarshal(event.Data, &data); err == nil {
 					student.Name = data.Name
 					student.Email = data.Email
 				}
-			case "StudentEnrolled":
+			case EventTypeStudentEnrolled:
 				var data StudentEnrolledData
 				if err := json.Unmarshal(event.Data, &data); err == nil {
 					student.CourseIDs[data.CourseID] = true
 				}
-			case "StudentUnenrolled":
+			case EventTypeStudentUnenrolled:
 				var data StudentUnenrolledData
 				if err := json.Unmarshal(event.Data, &data); err == nil {
 					delete(student.CourseIDs, data.CourseID)
@@ -399,7 +407,7 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollSt
 
 	// Create events for this command using EventBuilder
 	events := []dcb.InputEvent{
-		dcb.NewEvent("StudentEnrolled").
+		dcb.NewEvent(EventTypeStudentEnrolled).
 			WithTag("course_id", cmd.CourseID).
 			WithTag("student_id", cmd.StudentID).
 			WithData(StudentEnrolledData{
@@ -424,15 +432,15 @@ func handleUnenrollStudent(ctx context.Context, store dcb.EventStore, cmd Unenro
 	enrollmentProjector := dcb.StateProjector{
 		Query: dcb.NewQuery(
 			dcb.NewTags("course_id", cmd.CourseID, "student_id", cmd.StudentID),
-			"StudentEnrolled", "StudentUnenrolled",
+			EventTypeStudentEnrolled, EventTypeStudentUnenrolled,
 		),
 		InitialState: &EnrollmentState{Enrolled: false},
 		TransitionFn: func(state any, event dcb.Event) any {
 			enrollment := state.(*EnrollmentState)
 			switch event.Type {
-			case "StudentEnrolled":
+			case EventTypeStudentEnrolled:
 				enrollment.Enrolled = true
-			case "StudentUnenrolled":
+			case EventTypeStudentUnenrolled:
 				enrollment.Enrolled = false
 			}
 			return enrollment
@@ -461,7 +469,7 @@ func handleUnenrollStudent(ctx context.Context, store dcb.EventStore, cmd Unenro
 
 	// Create events for this command using EventBuilder
 	events := []dcb.InputEvent{
-		dcb.NewEvent("StudentUnenrolled").
+		dcb.NewEvent(EventTypeStudentUnenrolled).
 			WithTag("course_id", cmd.CourseID).
 			WithTag("student_id", cmd.StudentID).
 			WithData(StudentUnenrolledData{
