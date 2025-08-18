@@ -17,6 +17,13 @@ import (
     "github.com/rodolfodpk/go-crablet/pkg/dcb"
 )
 
+// BEST PRACTICE: Define event data as structs for type safety and performance
+type UserRegisteredData struct {
+    Name         string    `json:"name"`
+    Email        string    `json:"email"`
+    RegisteredAt time.Time `json:"registered_at"`
+}
+
 func main() {
     ctx := context.Background()
     
@@ -27,14 +34,14 @@ func main() {
     }
     defer store.Close()
     
-    // Create events
+    // Create events with struct-based data (RECOMMENDED)
     events := []dcb.InputEvent{
         dcb.NewEvent("UserRegistered").
             WithTag("user_id", "123").
-            WithData(map[string]any{
-                "name": "John Doe",
-                "email": "john@example.com",
-                "registered_at": time.Now(),
+            WithData(UserRegisteredData{
+                Name:         "John Doe",
+                Email:        "john@example.com",
+                RegisteredAt: time.Now(),
             }).
             Build(),
     }
@@ -52,14 +59,20 @@ func main() {
 ### 2. DCB Concurrency Control
 
 ```go
+// BEST PRACTICE: Use structs for event data
+type TransferCompletedData struct {
+    Amount      float64 `json:"amount"`
+    TransferID  string  `json:"transfer_id"`
+}
+
 // Create events with business rule validation
 events := []dcb.InputEvent{
     dcb.NewEvent("TransferCompleted").
         WithTag("from_account", "acc-001").
         WithTag("to_account", "acc-002").
-        WithData(map[string]any{
-            "amount": 100.0,
-            "transfer_id": "txn-123",
+        WithData(TransferCompletedData{
+            Amount:     100.0,
+            TransferID: "txn-123",
         }).
         Build(),
 }

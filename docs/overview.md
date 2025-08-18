@@ -97,6 +97,52 @@ events := []dcb.InputEvent{
 err = store.Append(ctx, events)
 ```
 
+## Best Practices
+
+### Event Data Structure
+
+**✅ RECOMMENDED: Use structs for type safety and performance**
+
+```go
+// Define event data as structs
+type UserRegisteredData struct {
+    Name         string    `json:"name"`
+    Email        string    `json:"email"`
+    RegisteredAt time.Time `json:"registered_at"`
+}
+
+// Use structs with WithData (type-safe, performant)
+dcb.NewEvent("UserRegistered").
+    WithTag("user_id", "123").
+    WithData(UserRegisteredData{
+        Name:         "John Doe",
+        Email:        "john@example.com",
+        RegisteredAt: time.Now(),
+    }).
+    Build()
+```
+
+**❌ AVOID: Verbose map syntax**
+
+```go
+// Don't use maps for event data (verbose, error-prone)
+dcb.NewEvent("UserRegistered").
+    WithTag("user_id", "123").
+    WithData(map[string]any{
+        "name": "John Doe",
+        "email": "john@example.com",
+        "registered_at": time.Now(),
+    }).
+    Build()
+```
+
+**Benefits of struct-based approach:**
+- **Type safety** - Compile-time validation
+- **Performance** - No map allocation overhead
+- **Readability** - Clear data structure
+- **Maintainability** - Easy to refactor
+- **IDE support** - Better autocomplete and error detection
+
 ### Command Execution
 
 ```go
