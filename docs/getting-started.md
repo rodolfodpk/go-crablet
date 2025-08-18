@@ -104,39 +104,83 @@ log.Printf("Found %d events for user 123", len(events))
 ### 5. Project State
 
 ```go
-// Define state projector using QueryBuilder
-projector := dcb.StateProjector{
-    ID: "UserState",
-    Query: dcb.NewQueryBuilder().
-        WithTag("user_id", "123").
-        Build(),
-    InitialState: map[string]any{
-        "name": "",
-        "email": "",
-        "registered": false,
-    },
-    TransitionFn: func(state any, event dcb.Event) any {
-        currentState := state.(map[string]any)
-        switch event.GetType() {
-        case "UserRegistered":
-            var data map[string]any
-            json.Unmarshal(event.GetData(), &data)
-            currentState["name"] = data["name"]
-            currentState["email"] = data["email"]
-            currentState["registered"] = true
-        }
-        return currentState
-    },
+// BEST PRACTICE: Use typed structs for state projection
+type UserState struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
+type CourseState struct {
+	Title            string   `json:"title"`
+	EnrolledStudents []string `json:"enrolled_students"`
+}
+
+// Define projectors with typed state
+projectors := []dcb.StateProjector{
+	{
+		ID: "UserState",
+		Query: dcb.NewQueryBuilder().
+			WithTag("user_id", "123").
+			Build(),
+		InitialState: UserState{
+			Name:  "",
+			Email: "",
+		},
+		TransitionFn: func(state any, event dcb.Event) any {
+			currentState := state.(UserState)
+			
+			switch event.GetEventType() {
+			case "UserRegistered":
+				var data UserRegisteredData
+				if err := json.Unmarshal(event.GetData(), &data); err == nil {
+					currentState.Name = data.Name
+					currentState.Email = data.Email
+				}
+			}
+			return currentState
+		},
+	},
+	{
+		ID: "CourseState",
+		Query: dcb.NewQueryBuilder().
+			WithTag("course_id", "CS101").
+			Build(),
+		InitialState: CourseState{
+			Title:            "",
+			EnrolledStudents: []string{},
+		},
+		TransitionFn: func(state any, event dcb.Event) any {
+			currentState := state.(CourseState)
+			
+			switch event.GetEventType() {
+			case "CourseScheduled":
+				var data CourseScheduledData
+				if err := json.Unmarshal(event.GetData(), &data); err == nil {
+					currentState.Title = data.Title
+				}
+			case "StudentEnrolled":
+				var data StudentEnrolledData
+				if err := json.Unmarshal(event.GetData(), &data); err == nil {
+					currentState.EnrolledStudents = append(currentState.EnrolledStudents, data.StudentID)
+				}
+			}
+			return currentState
+		},
+	},
 }
 
 // Execute projection
-finalState, cursor, err := store.Project(ctx, []dcb.StateProjector{projector}, nil)
+finalState, _, err := store.Project(ctx, projectors, nil)
 if err != nil {
-    log.Fatal(err)
+	log.Fatal(err)
 }
 
-userState := finalState["UserState"].(map[string]any)
-log.Printf("User: %s (%s)", userState["name"], userState["email"])
+// Access typed state
+userState := finalState["UserState"].(UserState)
+courseState := finalState["CourseState"].(CourseState)
+
+fmt.Printf("User: %s (%s)\n", userState.Name, userState.Email)
+fmt.Printf("Course: %s with %d students\n", courseState.Title, len(courseState.EnrolledStudents))
 ```
 
 ## Command Execution
