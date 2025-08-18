@@ -2,6 +2,8 @@
 
 This document explains the simple flow for using go-crablet's EventStore directly without the CommandExecutor API. This covers the core event sourcing operations: appending events, querying events, and projecting state.
 
+**Note: This is an exploration project for learning and experimenting with DCB concepts, not a production-ready solution.**
+
 ## Table of Contents
 
 1. [Overview](#overview)
@@ -14,7 +16,7 @@ This document explains the simple flow for using go-crablet's EventStore directl
 
 ## Overview
 
-The EventStore provides the core event sourcing functionality without the command pattern. It allows you to:
+The EventStore provides the core event sourcing functionality without the command pattern. It allows you to **explore**:
 
 - **Append events** directly to the event stream
 - **Query events** using tag-based filtering
@@ -55,21 +57,31 @@ sequenceDiagram
 ### Simple Append (No Conditions)
 
 ```go
-// Create events
+// BEST PRACTICE: Define event data as structs for type safety and performance
+type CourseCreatedData struct {
+    Name     string `json:"name"`
+    Capacity int    `json:"capacity"`
+}
+
+type StudentEnrolledData struct {
+    EnrollmentDate time.Time `json:"enrollment_date"`
+}
+
+// Create events with struct-based data (RECOMMENDED)
 events := []dcb.InputEvent{
     dcb.NewEvent("CourseCreated").
         WithTag("course_id", "CS101").
-        WithData(map[string]interface{}{
-            "name": "Introduction to Computer Science",
-            "capacity": 30,
+        WithData(CourseCreatedData{
+            Name:     "Introduction to Computer Science",
+            Capacity: 30,
         }).
         Build(),
     
     dcb.NewEvent("StudentEnrolled").
         WithTag("student_id", "student123").
         WithTag("course_id", "CS101").
-        WithData(map[string]interface{}{
-            "enrollment_date": time.Now(),
+        WithData(StudentEnrolledData{
+            EnrollmentDate: time.Now(),
         }).
         Build(),
 }
@@ -112,12 +124,17 @@ err := store.AppendIf(ctx, events, condition)
 ### Conditional Append with DCB
 
 ```go
+// BEST PRACTICE: Define event data as structs
+type AccountDebitedData struct {
+    Amount int `json:"amount"`
+}
+
 // Events with business logic validation
 events := []dcb.InputEvent{
     dcb.NewEvent("AccountDebited").
         WithTag("account_id", "acc-001").
-        WithData(map[string]interface{}{
-            "amount": 100,
+        WithData(AccountDebitedData{
+            Amount: 100,
         }).
         Build(),
 }
@@ -272,12 +289,32 @@ Unlike the CommandExecutor flow, direct EventStore operations do **not** use the
 ### Simple Course Management
 
 ```go
+package main
+
 import (
     "context"
     "encoding/json"
     "fmt"
     "time"
+    
+    "github.com/rodolfodpk/go-crablet/pkg/dcb"
 )
+
+// BEST PRACTICE: Define event data as structs for type safety and performance
+type CourseCreatedData struct {
+    Name     string `json:"name"`
+    Capacity int    `json:"capacity"`
+}
+
+type StudentEnrolledData struct {
+    EnrollmentDate time.Time `json:"enrollment_date"`
+}
+
+type CourseState struct {
+    Name             string   `json:"name"`
+    Capacity         int      `json:"capacity"`
+    EnrolledStudents []string `json:"enrolled_students"`
+}
 
 func main() {
     ctx := context.Background()
@@ -289,13 +326,13 @@ func main() {
     }
     defer store.Close()
     
-    // Create course
+    // Create course with struct-based data (RECOMMENDED)
     courseEvents := []dcb.InputEvent{
         dcb.NewEvent("CourseCreated").
             WithTag("course_id", "CS101").
-            WithData(map[string]interface{}{
-                "name": "Introduction to Computer Science",
-                "capacity": 30,
+            WithData(CourseCreatedData{
+                Name:     "Introduction to Computer Science",
+                Capacity: 30,
             }).
             Build(),
     }
@@ -305,13 +342,13 @@ func main() {
         panic(err)
     }
     
-    // Enroll student
+    // Enroll student with struct-based data (RECOMMENDED)
     enrollmentEvents := []dcb.InputEvent{
         dcb.NewEvent("StudentEnrolled").
             WithTag("student_id", "student123").
             WithTag("course_id", "CS101").
-            WithData(map[string]interface{}{
-                "enrollment_date": time.Now(),
+            WithData(StudentEnrolledData{
+                EnrollmentDate: time.Now(),
             }).
             Build(),
     }
@@ -333,30 +370,34 @@ func main() {
     
     fmt.Printf("Found %d events for course CS101\n", len(events))
     
-    // Project course state using QueryBuilder
+    // Project course state using QueryBuilder with struct-based state
     projector := dcb.StateProjector{
         ID: "CourseState",
         Query: dcb.NewQueryBuilder().
             WithTag("course_id", "CS101").
             Build(),
-        InitialState: map[string]any{
-            "name": "",
-            "capacity": 0,
-            "enrolled_students": []string{},
+        InitialState: CourseState{
+            Name:             "",
+            Capacity:         0,
+            EnrolledStudents: []string{},
         },
         TransitionFn: func(state any, event dcb.Event) any {
-            currentState := state.(map[string]any)
-            var eventData map[string]any
-            json.Unmarshal(event.GetData(), &eventData)
+            currentState := state.(CourseState)
             
             switch event.GetType() {
             case "CourseCreated":
-                currentState["name"] = eventData["name"]
-                currentState["capacity"] = eventData["capacity"]
+                var data CourseCreatedData
+                if err := json.Unmarshal(event.GetData(), &data); err == nil {
+                    currentState.Name = data.Name
+                    currentState.Capacity = data.Capacity
+                }
             case "StudentEnrolled":
-                students := currentState["enrolled_students"].([]string)
-                studentID := eventData["student_id"].(string)
-                currentState["enrolled_students"] = append(students, studentID)
+                var data StudentEnrolledData
+                if err := json.Unmarshal(event.GetData(), &data); err == nil {
+                    // Note: In a real implementation, you'd extract student_id from tags
+                    // This is simplified for demonstration
+                    currentState.EnrolledStudents = append(currentState.EnrolledStudents, "student123")
+                }
             }
             return currentState
         },
@@ -387,8 +428,8 @@ enrollmentEvents := []dcb.InputEvent{
     dcb.NewEvent("StudentEnrolled").
         WithTag("student_id", "student123").
         WithTag("course_id", "CS101").
-        WithData(map[string]interface{}{
-            "enrollment_date": time.Now(),
+        WithData(StudentEnrolledData{
+            EnrollmentDate: time.Now(),
         }).
         Build(),
 }
@@ -403,4 +444,4 @@ if err != nil {
 }
 ```
 
-This EventStore flow provides the core event sourcing functionality without the command pattern, allowing direct event operations with full control over concurrency and consistency. 
+This EventStore flow provides the core event sourcing functionality without the command pattern, allowing you to **explore** direct event operations with full control over concurrency and consistency. This approach is useful for learning and experimenting with DCB patterns. 
