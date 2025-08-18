@@ -199,7 +199,11 @@ for event := range eventChan {
 ### Batch Projection
 
 ```go
-// BEST PRACTICE: Use typed structs for state projection
+// BEST PRACTICE: Use typed constants for event types and typed structs for state projection
+const (
+	EventTypeStudentEnrolled = "StudentEnrolled"
+)
+
 type CourseEnrollmentState struct {
 	EnrolledStudents []string `json:"enrolled_students"`
 	Capacity         int      `json:"capacity"`
@@ -219,7 +223,7 @@ projector := dcb.StateProjector{
 		currentState := state.(CourseEnrollmentState)
 		
 		switch event.GetEventType() {
-		case "StudentEnrolled":
+		case EventTypeStudentEnrolled:
 			var data StudentEnrolledData
 			if err := json.Unmarshal(event.GetData(), &data); err == nil {
 				// Note: In a real implementation, you'd extract student_id from tags
