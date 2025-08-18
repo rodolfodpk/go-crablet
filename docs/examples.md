@@ -225,28 +225,35 @@ log.Printf("Found %d recent enrollments for course CS101", len(recentEvents))
 ### 4. State Projection
 
 ```go
-// Define state projector using QueryBuilder
+// BEST PRACTICE: Use typed structs for state projection
+type CourseEnrollmentState struct {
+	EnrolledStudents []string `json:"enrolled_students"`
+	Capacity         int      `json:"capacity"`
+}
+
+// Define state projector using QueryBuilder with typed state
 projector := dcb.StateProjector{
-    ID: "CourseEnrollment",
-    Query: dcb.NewQueryBuilder().
-        WithTag("course_id", "CS101").
-        Build(),
-    InitialState: map[string]any{
-        "enrolled_students": []string{},
-        "capacity": 30,
-    },
-    TransitionFn: func(state any, event dcb.Event) any {
-        currentState := state.(map[string]any)
-        switch event.GetType() {
-        case "StudentEnrolled":
-            students := currentState["enrolled_students"].([]string)
-            var eventData map[string]any
-            json.Unmarshal(event.GetData(), &eventData)
-            studentID := eventData["student_id"].(string)
-            currentState["enrolled_students"] = append(students, studentID)
-        }
-        return currentState
-    },
+	ID: "CourseEnrollment",
+	Query: dcb.NewQueryBuilder().
+		WithTag("course_id", "CS101").
+		Build(),
+	InitialState: CourseEnrollmentState{
+		EnrolledStudents: []string{},
+		Capacity:         30,
+	},
+	TransitionFn: func(state any, event dcb.Event) any {
+		currentState := state.(CourseEnrollmentState)
+		
+		switch event.GetEventType() {
+		case EventTypeStudentEnrolled:
+			var data StudentEnrolledData
+			if err := json.Unmarshal(event.GetData(), &data); err == nil {
+				studentID := data.StudentID
+				currentState.EnrolledStudents = append(currentState.EnrolledStudents, studentID)
+			}
+		}
+		return currentState
+	},
 }
 
 // Execute projection

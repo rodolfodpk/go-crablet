@@ -87,12 +87,21 @@ if err != nil {
 }
 defer store.Close()
 
-// Create events
+// BEST PRACTICE: Use typed structs for event data
+type UserRegisteredData struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
+// Create events with struct-based data (RECOMMENDED)
 events := []dcb.InputEvent{
-    dcb.NewEvent("UserRegistered").
-        WithTag("user_id", "123").
-        WithData(map[string]any{"name": "John Doe"}).
-        Build(),
+	dcb.NewEvent("UserRegistered").
+		WithTag("user_id", "123").
+		WithData(UserRegisteredData{
+			Name:  "John Doe",
+			Email: "john@example.com",
+		}).
+		Build(),
 }
 
 // Append events
@@ -148,27 +157,35 @@ dcb.NewEvent("UserRegistered").
 ### Command Execution
 
 ```go
-// Create command
-command := dcb.NewCommand("EnrollStudent", dcb.ToJSON(map[string]any{
-    "student_id": "student123",
-    "course_id": "CS101",
+// BEST PRACTICE: Use typed structs for command data
+type EnrollStudentCommand struct {
+	StudentID string `json:"student_id"`
+	CourseID  string `json:"course_id"`
+}
+
+// Create command with typed data
+command := dcb.NewCommand("EnrollStudent", dcb.ToJSON(EnrollStudentCommand{
+	StudentID: "student123",
+	CourseID:  "CS101",
 }), nil)
 
-// Define command handler
+// Define command handler with typed data
 handler := dcb.CommandHandlerFunc(func(ctx context.Context, store dcb.EventStore, cmd dcb.Command) ([]dcb.InputEvent, error) {
-    var data map[string]any
-    json.Unmarshal(cmd.GetData(), &data)
-    
-    // Business logic
-    events := []dcb.InputEvent{
-        dcb.NewEvent("StudentEnrolled").
-            WithTag("student_id", data["student_id"].(string)).
-            WithTag("course_id", data["course_id"].(string)).
-            WithData(map[string]any{"enrolled_at": time.Now()}).
-            Build(),
-    }
-    
-    return events, nil
+	var data EnrollStudentCommand
+	json.Unmarshal(cmd.GetData(), &data)
+	
+	// Business logic with typed data
+	events := []dcb.InputEvent{
+		dcb.NewEvent("StudentEnrolled").
+			WithTag("student_id", data.StudentID).
+			WithTag("course_id", data.CourseID).
+			WithData(StudentEnrolledData{
+				EnrolledAt: time.Now(),
+			}).
+			Build(),
+	}
+	
+	return events, nil
 })
 
 // Execute command

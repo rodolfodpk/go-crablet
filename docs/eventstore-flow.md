@@ -384,14 +384,14 @@ func main() {
         TransitionFn: func(state any, event dcb.Event) any {
             currentState := state.(CourseState)
             
-            switch event.GetType() {
-            case "CourseCreated":
-                var data CourseCreatedData
+            switch event.GetEventType() {
+            case EventTypeCourseScheduled:
+                var data CourseScheduledData
                 if err := json.Unmarshal(event.GetData(), &data); err == nil {
                     currentState.Name = data.Name
                     currentState.Capacity = data.Capacity
                 }
-            case "StudentEnrolled":
+            case EventTypeStudentEnrolled:
                 var data StudentEnrolledData
                 if err := json.Unmarshal(event.GetData(), &data); err == nil {
                     // Note: In a real implementation, you'd extract student_id from tags
