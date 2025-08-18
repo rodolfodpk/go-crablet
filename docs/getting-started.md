@@ -104,7 +104,13 @@ log.Printf("Found %d events for user 123", len(events))
 ### 5. Project State
 
 ```go
-// BEST PRACTICE: Use typed structs for state projection
+// BEST PRACTICE: Use typed constants for event types and typed structs for state projection
+const (
+	EventTypeUserRegistered = "UserRegistered"
+	EventTypeCourseScheduled = "CourseScheduled"
+	EventTypeStudentEnrolled = "StudentEnrolled"
+)
+
 type UserState struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
@@ -130,7 +136,7 @@ projectors := []dcb.StateProjector{
 			currentState := state.(UserState)
 			
 			switch event.GetEventType() {
-			case "UserRegistered":
+			case EventTypeUserRegistered:
 				var data UserRegisteredData
 				if err := json.Unmarshal(event.GetData(), &data); err == nil {
 					currentState.Name = data.Name
@@ -153,12 +159,12 @@ projectors := []dcb.StateProjector{
 			currentState := state.(CourseState)
 			
 			switch event.GetEventType() {
-			case "CourseScheduled":
+			case EventTypeCourseScheduled:
 				var data CourseScheduledData
 				if err := json.Unmarshal(event.GetData(), &data); err == nil {
 					currentState.Title = data.Title
 				}
-			case "StudentEnrolled":
+			case EventTypeStudentEnrolled:
 				var data StudentEnrolledData
 				if err := json.Unmarshal(event.GetData(), &data); err == nil {
 					currentState.EnrolledStudents = append(currentState.EnrolledStudents, data.StudentID)
