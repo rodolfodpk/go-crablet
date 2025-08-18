@@ -1,4 +1,11 @@
 // This example is standalone. Run with: go run examples/enrollment/main.go
+//
+// BEST PRACTICE: This example demonstrates using structs with WithData() for type safety
+// and better performance. We've updated it from map[string]interface{} to show the
+// recommended approach.
+//
+// ✅ RECOMMENDED: WithData(CourseDefinedData{...})
+// ❌ AVOID: WithData(map[string]interface{}{...})
 package main
 
 import (
@@ -34,6 +41,27 @@ type EnrollStudentCommand struct {
 type UnenrollStudentCommand struct {
 	StudentID string
 	CourseID  string
+}
+
+// Event data structures for type safety and better performance
+type CourseDefinedData struct {
+	Title       string `json:"Title"`
+	MaxStudents int    `json:"MaxStudents"`
+}
+
+type StudentRegisteredData struct {
+	Name  string `json:"Name"`
+	Email string `json:"Email"`
+}
+
+type StudentEnrolledData struct {
+	CourseID string `json:"CourseID"`
+	StudentID string `json:"StudentID"`
+}
+
+type StudentUnenrolledData struct {
+	CourseID string `json:"CourseID"`
+	StudentID string `json:"StudentID"`
 }
 
 // Helper functions for flatter code structure
@@ -173,9 +201,9 @@ func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCou
 	events := []dcb.InputEvent{
 		dcb.NewEvent("CourseDefined").
 			WithTag("course_id", cmd.CourseID).
-			WithData(map[string]any{
-				"Title":       cmd.Title,
-				"MaxStudents": cmd.MaxStudents,
+			WithData(CourseDefinedData{
+				Title:       cmd.Title,
+				MaxStudents: cmd.MaxStudents,
 			}).
 			Build(),
 	}
@@ -235,9 +263,9 @@ func handleRegisterStudent(ctx context.Context, store dcb.EventStore, cmd Regist
 		dcb.NewEvent("StudentRegistered").
 			WithTag("student_id", cmd.StudentID).
 			WithTag("email", cmd.Email).
-			WithData(map[string]any{
-				"Name":  cmd.Name,
-				"Email": cmd.Email,
+			WithData(StudentRegisteredData{
+				Name:  cmd.Name,
+				Email: cmd.Email,
 			}).
 			Build(),
 	}
@@ -264,10 +292,7 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollSt
 			course := state.(*CourseState)
 			switch event.Type {
 			case "CourseDefined":
-				var data struct {
-					Title       string
-					MaxStudents int
-				}
+				var data CourseDefinedData
 				if err := json.Unmarshal(event.Data, &data); err == nil {
 					course.Title = data.Title
 					if data.MaxStudents > 0 {
@@ -295,18 +320,18 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollSt
 			student := state.(*StudentState)
 			switch event.Type {
 			case "StudentRegistered":
-				var data struct{ Name, Email string }
+				var data StudentRegisteredData
 				if err := json.Unmarshal(event.Data, &data); err == nil {
 					student.Name = data.Name
 					student.Email = data.Email
 				}
 			case "StudentEnrolled":
-				var data struct{ CourseID string }
+				var data StudentEnrolledData
 				if err := json.Unmarshal(event.Data, &data); err == nil {
 					student.CourseIDs[data.CourseID] = true
 				}
 			case "StudentUnenrolled":
-				var data struct{ CourseID string }
+				var data StudentUnenrolledData
 				if err := json.Unmarshal(event.Data, &data); err == nil {
 					delete(student.CourseIDs, data.CourseID)
 				}
@@ -377,7 +402,10 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd EnrollSt
 		dcb.NewEvent("StudentEnrolled").
 			WithTag("course_id", cmd.CourseID).
 			WithTag("student_id", cmd.StudentID).
-			WithData(map[string]any{"CourseID": cmd.CourseID, "StudentID": cmd.StudentID}).
+			WithData(StudentEnrolledData{
+				CourseID:  cmd.CourseID,
+				StudentID: cmd.StudentID,
+			}).
 			Build(),
 	}
 
@@ -436,7 +464,10 @@ func handleUnenrollStudent(ctx context.Context, store dcb.EventStore, cmd Unenro
 		dcb.NewEvent("StudentUnenrolled").
 			WithTag("course_id", cmd.CourseID).
 			WithTag("student_id", cmd.StudentID).
-			WithData(map[string]any{"CourseID": cmd.CourseID, "StudentID": cmd.StudentID}).
+			WithData(StudentUnenrolledData{
+				CourseID:  cmd.CourseID,
+				StudentID: cmd.StudentID,
+			}).
 			Build(),
 	}
 

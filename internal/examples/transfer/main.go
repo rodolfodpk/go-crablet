@@ -1,4 +1,10 @@
 // This example demonstrates command execution with the DCB pattern for account transfers
+// 
+// BEST PRACTICE: This example shows the recommended approach of using structs with WithData()
+// instead of map[string]interface{} for better type safety, performance, and readability.
+// 
+// ✅ RECOMMENDED: WithData(AccountOpened{...})
+// ❌ AVOID: WithData(map[string]interface{}{...})
 package main
 
 import (

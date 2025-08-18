@@ -1,63 +1,16 @@
-# Getting Started
+# Getting Started with go-crablet
 
-This guide will help you set up and start using go-crablet for event sourcing with DCB concurrency control.
+This guide will help you get started with go-crablet, a Go library for event sourcing with Dynamic Consistency Boundary (DCB) concurrency control.
 
-## Prerequisites
+## Quick Start
 
-- **Go 1.21+**: Required for the latest Go features
-- **PostgreSQL 15+**: Database for event storage
-- **Docker**: For running PostgreSQL locally (optional)
-
-## Quick Setup
-
-### 1. Install go-crablet
+### 1. Installation
 
 ```bash
-go get github.com/rodolfodpk/go-crablet
+go get github.com/rodolfodpk/go-crablet/pkg/dcb
 ```
 
-### 2. Start PostgreSQL
-
-Using Docker Compose (recommended):
-
-```bash
-# Clone the repository
-git clone https://github.com/rodolfodpk/go-crablet.git
-cd go-crablet
-
-# Start PostgreSQL with Docker Compose
-docker-compose up -d
-
-# Wait for database to be ready
-sleep 5
-```
-
-Or using a local PostgreSQL instance:
-
-```bash
-# Create database
-createdb crablet
-
-# Run schema setup
-psql -d crablet -f docker-entrypoint-initdb.d/schema.sql
-```
-
-### 3. Run Examples
-
-```bash
-# Simple event store usage
-go run internal/examples/transfer/main.go
-
-# Command execution with concurrency control
-go run internal/examples/concurrency_comparison/main.go
-
-# Complex decision model
-go run internal/examples/decision_model/main.go
-```
-
-## Basic Usage
-
-### 1. Create EventStore
+### 2. Basic Usage
 
 ```go
 package main
@@ -65,42 +18,46 @@ package main
 import (
     "context"
     "log"
+    "time"
     
     "github.com/rodolfodpk/go-crablet/pkg/dcb"
 )
+
+// BEST PRACTICE: Define event data as structs for type safety and performance
+type UserRegisteredData struct {
+    Name         string    `json:"name"`
+    Email        string    `json:"email"`
+    RegisteredAt time.Time `json:"registered_at"`
+}
 
 func main() {
     ctx := context.Background()
     
     // Create EventStore
-    store, err := dcb.NewEventStore(ctx, "postgres://user:pass@localhost:5432/crablet")
+    store, err := dcb.NewEventStore(ctx, "postgres://user:pass@localhost:5432/db")
     if err != nil {
         log.Fatal(err)
     }
-    defer store.Close()
     
-    // Your event sourcing code here...
-}
-```
-
-### 2. Append Events
-
-```go
-// Create events
-events := []dcb.InputEvent{
-    dcb.NewEvent("UserRegistered").
-        WithTag("user_id", "123").
-        WithData(map[string]any{
-            "name": "John Doe",
-            "email": "john@example.com",
-        }).
-        Build(),
-}
-
-// Simple append (no consistency checks)
-err = store.Append(ctx, events)
-if err != nil {
-    log.Fatal(err)
+    // Create events with struct-based data (RECOMMENDED)
+    events := []dcb.InputEvent{
+        dcb.NewEvent("UserRegistered").
+            WithTag("user_id", "123").
+            WithData(UserRegisteredData{
+                Name:         "John Doe",
+                Email:        "john@example.com",
+                RegisteredAt: time.Now(),
+            }).
+            Build(),
+    }
+    
+    // Append events
+    err = store.Append(ctx, events)
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    log.Println("User registered successfully")
 }
 ```
 
