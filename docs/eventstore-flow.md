@@ -183,7 +183,7 @@ if err != nil {
 
 // Process events as they arrive
 for event := range eventChan {
-    fmt.Printf("Received event: %s\n", event.GetType())
+    fmt.Printf("Received event: %s\n", event.GetEventType())
 }
 ```
 
@@ -199,28 +199,36 @@ for event := range eventChan {
 ### Batch Projection
 
 ```go
-// Define state projector using QueryBuilder
+// BEST PRACTICE: Use typed structs for state projection
+type CourseEnrollmentState struct {
+	EnrolledStudents []string `json:"enrolled_students"`
+	Capacity         int      `json:"capacity"`
+}
+
+// Define state projector using QueryBuilder with typed state
 projector := dcb.StateProjector{
-    ID: "CourseEnrollment",
-    Query: dcb.NewQueryBuilder().
-        WithTag("course_id", "CS101").
-        Build(),
-    InitialState: map[string]any{
-        "enrolled_students": []string{},
-        "capacity": 30,
-    },
-    TransitionFn: func(state any, event dcb.Event) any {
-        currentState := state.(map[string]any)
-        switch event.GetType() {
-        case "StudentEnrolled":
-            students := currentState["enrolled_students"].([]string)
-            var eventData map[string]any
-            json.Unmarshal(event.GetData(), &eventData)
-            studentID := eventData["student_id"].(string)
-            currentState["enrolled_students"] = append(students, studentID)
-        }
-        return currentState
-    },
+	ID: "CourseEnrollment",
+	Query: dcb.NewQueryBuilder().
+		WithTag("course_id", "CS101").
+		Build(),
+	InitialState: CourseEnrollmentState{
+		EnrolledStudents: []string{},
+		Capacity:         30,
+	},
+	TransitionFn: func(state any, event dcb.Event) any {
+		currentState := state.(CourseEnrollmentState)
+		
+		switch event.GetEventType() {
+		case "StudentEnrolled":
+			var data StudentEnrolledData
+			if err := json.Unmarshal(event.GetData(), &data); err == nil {
+				// Note: In a real implementation, you'd extract student_id from tags
+				// This is simplified for demonstration
+				currentState.EnrolledStudents = append(currentState.EnrolledStudents, "student123")
+			}
+		}
+		return currentState
+	},
 }
 
 // Execute projection
