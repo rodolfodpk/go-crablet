@@ -51,12 +51,12 @@ type MoneyTransferred struct {
 
 // Command types
 const (
-	CommandTypeCreateAccount = "create_account"
+	CommandTypeOpenAccount = "open_account"
 	CommandTypeTransferMoney = "transfer_money"
 )
 
-// CreateAccountCommand represents a command to create an account
-type CreateAccountCommand struct {
+// OpenAccountCommand represents a command to open an account
+type OpenAccountCommand struct {
 	AccountID      string `json:"account_id"`
 	Owner          string `json:"owner"`
 	InitialBalance int    `json:"initial_balance"`
@@ -71,8 +71,8 @@ type TransferMoneyCommand struct {
 	Description   string `json:"description,omitempty"`
 }
 
-// HandleCreateAccount handles the creation of an account
-func HandleCreateAccount(ctx context.Context, store dcb.EventStore, cmd CreateAccountCommand) ([]dcb.InputEvent, error) {
+// HandleOpenAccount handles the opening of an account
+func HandleOpenAccount(ctx context.Context, store dcb.EventStore, cmd OpenAccountCommand) ([]dcb.InputEvent, error) {
 	// Check if account already exists using simplified query
 	query := dcb.NewQueryBuilder().WithTagAndType("account_id", cmd.AccountID, "AccountOpened").Build()
 
