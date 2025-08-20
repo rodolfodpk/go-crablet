@@ -48,7 +48,7 @@ Ready-to-run examples demonstrating different aspects of the DCB pattern:
 - **[Streaming](internal/examples/streaming/main.go)**: Event streaming and projection approaches
 - **[Decision Model](internal/examples/decision_model/main.go)**: DCB decision model with multiple projectors
 - **[Multiple Events](internal/examples/batch/main.go)**: Multiple events in single append calls
-- **[Concurrency Comparison](internal/examples/concurrency_comparison/main.go)**: Concert ticket booking comparing DCB concurrency control with performance metrics
+- **[Ticket Booking](internal/examples/ticket_booking/main.go)**: Concert ticket booking demonstrating DCB concurrency control with performance metrics
 
 Run any example with: `go run internal/examples/[example-name]/main.go`
 

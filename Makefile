@@ -163,8 +163,8 @@ example-batch:
 	@$(GO) run internal/examples/batch/main.go
 
 example-concurrency:
-	@echo "🚀 Running concurrency comparison example..."
-	@$(GO) run internal/examples/concurrency_comparison/main.go
+	@echo "🚀 Running ticket booking example..."
+	@$(GO) run internal/examples/ticket_booking/main.go
 
 example-utils:
 	@echo "🚀 Running utility functions example..."
