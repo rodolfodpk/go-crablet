@@ -4,6 +4,28 @@ go-crablet is a Go library **exploring** event sourcing concepts with Dynamic Co
 
 **Note: This is an exploration project for learning and experimenting with DCB concepts, not a production-ready solution.**
 
+## 🚀 Quick Start
+
+### 1. Start Database
+```bash
+docker-compose up -d
+docker-compose ps  # Wait for ready
+```
+
+### 2. Run Examples
+```bash
+# Try the transfer example
+go run internal/examples/transfer/main.go
+
+# Or use Makefile
+make example-transfer
+```
+
+### 3. Cleanup
+```bash
+docker-compose down
+```
+
 ## Core Concepts
 
 ### Event Sourcing
