@@ -219,7 +219,7 @@ func HandleCommand(ctx context.Context, store dcb.EventStore, command dcb.Comman
 			case CommandTypeOpenAccount:
 			var cmd OpenAccountCommand
 			if err := json.Unmarshal(command.GetData(), &cmd); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal open account command: %w", err)
+				return nil, nil, fmt.Errorf("failed to unmarshal open account command: %w", err)
 			}
 			events, err := HandleOpenAccount(ctx, store, cmd)
 			return events, nil, err
@@ -239,22 +239,22 @@ func HandleCommand(ctx context.Context, store dcb.EventStore, command dcb.Comman
 
 // executeOpenAccountCommand executes an open account command and returns success message
 func executeOpenAccountCommand(ctx context.Context, commandExecutor dcb.CommandExecutor, handler dcb.CommandHandler, cmd OpenAccountCommand, requestID string) error {
-	createCmdData, err := json.Marshal(cmd)
+	openCmdData, err := json.Marshal(cmd)
 	if err != nil {
-		return fmt.Errorf("failed to marshal create account command: %w", err)
+		return fmt.Errorf("failed to marshal open account command: %w", err)
 	}
 
-	command := dcb.NewCommand(CommandTypeOpenAccount, createCmdData, map[string]interface{}{
+	command := dcb.NewCommand(CommandTypeOpenAccount, openCmdData, map[string]interface{}{
 		"request_id": requestID,
 		"source":     "web_api",
 	})
 
 	_, err = commandExecutor.ExecuteCommand(ctx, command, handler, nil)
 	if err != nil {
-		return fmt.Errorf("create account failed: %w", err)
+		return fmt.Errorf("open account failed: %w", err)
 	}
 
-	fmt.Printf("✓ Created account %s for %s with balance %d\n", cmd.AccountID, cmd.Owner, cmd.InitialBalance)
+	fmt.Printf("✓ Opened account %s for %s with balance %d\n", cmd.AccountID, cmd.Owner, cmd.InitialBalance)
 	return nil
 }
 
@@ -360,7 +360,7 @@ func main() {
 	})
 
 	// Execute commands with early returns for failures
-	fmt.Println("=== Creating First Account ===")
+	fmt.Println("=== Opening First Account ===")
 	openAccount1Cmd := OpenAccountCommand{
 		AccountID:      "acc1",
 		Owner:          "Alice",
@@ -370,7 +370,7 @@ func main() {
 		log.Fatalf("Open account 1 failed: %v", err)
 	}
 
-	fmt.Println("\n=== Creating Second Account ===")
+	fmt.Println("\n=== Opening Second Account ===")
 	openAccount2Cmd := OpenAccountCommand{
 		AccountID:      "acc456",
 		Owner:          "Bob",
@@ -419,16 +419,16 @@ func main() {
 		fmt.Println("✗ Unexpected success - transfer should have failed")
 	}
 
-	fmt.Println("\n=== Attempting Duplicate Account Creation (Should Fail) ===")
-	duplicateAccountCmd := CreateAccountCommand{
+	fmt.Println("\n=== Attempting Duplicate Account Opening (Should Fail) ===")
+	duplicateAccountCmd := OpenAccountCommand{
 		AccountID:      "acc1", // Same ID as first account
 		Owner:          "Charlie",
 		InitialBalance: 200,
 	}
-	if err := executeCreateAccountCommand(ctx, commandExecutor, handler, duplicateAccountCmd, "req_006"); err != nil {
+	if err := executeOpenAccountCommand(ctx, commandExecutor, handler, duplicateAccountCmd, "req_006"); err != nil {
 		fmt.Printf("✗ Expected failure: %v\n", err)
 	} else {
-		fmt.Println("✗ Unexpected success - account creation should have failed")
+		fmt.Println("✗ Unexpected success - account opening should have failed")
 	}
 
 	showFinalState(ctx, pool)

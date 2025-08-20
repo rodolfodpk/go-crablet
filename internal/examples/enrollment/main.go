@@ -113,7 +113,7 @@ func main() {
 	defer pool.Close()
 
 	// Execute commands with early returns for failures
-	fmt.Println("=== Command 1: Create Course ===")
+	fmt.Println("=== Command 1: Schedule Course ===")
 	scheduleCourseCmd := ScheduleCourseCommand{
 		CourseID:    "course101",
 		Title:       "Introduction to Event Sourcing",
