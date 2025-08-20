@@ -21,7 +21,7 @@ import (
 )
 
 // Command types
-type CreateCourseCommand struct {
+type ScheduleCourseCommand struct {
 	CourseID    string
 	Title       string
 	MaxStudents int
@@ -114,12 +114,12 @@ func main() {
 
 	// Execute commands with early returns for failures
 	fmt.Println("=== Command 1: Create Course ===")
-	createCourseCmd := CreateCourseCommand{
+	scheduleCourseCmd := ScheduleCourseCommand{
 		CourseID:    "course101",
 		Title:       "Introduction to Event Sourcing",
 		MaxStudents: 25,
 	}
-	if err := executeCommand(ctx, store, createCourseCmd, handleCreateCourse, "Create course"); err != nil {
+	if err := executeCommand(ctx, store, scheduleCourseCmd, handleScheduleCourse, "Schedule course"); err != nil {
 		log.Fatalf("%v", err)
 	}
 
@@ -179,7 +179,7 @@ func main() {
 
 // Command handlers with their own business rules
 
-func handleCreateCourse(ctx context.Context, store dcb.EventStore, cmd CreateCourseCommand) error {
+func handleScheduleCourse(ctx context.Context, store dcb.EventStore, cmd ScheduleCourseCommand) error {
 	// Command-specific projectors
 	projectors := []dcb.StateProjector{
 		{
