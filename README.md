@@ -38,6 +38,34 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 - [Low-Level Implementation](docs/low-level-implementation.md): Database schema, SQL functions, and internal architecture
 - [Testing](docs/testing.md): Comprehensive testing guide and test organization
 
+## 🚀 Quick Start
+
+### 1. Start the Database
+```bash
+# Start PostgreSQL database
+docker-compose up -d
+
+# Wait for database to be ready
+docker-compose ps
+```
+
+### 2. Run Examples
+```bash
+# Run any example
+go run internal/examples/[example-name]/main.go
+
+# Or use Makefile targets
+make example-transfer
+make example-enrollment
+make example-concurrency  # runs ticket_booking
+```
+
+### 3. Cleanup
+```bash
+# Stop database when done
+docker-compose down
+```
+
 ## 💡 Examples
 
 Ready-to-run examples demonstrating different aspects of the DCB pattern:
@@ -50,7 +78,29 @@ Ready-to-run examples demonstrating different aspects of the DCB pattern:
 - **[Multiple Events](internal/examples/batch/main.go)**: Multiple events in single append calls
 - **[Ticket Booking](internal/examples/ticket_booking/main.go)**: Concert ticket booking demonstrating DCB concurrency control with performance metrics
 
-Run any example with: `go run internal/examples/[example-name]/main.go`
+### Example Workflow
+
+**Prerequisite: Database must be running!**
+
+```bash
+# 1. Start database
+docker-compose up -d
+
+# 2. Run examples
+go run internal/examples/transfer/main.go
+go run internal/examples/enrollment/main.go
+go run internal/examples/ticket_booking/main.go
+
+# 3. Cleanup
+docker-compose down
+```
+
+**Or use Makefile targets:**
+```bash
+make example-transfer
+make example-enrollment
+make example-concurrency  # runs ticket_booking
+```
 
 ## 📖 References
 

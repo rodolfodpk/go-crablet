@@ -275,7 +275,25 @@ The `internal/examples/` directory contains complete, runnable examples:
 - **`internal/examples/decision_model/`** - Complex decision model with multiple projectors
 - **`internal/examples/batch/`** - Batch event processing examples
 
-Run any example with: `go run internal/examples/[example-name]/main.go`
+### Running Examples
+
+**Prerequisite: Database must be running!**
+
+```bash
+# 1. Start database (if not already running)
+docker-compose up -d
+
+# 2. Run any example
+go run internal/examples/[example-name]/main.go
+
+# 3. Or use Makefile targets
+make example-transfer
+make example-enrollment
+make example-concurrency  # runs ticket_booking
+make example-batch
+make example-streaming
+make example-decision
+```
 
 ## Testing
 

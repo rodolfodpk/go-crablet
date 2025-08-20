@@ -12,13 +12,45 @@ go get github.com/rodolfodpk/go-crablet
 
 ## Prerequisites
 
-- PostgreSQL database (version 17.5 recommended, 12 or higher supported)
-- Go 1.24.5 or higher
+- **Docker and Docker Compose** (for easy database setup)
+- **Go 1.24.5 or higher**
+- **Git** (to clone the repository)
 
-## Database Setup
+## Quick Start Workflow
 
-1. Create a PostgreSQL database
-2. Run the schema setup:
+### 1. Start the Database
+```bash
+# Start PostgreSQL with pre-configured schema
+docker-compose up -d postgres
+
+# Wait for database to be ready (check status)
+docker-compose ps
+
+# Verify connection (optional)
+psql -h localhost -p 5432 -U crablet -d crablet
+# Password: crablet
+```
+
+### 2. Run Examples
+```bash
+# Run any example directly
+go run internal/examples/transfer/main.go
+go run internal/examples/enrollment/main.go
+go run internal/examples/ticket_booking/main.go
+
+# Or use convenient Makefile targets
+make example-transfer
+make example-enrollment
+make example-concurrency  # runs ticket_booking
+```
+
+### 3. Cleanup
+```bash
+# Stop database when done
+docker-compose down
+```
+
+## Database Setup (Alternative)
 
 ```bash
 # Using docker-compose (recommended for development)
