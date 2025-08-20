@@ -216,13 +216,13 @@ func HandleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 // HandleCommand routes commands to appropriate handlers
 func HandleCommand(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, *dcb.AppendCondition, error) {
 	switch command.GetType() {
-	case CommandTypeCreateAccount:
-		var cmd CreateAccountCommand
-		if err := json.Unmarshal(command.GetData(), &cmd); err != nil {
-			return nil, nil, fmt.Errorf("failed to unmarshal create account command: %w", err)
-		}
-		events, err := HandleCreateAccount(ctx, store, cmd)
-		return events, nil, err
+			case CommandTypeOpenAccount:
+			var cmd OpenAccountCommand
+			if err := json.Unmarshal(command.GetData(), &cmd); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal open account command: %w", err)
+			}
+			events, err := HandleOpenAccount(ctx, store, cmd)
+			return events, nil, err
 	case CommandTypeTransferMoney:
 		var cmd TransferMoneyCommand
 		if err := json.Unmarshal(command.GetData(), &cmd); err != nil {
