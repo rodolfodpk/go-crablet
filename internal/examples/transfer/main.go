@@ -361,23 +361,23 @@ func main() {
 
 	// Execute commands with early returns for failures
 	fmt.Println("=== Creating First Account ===")
-	createAccount1Cmd := CreateAccountCommand{
+	openAccount1Cmd := OpenAccountCommand{
 		AccountID:      "acc1",
 		Owner:          "Alice",
 		InitialBalance: 1000,
 	}
-	if err := executeCreateAccountCommand(ctx, commandExecutor, handler, createAccount1Cmd, "req_001"); err != nil {
-		log.Fatalf("Create account 1 failed: %v", err)
+	if err := executeOpenAccountCommand(ctx, commandExecutor, handler, openAccount1Cmd, "req_001"); err != nil {
+		log.Fatalf("Open account 1 failed: %v", err)
 	}
 
 	fmt.Println("\n=== Creating Second Account ===")
-	createAccount2Cmd := CreateAccountCommand{
+	openAccount2Cmd := OpenAccountCommand{
 		AccountID:      "acc456",
 		Owner:          "Bob",
 		InitialBalance: 500,
 	}
-	if err := executeCreateAccountCommand(ctx, commandExecutor, handler, createAccount2Cmd, "req_002"); err != nil {
-		log.Fatalf("Create account 2 failed: %v", err)
+	if err := executeOpenAccountCommand(ctx, commandExecutor, handler, openAccount2Cmd, "req_002"); err != nil {
+		log.Fatalf("Open account 2 failed: %v", err)
 	}
 
 	fmt.Println("\n=== Transferring Money ===")
