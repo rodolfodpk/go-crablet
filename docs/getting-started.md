@@ -271,7 +271,7 @@ pool.Config().MinConns = 5
 The `internal/examples/` directory contains complete, runnable examples:
 
 - **`internal/examples/transfer/`** - Money transfer system with DCB concurrency control
-- **`internal/examples/concurrency_comparison/`** - Concert ticket booking comparing DCB concurrency control
+- **`internal/examples/ticket_booking/`** - Concert ticket booking demonstrating DCB concurrency control
 - **`internal/examples/decision_model/`** - Complex decision model with multiple projectors
 - **`internal/examples/batch/`** - Batch event processing examples
 
@@ -315,7 +315,7 @@ make benchmark-all
 
 2. **Explore Examples**:
    - Start with `internal/examples/transfer/` for basic usage
-   - Try `internal/examples/concurrency_comparison/` for DCB concurrency control
+   - Try `internal/examples/ticket_booking/` for DCB concurrency control
    - Check `internal/examples/decision_model/` for complex scenarios
 
 3. **Run Benchmarks**:

@@ -1,5 +1,5 @@
 // This example demonstrates DCB concurrency control for ticket booking.
-// Run with: go run internal/examples/concurrency_comparison/main.go
+// Run with: go run internal/examples/ticket_booking/main.go
 package main
 
 import (

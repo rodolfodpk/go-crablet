@@ -71,8 +71,8 @@ go test ./pkg/dcb/tests/... -v -run "Concurrency.*DCB"
 
 
 
-# Run the concurrency comparison example
-go run internal/examples/concurrency_comparison/main.go -users 50 -seats 30
+# Run the ticket booking example
+go run internal/examples/ticket_booking/main.go -users 50 -seats 30
 ```
 
 ### Run Tests with Coverage
@@ -149,7 +149,7 @@ Test concurrent operations and race conditions:
 **Key Test Files:**
 - `concurrency_test.go` - Tests DCB concurrency control with N concurrent users
 
-- `concurrency_comparison/main.go` - Performance demonstration of DCB concurrency control
+- `ticket_booking/main.go` - Performance demonstration of DCB concurrency control
 
 **Test Scenarios:**
 - **DCB Concurrency Control**: Uses `AppendCondition` to enforce business rules
@@ -185,16 +185,16 @@ internal/examples/transfer/main.go
 go run internal/examples/transfer/main.go
 ```
 
-### Concurrency Comparison Example
-The concurrency comparison example demonstrates DCB concurrency control performance:
+### Ticket Booking Example
+The ticket booking example demonstrates DCB concurrency control performance:
 
 **Usage:**
 ```bash
 # Run with default settings (100 users, 20 seats, 2 tickets per user)
-go run internal/examples/concurrency_comparison/main.go
+go run internal/examples/ticket_booking/main.go
 
 # Run with custom settings
-go run internal/examples/concurrency_comparison/main.go -users 50 -seats 30 -tickets 1
+go run internal/examples/ticket_booking/main.go -users 50 -seats 30 -tickets 1
 ```
 
 **What It Tests:**
