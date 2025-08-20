@@ -237,14 +237,14 @@ func HandleCommand(ctx context.Context, store dcb.EventStore, command dcb.Comman
 
 // Helper functions for flatter code structure
 
-// executeCreateAccountCommand executes a create account command and returns success message
-func executeCreateAccountCommand(ctx context.Context, commandExecutor dcb.CommandExecutor, handler dcb.CommandHandler, cmd CreateAccountCommand, requestID string) error {
+// executeOpenAccountCommand executes an open account command and returns success message
+func executeOpenAccountCommand(ctx context.Context, commandExecutor dcb.CommandExecutor, handler dcb.CommandHandler, cmd OpenAccountCommand, requestID string) error {
 	createCmdData, err := json.Marshal(cmd)
 	if err != nil {
 		return fmt.Errorf("failed to marshal create account command: %w", err)
 	}
 
-	command := dcb.NewCommand(CommandTypeCreateAccount, createCmdData, map[string]interface{}{
+	command := dcb.NewCommand(CommandTypeOpenAccount, createCmdData, map[string]interface{}{
 		"request_id": requestID,
 		"source":     "web_api",
 	})
