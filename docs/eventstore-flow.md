@@ -204,6 +204,16 @@ const (
 	EventTypeStudentEnrolled = "StudentEnrolled"
 )
 
+// Helper function to extract student ID from event tags
+func extractStudentIDFromTags(tags []dcb.Tag) string {
+	for _, tag := range tags {
+		if tag.GetKey() == "student_id" {
+			return tag.GetValue()
+		}
+	}
+	return ""
+}
+
 type CourseEnrollmentState struct {
 	EnrolledStudents []string `json:"enrolled_students"`
 	Capacity         int      `json:"capacity"`
@@ -226,9 +236,11 @@ projector := dcb.StateProjector{
 		case EventTypeStudentEnrolled:
 			var data StudentEnrolledData
 			if err := json.Unmarshal(event.GetData(), &data); err == nil {
-				// Note: In a real implementation, you'd extract student_id from tags
-				// This is simplified for demonstration
-				currentState.EnrolledStudents = append(currentState.EnrolledStudents, "student123")
+				// Extract student ID from event tags
+				studentID := extractStudentIDFromTags(event.GetTags())
+				if studentID != "" {
+					currentState.EnrolledStudents = append(currentState.EnrolledStudents, studentID)
+				}
 			}
 		}
 		return currentState
