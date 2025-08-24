@@ -99,7 +99,7 @@ Client → CommandExecutor → CommandHandler → EventStore → PostgreSQL
 DCB (Dynamic Consistency Boundary) provides event-level concurrency control:
 
 ```go
-// Define condition to prevent conflicts using QueryBuilder
+// Define condition to prevent duplicate account creation
 condition := dcb.NewAppendCondition(
     dcb.NewQueryBuilder().
         WithTag("account_id", "123").
@@ -107,8 +107,18 @@ condition := dcb.NewAppendCondition(
         Build(),
 )
 
-// Append with condition - fails if account doesn't exist
-err := store.AppendIf(ctx, events, condition)
+// Create the account creation event
+accountEvent := dcb.NewEvent("AccountCreated").
+    WithTag("account_id", "123").
+    WithData(map[string]any{
+        "owner": "John Doe",
+        "balance": 0,
+    }).
+    Build()
+
+// Append with condition - only succeeds if account doesn't exist
+// This prevents duplicate account creation (race condition protection)
+err := store.AppendIf(ctx, []dcb.InputEvent{accountEvent}, condition)
 ```
 
 **What DCB Provides:**
@@ -116,6 +126,8 @@ err := store.AppendIf(ctx, events, condition)
 - **Domain Constraints**: Allows you to define conditions that must be met before events can be stored
 - **Non-blocking**: Doesn't wait for locks or other resources
 - **Multi-instance Support**: Can work across different application instances
+
+**How It Works**: The condition checks if any `AccountCreated` events with `account_id: "123"` already exist. If they do, the append fails (preventing duplicates). If none exist, the append succeeds (first-time creation).
 
 ## Usage Examples
 
