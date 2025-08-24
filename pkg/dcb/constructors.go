@@ -13,7 +13,7 @@ import (
 // =============================================================================
 
 func newEventStore(pool *pgxpool.Pool, cfg EventStoreConfig) *eventStore {
-	// Validate configuration
+	// Set sensible defaults for required fields
 	if cfg.MaxBatchSize <= 0 {
 		cfg.MaxBatchSize = 1000 // Default batch size
 	}
@@ -26,7 +26,17 @@ func newEventStore(pool *pgxpool.Pool, cfg EventStoreConfig) *eventStore {
 	if cfg.AppendTimeout <= 0 {
 		cfg.AppendTimeout = 10000 // 10 seconds default
 	}
-	// TargetEventsTable removed - always use 'events' table for maximum performance
+	
+	// Set sensible defaults for optional fields
+	if cfg.QueryCacheSize < 0 {
+		cfg.QueryCacheSize = 0 // Disabled by default
+	}
+	if cfg.AppendRetryAttempts < 0 {
+		cfg.AppendRetryAttempts = 0 // No retry by default
+	}
+	if cfg.MaxConcurrentQueries < 0 {
+		cfg.MaxConcurrentQueries = 0 // Unlimited by default
+	}
 
 	return &eventStore{
 		pool:   pool,
@@ -61,7 +71,11 @@ func NewEventStore(ctx context.Context, pool *pgxpool.Pool) (EventStore, error) 
 		DefaultAppendIsolation: IsolationLevelReadCommitted,
 		QueryTimeout:           15000, // 15 seconds default
 		AppendTimeout:          10000, // 10 seconds default
-		// TargetEventsTable removed - always use 'events' table for maximum performance
+		
+		// Optional fields with sensible defaults
+		QueryCacheSize:        0, // Disabled by default
+		AppendRetryAttempts:   0, // No retry by default
+		MaxConcurrentQueries:  0, // Unlimited by default
 	}
 	return newEventStore(pool, config), nil
 }
