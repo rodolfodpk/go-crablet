@@ -90,6 +90,23 @@ This project provides comprehensive performance testing for the DCB event sourci
 - **Real-world validation**: Measures performance for actual usage patterns
 - **Business scenarios**: Reflects real application behavior, not artificial stress tests
 
+#### SQLite Caching Optimization
+
+**Pre-generated benchmark data eliminates runtime overhead:**
+
+- **Cached Events**: 4,120 pre-generated events stored in SQLite
+- **No Runtime Generation**: Eliminates `fmt.Sprintf` calls during benchmarks
+- **Pure Performance**: Measures actual append operations, not data generation
+- **Consistent Results**: Same data across runs for reliable comparison
+- **Fast Access**: Instant data retrieval from SQLite cache
+
+**Benchmark Data Categories:**
+- **Single Events**: 1,000 unique single event operations
+- **Realistic Batches**: 1,000 events with common batch sizes (1-12)
+- **AppendIf Events**: 1,000 conditional append operations
+- **Mixed Events**: 500 events with different event types
+- **Batch Operations**: Various batch sizes for comprehensive testing
+
 #### Concurrent User Metrics
 
 **Enhanced benchmarks test realistic concurrent scenarios:**
@@ -157,6 +174,14 @@ This project provides comprehensive performance testing for the DCB event sourci
 | 1000 Events | 36-41 ops/sec | 24.8-27.6ms | 1.8MB | 21,803-21,810 |
 | AppendIf (10) | 4 ops/sec | 239-263ms | 19-20KB | 279-281 |
 | AppendIf (100) | 4 ops/sec | 234-255ms | 182-184KB | 2,175-2,180 |
+
+#### Realistic Batch Performance (Most Common Scenarios)
+| Operation | Throughput | Latency | Memory | Allocations |
+|-----------|------------|---------|---------|-------------|
+| **Realistic (Small)** | **2,230 ops/sec** | **1.2ms** | **1.4KB** | **49** |
+| **Realistic (Tiny)** | **2,252 ops/sec** | **1.1ms** | **1.4KB** | **49** |
+
+**Realistic benchmarks test common batch sizes (1, 2, 3, 5, 8, 12 events) that reflect real-world usage patterns.**
 
 #### Read Performance
 | Operation | Throughput | Latency | Memory | Allocations |
@@ -268,11 +293,24 @@ make benchmark-go-enhanced
 make benchmark-go-all
 ```
 
+#### Benchmark Data Generation
+```bash
+# Generate realistic benchmark data for fast access
+make generate-benchmark-data
+
+# Generate all data (datasets + benchmark data)
+make generate-all-data
+
+# Generate only test datasets
+make generate-datasets
+```
+
 #### Dataset Integration
 - **Real Data**: All benchmarks use actual student/course/enrollment datasets
 - **PostgreSQL Integration**: Datasets are loaded into PostgreSQL before benchmarks
 - **Consistent Environment**: Same database configuration across all benchmark types
 - **Performance Validation**: Real-world data validates production readiness
+- **SQLite Caching**: Pre-generated benchmark data eliminates runtime overhead
 
 ### Enhanced Benchmark Types
 
