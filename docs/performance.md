@@ -27,10 +27,11 @@
 
 ## Isolation Levels
 
-- **Simple Append**: READ COMMITTED
-- **AppendIf**: REPEATABLE READ (for DCB concurrency control)
-- **Queries**: READ COMMITTED
-- **Projections**: READ COMMITTED
+- **Simple Append**: READ COMMITTED (benchCtx.Store)
+- **AppendIf**: READ COMMITTED (benchCtx.Store)
+- **Queries**: READ COMMITTED (benchCtx.Store)
+- **Projections**: READ COMMITTED (benchCtx.Store)
+- **Channel Streaming**: REPEATABLE READ (benchCtx.ChannelStore)
 
 ## Performance Optimizations
 
