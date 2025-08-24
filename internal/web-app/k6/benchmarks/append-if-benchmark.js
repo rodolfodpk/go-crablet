@@ -318,7 +318,7 @@ export function setup() {
 
     // Test 7: Load test data from SQLite cache
     const datasetSize = __ENV.DATASET_SIZE || 'tiny';
-    const loadDataRes = http.post(`${BASE_URL}/load-test-data?size=${datasetSize}`, null, params);
+    const loadDataRes = http.get(`${BASE_URL}/benchmark-data?size=${datasetSize}`, params);
     if (loadDataRes.status !== 200) {
         throw new Error(`Load test data failed: status ${loadDataRes.status} body: ${loadDataRes.body}`);
     }
