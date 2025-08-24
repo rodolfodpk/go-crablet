@@ -1,5 +1,5 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/rodolfodpk/go-crablet)](https://goreportcard.com/report/github.com/rodolfodpk/go-crablet)
-[![Code Coverage](https://img.shields.io/badge/code%20coverage-79.9%25-yellow?logo=go)](https://github.com/rodolfodpk/go-crablet/actions/workflows/coverage.yml)
+[![Code Coverage](https://img.shields.io/badge/code%20coverage-79.6%25-yellow?logo=go)](https://github.com/rodolfodpk/go-crablet/actions/workflows/coverage.yml)
 [![GoDoc](https://godoc.org/github.com/rodolfodpk/go-crablet?status.svg)](https://godoc.org/github.com/rodolfodpk/go-crablet)
 [![License](https://img.shields.io/github/license/rodolfodpk/go-crablet)](https://github.com/rodolfodpk/go-crablet/blob/main/LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/rodolfodpk/go-crablet)](https://github.com/rodolfodpk/go-crablet/blob/main/go.mod)
