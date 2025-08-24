@@ -148,9 +148,9 @@ err = store.Append(ctx, events)
 ```go
 // Define projector for user state
 userProjector := dcb.ProjectState("user_state", "UserRegistered", "user_id", "123", 
-    UserState{}, 
+    map[string]any{}, 
     func(state any, event dcb.Event) any {
-        userState := state.(UserState)
+        userState := state.(map[string]any)
         // Update state based on event
         return userState
     })
