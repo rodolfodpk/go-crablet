@@ -67,7 +67,7 @@ generate-datasets:
 # Generate benchmark data for fast access
 generate-benchmark-data:
 	@echo "🔧 Generating benchmark data for fast access..."
-	@cd internal/benchmarks/tools && $(GO) run prepare_benchmark_data_main.go
+	@cd internal/benchmarks/tools/benchmark-data && $(GO) run prepare_benchmark_data_main.go
 	@echo "✅ Benchmark data generated and cached in SQLite"
 
 # Generate all data (datasets + benchmark data)
