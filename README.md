@@ -31,6 +31,12 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 
 **Go Library Benchmarks**: 68 comprehensive benchmarks covering append operations, read performance, state projections, business workflows, and concurrent operations with real data.
 
+**🚀 New: Realistic Benchmark Scenarios**
+- **Common batch sizes**: 1, 2, 3, 5, 8, 12 events (most real-world usage)
+- **SQLite caching**: Pre-generated data eliminates runtime overhead
+- **Real-world validation**: Performance reflects actual business patterns, not artificial stress tests
+- **~2,200 ops/sec**: Single events with 1.1-1.2ms latency
+
 *For benchmark execution commands, see [Development Guide](./docs/getting-started.md).*
 
 ## 📚 Documentation
