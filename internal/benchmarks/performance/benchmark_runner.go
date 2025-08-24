@@ -1,4 +1,4 @@
-package benchmarks
+package performance
 
 import (
 	"context"
@@ -123,6 +123,11 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
 	dataset, err := setup.GetCachedDataset(config)
 	if err != nil {
 		b.Fatalf("Failed to get cached dataset: %v", err)
+	}
+
+	// Load dataset into PostgreSQL for realistic benchmarking
+	if err := setup.LoadDatasetIntoStore(ctx, store, dataset); err != nil {
+		b.Fatalf("Failed to load dataset into store: %v", err)
 	}
 
 	// Create queries for benchmarking

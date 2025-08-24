@@ -4,9 +4,29 @@ This directory contains comprehensive performance benchmarks for the go-crablet 
 
 ## 📋 **Latest Benchmark Report**
 
-📊 **[View Latest Performance Analysis](BENCHMARK_REPORT.md)** - Comprehensive analysis of go-crablet performance across all operations with DCB pattern exploration, detailed metrics, and raw benchmark results.
+📊 **[View Latest Performance Analysis](reports/BENCHMARK_REPORT.md)** - Comprehensive analysis of go-crablet performance across all operations with DCB pattern exploration, detailed metrics, and raw benchmark results.
 
 ---
+
+## 🏗️ **Directory Structure**
+
+This directory contains comprehensive performance benchmarks organized for clarity:
+
+```
+internal/benchmarks/
+├── main.go                   # Standalone benchmark application
+├── performance/              # Go benchmark-based performance tools (68 benchmarks)
+├── setup/                    # Dataset and projector setup
+├── tools/                    # Dataset preparation tools
+├── scripts/                  # Execution scripts
+└── reports/                  # Benchmark reports
+```
+
+### **Benchmark Types**
+- **Standalone Application** (`main.go`): Custom performance analysis with detailed reporting
+- **Go Performance Tools** (`performance/`): 68 benchmarks using Go's testing framework for CI/CD integration
+- **Setup Utilities** (`setup/`, `tools/`): Dataset generation and management
+- **Execution Scripts** (`scripts/`): Automated benchmark running
 
 ## 🚀 **Quick Start with Dataset Caching**
 
@@ -31,13 +51,13 @@ This will create cached datasets that make subsequent benchmark runs **much fast
 go run main.go
 
 # Or use the convenient script
-./run_benchmarks.sh quick
+./scripts/run_benchmarks.sh quick
 
 # Run specific benchmark category
-./run_benchmarks.sh append small
+./scripts/run_benchmarks.sh append small
 
 # Run with specific dataset size
-./run_benchmarks.sh all tiny -t 30s
+./scripts/run_benchmarks.sh all tiny -t 30s
 ```
 
 ---

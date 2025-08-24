@@ -109,8 +109,20 @@ benchmark-concurrency:
 benchmark-go:
 	@echo "🚀 Running Go Library Benchmarks..."
 	@mkdir -p $(BENCHMARK_RESULTS_DIR)
-	@cd internal/benchmarks/benchmarks && $(GO) test -bench=. -benchmem -benchtime=2s -timeout=5m . > ../../../$(BENCHMARK_RESULTS_DIR)/go_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@cd internal/benchmarks/performance && $(GO) test -bench=. -benchmem -benchtime=2s -timeout=5m . > ../../../$(BENCHMARK_RESULTS_DIR)/go_benchmarks_$(TIMESTAMP).txt 2>&1 || true
 	@echo "✅ Go benchmarks completed"
+
+benchmark-go-enhanced:
+	@echo "🚀 Running Enhanced Go Benchmarks with Complex Business Scenarios..."
+	@mkdir -p $(BENCHMARK_RESULTS_DIR)
+	@cd internal/benchmarks/performance && $(GO) test -bench=BenchmarkComplex -benchmem -benchtime=5s -count=3 -timeout=10m . > ../../../$(BENCHMARK_RESULTS_DIR)/go_enhanced_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@echo "✅ Enhanced Go benchmarks completed"
+
+benchmark-go-all:
+	@echo "🚀 Running All Go Benchmarks (Basic + Enhanced)..."
+	@mkdir -p $(BENCHMARK_RESULTS_DIR)
+	@cd internal/benchmarks/performance && $(GO) test -bench=. -benchmem -benchtime=2s -count=3 -timeout=10m . > ../../../$(BENCHMARK_RESULTS_DIR)/go_all_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@echo "✅ All Go benchmarks completed"
 
 benchmark-web-app:
 	@echo "🚀 Running Web-App Benchmarks with SQLite Test Data..."
@@ -197,6 +209,9 @@ help:
 	@echo "  benchmark-append - Run append performance benchmark"
 	@echo "  benchmark-isolation - Run isolation level benchmark"
 	@echo "  benchmark-concurrency - Run concurrency test"
+	@echo "  benchmark-go   - Run basic Go library benchmarks"
+	@echo "  benchmark-go-enhanced - Run enhanced Go benchmarks with complex scenarios"
+	@echo "  benchmark-go-all - Run all Go benchmarks (basic + enhanced)"
 	@echo "  benchmark-go - Run Go library benchmarks"
 	@echo "  benchmark-web-app - Run web-app benchmarks with SQLite test data"
 	@echo "  benchmark-web-app-appendif - Run web-app appendIf benchmarks with SQLite test data"

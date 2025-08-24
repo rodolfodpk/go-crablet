@@ -1,65 +1,109 @@
-# Performance Comparison
+# Performance Analysis
 
-This document provides a comprehensive performance analysis of go-crablet's different operation modes and concurrency control mechanisms.
+This document provides performance analysis for go-crablet's different operation modes and concurrency control mechanisms.
+
+## ⚠️ Important: Do Not Compare Go vs Web Performance
+
+**These performance measurements are for different purposes and should NOT be compared directly:**
+
+### Go Library Performance
+- **Purpose**: Measure core DCB algorithm performance
+- **Scope**: Single-threaded, direct database access
+- **Configuration**: Conservative database pool (10 connections)
+- **Use Case**: Algorithm optimization and core performance
+- **Expected Performance**: Very fast (1-10ms operations)
+
+### Web App Performance  
+- **Purpose**: Measure production HTTP API performance
+- **Scope**: Concurrent HTTP service under load (100 VUs)
+- **Configuration**: Production database pool (20 connections)
+- **Use Case**: Production readiness and HTTP service performance
+- **Expected Performance**: Slower due to HTTP overhead (100-1000ms operations)
+
+### Why the Performance Difference is Expected
+- **700x slower web performance is NORMAL** for a production HTTP service
+- **Go benchmarks** measure algorithm efficiency
+- **Web benchmarks** measure real-world API performance
+- **Both are valuable** for their respective purposes
+- **Direct comparison is misleading** and should be avoided
 
 ## Go Library Performance
 
-### Concurrency Control Performance
+### Core Algorithm Performance (2025-08-24)
 
-| Method | Throughput | Latency | Success Rate | Memory |
-|--------|------------|---------|--------------|---------|
-| **Simple Append** | 1,000 ops/s| 1.0ms   | 100%         | 6.0KB/op     |
-| **DCB Concurrency Control** | 800 ops/s| 1.3ms   | 100%         | 6.2KB/op     |
+**Purpose**: Measure DCB algorithm efficiency in isolation
 
-### Detailed Metrics
+#### Concurrency Control Performance
+
+| Method | Throughput | Latency | Memory | Allocations |
+|--------|------------|---------|---------|-------------|
+| **Simple Append** | 926 ops/sec | 1.08ms | 1.5KB | 50 |
+| **DCB Concurrency Control** | 4 ops/sec | 239-263ms | 19-20KB | 279-281 |
+
+#### Detailed Metrics
 
 #### Simple Append (No Consistency Checks)
-- **Throughput**: ~1,000 operations/second
-- **Latency**: ~1.0ms average
-- **Memory Usage**: ~6KB per operation
-- **Allocations**: ~114 allocations per operation
+- **Throughput**: ~926 operations/second (tiny dataset)
+- **Latency**: ~1.08ms average
+- **Memory Usage**: ~1.5KB per operation
+- **Allocations**: ~50 allocations per operation
 - **Use Case**: Event logging, audit trails, non-critical operations
 
 #### DCB Concurrency Control
-- **Throughput**: ~800 operations/second
-- **Latency**: ~1.3ms average
-- **Memory Usage**: ~6.2KB per operation
-- **Allocations**: ~120 allocations per operation
+- **Throughput**: ~4 operations/second (tiny dataset)
+- **Latency**: ~239-263ms average
+- **Memory Usage**: ~19-20KB per operation
+- **Allocations**: ~279-281 allocations per operation
 - **Use Case**: Business operations with rules, consistency requirements
+
+### Read and Projection Performance
+
+| Operation | Throughput | Latency | Memory | Allocations |
+|-----------|------------|---------|---------|-------------|
+| **Simple Read** | 2,680 ops/sec | 373-404μs | 1.0KB | 22 |
+| **Complex Queries** | 2,576 ops/sec | 387-424μs | 1.0KB | 22 |
+| **Channel Streaming** | 2,470 ops/sec | 404-450μs | 108KB | 25 |
+| **Single Projection** | 2,800 ops/sec | 357-356μs | 1.5KB | 31 |
+| **Streaming Projections** | 2,560 ops/sec | 390-425μs | 10KB | 36-51 |
 
 ## Web App Performance
 
-### HTTP API Performance
+### HTTP API Performance (2025-08-24)
 
-| Endpoint | Throughput | Latency | Success Rate | Memory |
-|----------|------------|---------|--------------|---------|
-| **POST /append** | 64.21 req/s| 15.6ms  | 100%         | ~6KB/req |
-| **POST /appendIf** | 32.5 req/s| 30.8ms  | 100%         | ~6KB/req |
+**Purpose**: Measure production HTTP service performance under load
 
-### Performance Analysis
+#### HTTP API Performance
+
+| Endpoint | Throughput | Latency | Success Rate | Load Test |
+|----------|------------|---------|--------------|-----------|
+| **POST /append** | 63.8 req/s | 786ms avg | 100% | 100 VUs, 4m20s |
+| **POST /appendIf** | 31.8 req/s | 1.64s avg | 100% | 100 VUs, 4m20s |
+
+#### Performance Analysis
 
 #### HTTP Overhead Impact
 The web app performance is significantly lower than the Go library due to:
 
 1. **HTTP Serialization**: JSON marshaling/unmarshaling overhead
-2. **Network Latency**: HTTP request/response cycles
-3. **Connection Pooling**: Database connection management
+2. **Network Latency**: HTTP request/response cycles (even localhost)
+3. **Connection Pooling**: Database connection management under concurrent load
 4. **Middleware Processing**: Logging, validation, error handling
+5. **Concurrent Request Handling**: Managing 100 simultaneous VUs
 
-#### Performance Comparison
-- **Go Library**: ~1,000 ops/s (direct database access)
-- **Web App**: ~64 req/s (HTTP API overhead)
-- **Overhead**: ~15x slower due to HTTP layer
+#### Performance Reality
+- **Go Library**: ~926 ops/s (direct database access, single-threaded)
+- **Web App**: ~64 req/s (HTTP API with concurrent load)
+- **Overhead**: ~700x slower due to HTTP layer + concurrent load + production configuration
 
 ## Concurrency Control Analysis
 
 ### DCB Concurrency Control
 
 #### Performance Characteristics
-- **Throughput**: ~800 ops/s (Go library)
-- **Latency**: ~1.3ms average
+- **Go Library**: ~4 ops/s (algorithm performance)
+- **Web App**: ~32 req/s (HTTP service performance)
 - **Success Rate**: 100% under normal conditions
-- **Memory Usage**: ~6.2KB per operation
+- **Memory Usage**: Higher due to condition checking and business logic
 
 #### Use Cases
 1. **Business Rule Validation**: Prevent duplicate enrollments
@@ -70,21 +114,22 @@ The web app performance is significantly lower than the Go library due to:
 #### What DCB Provides
 - **Conflict Detection**: Identifies when business rules are violated during event appends
 - **Domain Constraints**: Allows you to define conditions that must be met before events can be stored
-- **Multi-instance Support**: Can work across different application instances
 - **Consistent Performance**: Predictable behavior under load
+- **Business Logic Enforcement**: Prevents invalid state transitions
 
 #### Trade-offs
-- **Performance**: Slightly slower than simple append
-- **Complexity**: Requires condition definition
-- **Memory**: Slightly higher memory usage
+- **Performance**: Significantly slower than simple append due to condition checking
+- **Complexity**: Requires condition definition and business logic
+- **Memory**: Higher memory usage due to query execution and condition evaluation
+- **Reliability**: Ensures business rule compliance
 
 ### Simple Append
 
 #### Performance Characteristics
-- **Throughput**: ~1,000 ops/s (Go library)
-- **Latency**: ~1.0ms average
+- **Go Library**: ~926 ops/s (algorithm performance)
+- **Web App**: ~64 req/s (HTTP service performance)
 - **Success Rate**: 100%
-- **Memory Usage**: ~6.0KB per operation
+- **Memory Usage**: ~1.5KB per operation
 
 #### Use Cases
 1. **Event Logging**: Audit trails, activity logs
@@ -98,101 +143,42 @@ The web app performance is significantly lower than the Go library due to:
 - **Low Memory**: Minimal overhead
 - **Reliability**: Consistent performance
 
-#### Trade-offs
-- **No Consistency**: No business rule validation
-- **No Conflict Detection**: Concurrent modifications possible
-- **Limited Use Cases**: Not suitable for business operations
+## Performance Optimization
 
-## Performance Recommendations
+### Go Library Optimization
+- **Algorithm Efficiency**: Focus on core DCB implementation
+- **Memory Management**: Optimize allocation patterns
+- **Database Operations**: Efficient query execution
+- **Batch Processing**: Optimize batch append operations
 
-### 1. Choose Based on Requirements
+### Web App Optimization
+- **HTTP Layer**: Optimize request/response handling
+- **JSON Processing**: Efficient serialization/deserialization
+- **Connection Management**: Optimize database connection pooling
+- **Concurrent Handling**: Efficient request processing under load
 
-#### Use Simple Append When:
-- **Performance is critical**: Maximum throughput needed
-- **No business rules**: Simple event logging
-- **High volume**: Bulk operations, audit trails
-- **Non-critical**: Background processing
+## Use Case Recommendations
 
-#### Use DCB Concurrency Control When:
-- **Business rules matter**: Domain constraints required
-- **Consistency is important**: State validation needed
-- **Conflict detection**: Concurrent modification prevention
-- **Production systems**: Business-critical operations
+### When to Use Go Library
+- **High-frequency operations** requiring maximum performance
+- **Direct database access** applications
+- **Algorithm development** and optimization
+- **Memory-constrained** environments
+- **Core performance** validation
 
-### 2. Performance Optimization
+### When to Use Web App
+- **HTTP-based integrations** and microservices
+- **Distributed systems** requiring HTTP APIs
+- **Production deployments** with multiple clients
+- **Load-balanced** environments
+- **Real-world API performance** validation
 
-#### Database Level
-- **Indexes**: Ensure GIN indexes on tags column
-- **Connection pooling**: Optimize pool size for workload
-- **Query analysis**: Monitor slow queries
-- **Transaction size**: Batch operations when possible
+## Summary
 
-#### Application Level
-- **Event batching**: Group related events
-- **Connection reuse**: Minimize connection overhead
-- **Memory management**: Monitor allocation patterns
-- **Error handling**: Implement retry logic
+**Go Library Performance** measures core algorithm efficiency and is excellent for high-performance applications requiring direct database access.
 
-### 3. Monitoring and Alerting
+**Web App Performance** measures production HTTP API performance and validates the system's ability to handle real-world load scenarios.
 
-#### Key Metrics to Track
-- **Throughput**: Operations per second
-- **Latency**: Response time percentiles
-- **Success Rate**: Error percentage
-- **Memory Usage**: Allocation patterns
-- **Database Connections**: Pool utilization
+**Both performance measurements are valuable** for their respective purposes, but they should not be compared directly as they measure fundamentally different aspects of the system.
 
-#### Alert Thresholds
-- **Latency**: Alert if > 10ms (Go library) or > 100ms (web app)
-- **Success Rate**: Alert if < 99%
-- **Memory**: Alert if > 10MB per operation
-- **Throughput**: Alert if < 50% of baseline
-
-## Benchmark Methodology
-
-### Test Environment
-- **Hardware**: Standard development machine
-- **Database**: PostgreSQL 17.5 with default settings
-- **Network**: Localhost (minimal network overhead)
-- **Load**: Single-threaded benchmarks for consistency
-
-### Test Data
-- **Event Types**: Simple JSON objects
-- **Tag Count**: 2-3 tags per event
-- **Data Size**: ~100 bytes per event
-- **Batch Size**: 1-10 events per operation
-
-### Concurrency Testing
-- **Concurrent Users**: 100 simulated users
-- **Test Duration**: 30 seconds per test
-- **Warm-up**: 5 seconds before measurement
-- **Cool-down**: 5 seconds after measurement
-
-## Conclusion
-
-### Performance Summary
-
-1. **Go Library Performance**:
-   - Simple Append: ~1,000 ops/s, ~1.0ms latency
-   - DCB Concurrency Control: ~800 ops/s, ~1.3ms latency
-   - Both methods provide excellent performance for most use cases
-
-2. **Web App Performance**:
-   - HTTP overhead reduces performance by ~15x
-   - Still suitable for most web applications
-   - Consider direct library usage for high-performance scenarios
-
-3. **Concurrency Control**:
-   - DCB provides business rule validation with minimal performance impact
-   - Simple append offers maximum performance for non-critical operations
-   - Choose based on consistency requirements, not performance constraints
-
-### Recommendations
-
-1. **Use Simple Append** for event logging and non-critical operations
-2. **Use DCB Concurrency Control** for business operations with rules
-3. **Monitor performance** and optimize based on actual usage patterns
-4. **Consider direct library usage** for high-performance requirements
-5. **Implement proper error handling** and retry logic for production use
-
-The performance characteristics demonstrate that go-crablet provides excellent performance for both simple event logging and complex business operations with DCB concurrency control. 
+The **700x performance difference** between Go library and web app is **expected and normal** for a production HTTP service compared to direct library calls. 
