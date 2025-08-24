@@ -225,6 +225,141 @@ var _ = Describe("New Simplified API", func() {
 	})
 })
 
+var _ = Describe("Alternative Constructors", func() {
+	It("NewCommand creates Command with minimal data", func() {
+		command := dcb.NewCommand("TestCommand", []byte(`{"data": "test"}`), nil)
+
+		Expect(command.GetType()).To(Equal("TestCommand"))
+		Expect(command.GetData()).To(Equal([]byte(`{"data": "test"}`)))
+		Expect(command.GetMetadata()).To(BeNil())
+	})
+
+	It("NewCommand handles empty data", func() {
+		command := dcb.NewCommand("EmptyCommand", []byte{}, nil)
+
+		Expect(command.GetType()).To(Equal("EmptyCommand"))
+		Expect(command.GetData()).To(HaveLen(0))
+		Expect(command.GetMetadata()).To(BeNil())
+	})
+
+	It("NewCommand handles nil data", func() {
+		command := dcb.NewCommand("NilCommand", nil, nil)
+
+		Expect(command.GetType()).To(Equal("NilCommand"))
+		Expect(command.GetData()).To(BeNil())
+		Expect(command.GetMetadata()).To(BeNil())
+	})
+
+	It("NewCommand handles metadata", func() {
+		metadata := map[string]interface{}{"user_id": "123", "timestamp": "2024-01-01"}
+		command := dcb.NewCommand("CommandWithMetadata", []byte(`{"data": "test"}`), metadata)
+
+		Expect(command.GetType()).To(Equal("CommandWithMetadata"))
+		Expect(command.GetData()).To(Equal([]byte(`{"data": "test"}`)))
+		Expect(command.GetMetadata()).To(Equal(metadata))
+	})
+
+	It("NewEventStoreWithConfig validates config", func() {
+		config := dcb.EventStoreConfig{
+			MaxBatchSize:           1000,
+			StreamBuffer:           100,
+			DefaultAppendIsolation: dcb.IsolationLevelRepeatableRead,
+			QueryTimeout:           5000,
+			AppendTimeout:          3000,
+		}
+
+		// Test config validation (without requiring actual database connection)
+		Expect(config.MaxBatchSize).To(Equal(1000))
+		Expect(config.StreamBuffer).To(Equal(100))
+		Expect(config.DefaultAppendIsolation).To(Equal(dcb.IsolationLevelRepeatableRead))
+		Expect(config.QueryTimeout).To(Equal(5000))
+		Expect(config.AppendTimeout).To(Equal(3000))
+	})
+})
+
+var _ = Describe("Configuration Validation", func() {
+	It("ParseIsolationLevel handles valid values", func() {
+		level, err := dcb.ParseIsolationLevel("READ_COMMITTED")
+		Expect(err).To(BeNil())
+		Expect(level).To(Equal(dcb.IsolationLevelReadCommitted))
+
+		level, err = dcb.ParseIsolationLevel("REPEATABLE_READ")
+		Expect(err).To(BeNil())
+		Expect(level).To(Equal(dcb.IsolationLevelRepeatableRead))
+
+		level, err = dcb.ParseIsolationLevel("SERIALIZABLE")
+		Expect(err).To(BeNil())
+		Expect(level).To(Equal(dcb.IsolationLevelSerializable))
+	})
+
+	It("ParseIsolationLevel handles invalid values", func() {
+		level, err := dcb.ParseIsolationLevel("INVALID_LEVEL")
+		Expect(err).To(Not(BeNil()))
+		Expect(err.Error()).To(ContainSubstring("invalid isolation level: INVALID_LEVEL"))
+		Expect(level).To(Equal(dcb.IsolationLevelReadCommitted)) // Default fallback
+	})
+
+	It("ParseIsolationLevel handles empty string", func() {
+		level, err := dcb.ParseIsolationLevel("")
+		Expect(err).To(Not(BeNil()))
+		Expect(err.Error()).To(ContainSubstring("invalid isolation level: "))
+		Expect(level).To(Equal(dcb.IsolationLevelReadCommitted)) // Default fallback
+	})
+
+	It("IsolationLevel String() method works correctly", func() {
+		Expect(dcb.IsolationLevelReadCommitted.String()).To(Equal("READ_COMMITTED"))
+		Expect(dcb.IsolationLevelRepeatableRead.String()).To(Equal("REPEATABLE_READ"))
+		Expect(dcb.IsolationLevelSerializable.String()).To(Equal("SERIALIZABLE"))
+	})
+
+	It("IsolationLevel String() handles unknown values", func() {
+		unknownLevel := dcb.IsolationLevel(999)
+		Expect(unknownLevel.String()).To(Equal("UNKNOWN"))
+	})
+})
+
+var _ = Describe("Edge Cases and Error Handling", func() {
+	It("ToJSON panics on marshaling error", func() {
+		// Create a value that can't be marshaled to JSON
+		unmarshalable := make(chan int)
+
+		Expect(func() {
+			dcb.ToJSON(unmarshalable)
+		}).To(Panic())
+	})
+
+	It("ToJSON handles valid data", func() {
+		data := map[string]string{"key": "value"}
+		result := dcb.ToJSON(data)
+
+		Expect(result).To(Equal([]byte(`{"key":"value"}`)))
+	})
+
+	It("ToJSON handles nil data", func() {
+		result := dcb.ToJSON(nil)
+
+		Expect(result).To(Equal([]byte("null")))
+	})
+
+	It("NewTags handles odd number of arguments", func() {
+		tags := dcb.NewTags("key1", "value1", "key2") // Odd number
+
+		Expect(tags).To(HaveLen(0)) // Should return empty slice
+	})
+
+	It("NewTags handles empty arguments", func() {
+		tags := dcb.NewTags()
+
+		Expect(tags).To(HaveLen(0))
+	})
+
+	It("NewTags handles single argument", func() {
+		tags := dcb.NewTags("key1")
+
+		Expect(tags).To(HaveLen(0)) // Should return empty slice
+	})
+})
+
 func createTestEvent(eventType string, key, value string) dcb.InputEvent {
 	return dcb.NewEvent(eventType).
 		WithTag(key, value).
