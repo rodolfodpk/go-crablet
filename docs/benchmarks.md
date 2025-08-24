@@ -12,7 +12,7 @@
 This project provides comprehensive performance testing for the DCB event sourcing library:
 
 ### Benchmark Types
-1. **Go Library Benchmarks**: Test core DCB library performance
+1. **Go Library Benchmarks**: Test core DCB library performance (68 total benchmarks)
 2. **Web-App Benchmarks**: Test HTTP API performance with load testing
 
 ### Test Data
@@ -45,6 +45,40 @@ This project provides comprehensive performance testing for the DCB event sourci
 - **Direct comparison is misleading** and should be avoided
 
 ## Go Library Benchmarks
+
+### Comprehensive Benchmark Coverage
+
+**Total: 68 Go Benchmarks** covering all aspects of the DCB library
+
+#### Benchmark Categories
+
+| Category | Count | Purpose |
+|----------|-------|---------|
+| **Core Operations** | 47 | Basic append, read, and projection operations |
+| **Enhanced Business Scenarios** | 6 | Real-world business logic and workflows |
+| **Core Benchmark Functions** | 13 | Detailed performance analysis functions |
+| **Framework Support** | 2 | Benchmark orchestration and reporting |
+
+#### Core Operations (47 benchmarks)
+- **Append Operations**: 22 benchmarks covering single events, batch operations (10, 100, 1000), and conditional appends
+- **Read Operations**: 12 benchmarks for query performance, streaming, and channel operations
+- **Projection Operations**: 12 benchmarks for state reconstruction and streaming projections
+- **Quick Tests**: 3 benchmarks for basic functionality validation
+
+#### Enhanced Business Scenarios (6 benchmarks)
+- **Complex Business Workflow**: Real student enrollment scenarios with business rule validation
+- **Concurrent Operations**: 10 concurrent user simulation for course registration
+- **Mixed Operations**: Combined append, query, and projection sequences
+- **Business Rule Validation**: DCB condition validation with real data
+- **Request Burst**: 50 concurrent request simulation for burst traffic patterns
+- **Sustained Load**: Mixed operation types over time for consistency testing
+
+#### Core Benchmark Functions (13 functions)
+- **AppendSingle**: Single event append performance
+- **AppendBatch**: Batch event append with various sizes (10, 100, 1000)
+- **AppendIf**: Conditional append with DCB concurrency control
+- **AppendIfWithConflict**: Conflict scenario testing and resolution
+- **Mixed Event Types**: Various event type combinations and patterns
 
 ### Latest Results (2025-08-24)
 
@@ -80,6 +114,9 @@ This project provides comprehensive performance testing for the DCB event sourci
 - **Algorithm optimization** and performance tuning
 - **Core library performance** validation
 - **Memory usage** and allocation pattern analysis
+- **Business logic performance** validation with real data
+- **Concurrent operation** handling and scalability testing
+- **Production readiness** with realistic data volumes
 
 ## Web-App Load Testing
 
@@ -154,25 +191,46 @@ This project provides comprehensive performance testing for the DCB event sourci
 - **Production deployments** with multiple clients
 - **Load-balanced** environments
 
-## Benchmark Execution
+### Benchmark Execution
 
-### Running Benchmarks
+#### Individual Benchmark Categories
 ```bash
-# Generate test datasets
-make generate-datasets
-
-# Run Go library benchmarks (algorithm performance)
+# Core operations only
 make benchmark-go
 
-# Run web app benchmarks (HTTP API performance)
-make benchmark-web-app
+# Enhanced business scenarios only  
+make benchmark-go-enhanced
 
-# Run AppendIf benchmarks (conditional operations)
-make benchmark-web-app-appendif
-
-# Run all benchmarks
-make benchmark-all
+# All Go benchmarks (comprehensive)
+make benchmark-go-all
 ```
+
+#### Dataset Integration
+- **Real Data**: All benchmarks use actual student/course/enrollment datasets
+- **PostgreSQL Integration**: Datasets are loaded into PostgreSQL before benchmarks
+- **Consistent Environment**: Same database configuration across all benchmark types
+- **Performance Validation**: Real-world data validates production readiness
+
+### Enhanced Benchmark Types
+
+#### Basic Performance Benchmarks
+- **Core Operations**: Simple append, query, projection
+- **Batch Processing**: Various batch sizes (10, 100, 1000 events)
+- **DCB Control**: Conditional appends with business rules
+- **Memory Analysis**: Allocation patterns and memory usage
+
+#### Complex Business Scenario Benchmarks
+- **Business Workflows**: Complete user registration processes
+- **Concurrent Operations**: Multiple user simulation (10 concurrent users)
+- **Mixed Operations**: Append + Query + Projection sequences
+- **Business Rule Validation**: Complex DCB conditions and validation
+- **Load Patterns**: Burst traffic and sustained load simulation
+
+#### Enhanced Features
+- **Statistical Analysis**: Multiple benchmark runs (count=3) for consistency
+- **Extended Duration**: Longer benchmark time (5s) for complex scenarios
+- **Comprehensive Coverage**: Business logic, concurrency, and load testing
+- **Production Simulation**: Real-world usage pattern validation
 
 ### Benchmark Results
 All results are saved in the `benchmark-results/` directory with timestamps for analysis and comparison.

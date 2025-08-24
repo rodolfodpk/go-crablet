@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Enhanced EventStoreConfig**: Added logical grouping for append and query operations
   - Improved organization with clear sections for append vs query configuration
   - Clean, focused configuration with only working, implemented fields
+- **Comprehensive Benchmark Documentation**: Updated docs/benchmarks.md with complete benchmark inventory
+  - Documented all 68 Go benchmarks with detailed categorization
+  - Added benchmark categories: Core Operations (47), Enhanced Business Scenarios (6), Core Functions (13), Framework (2)
+  - Detailed breakdown of append, read, projection, and business scenario benchmarks
+  - Added dataset integration details and benchmark execution instructions
+  - Enhanced use case descriptions for all benchmark types
 
 ### Changed
 - **Documentation Improvements**: 
@@ -28,6 +34,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Explained why 700x performance difference is expected and normal
   - Separated use case recommendations for each benchmark type
   - Clarified that both benchmark types are valuable for different purposes
+- **Performance Documentation**: Fixed misleading performance claims in docs/performance-comparison.md
+  - Removed incorrect "15x slower" claims that didn't match reality
+  - Added same disclaimer about not comparing Go vs Web performance
+  - Updated with current benchmark numbers (700x difference is normal)
+  - Explained why performance differences are expected for different use cases
+- **README Updates**: Added performance disclaimer to prevent misleading comparisons
+  - Added warning about Go vs Web benchmark comparisons
+  - Clarified that 700x performance difference is expected and normal
+- **Enhanced Benchmarking**: Implemented comprehensive business scenario benchmarks
+  - Added complex business workflow benchmarks (user registration, course enrollment)
+  - Added concurrent operation benchmarks (10 concurrent users)
+  - Added mixed operation benchmarks (append + query + projection)
+  - Added business rule validation benchmarks (DCB conditions)
+  - Added load pattern benchmarks (burst traffic, sustained load)
+  - Enhanced benchmark runner with statistical analysis (count=3)
+  - Added new Makefile targets: `benchmark-go-enhanced`, `benchmark-go-all`
+  - Updated documentation with enhanced benchmark capabilities
 
 ### Fixed
 - **Interface Implementation Consistency**: Added missing marker methods
