@@ -68,6 +68,8 @@ type eventStore struct {
 	config EventStoreConfig
 }
 
+func (es *eventStore) isEventStore() {}
+
 // GetConfig returns the current EventStore configuration
 func (es *eventStore) GetConfig() EventStoreConfig {
 	return es.config
