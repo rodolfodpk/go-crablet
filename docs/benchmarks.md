@@ -73,6 +73,23 @@ This project provides comprehensive performance testing for the DCB event sourci
 - **Request Burst**: 50 concurrent request simulation for burst traffic patterns
 - **Sustained Load**: Mixed operation types over time for consistency testing
 
+#### Realistic Benchmark Scenarios
+
+**Most common real-world usage patterns:**
+
+| Batch Size | Frequency | Use Case | Description |
+|------------|-----------|----------|-------------|
+| **1 event** | **Most Common** | Single operations | User login, status update, simple event |
+| **2-3 events** | **Very Common** | Small transactions | Order creation, simple workflow |
+| **5-8 events** | **Common** | Business operations | User registration, course enrollment |
+| **12 events** | **Less Common** | Complex workflows | Multi-step business processes |
+| **20+ events** | **Rare** | Bulk operations | Data migration, batch processing |
+
+**Realistic Benchmark Types:**
+- **AppendRealistic**: Tests common batch sizes (1, 2, 3, 5, 8, 12 events)
+- **Real-world validation**: Measures performance for actual usage patterns
+- **Business scenarios**: Reflects real application behavior, not artificial stress tests
+
 #### Concurrent User Metrics
 
 **Enhanced benchmarks test realistic concurrent scenarios:**

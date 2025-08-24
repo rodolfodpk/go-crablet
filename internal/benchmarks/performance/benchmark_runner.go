@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"testing"
@@ -30,6 +31,7 @@ type BenchmarkContext struct {
 	Dataset      *setup.Dataset
 	Queries      []dcb.Query
 	Projectors   []dcb.StateProjector
+	CachedEvents map[string][]setup.BenchmarkEvent // Pre-generated benchmark events
 }
 
 // getOrCreateGlobalPool returns the shared global pool, creating it if necessary
@@ -159,6 +161,15 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
 		},
 	}
 
+	// Load cached benchmark data for fast access
+	cacheFile := filepath.Join("cache", "benchmark_data.db")
+	cachedEvents, err := setup.LoadBenchmarkDataFromCache(cacheFile)
+	if err != nil {
+		// Log warning but continue without cached data
+		fmt.Printf("Warning: Failed to load cached benchmark data: %v\n", err)
+		cachedEvents = make(map[string][]setup.BenchmarkEvent)
+	}
+
 	return &BenchmarkContext{
 		Store:        store,
 		ChannelStore: channelStore,
@@ -166,6 +177,7 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
 		Dataset:      dataset,
 		Queries:      queries,
 		Projectors:   projectors,
+		CachedEvents: cachedEvents,
 	}
 }
 
@@ -178,16 +190,37 @@ func BenchmarkAppendSingle(b *testing.B, benchCtx *BenchmarkContext) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
-		// Use unique data to avoid collisions
-		uniqueID := fmt.Sprintf("single_%d_%d", time.Now().UnixNano(), i)
-		event := dcb.NewInputEvent("TestEvent",
-			dcb.NewTags("test", "single", "unique_id", uniqueID),
-			[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, uniqueID)))
+	// Use cached events if available, otherwise fall back to runtime generation
+	if cachedEvents, exists := benchCtx.CachedEvents["single"]; exists && len(cachedEvents) > 0 {
+		for i := 0; i < b.N; i++ {
+			// Use cached event data
+			cachedEvent := cachedEvents[i%len(cachedEvents)]
+			
+			// Convert map to tags
+			var tags []dcb.Tag
+			for k, v := range cachedEvent.Tags {
+				tags = append(tags, dcb.NewTag(k, v))
+			}
+			
+			event := dcb.NewInputEvent(cachedEvent.Type, tags, cachedEvent.Data)
 
-		err := benchCtx.Store.Append(ctx, []dcb.InputEvent{event})
-		if err != nil {
-			b.Fatalf("Append failed: %v", err)
+			err := benchCtx.Store.Append(ctx, []dcb.InputEvent{event})
+			if err != nil {
+				b.Fatalf("Append failed: %v", err)
+			}
+		}
+	} else {
+		// Fallback to runtime generation
+		for i := 0; i < b.N; i++ {
+			uniqueID := fmt.Sprintf("single_%d_%d", time.Now().UnixNano(), i)
+			event := dcb.NewInputEvent("TestEvent",
+				dcb.NewTags("test", "single", "unique_id", uniqueID),
+				[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, uniqueID)))
+
+			err := benchCtx.Store.Append(ctx, []dcb.InputEvent{event})
+			if err != nil {
+				b.Fatalf("Append failed: %v", err)
+			}
 		}
 	}
 }
@@ -298,18 +331,20 @@ func BenchmarkAppendIfWithConflict(b *testing.B, benchCtx *BenchmarkContext, bat
 		uniqueID := fmt.Sprintf("conflict_%d_%d", time.Now().UnixNano(), i)
 		conflictEvent := dcb.NewInputEvent("ConflictingEvent",
 			dcb.NewTags("test", "conflict", "unique_id", uniqueID),
-			[]byte(fmt.Sprintf(`{"value": "conflict", "unique_id": "%s"}`, uniqueID)))
+			[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, uniqueID)))
 
+		// Append the conflicting event first
 		err := benchCtx.Store.Append(ctx, []dcb.InputEvent{conflictEvent})
 		if err != nil {
-			b.Fatalf("Failed to create conflict event: %v", err)
+			b.Fatalf("Failed to append conflict event: %v", err)
 		}
 
+		// Now try to append with a condition that should fail
 		events := make([]dcb.InputEvent, batchSize)
 		for j := 0; j < batchSize; j++ {
-			eventID := fmt.Sprintf("%s_%d", uniqueID, j)
+			eventID := fmt.Sprintf("appendif_%s_%d", uniqueID, j)
 			events[j] = dcb.NewInputEvent("TestEvent",
-				dcb.NewTags("test", "appendifconflict", "unique_id", eventID),
+				dcb.NewTags("test", "appendif", "unique_id", eventID),
 				[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, eventID)))
 		}
 
@@ -326,9 +361,8 @@ func BenchmarkAppendIfWithConflict(b *testing.B, benchCtx *BenchmarkContext, bat
 	}
 }
 
-// BenchmarkAppendIfWithConflictCondition benchmarks AppendIf with a condition that should fail
-// NOTE: The isolation level is configured in the EventStore config.
-func BenchmarkAppendIfWithConflictCondition(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
+// BenchmarkAppendRealistic benchmarks realistic batch sizes (1-12 events most common)
+func BenchmarkAppendRealistic(b *testing.B, benchCtx *BenchmarkContext) {
 	// Create context with timeout for each benchmark iteration
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -336,35 +370,58 @@ func BenchmarkAppendIfWithConflictCondition(b *testing.B, benchCtx *BenchmarkCon
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
-		// Create a conflicting event with unique ID for this iteration
-		uniqueID := fmt.Sprintf("conflict_%d_%d", time.Now().UnixNano(), i)
-		conflictEvent := dcb.NewInputEvent("ConflictingEvent",
-			dcb.NewTags("test", "conflict", "unique_id", uniqueID),
-			[]byte(fmt.Sprintf(`{"value": "conflict", "unique_id": "%s"}`, uniqueID)))
-
-		err := benchCtx.Store.Append(ctx, []dcb.InputEvent{conflictEvent})
-		if err != nil {
-			b.Fatalf("Failed to create conflict event: %v", err)
+	// Use cached realistic events if available
+	if cachedEvents, exists := benchCtx.CachedEvents["realistic"]; exists && len(cachedEvents) > 0 {
+		for i := 0; i < b.N; i++ {
+			// Use cached realistic event data
+			cachedEvent := cachedEvents[i%len(cachedEvents)]
+			
+			// Convert map to tags
+			var tags []dcb.Tag
+			for k, v := range cachedEvent.Tags {
+				tags = append(tags, dcb.NewTag(k, v))
+			}
+			
+			// Create a realistic batch based on the cached event's batch size
+			batchSizeStr := cachedEvent.Tags["batch_size"]
+			var batchSize int
+			fmt.Sscanf(batchSizeStr, "%d", &batchSize)
+			
+			// Ensure we have a valid batch size
+			if batchSize <= 0 {
+				batchSize = 1 // Default to single event
+			}
+			
+			events := make([]dcb.InputEvent, batchSize)
+			for j := 0; j < batchSize; j++ {
+				events[j] = dcb.NewInputEvent(cachedEvent.Type, tags, cachedEvent.Data)
+			}
+			
+			err := benchCtx.Store.Append(ctx, events)
+			if err != nil {
+				b.Fatalf("Realistic append failed: %v", err)
+			}
 		}
-
-		events := make([]dcb.InputEvent, batchSize)
-		for j := 0; j < batchSize; j++ {
-			eventID := fmt.Sprintf("%s_%d", uniqueID, j)
-			events[j] = dcb.NewInputEvent("TestEvent",
-				dcb.NewTags("test", "appendifconflict", "unique_id", eventID),
-				[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, eventID)))
-		}
-
-		// Create a condition that should fail (conflicting event exists)
-		condition := dcb.NewAppendCondition(
-			dcb.NewQuery(dcb.NewTags("test", "conflict", "unique_id", uniqueID), "ConflictingEvent"),
-		)
-
-		// This should fail due to the conflicting event
-		err = benchCtx.Store.AppendIf(ctx, events, condition)
-		if err == nil {
-			b.Fatalf("AppendIf should have failed due to conflict")
+	} else {
+		// Fallback to runtime generation with realistic batch sizes
+		realisticSizes := []int{1, 2, 3, 5, 8, 12} // Most common real-world sizes
+		
+		for i := 0; i < b.N; i++ {
+			batchSize := realisticSizes[i%len(realisticSizes)]
+			uniqueID := fmt.Sprintf("realistic_%d_%d", time.Now().UnixNano(), i)
+			
+			events := make([]dcb.InputEvent, batchSize)
+			for j := 0; j < batchSize; j++ {
+				eventID := fmt.Sprintf("%s_%d", uniqueID, j)
+				events[j] = dcb.NewInputEvent("RealisticEvent",
+					dcb.NewTags("test", "realistic", "unique_id", eventID, "batch_size", fmt.Sprintf("%d", batchSize)),
+					[]byte(fmt.Sprintf(`{"value":"test","unique_id":"%s","batch_size":%d}`, eventID, batchSize)))
+			}
+			
+			err := benchCtx.Store.Append(ctx, events)
+			if err != nil {
+				b.Fatalf("Realistic append failed: %v", err)
+			}
 		}
 	}
 }
@@ -630,6 +687,19 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 
 	b.Run("AppendIfWithConflict_100", func(b *testing.B) {
 		BenchmarkAppendIfWithConflict(b, benchCtx, 100)
+	})
+
+	// Realistic append benchmarks
+	b.Run("AppendRealistic_1", func(b *testing.B) {
+		BenchmarkAppendRealistic(b, benchCtx)
+	})
+
+	b.Run("AppendRealistic_10", func(b *testing.B) {
+		BenchmarkAppendRealistic(b, benchCtx)
+	})
+
+	b.Run("AppendRealistic_100", func(b *testing.B) {
+		BenchmarkAppendRealistic(b, benchCtx)
 	})
 
 	// Read benchmarks

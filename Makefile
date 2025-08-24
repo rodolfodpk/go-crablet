@@ -64,6 +64,16 @@ generate-datasets:
 	@cd internal/benchmarks/tools && $(GO) run prepare_datasets_main.go
 	@echo "✅ Test datasets generated in cache/"
 
+# Generate benchmark data for fast access
+generate-benchmark-data:
+	@echo "🔧 Generating benchmark data for fast access..."
+	@cd internal/benchmarks/tools && $(GO) run prepare_benchmark_data_main.go
+	@echo "✅ Benchmark data generated and cached in SQLite"
+
+# Generate all data (datasets + benchmark data)
+generate-all-data: generate-datasets generate-benchmark-data
+	@echo "🎯 All data generated and cached!"
+
 # Start web app server
 web-app-start:
 	@echo "🚀 Starting web app server..."
@@ -199,6 +209,8 @@ help:
 	@echo "  deps           - Download and tidy dependencies"
 	@echo "  docs           - Generate and serve documentation"
 	@echo "  generate-datasets - Generate SQLite test datasets"
+	@echo "  generate-benchmark-data - Generate benchmark data for fast access"
+	@echo "  generate-all-data - Generate all data (datasets + benchmark data)"
 	@echo "  web-app-start  - Start web app server"
 	@echo "  web-app-stop   - Stop web app server"
 	@echo "  examples       - Show available examples"

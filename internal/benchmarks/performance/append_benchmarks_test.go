@@ -115,3 +115,14 @@ func BenchmarkAppendHighFrequency_Tiny(b *testing.B) {
 	benchCtx := SetupBenchmarkContext(b, "tiny")
 	BenchmarkAppendHighFrequency(b, benchCtx, 50)
 }
+
+// Realistic batch size benchmarks (most common real-world scenarios)
+func BenchmarkAppendRealistic_Small(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "small")
+	BenchmarkAppendRealistic(b, benchCtx)
+}
+
+func BenchmarkAppendRealistic_Tiny(b *testing.B) {
+	benchCtx := SetupBenchmarkContext(b, "tiny")
+	BenchmarkAppendRealistic(b, benchCtx)
+}
