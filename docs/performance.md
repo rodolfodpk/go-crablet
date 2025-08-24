@@ -1,25 +1,13 @@
 # Performance Guide
 
-This document provides comprehensive performance information for go-crablet, including benchmarks, analysis, and optimization details.
-
-## 🚀 **Performance Overview**
-
-go-crablet is designed for high-performance event sourcing with realistic real-world scenarios. Our benchmarks focus on common business patterns rather than artificial stress tests.
-
-### **Key Performance Characteristics**
-- **Single Events**: ~2,200 ops/sec with 1.1-1.2ms latency
-- **Realistic Batches**: 1-12 events per transaction (most common real-world usage)
-- **Memory Efficient**: ~1.4KB per operation with minimal allocations
-- **PostgreSQL Optimized**: 50-connection pool for optimal performance
-
-## 📊 **Benchmark Results**
-
-### **Test Environment**
+## Test Environment
 - **Platform**: macOS (darwin 23.6.0) with Apple M1 Pro
-- **Database**: PostgreSQL with optimized connection pool (50 connections)
+- **Database**: PostgreSQL with 50-connection pool
 - **Test Data**: Runtime-generated datasets (tiny: 5 courses/10 students, small: 1K courses/10K students)
 
-### **Core Operations Performance**
+## Benchmark Results
+
+### Core Operations
 
 | Operation | Throughput | Latency | Memory | Allocations |
 |-----------|------------|---------|---------|-------------|
@@ -29,120 +17,42 @@ go-crablet is designed for high-performance event sourcing with realistic real-w
 | **Complex Queries** | 2,058 ops/sec | 1.15ms | 382KB | 5,771 |
 | **State Projection** | 3,394 ops/sec | 357μs | 1.5KB | 29 |
 
-### **Realistic Business Scenarios**
+### Concurrent Operations
 
-| Scenario | Batch Size | Throughput | Use Case |
-|----------|------------|------------|----------|
-| **User Login** | 1 event | 2,362 ops/sec | Authentication events |
-| **Order Creation** | 2-3 events | 2,048 ops/sec | Simple workflows |
-| **Course Enrollment** | 5-8 events | 2,048 ops/sec | Business operations |
-| **Complex Workflow** | 12 events | 2,048 ops/sec | Multi-step processes |
+| Scenario | Users | Throughput | Latency | Memory |
+|----------|-------|------------|---------|---------|
+| **Course Registration** | 10 | 423 ops/sec | 2.9ms | 26.2KB |
+| **Business Workflow** | 1 | 97 ops/sec | 12.4ms | 10.5KB |
+| **Mixed Operations** | 1 | 97 ops/sec | 12.4ms | 10.5KB |
 
-### **Concurrent User Performance**
+## Isolation Levels
 
-| Scenario | Concurrent Users | Throughput | Latency | Memory |
-|----------|------------------|------------|---------|---------|
-| **Course Registration** | 10 users | 423 ops/sec | 2.9ms | 26.2KB |
-| **Business Workflow** | Single user | 97 ops/sec | 12.4ms | 10.5KB |
-| **Mixed Operations** | Single user | 97 ops/sec | 12.4ms | 10.5KB |
+- **Simple Append**: READ COMMITTED
+- **AppendIf**: REPEATABLE READ (for DCB concurrency control)
+- **Queries**: READ COMMITTED
+- **Projections**: READ COMMITTED
 
-## 🔧 **Performance Optimizations**
+## Performance Optimizations
 
-- **Connection Pool**: 50 connections for optimal throughput
-- **SQL Functions**: 10x faster after optimization (50ms → 5ms)
-- **Memory**: Efficient allocations with predictable usage patterns
+- **Connection Pool**: 50 connections
+- **SQL Functions**: 10x faster (50ms → 5ms)
+- **Memory**: Efficient allocations
 
-## 📈 **Benchmark Structure**
+## Running Benchmarks
 
-### **Core Benchmark Suites**
-- **`BenchmarkAppend_Small/Tiny`**: Comprehensive append testing
-- **`BenchmarkRead_Small/Tiny`**: Query and streaming performance
-- **`BenchmarkProjection_Small/Tiny`**: State reconstruction testing
-
-### **Business Scenario Tests**
-- **Course Enrollment**: Real student registration workflows (10 concurrent users)
-- **Business Workflow**: Complete enrollment process with validation (single user)
-- **Mixed Operations**: Combined append, query, and projection sequences (single user)
-
-### **Quick Tests**
-- **Fast Feedback**: Essential operations for development iteration
-- **Performance Validation**: Quick performance checks during development
-
-### **Concurrent User Testing**
-- **10 Users**: Course registration with 423 ops/sec throughput
-- **Single User**: Business workflow validation with 97 ops/sec throughput
-- **Real-world Validation**: Simulates actual production load patterns
-
-## 🏃‍♂️ **Running Benchmarks**
-
-### **Basic Commands**
 ```bash
-# Run all benchmarks
 cd internal/benchmarks
 go test -bench=. -benchmem -benchtime=2s -timeout=5m .
 
-# Run specific suites
+# Specific suites
 go test -bench=BenchmarkAppend_Tiny -benchtime=1s
 go test -bench=BenchmarkRead_Small -benchtime=1s
 go test -bench=BenchmarkProjection_Tiny -benchtime=1s
-
-# Quick benchmarks for fast feedback
-go test -bench=BenchmarkQuick -benchtime=1s
 ```
 
-### **Benchmark Data**
-- **Runtime Generation**: Clean, simple data generation without external dependencies
-- **Realistic Scenarios**: Tests common batch sizes (1-12 events per transaction)
-- **PostgreSQL Backed**: Uses the same database schema as production code
+## Benchmark Structure
 
-## 🎯 **Performance Recommendations**
-
-### **For High-Throughput Applications**
-- Use **single events** for logging and audit trails
-- Implement **batch processing** for bulk operations
-- Monitor **connection pool** utilization
-
-### **For Business-Critical Operations**
-- Use **DCB concurrency control** for business rule validation
-- Implement **realistic batch sizes** (1-12 events)
-- Test with **concurrent user scenarios**
-
-### **For Development and Testing**
-- Run **quick benchmarks** for fast feedback
-- Use **tiny datasets** for development iteration
-- Monitor **memory usage** and allocations
-
-## 📊 **Performance Monitoring**
-
-### **Key Metrics to Track**
-- **Throughput**: Operations per second
-- **Latency**: Response time per operation
-- **Memory Usage**: Memory consumption per operation
-- **Allocations**: Number of memory allocations
-
-### **Performance Baselines**
-- **Single Events**: 2,000+ ops/sec, <2ms latency
-- **Realistic Batches**: 800+ ops/sec, <10ms latency
-- **Complex Queries**: 2,500+ ops/sec, <1ms latency
-
-## 🔍 **Performance Analysis**
-
-### **Why Realistic Scenarios Matter**
-- **Real-world Usage**: Benchmarks reflect actual business patterns
-- **Predictable Performance**: Consistent results across different scenarios
-- **Resource Planning**: Accurate capacity planning for production
-
-### **Performance vs. Complexity Trade-offs**
-- **Simple Append**: Fastest option, no business rule validation
-- **DCB Control**: Slower but ensures business rule compliance
-- **Batch Operations**: Balance between performance and efficiency
-
-## 📚 **Further Reading**
-
-- **[Getting Started](./getting-started.md)**: Setup and basic usage
-- **[Testing Guide](./testing.md)**: Comprehensive testing information
-- **[Overview](./overview.md)**: DCB pattern concepts and architecture
-
----
-
-**Note**: All benchmarks use realistic real-world scenarios. Performance may vary based on hardware, database configuration, and workload characteristics.
+- **Append**: Single events, realistic batches (1-12), conditional appends
+- **Read**: Simple queries, complex queries, streaming, channel operations
+- **Projection**: State reconstruction, streaming projections
+- **Business Scenarios**: Course enrollment, concurrent operations, mixed workflows
