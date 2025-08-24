@@ -25,6 +25,8 @@
 | **Business Workflow** | 1 | 97 ops/sec | 12.4ms | 10.5KB |
 | **Mixed Operations** | 1 | 97 ops/sec | 12.4ms | 10.5KB |
 
+**Mixed Operations**: Append + Query + Project in sequence (DataUpdate events)
+
 ## Isolation Levels
 
 - **Simple Append**: READ COMMITTED (benchCtx.Store)
@@ -57,3 +59,9 @@ go test -bench=BenchmarkProjection_Tiny -benchtime=1s
 - **Read**: Simple queries, complex queries, streaming, channel operations
 - **Projection**: State reconstruction, streaming projections
 - **Business Scenarios**: Course enrollment, concurrent operations, mixed workflows
+
+## Operation Types
+
+- **AppendIf**: Conditional append with business rule validation (checks for conflicts before inserting)
+- **Mixed Operations**: Sequential append → query → project operations in single benchmark iteration
+- **Business Workflow**: Complete enrollment process with validation and business rule checks
