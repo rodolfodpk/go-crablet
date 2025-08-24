@@ -9,9 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Enhanced EventStoreConfig**: Added logical grouping for append and query operations
-  - New optional fields: `QueryCacheSize`, `AppendRetryAttempts`, `MaxConcurrentQueries`
   - Improved organization with clear sections for append vs query configuration
-  - Future-ready extensibility without breaking backward compatibility
+  - Clean, focused configuration with only working, implemented fields
 
 ### Changed
 - **Documentation Improvements**: 
