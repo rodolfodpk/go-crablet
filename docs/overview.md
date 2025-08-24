@@ -78,40 +78,7 @@ type CommandHandler interface {
 
 **Note**: CommandExecutor is an optional convenience layer. You can use the core EventStore API directly for full control, or use CommandExecutor for simplified command handling patterns.
 
-## Architecture
 
-### EventStore Flow
-```
-Client → EventStore → PostgreSQL
-                ↓
-            Events Table
-            - type, tags, data
-            - transaction_id, position
-            - occurred_at
-```
-
-### State Projection Flow
-```
-Events → StateProjector → Aggregated State
-   ↓
-Project() function processes each event
-   ↓
-Returns final state + append condition
-```
-
-### CommandExecutor Flow (Optional)
-```
-Client → CommandExecutor → CommandHandler → EventStore → PostgreSQL
-                                    ↓
-                                Events + Commands Tables
-```
-
-**Alternative**: Use EventStore directly for full control
-```
-Client → EventStore → PostgreSQL
-                ↓
-            Events Table
-```
 
 ## DCB Concurrency Control
 
@@ -147,10 +114,9 @@ err := store.AppendIf(ctx, []dcb.InputEvent{accountEvent}, condition)
 
 **How It Works**: The condition checks if any `AccountCreated` events with `account_id: "123"` already exist. If they do, the append fails (preventing duplicates). If none exist, the append succeeds (first-time creation).
 
-## Usage Examples
+## Code Examples (Progressive Complexity)
 
-### Simple Event Store Usage
-
+### 1. Basic Event Storage
 ```go
 // Create EventStore
 store, err := dcb.NewEventStore(ctx, pool)
@@ -158,25 +124,32 @@ if err != nil {
     log.Fatal(err)
 }
 
-// Create events
-events := []dcb.InputEvent{
-    dcb.NewEvent("UserRegistered").
-        WithTag("user_id", "123").
-        WithData(map[string]any{
-            "name": "John Doe",
-            "email": "john@example.com",
-        }).
-        Build(),
-}
+// Create and append a simple event
+event := dcb.NewEvent("UserRegistered").
+    WithTag("user_id", "123").
+    WithData(map[string]any{
+        "name": "John Doe",
+        "email": "john@example.com",
+    }).
+    Build()
 
-// Append events
-err = store.Append(ctx, events)
+err = store.Append(ctx, []dcb.InputEvent{event})
 ```
 
-### State Projection
-
+### 2. Event Querying
 ```go
-// Define projector for user state
+// Query events by tags
+query := dcb.NewQueryBuilder().
+    WithTag("user_id", "123").
+    WithType("UserRegistered").
+    Build()
+
+events, err := store.Query(ctx, query, nil)
+```
+
+### 3. State Projection
+```go
+// Project user state from events
 userProjector := dcb.ProjectState("user_state", "UserRegistered", "user_id", "123", 
     map[string]any{}, 
     func(state any, event dcb.Event) any {
@@ -185,12 +158,32 @@ userProjector := dcb.ProjectState("user_state", "UserRegistered", "user_id", "12
         return userState
     })
 
-// Project state from events
 state, condition, err := store.Project(ctx, []dcb.StateProjector{userProjector}, nil)
 ```
 
-### Command Execution
+### 4. DCB Concurrency Control
+```go
+// Prevent duplicate account creation
+condition := dcb.NewAppendCondition(
+    dcb.NewQueryBuilder().
+        WithTag("account_id", "123").
+        WithType("AccountCreated").
+        Build(),
+)
 
+accountEvent := dcb.NewEvent("AccountCreated").
+    WithTag("account_id", "123").
+    WithData(map[string]any{
+        "owner": "John Doe",
+        "balance": 0,
+    }).
+    Build()
+
+// Only succeeds if account doesn't exist
+err := store.AppendIf(ctx, []dcb.InputEvent{accountEvent}, condition)
+```
+
+### 5. Command Pattern (Optional)
 ```go
 // Define command handler
 handler := dcb.CommandHandlerFunc(func(ctx context.Context, store dcb.EventStore, cmd dcb.Command) ([]dcb.InputEvent, error) {
@@ -198,8 +191,8 @@ handler := dcb.CommandHandlerFunc(func(ctx context.Context, store dcb.EventStore
     return events, nil
 })
 
-// Execute command
-events, err := commandExecutor.ExecuteCommand(ctx, command, handler, nil)
+// Execute command with concurrency control
+events, err := commandExecutor.ExecuteCommand(ctx, command, handler, &condition)
 ```
 
 ## Configuration
@@ -239,19 +232,87 @@ store, err := dcb.NewEventStoreWithConfig(ctx, pool, config)
 
 
 
-## Performance Characteristics
+## Use Cases
 
-- **Append**: ~1,000 ops/s (simple append)
-- **AppendIf**: ~800 ops/s (with DCB conditions)
-- **Query**: ~2,000 ops/s (tag-based filtering)
-- **Project**: ~500 ops/s (state reconstruction)
+### Event Logging
+- **Simple event storage** for audit trails and activity logs
+- **Tag-based querying** for filtering events by context
+- **Streaming operations** for real-time event processing
 
-## Best Practices
+### Business Rule Enforcement
+- **DCB conditions** prevent invalid state transitions
+- **Race condition protection** without database locks
+- **Domain constraint validation** through event queries
 
-1. **Use descriptive event types** and relevant tags for querying
-2. **Implement idempotent operations** in command handlers
-3. **Use DCB conditions** for business rule enforcement
-4. **Batch events** when possible for better performance
-5. **Handle concurrency errors** gracefully with retry logic
+### State Reconstruction
+- **Event-driven projections** rebuild current state
+- **Aggregate state** from multiple event types
+- **Historical state** at any point in time
+
+## Database Schema
+
+The library uses PostgreSQL with an optimized schema:
+
+```sql
+-- Events table (primary data)
+CREATE TABLE events (
+    type VARCHAR(64) NOT NULL,
+    tags TEXT[] NOT NULL,
+    data JSON NOT NULL,
+    transaction_id xid8 NOT NULL,
+    position BIGSERIAL NOT NULL PRIMARY KEY,
+    occurred_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Commands table (metadata for CommandExecutor)
+CREATE TABLE commands (
+    transaction_id xid8 NOT NULL PRIMARY KEY,
+    type VARCHAR(64) NOT NULL,
+    data JSONB NOT NULL,
+    metadata JSONB,
+    occurred_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+**Schema Features:**
+- **Optimized indexing** on tags and event types
+- **JSON data storage** for flexible event payloads
+- **Transaction tracking** for consistency and debugging
+- **Position-based ordering** for reliable event sequencing
+
+## Architecture
+
+The library follows a layered architecture with clear separation of concerns:
+
+### Core Layer (EventStore)
+```go
+// Direct database operations
+store.Append(ctx, events)                    // Simple append
+store.AppendIf(ctx, events, condition)       // Conditional append with DCB
+store.Query(ctx, query, cursor)              // Event querying
+store.Project(ctx, projectors, cursor)       // State reconstruction
+```
+
+### Optional Layer (CommandExecutor)
+```go
+// High-level command handling
+commandExecutor.ExecuteCommand(ctx, command, handler, condition)
+// Internally uses EventStore for all operations
+```
+
+### Data Flow
+```go
+// 1. Events flow directly to PostgreSQL
+Client → EventStore → PostgreSQL (events table)
+
+// 2. Commands flow through optional CommandExecutor
+Client → CommandExecutor → CommandHandler → EventStore → PostgreSQL (commands + events tables)
+```
+
+**Key Design Principles:**
+- **EventStore is the foundation** - always available and fully functional
+- **CommandExecutor is optional** - convenience layer for command patterns
+- **DCB at event level** - concurrency control through business rules
+- **PostgreSQL as storage** - reliable, ACID-compliant event persistence
 
 This library explores event sourcing concepts with DCB concurrency control. It's a learning project that experiments with DCB patterns using PostgreSQL, suitable for understanding event sourcing principles, testing DCB concepts, and benchmarking performance characteristics.
