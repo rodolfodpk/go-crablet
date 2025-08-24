@@ -606,7 +606,7 @@ func BenchmarkMemoryUsage(b *testing.B, benchCtx *BenchmarkContext, operation st
 				b.Fatalf("Read failed: %v", err)
 			}
 			_ = events
-		case "read_stream":
+		case "read_stream", "stream":
 			eventChan, err := benchCtx.ChannelStore.QueryStream(ctx, benchCtx.Queries[0], nil)
 			if err != nil {
 				b.Fatalf("ReadStream failed: %v", err)
