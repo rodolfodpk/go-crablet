@@ -45,6 +45,7 @@ type command struct {
 	metadata    map[string]interface{}
 }
 
+func (c *command) isCommand()                          {}
 func (c *command) GetType() string                     { return c.commandType }
 func (c *command) GetData() []byte                     { return c.data }
 func (c *command) GetMetadata() map[string]interface{} { return c.metadata }
@@ -52,6 +53,8 @@ func (c *command) GetMetadata() map[string]interface{} { return c.metadata }
 type commandExecutor struct {
 	eventStore EventStore
 }
+
+func (ce *commandExecutor) isCommandExecutor() {}
 
 func NewCommandExecutor(eventStore EventStore) CommandExecutor {
 	return &commandExecutor{
@@ -233,7 +236,3 @@ func (ce *commandExecutor) ExecuteCommand(ctx context.Context, command Command, 
 
 	return events, nil
 }
-
-
-
-
