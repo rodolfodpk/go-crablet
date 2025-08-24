@@ -64,6 +64,16 @@ type StateProjector struct {
 type CommandExecutor interface {
     ExecuteCommand(ctx context.Context, command Command, handler CommandHandler, condition *AppendCondition) ([]InputEvent, error)
 }
+
+type Command interface {
+    GetType() string
+    GetData() []byte
+    GetMetadata() map[string]interface{}
+}
+
+type CommandHandler interface {
+    Handle(ctx context.Context, store EventStore, command Command) ([]InputEvent, error)
+}
 ```
 
 **Note**: CommandExecutor is an optional convenience layer. You can use the core EventStore API directly for full control, or use CommandExecutor for simplified command handling patterns.
