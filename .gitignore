@@ -29,6 +29,7 @@ benchmark-results-*/
 
 # Benchmark cache and SQLite databases
 internal/benchmarks/cache/
+internal/benchmarks/performance/cache/
 *.db
 *.sqlite
 *.sqlite3
