@@ -23,20 +23,20 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 
 ## 📊 Performance
 
-- **[Benchmarks](docs/benchmarks.md)**: Comprehensive performance analysis including Go library and HTTP API
-- **[Performance Comparison](docs/performance-comparison.md)**: Go library vs web-app performance analysis and recommendations
-- **[Performance Analysis](docs/performance-improvements.md)**: Technical optimizations and I/O operation analysis
+- **[Benchmarks](./docs/benchmarks.md)**: Comprehensive performance analysis including Go library and HTTP API
+- **[Performance Comparison](./docs/performance-comparison.md)**: Go library vs web-app performance analysis and recommendations
+- **[Performance Analysis](./docs/performance-improvements.md)**: Technical optimizations and I/O operation analysis
 
-*For benchmark execution commands, see [Development Guide](docs/getting-started.md).*
+*For benchmark execution commands, see [Development Guide](./docs/getting-started.md).*
 
 ## 📚 Documentation
-- [Overview](docs/overview.md): DCB pattern exploration, batch projection, and streaming
-- [Quick Start](docs/quick-start.md): Get started using go-crablet in your project
-- [Getting Started](docs/getting-started.md): Development setup
-- [EventStore Flow](docs/eventstore-flow.md): Direct event operations without commands
-- [Command Execution Flow](docs/command-execution-flow.md): Sequence diagram and command processing flow
-- [Low-Level Implementation](docs/low-level-implementation.md): Database schema, SQL functions, and internal architecture
-- [Testing](docs/testing.md): Comprehensive testing guide and test organization
+- [Overview](./docs/overview.md): DCB pattern exploration, batch projection, and streaming
+- [Quick Start](./docs/quick-start.md): Get started using go-crablet in your project
+- [Getting Started](./docs/getting-started.md): Development setup
+- [EventStore Flow](./docs/eventstore-flow.md): Direct event operations without commands
+- [Command Execution Flow](./docs/command-execution-flow.md): Sequence diagram and command processing flow
+- [Low-Level Implementation](./docs/low-level-implementation.md): Database schema, SQL functions, and internal architecture
+- [Testing](./docs/testing.md): Comprehensive testing guide and test organization
 
 ## 🚀 Quick Start
 
