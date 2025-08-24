@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"runtime"
 	"sync"
 	"testing"
@@ -31,7 +30,6 @@ type BenchmarkContext struct {
 	Dataset      *setup.Dataset
 	Queries      []dcb.Query
 	Projectors   []dcb.StateProjector
-	CachedEvents map[string][]setup.BenchmarkEvent // Pre-generated benchmark events
 }
 
 // getOrCreateGlobalPool returns the shared global pool, creating it if necessary
@@ -121,11 +119,8 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
 		b.Fatalf("Unknown dataset size: %s", datasetSize)
 	}
 
-	// Get dataset from cache (or generate if not cached)
-	dataset, err := setup.GetCachedDataset(config)
-	if err != nil {
-		b.Fatalf("Failed to get cached dataset: %v", err)
-	}
+	// Generate dataset for benchmarking
+	dataset := setup.GenerateDataset(config)
 
 	// Load dataset into PostgreSQL for realistic benchmarking
 	if err := setup.LoadDatasetIntoStore(ctx, store, dataset); err != nil {
@@ -161,15 +156,6 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
 		},
 	}
 
-	// Load cached benchmark data for fast access
-	cacheFile := filepath.Join("cache", "benchmark_data.db")
-	cachedEvents, err := setup.LoadBenchmarkDataFromCache(cacheFile)
-	if err != nil {
-		// Log warning but continue without cached data
-		fmt.Printf("Warning: Failed to load cached benchmark data: %v\n", err)
-		cachedEvents = make(map[string][]setup.BenchmarkEvent)
-	}
-
 	return &BenchmarkContext{
 		Store:        store,
 		ChannelStore: channelStore,
@@ -177,7 +163,6 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
 		Dataset:      dataset,
 		Queries:      queries,
 		Projectors:   projectors,
-		CachedEvents: cachedEvents,
 	}
 }
 
@@ -188,37 +173,15 @@ func BenchmarkAppendSingle(b *testing.B, benchCtx *BenchmarkContext) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	// Use cached events if available, otherwise fall back to runtime generation
-	if cachedEvents, exists := benchCtx.CachedEvents["single"]; exists && len(cachedEvents) > 0 {
-		for i := 0; i < b.N; i++ {
-			// Use cached event data
-			cachedEvent := cachedEvents[i%len(cachedEvents)]
-			
-			// Convert map to tags
-			var tags []dcb.Tag
-			for k, v := range cachedEvent.Tags {
-				tags = append(tags, dcb.NewTag(k, v))
-			}
-			
-			event := dcb.NewInputEvent(cachedEvent.Type, tags, cachedEvent.Data)
+	for i := 0; i < b.N; i++ {
+		uniqueID := fmt.Sprintf("single_%d_%d", time.Now().UnixNano(), i)
+		event := dcb.NewInputEvent("TestEvent",
+			dcb.NewTags("test", "single", "unique_id", uniqueID),
+			[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, uniqueID)))
 
-			err := benchCtx.Store.Append(ctx, []dcb.InputEvent{event})
-			if err != nil {
-				b.Fatalf("Append failed: %v", err)
-			}
-		}
-	} else {
-		// Fallback to runtime generation
-		for i := 0; i < b.N; i++ {
-			uniqueID := fmt.Sprintf("single_%d_%d", time.Now().UnixNano(), i)
-			event := dcb.NewInputEvent("TestEvent",
-				dcb.NewTags("test", "single", "unique_id", uniqueID),
-				[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, uniqueID)))
-
-			err := benchCtx.Store.Append(ctx, []dcb.InputEvent{event})
-			if err != nil {
-				b.Fatalf("Append failed: %v", err)
-			}
+		err := benchCtx.Store.Append(ctx, []dcb.InputEvent{event})
+		if err != nil {
+			b.Fatalf("Append failed: %v", err)
 		}
 	}
 }
@@ -232,45 +195,24 @@ func BenchmarkAppendRealistic(b *testing.B, benchCtx *BenchmarkContext) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	// Use cached realistic events if available
-	if cachedEvents, exists := benchCtx.CachedEvents["realistic"]; exists && len(cachedEvents) > 0 {
-		for i := 0; i < b.N; i++ {
-			// Use cached event data with realistic batch sizes
-			cachedEvent := cachedEvents[i%len(cachedEvents)]
-			
-			// Convert map to tags
-			var tags []dcb.Tag
-			for k, v := range cachedEvent.Tags {
-				tags = append(tags, dcb.NewTag(k, v))
-			}
-			
-			event := dcb.NewInputEvent(cachedEvent.Type, tags, cachedEvent.Data)
+	// Generate realistic batch sizes at runtime
+	realisticSizes := []int{1, 2, 3, 5, 8, 12}
+	
+	for i := 0; i < b.N; i++ {
+		batchSize := realisticSizes[i%len(realisticSizes)]
+		events := make([]dcb.InputEvent, batchSize)
+		uniqueID := fmt.Sprintf("realistic_%d_%d", time.Now().UnixNano(), i)
 
-			err := benchCtx.Store.Append(ctx, []dcb.InputEvent{event})
-			if err != nil {
-				b.Fatalf("Realistic append failed: %v", err)
-			}
+		for j := 0; j < batchSize; j++ {
+			eventID := fmt.Sprintf("%s_%d", uniqueID, j)
+			events[j] = dcb.NewInputEvent("TestEvent",
+				dcb.NewTags("test", "realistic", "batch_size", fmt.Sprintf("%d", batchSize), "unique_id", eventID),
+				[]byte(fmt.Sprintf(`{"batch_size": %d, "unique_id": "%s"}`, batchSize, eventID)))
 		}
-	} else {
-		// Fallback to runtime generation with realistic batch sizes
-		realisticSizes := []int{1, 2, 3, 5, 8, 12}
-		
-		for i := 0; i < b.N; i++ {
-			batchSize := realisticSizes[i%len(realisticSizes)]
-			events := make([]dcb.InputEvent, batchSize)
-			uniqueID := fmt.Sprintf("realistic_%d_%d", time.Now().UnixNano(), i)
 
-			for j := 0; j < batchSize; j++ {
-				eventID := fmt.Sprintf("%s_%d", uniqueID, j)
-				events[j] = dcb.NewInputEvent("TestEvent",
-					dcb.NewTags("test", "realistic", "batch_size", fmt.Sprintf("%d", batchSize), "unique_id", eventID),
-					[]byte(fmt.Sprintf(`{"batch_size": %d, "unique_id": "%s"}`, batchSize, eventID)))
-			}
-
-			err := benchCtx.Store.Append(ctx, events)
-			if err != nil {
-				b.Fatalf("Realistic batch append failed: %v", err)
-			}
+		err := benchCtx.Store.Append(ctx, events)
+		if err != nil {
+			b.Fatalf("Realistic batch append failed: %v", err)
 		}
 	}
 }
