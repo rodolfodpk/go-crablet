@@ -73,6 +73,52 @@ This project provides comprehensive performance testing for the DCB event sourci
 - **Request Burst**: 50 concurrent request simulation for burst traffic patterns
 - **Sustained Load**: Mixed operation types over time for consistency testing
 
+#### Concurrent User Metrics
+
+**Enhanced benchmarks test realistic concurrent scenarios:**
+
+| Benchmark | Concurrent Users | Scenario | Operations per User |
+|-----------|------------------|----------|-------------------|
+| **ConcurrentAppends** | **10 users** | Course registration | 1 event per user |
+| **RequestBurst** | **50 users** | Burst traffic handling | 1 request per user |
+| **SustainedLoad** | **Mixed** | Sustained application load | 4 operation types |
+
+#### Concurrent Performance Characteristics
+
+**ConcurrentAppends_Small (10 users):**
+- **Concurrency Level**: 10 simultaneous users
+- **Operation**: Course registration events
+- **Real Data**: Uses actual student dataset
+- **Performance**: Measures concurrent append throughput
+
+**RequestBurst_Small (50 users):**
+- **Concurrency Level**: 50 simultaneous requests
+- **Operation**: Burst traffic simulation
+- **Pattern**: Common in web applications
+- **Performance**: Measures burst handling capacity
+
+**SustainedLoad_Small (Mixed operations):**
+- **Concurrency Level**: Mixed operation types
+- **Operations**: Append, Query, Project, Conditional
+- **Pattern**: Real application load simulation
+- **Performance**: Measures sustained performance consistency
+
+#### Concurrent Performance Results (2025-08-24)
+
+**Real concurrent performance metrics from enhanced benchmarks:**
+
+| Benchmark | Concurrent Users | Throughput | Latency | Memory | Allocations |
+|-----------|------------------|------------|---------|---------|-------------|
+| **ConcurrentAppends** | **10 users** | **338 ops/sec** | **3.0ms** | **26.6KB** | **550** |
+| **RequestBurst** | **50 users** | **77 ops/sec** | **13.0ms** | **72.4KB** | **2,514** |
+
+**Concurrent Performance Analysis:**
+- **10 Concurrent Users**: 338 ops/sec with 3ms latency per operation
+- **50 Concurrent Users**: 77 ops/sec with 13ms latency per operation
+- **Scaling Factor**: 5x more users = 4.3x slower performance (expected under contention)
+- **Memory Efficiency**: Higher concurrency increases memory usage and allocations
+- **Real-World Validation**: Tests actual concurrent database access patterns
+
 #### Core Benchmark Functions (13 functions)
 - **AppendSingle**: Single event append performance
 - **AppendBatch**: Batch event append with various sizes (10, 100, 1000)

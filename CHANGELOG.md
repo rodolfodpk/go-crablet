@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Detailed breakdown of append, read, projection, and business scenario benchmarks
   - Added dataset integration details and benchmark execution instructions
   - Enhanced use case descriptions for all benchmark types
+  - **Added concurrent user metrics**: Documented 10 concurrent users (338 ops/sec) and 50 concurrent users (77 ops/sec) performance results
+  - **Enhanced concurrent performance analysis**: Shows real-world scaling characteristics and contention patterns
 
 ### Changed
 - **Documentation Improvements**: 
