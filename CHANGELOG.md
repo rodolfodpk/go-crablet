@@ -1,0 +1,101 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+- **Enhanced EventStoreConfig**: Added logical grouping for append and query operations
+  - New optional fields: `QueryCacheSize`, `AppendRetryAttempts`, `MaxConcurrentQueries`
+  - Improved organization with clear sections for append vs query configuration
+  - Future-ready extensibility without breaking backward compatibility
+
+### Changed
+- **Documentation Improvements**: 
+  - Rewrote overview.md for clarity and conciseness
+  - Removed verbose structs vs maps comparison (not relevant)
+  - Fixed logical flow: Core Concepts → State Projectors → Command Handlers
+  - Replaced undefined UserState with generic map[string]any in examples
+  - Updated all documentation links to use correct relative paths
+  - Corrected overstatements about library capabilities (emphasized exploration status)
+
+### Fixed
+- **Interface Implementation Consistency**: Added missing marker methods
+  - `command.isCommand()` - implements Command interface
+  - `commandExecutor.isCommandExecutor()` - implements CommandExecutor interface  
+  - `eventStore.isEventStore()` - implements EventStore interface
+- **Documentation Links**: Fixed broken relative paths in README.md, quick-start.md, and getting-started.md
+- **Test Organization**: Resolved duplicate test suite conflicts by properly separating internal vs external tests
+
+### Internal
+- **Test Coverage Improvements**: Added high-priority internal unit tests
+  - `pkg/dcb/errors_test.go` - Error handling and marker method tests
+  - `pkg/dcb/constructors_test.go` - Alternative constructor and config validation tests
+  - Improved coverage for error handling, alternative constructors, and configuration validation
+
+## [0.1.0] - 2024-12-XX
+
+### Added
+- **Core DCB Library**: Initial implementation of Dynamic Consistency Boundary pattern
+- **EventStore Interface**: Core API for event sourcing operations
+  - `Append()` - Basic event appending
+  - `AppendIf()` - Conditional event appending with DCB
+  - `Query()` - Event querying with tag-based filtering
+  - `QueryStream()` - Streaming event queries
+  - `Project()` - State projection from events
+  - `ProjectStream()` - Streaming state projections
+- **CommandExecutor**: High-level API for command handling
+  - `ExecuteCommand()` - Execute commands with business logic handlers
+- **DCB Concurrency Control**: Event-level conflict detection and prevention
+- **PostgreSQL Integration**: Production database support with optimized schema
+- **SQLite Benchmark System**: Test data caching for performance testing
+- **Comprehensive Testing**: Ginkgo BDD tests with Testcontainers integration
+
+### Architecture
+- **Opaque Type Pattern**: Interfaces with private concrete implementations
+- **Event Sourcing**: Immutable event storage with append-only semantics
+- **State Projection**: Event-driven state reconstruction
+- **Tag-based Querying**: Efficient event filtering and retrieval
+- **Transaction Management**: PostgreSQL transaction isolation levels
+
+### Performance
+- **Append Operations**: ~1,000 ops/s (simple), ~800 ops/s (with DCB)
+- **Query Operations**: ~2,000 ops/s (tag-based filtering)
+- **Projection Operations**: ~500 ops/s (state reconstruction)
+- **Batch Processing**: Up to 1,000 events per batch
+- **Streaming Support**: Memory-efficient large dataset handling
+
+### Documentation
+- **Comprehensive Guides**: Getting started, examples, testing, benchmarks
+- **API Reference**: Complete interface documentation
+- **Performance Analysis**: Benchmark results and optimization strategies
+- **Best Practices**: Event design, concurrency control, error handling
+
+---
+
+## Version History
+
+- **0.1.0**: Initial release with core DCB functionality
+- **Unreleased**: Current development version with ongoing improvements
+
+## Contributing
+
+When adding new features or making significant changes, please update this changelog following the established format. Include:
+
+- **Added**: New features
+- **Changed**: Changes in existing functionality  
+- **Deprecated**: Soon-to-be removed features
+- **Removed**: Removed features
+- **Fixed**: Bug fixes
+- **Security**: Vulnerability fixes
+- **Internal**: Internal changes (refactoring, tests, etc.)
+
+## Notes
+
+- This project is an **exploration of DCB concepts**, not a production-ready solution
+- Performance claims are modest and factual based on benchmark results
+- Focus is on learning and experimenting with event sourcing patterns
+- All changes maintain backward compatibility where possible
