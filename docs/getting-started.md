@@ -326,10 +326,10 @@ make benchmark-all
 ## Next Steps
 
 1. **Read the Documentation**:
-   - [Overview](docs/overview.md): Core concepts and architecture
-   - [EventStore Flow](docs/eventstore-flow.md): Direct event operations
-   - [Command Execution Flow](docs/command-execution-flow.md): High-level command pattern
-   - [Examples](docs/examples.md): Complete usage examples
+   - [Overview](./overview.md): Core concepts and architecture
+   - [EventStore Flow](./eventstore-flow.md): Direct event operations
+   - [Command Execution Flow](./command-execution-flow.md): High-level command pattern
+   - [Examples](./examples.md): Complete usage examples
 
 2. **Explore Examples**:
    - Start with `internal/examples/transfer/` for basic usage
@@ -338,7 +338,7 @@ make benchmark-all
 
 3. **Run Benchmarks**:
    - Use `make benchmark-go` to test performance
-   - Check `docs/benchmarks.md` for detailed results
+   - Check `./benchmarks.md` for detailed results
 
 4. **Production Setup**:
    - Configure connection pooling
