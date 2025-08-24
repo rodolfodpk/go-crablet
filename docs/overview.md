@@ -155,10 +155,10 @@ dcb.NewEvent("UserRegistered").
     Build()
 ```
 
-**❌ AVOID: Verbose map syntax**
+**✅ SUPPORTED: Map syntax is a fair user choice**
 
 ```go
-// Don't use maps for event data (verbose, error-prone)
+// Map syntax is supported and gives you explicit control
 dcb.NewEvent("UserRegistered").
     WithTag("user_id", "123").
     WithData(map[string]any{
@@ -169,12 +169,20 @@ dcb.NewEvent("UserRegistered").
     Build()
 ```
 
-**Benefits of struct-based approach:**
+**Both approaches are supported - choose based on your preference:**
+
+**Struct-based approach benefits:**
 - **Type safety** - Compile-time validation
 - **Performance** - No map allocation overhead
 - **Readability** - Clear data structure
 - **Maintainability** - Easy to refactor
 - **IDE support** - Better autocomplete and error detection
+
+**Map syntax benefits:**
+- **Flexibility** - Use any Go types as values
+- **Explicit control** - Direct data structure definition
+- **Standard Go idiom** - Familiar to most Go developers
+- **Dynamic data** - Easy to modify at runtime
 
 ### Command Execution
 
