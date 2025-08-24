@@ -40,20 +40,9 @@ go-crablet is designed for high-performance event sourcing with realistic real-w
 
 ## 🔧 **Performance Optimizations**
 
-### **Database Connection Pooling**
-- **Pool Size**: 50 connections for optimal throughput
-- **Connection Life**: 10 minutes with 5-minute idle time
-- **Result**: Consistent performance under load
-
-### **SQL Function Optimization**
-- **Before**: Complex CTEs with multiple subqueries (~50ms per operation)
-- **After**: Single optimized query (~5ms per operation)
-- **Improvement**: **10x faster** with 10x less memory usage
-
-### **Memory Management**
-- **Efficient Allocations**: Minimized memory allocations per operation
-- **Garbage Collection**: Optimized for low GC pressure
-- **Result**: Predictable memory usage patterns
+- **Connection Pool**: 50 connections for optimal throughput
+- **SQL Functions**: 10x faster after optimization (50ms → 5ms)
+- **Memory**: Efficient allocations with predictable usage patterns
 
 ## 📈 **Benchmark Structure**
 
