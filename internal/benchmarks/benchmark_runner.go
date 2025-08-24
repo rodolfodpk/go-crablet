@@ -223,27 +223,54 @@ func BenchmarkAppendSingle(b *testing.B, benchCtx *BenchmarkContext) {
 	}
 }
 
-// BenchmarkAppendBatch benchmarks batch event append
-func BenchmarkAppendBatch(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
+
+
+// BenchmarkAppendRealistic benchmarks realistic batch sizes (1-12 events) for real-world usage
+func BenchmarkAppendRealistic(b *testing.B, benchCtx *BenchmarkContext) {
 	ctx := context.Background()
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
-		events := make([]dcb.InputEvent, batchSize)
-		uniqueID := fmt.Sprintf("batch_%d_%d", time.Now().UnixNano(), i)
+	// Use cached realistic events if available
+	if cachedEvents, exists := benchCtx.CachedEvents["realistic"]; exists && len(cachedEvents) > 0 {
+		for i := 0; i < b.N; i++ {
+			// Use cached event data with realistic batch sizes
+			cachedEvent := cachedEvents[i%len(cachedEvents)]
+			
+			// Convert map to tags
+			var tags []dcb.Tag
+			for k, v := range cachedEvent.Tags {
+				tags = append(tags, dcb.NewTag(k, v))
+			}
+			
+			event := dcb.NewInputEvent(cachedEvent.Type, tags, cachedEvent.Data)
 
-		for j := 0; j < batchSize; j++ {
-			eventID := fmt.Sprintf("%s_%d", uniqueID, j)
-			events[j] = dcb.NewInputEvent("TestEvent",
-				dcb.NewTags("test", "batch", "unique_id", eventID),
-				[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, eventID)))
+			err := benchCtx.Store.Append(ctx, []dcb.InputEvent{event})
+			if err != nil {
+				b.Fatalf("Realistic append failed: %v", err)
+			}
 		}
+	} else {
+		// Fallback to runtime generation with realistic batch sizes
+		realisticSizes := []int{1, 2, 3, 5, 8, 12}
+		
+		for i := 0; i < b.N; i++ {
+			batchSize := realisticSizes[i%len(realisticSizes)]
+			events := make([]dcb.InputEvent, batchSize)
+			uniqueID := fmt.Sprintf("realistic_%d_%d", time.Now().UnixNano(), i)
 
-		err := benchCtx.Store.Append(ctx, events)
-		if err != nil {
-			b.Fatalf("Batch append failed: %v", err)
+			for j := 0; j < batchSize; j++ {
+				eventID := fmt.Sprintf("%s_%d", uniqueID, j)
+				events[j] = dcb.NewInputEvent("TestEvent",
+					dcb.NewTags("test", "realistic", "batch_size", fmt.Sprintf("%d", batchSize), "unique_id", eventID),
+					[]byte(fmt.Sprintf(`{"batch_size": %d, "unique_id": "%s"}`, batchSize, eventID)))
+			}
+
+			err := benchCtx.Store.Append(ctx, events)
+			if err != nil {
+				b.Fatalf("Realistic batch append failed: %v", err)
+			}
 		}
 	}
 }
@@ -357,70 +384,7 @@ func BenchmarkAppendIfWithConflict(b *testing.B, benchCtx *BenchmarkContext, bat
 	}
 }
 
-// BenchmarkAppendRealistic benchmarks realistic batch sizes (1-12 events most common)
-func BenchmarkAppendRealistic(b *testing.B, benchCtx *BenchmarkContext) {
-	// Create context with timeout for each benchmark iteration
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
 
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	// Use cached realistic events if available
-	if cachedEvents, exists := benchCtx.CachedEvents["realistic"]; exists && len(cachedEvents) > 0 {
-		for i := 0; i < b.N; i++ {
-			// Use cached realistic event data
-			cachedEvent := cachedEvents[i%len(cachedEvents)]
-			
-			// Convert map to tags
-			var tags []dcb.Tag
-			for k, v := range cachedEvent.Tags {
-				tags = append(tags, dcb.NewTag(k, v))
-			}
-			
-			// Create a realistic batch based on the cached event's batch size
-			batchSizeStr := cachedEvent.Tags["batch_size"]
-			var batchSize int
-			fmt.Sscanf(batchSizeStr, "%d", &batchSize)
-			
-			// Ensure we have a valid batch size
-			if batchSize <= 0 {
-				batchSize = 1 // Default to single event
-			}
-			
-			events := make([]dcb.InputEvent, batchSize)
-			for j := 0; j < batchSize; j++ {
-				events[j] = dcb.NewInputEvent(cachedEvent.Type, tags, cachedEvent.Data)
-			}
-			
-			err := benchCtx.Store.Append(ctx, events)
-			if err != nil {
-				b.Fatalf("Realistic append failed: %v", err)
-			}
-		}
-	} else {
-		// Fallback to runtime generation with realistic batch sizes
-		realisticSizes := []int{1, 2, 3, 5, 8, 12} // Most common real-world sizes
-		
-		for i := 0; i < b.N; i++ {
-			batchSize := realisticSizes[i%len(realisticSizes)]
-			uniqueID := fmt.Sprintf("realistic_%d_%d", time.Now().UnixNano(), i)
-			
-			events := make([]dcb.InputEvent, batchSize)
-			for j := 0; j < batchSize; j++ {
-				eventID := fmt.Sprintf("%s_%d", uniqueID, j)
-				events[j] = dcb.NewInputEvent("RealisticEvent",
-					dcb.NewTags("test", "realistic", "unique_id", eventID, "batch_size", fmt.Sprintf("%d", batchSize)),
-					[]byte(fmt.Sprintf(`{"value":"test","unique_id":"%s","batch_size":%d}`, eventID, batchSize)))
-			}
-			
-			err := benchCtx.Store.Append(ctx, events)
-			if err != nil {
-				b.Fatalf("Realistic append failed: %v", err)
-			}
-		}
-	}
-}
 
 // BenchmarkAppendMixedEventTypes benchmarks append with mixed event types (matching web-app scenarios)
 func BenchmarkAppendMixedEventTypes(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
@@ -651,51 +615,31 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 		BenchmarkAppendSingle(b, benchCtx)
 	})
 
-	b.Run("AppendBatch_10", func(b *testing.B) {
-		BenchmarkAppendBatch(b, benchCtx, 10)
-	})
-
-	b.Run("AppendBatch_100", func(b *testing.B) {
-		BenchmarkAppendBatch(b, benchCtx, 100)
-	})
-
-	b.Run("AppendBatch_1000", func(b *testing.B) {
-		BenchmarkAppendBatch(b, benchCtx, 1000)
-	})
-
-	// Conditional append benchmarks
-	b.Run("AppendIf_10", func(b *testing.B) {
-		BenchmarkAppendIf(b, benchCtx, 10)
-	})
-
-	b.Run("AppendIf_100", func(b *testing.B) {
-		BenchmarkAppendIf(b, benchCtx, 100)
-	})
-
-	b.Run("AppendIf_1000", func(b *testing.B) {
-		BenchmarkAppendIf(b, benchCtx, 1000)
-	})
-
-	// Conflict benchmarks
-	b.Run("AppendIfWithConflict_10", func(b *testing.B) {
-		BenchmarkAppendIfWithConflict(b, benchCtx, 10)
-	})
-
-	b.Run("AppendIfWithConflict_100", func(b *testing.B) {
-		BenchmarkAppendIfWithConflict(b, benchCtx, 100)
-	})
-
-	// Realistic append benchmarks
-	b.Run("AppendRealistic_1", func(b *testing.B) {
+	// Realistic append benchmarks (1-12 events, most common real-world scenarios)
+	b.Run("AppendRealistic", func(b *testing.B) {
 		BenchmarkAppendRealistic(b, benchCtx)
 	})
 
-	b.Run("AppendRealistic_10", func(b *testing.B) {
-		BenchmarkAppendRealistic(b, benchCtx)
+	// Conditional append benchmarks (realistic batch sizes)
+	b.Run("AppendIf_1", func(b *testing.B) {
+		BenchmarkAppendIf(b, benchCtx, 1)
 	})
 
-	b.Run("AppendRealistic_100", func(b *testing.B) {
-		BenchmarkAppendRealistic(b, benchCtx)
+	b.Run("AppendIf_5", func(b *testing.B) {
+		BenchmarkAppendIf(b, benchCtx, 5)
+	})
+
+	b.Run("AppendIf_12", func(b *testing.B) {
+		BenchmarkAppendIf(b, benchCtx, 12)
+	})
+
+	// Conflict benchmarks (realistic batch sizes)
+	b.Run("AppendIfWithConflict_1", func(b *testing.B) {
+		BenchmarkAppendIfWithConflict(b, benchCtx, 1)
+	})
+
+	b.Run("AppendIfWithConflict_5", func(b *testing.B) {
+		BenchmarkAppendIfWithConflict(b, benchCtx, 5)
 	})
 
 	// Read benchmarks
