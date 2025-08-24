@@ -13,7 +13,7 @@ go get github.com/rodolfodpk/go-crablet
 ## Prerequisites
 
 - **Docker and Docker Compose** (for easy database setup)
-- **Go 1.24.5 or higher**
+- **Go 1.25 or higher**
 - **Git** (to clone the repository)
 
 ## Quick Start Workflow

@@ -1,6 +1,6 @@
 module github.com/rodolfodpk/go-crablet
 
-go 1.24.5
+go 1.25
 
 require (
 	github.com/jackc/pgx/v5 v5.7.5
