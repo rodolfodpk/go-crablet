@@ -19,9 +19,36 @@ This project provides comprehensive performance testing for the DCB event sourci
 - **Tiny Dataset**: 5 courses, 10 students, 16 enrollments
 - **Small Dataset**: 1,000 courses, 10,000 students, 50,000 enrollments
 
+## ⚠️ Important: Do Not Compare Go vs Web Benchmarks
+
+**These benchmarks measure different aspects and should NOT be compared directly:**
+
+### Go Library Benchmarks
+- **Purpose**: Measure core DCB algorithm performance
+- **Scope**: Single-threaded, direct database access
+- **Configuration**: Conservative database pool (10 connections)
+- **Use Case**: Algorithm optimization and core performance
+- **Expected Performance**: Very fast (1-10ms operations)
+
+### Web App Benchmarks  
+- **Purpose**: Measure production HTTP API performance
+- **Scope**: Concurrent HTTP service under load (100 VUs)
+- **Configuration**: Production database pool (20 connections)
+- **Use Case**: Production readiness and HTTP service performance
+- **Expected Performance**: Slower due to HTTP overhead (100-1000ms operations)
+
+### Why the Performance Difference is Expected
+- **700x slower web performance is NORMAL** for a production HTTP service
+- **Go benchmarks** measure algorithm efficiency
+- **Web benchmarks** measure real-world API performance
+- **Both are valuable** for their respective purposes
+- **Direct comparison is misleading** and should be avoided
+
 ## Go Library Benchmarks
 
 ### Latest Results (2025-08-24)
+
+**Purpose**: Measure core DCB algorithm performance in isolation
 
 #### Append Performance
 | Operation | Throughput | Latency | Memory | Allocations |
@@ -48,9 +75,17 @@ This project provides comprehensive performance testing for the DCB event sourci
 | Multiple Projections | 2,490-2,490 ops/sec | 401-369μs | 2.2KB | 46 |
 | Streaming Projections | 2,560-2,560 ops/sec | 390-425μs | 10KB | 36-51 |
 
+### Go Benchmark Use Cases
+- **High-performance applications** requiring direct database access
+- **Algorithm optimization** and performance tuning
+- **Core library performance** validation
+- **Memory usage** and allocation pattern analysis
+
 ## Web-App Load Testing
 
 ### Latest Benchmarks (2025-08-24)
+
+**Purpose**: Measure production HTTP API performance under realistic load
 
 #### Append Benchmark
 - **Test Duration**: 4m20s with 100 VUs
@@ -79,36 +114,45 @@ This project provides comprehensive performance testing for the DCB event sourci
 - **Use Case**: Conditional event appends with business logic validation
 - **Status**: ✅ Fixed and working successfully
 
-#### Performance Summary
-- **Read operations**: Excellent performance (~2,680 ops/sec) - suitable for real-time dashboards
-- **Projection operations**: Excellent performance (~2,800 ops/sec) - suitable for aggregations
-- **Basic Append operations (writes)**: Good throughput (~63.8 req/s) - suitable for event ingestion
-- **Conditional Append operations (writes)**: Lower throughput (~4 ops/sec) - due to DCB concurrency control
-- **All operations**: 100% reliability with no errors
-
-### Use Case Recommendations
-- **High-frequency reads**: Excellent performance (~2,680 ops/sec), suitable for real-time dashboards and analytics
-- **Event ingestion (writes)**: Good performance (~63.8 req/s), suitable for moderate throughput event writing
-- **Complex business logic (conditional writes)**: Good performance (~31.8 req/s), suitable for business-critical operations with DCB concurrency control
-- **Real-time aggregations**: Excellent performance (~2,800 ops/sec), suitable for live dashboards and reporting
+### Web App Benchmark Use Cases
+- **HTTP-based integrations** and microservices
+- **Production API performance** validation
+- **Load testing** and capacity planning
+- **Real-world usage** pattern validation
 
 ## Performance Characteristics
 
-### Strengths
-1. **Consistent Performance**: Go library shows predictable timing across dataset sizes
-2. **High Reliability**: Web app maintains 100% success rate under load
-3. **Good Scalability**: Handles concurrent users effectively
-4. **Efficient Batching**: Batch operations show good scaling characteristics
-5. **Fast Reads**: Query operations are very fast (~2,680 ops/sec)
+### Go Library Strengths
+1. **Consistent Performance**: Predictable timing across dataset sizes
+2. **High Throughput**: Excellent for direct database operations
+3. **Memory Efficiency**: Optimized allocation patterns
+4. **Fast Reads**: Query operations are very fast (~2,680 ops/sec)
+5. **Efficient Batching**: Good scaling characteristics
+
+### Web App Strengths
+1. **High Reliability**: 100% success rate under load
+2. **Good Scalability**: Handles concurrent users effectively
+3. **Production Ready**: Full HTTP service with proper error handling
+4. **Load Handling**: Sustains performance under stress
 
 ### Areas for Improvement
 1. **AppendIf Performance**: Conditional appends are slower due to DCB concurrency control
 2. **Memory Usage**: Large projections show high memory consumption
-3. **Response Time**: Some web app operations hit P99 thresholds under load
+3. **Response Time**: Some operations hit P99 thresholds under load
 
-## Go Library vs Web-App Comparison
+## Use Case Recommendations
 
-For a comprehensive performance comparison between the Go library and web-app implementations, see [Performance Comparison](performance-comparison.md).
+### When to Use Go Library
+- **High-frequency operations** requiring maximum performance
+- **Direct database access** applications
+- **Algorithm development** and optimization
+- **Memory-constrained** environments
+
+### When to Use Web App
+- **HTTP-based integrations** and microservices
+- **Distributed systems** requiring HTTP APIs
+- **Production deployments** with multiple clients
+- **Load-balanced** environments
 
 ## Benchmark Execution
 
@@ -117,13 +161,13 @@ For a comprehensive performance comparison between the Go library and web-app im
 # Generate test datasets
 make generate-datasets
 
-# Run Go library benchmarks
+# Run Go library benchmarks (algorithm performance)
 make benchmark-go
 
-# Run web app benchmarks
+# Run web app benchmarks (HTTP API performance)
 make benchmark-web-app
 
-# Run AppendIf benchmarks
+# Run AppendIf benchmarks (conditional operations)
 make benchmark-web-app-appendif
 
 # Run all benchmarks
@@ -132,3 +176,11 @@ make benchmark-all
 
 ### Benchmark Results
 All results are saved in the `benchmark-results/` directory with timestamps for analysis and comparison.
+
+## Summary
+
+**Go Library Benchmarks** measure core algorithm performance and are excellent for high-performance applications requiring direct database access.
+
+**Web App Benchmarks** measure production HTTP API performance and validate the system's ability to handle real-world load scenarios.
+
+**Both benchmark types are valuable** for their respective purposes, but they should not be compared directly as they measure fundamentally different aspects of the system.
