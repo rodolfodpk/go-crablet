@@ -34,6 +34,49 @@ docker-compose down
 - **Projections**: State reconstruction from events
 - **DCB**: Dynamic Consistency Boundary for concurrency control
 
+### Core Types
+
+```go
+// Fundamental types used throughout the system
+type Tag interface {
+    GetKey() string
+    GetValue() string
+}
+
+type Event struct {
+    Type          string
+    Tags          []Tag
+    Data          []byte
+    TransactionID uint64
+    Position      int64
+    OccurredAt    time.Time
+}
+
+type InputEvent interface {
+    GetType() string
+    GetTags() []Tag
+    GetData() []byte
+}
+
+type Query interface {
+    GetItems() []QueryItem
+}
+
+type QueryItem interface {
+    GetEventTypes() []string
+    GetTags() []Tag
+}
+
+type AppendCondition struct {
+    Query Query
+}
+
+type Cursor struct {
+    TransactionID uint64
+    Position      int64
+}
+```
+
 ### Key Components
 
 #### 1. EventStore (Core API)
@@ -55,7 +98,7 @@ type StateProjector struct {
     InitialState any
     EventTypes   []string
     Tags         []Tag
-    Project      func(state any, event Event) any
+    Project      func(state any, event Event) any  // Event type defined in Core Types above
 }
 ```
 
@@ -80,41 +123,9 @@ type CommandHandler interface {
 
 
 
-## DCB Concurrency Control
 
-DCB (Dynamic Consistency Boundary) provides event-level concurrency control:
 
-```go
-// Define condition to prevent duplicate account creation
-condition := dcb.NewAppendCondition(
-    dcb.NewQueryBuilder().
-        WithTag("account_id", "123").
-        WithType("AccountCreated").
-        Build(),
-)
-
-// Create the account creation event
-accountEvent := dcb.NewEvent("AccountCreated").
-    WithTag("account_id", "123").
-    WithData(map[string]any{
-        "owner": "John Doe",
-        "balance": 0,
-    }).
-    Build()
-
-// Append with condition - only succeeds if account doesn't exist
-// This prevents duplicate account creation (race condition protection)
-err := store.AppendIf(ctx, []dcb.InputEvent{accountEvent}, condition)
-```
-
-**What DCB Provides:**
-- **Conflict Detection**: Identifies when business rules are violated during event appends
-- **Domain Constraints**: Allows you to define conditions that must be met before events can be stored
-- **Non-blocking**: Doesn't wait for locks or other resources
-
-**How It Works**: The condition checks if any `AccountCreated` events with `account_id: "123"` already exist. If they do, the append fails (preventing duplicates). If none exist, the append succeeds (first-time creation).
-
-## Code Examples (Progressive Complexity)
+## Code Examples
 
 ### 1. Basic Event Storage
 ```go
@@ -199,7 +210,7 @@ events, err := commandExecutor.ExecuteCommand(ctx, command, handler, &condition)
 
 ### EventStore Configuration
 
-The EventStore can be configured with logical grouping for append and query operations:
+The EventStore can be configured with various settings for append and query operations:
 
 ```go
 config := dcb.EventStoreConfig{
@@ -232,22 +243,7 @@ store, err := dcb.NewEventStoreWithConfig(ctx, pool, config)
 
 
 
-## Use Cases
 
-### Event Logging
-- **Simple event storage** for audit trails and activity logs
-- **Tag-based querying** for filtering events by context
-- **Streaming operations** for real-time event processing
-
-### Business Rule Enforcement
-- **DCB conditions** prevent invalid state transitions
-- **Race condition protection** without database locks
-- **Domain constraint validation** through event queries
-
-### State Reconstruction
-- **Event-driven projections** rebuild current state
-- **Aggregate state** from multiple event types
-- **Historical state** at any point in time
 
 ## Database Schema
 
@@ -264,12 +260,12 @@ CREATE TABLE events (
     occurred_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Commands table (metadata for CommandExecutor)
+-- Commands table (audit trail for CommandExecutor)
 CREATE TABLE commands (
     transaction_id xid8 NOT NULL PRIMARY KEY,
     type VARCHAR(64) NOT NULL,
     data JSONB NOT NULL,
-    metadata JSONB,
+    metadata JSONB, -- Additional context (user_id, timestamp, request_id, etc.)
     occurred_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 ```
@@ -282,7 +278,7 @@ CREATE TABLE commands (
 
 ## Architecture
 
-The library follows a layered architecture with clear separation of concerns:
+The library provides two levels of API:
 
 ### Core Layer (EventStore)
 ```go
@@ -309,10 +305,6 @@ Client → EventStore → PostgreSQL (events table)
 Client → CommandExecutor → CommandHandler → EventStore → PostgreSQL (commands + events tables)
 ```
 
-**Key Design Principles:**
-- **EventStore is the foundation** - always available and fully functional
-- **CommandExecutor is optional** - convenience layer for command patterns
-- **DCB at event level** - concurrency control through business rules
-- **PostgreSQL as storage** - reliable, ACID-compliant event persistence
+
 
 This library explores event sourcing concepts with DCB concurrency control. It's a learning project that experiments with DCB patterns using PostgreSQL, suitable for understanding event sourcing principles, testing DCB concepts, and benchmarking performance characteristics.

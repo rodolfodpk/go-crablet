@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Replaced undefined UserState with generic map[string]any in examples
   - Updated all documentation links to use correct relative paths
   - Corrected overstatements about library capabilities (emphasized exploration status)
+- **Benchmark Documentation**: Updated docs/benchmarks.md with current performance results
+  - Added latest Go library benchmark results (2025-08-24)
+  - Added latest web app benchmark results (2025-08-24)
+  - Fixed AppendIf benchmark status from "failed" to "working successfully"
+  - Updated performance numbers to reflect current reality
+  - Added performance characteristics analysis and improvement areas
 
 ### Fixed
 - **Interface Implementation Consistency**: Added missing marker methods
@@ -28,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `eventStore.isEventStore()` - implements EventStore interface
 - **Documentation Links**: Fixed broken relative paths in README.md, quick-start.md, and getting-started.md
 - **Test Organization**: Resolved duplicate test suite conflicts by properly separating internal vs external tests
+- **AppendIf Benchmark**: Fixed endpoint configuration issue in k6 benchmark script
+  - Updated script to use correct `/benchmark-data` endpoint instead of non-existent `/load-test-data`
+  - Benchmark now runs successfully with 31.8 req/s sustained throughput
 
 ### Internal
 - **Test Coverage Improvements**: Added high-priority internal unit tests
