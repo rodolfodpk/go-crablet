@@ -24,6 +24,11 @@ jobs:
           go-version: '1.25' # Set your Go version here
           cache: true
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsqlite3-dev gcc g++
+
       - name: Cache Go modules
         uses: actions/cache@v4
         with:
