@@ -94,6 +94,33 @@ Tests use PostgreSQL containers via testcontainers-go for isolated, reproducible
 - **Isolation**: Each test run gets a fresh database instance
 - **Cleanup**: Containers are automatically cleaned up after tests
 
+## Benchmark Testing
+
+### Running Benchmarks
+```bash
+# Run all benchmarks
+cd internal/benchmarks
+go test -bench=. -benchmem -benchtime=2s -timeout=5m .
+
+# Run specific benchmark suites
+go test -bench=BenchmarkAppend_Tiny -benchtime=1s
+go test -bench=BenchmarkRead_Small -benchtime=1s
+go test -bench=BenchmarkProjection_Tiny -benchtime=1s
+
+# Quick benchmarks for fast feedback
+go test -bench=BenchmarkQuick -benchtime=1s
+```
+
+### Benchmark Structure
+- **Core Suites**: `BenchmarkAppend_Small/Tiny`, `BenchmarkRead_Small/Tiny`, `BenchmarkProjection_Small/Tiny`
+- **Business Scenarios**: Complex workflows, concurrent operations, real-world validation
+- **Quick Tests**: Fast feedback for development iteration
+
+### Benchmark Data
+- **Runtime Generation**: Clean, simple data generation without external dependencies
+- **Realistic Scenarios**: Tests common batch sizes (1-12 events per transaction)
+- **PostgreSQL Backed**: Uses the same database schema as production code
+
 ### Test Lifecycle
 ```go
 // BeforeSuite - Runs once before all tests

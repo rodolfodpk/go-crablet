@@ -2,76 +2,49 @@
 
 ## Test Environment
 - **Platform**: macOS (darwin 23.6.0) with Apple M1 Pro
-- **Database**: PostgreSQL with shared connection pool (5-20 connections)
-- **Web Server**: Go HTTP server on port 8080
-- **Load Testing**: k6 with various scenarios
-- **Test Data**: SQLite-cached datasets (tiny: 5 courses/10 students, small: 1K courses/10K students)
+- **Database**: PostgreSQL with shared connection pool (50 connections for optimal performance)
+- **Test Data**: Runtime-generated datasets (tiny: 5 courses/10 students, small: 1K courses/10K students)
 
 ## Benchmark Overview
 
 This project provides comprehensive performance testing for the DCB event sourcing library:
 
 ### Benchmark Types
-1. **Go Library Benchmarks**: Test core DCB library performance (68 total benchmarks)
-2. **Web-App Benchmarks**: Test HTTP API performance with load testing
+1. **Go Library Benchmarks**: Test core DCB library performance with focused, realistic scenarios
 
 ### Test Data
 - **Tiny Dataset**: 5 courses, 10 students, 16 enrollments
 - **Small Dataset**: 1,000 courses, 10,000 students, 50,000 enrollments
 
-## ⚠️ Important: Do Not Compare Go vs Web Benchmarks
+## Go Library Benchmarks
 
-**These benchmarks measure different aspects and should NOT be compared directly:**
-
-### Go Library Benchmarks
-- **Purpose**: Measure core DCB algorithm performance
-- **Scope**: Single-threaded, direct database access
-- **Configuration**: Conservative database pool (10 connections)
-- **Use Case**: Algorithm optimization and core performance
-- **Expected Performance**: Very fast (1-10ms operations)
-
-### Web App Benchmarks  
-- **Purpose**: Measure production HTTP API performance
-- **Scope**: Concurrent HTTP service under load (100 VUs)
-- **Configuration**: Production database pool (20 connections)
-- **Use Case**: Production readiness and HTTP service performance
-- **Expected Performance**: Slower due to HTTP overhead (100-1000ms operations)
-
-### Why the Performance Difference is Expected
-- **700x slower web performance is NORMAL** for a production HTTP service
-- **Go benchmarks** measure algorithm efficiency
-- **Web benchmarks** measure real-world API performance
-- **Both are valuable** for their respective purposes
-- **Direct comparison is misleading** and should be avoided
+**Focused performance testing with realistic real-world scenarios**
 
 ## Go Library Benchmarks
 
-### Comprehensive Benchmark Coverage
+### Focused Benchmark Coverage
 
-**Total: 68 Go Benchmarks** covering all aspects of the DCB library
+**Clean, focused benchmark suite** covering essential DCB operations with realistic scenarios
 
 #### Benchmark Categories
 
-| Category | Count | Purpose |
-|----------|-------|---------|
-| **Core Operations** | 47 | Basic append, read, and projection operations |
-| **Enhanced Business Scenarios** | 6 | Real-world business logic and workflows |
-| **Core Benchmark Functions** | 13 | Detailed performance analysis functions |
-| **Framework Support** | 2 | Benchmark orchestration and reporting |
+| Category | Purpose | Description |
+|----------|---------|-------------|
+| **Core Operations** | Essential performance testing | Append, read, and projection operations |
+| **Business Scenarios** | Real-world validation | Course enrollment, ticket booking, concurrent operations |
+| **Quick Tests** | Fast feedback | Essential operations for development iteration |
 
-#### Core Operations (47 benchmarks)
-- **Append Operations**: 22 benchmarks covering single events, batch operations (10, 100, 1000), and conditional appends
-- **Read Operations**: 12 benchmarks for query performance, streaming, and channel operations
-- **Projection Operations**: 12 benchmarks for state reconstruction and streaming projections
-- **Quick Tests**: 3 benchmarks for basic functionality validation
+#### Core Operations
+- **Append Operations**: Single events and realistic batch sizes (1-12 events per transaction)
+- **Read Operations**: Query performance, streaming, and channel operations
+- **Projection Operations**: State reconstruction and streaming projections
+- **Quick Tests**: Basic functionality validation for fast feedback
 
-#### Enhanced Business Scenarios (6 benchmarks)
+#### Business Scenarios
 - **Complex Business Workflow**: Real student enrollment scenarios with business rule validation
 - **Concurrent Operations**: 10 concurrent user simulation for course registration
 - **Mixed Operations**: Combined append, query, and projection sequences
 - **Business Rule Validation**: DCB condition validation with real data
-- **Request Burst**: 50 concurrent request simulation for burst traffic patterns
-- **Sustained Load**: Mixed operation types over time for consistency testing
 
 #### Realistic Benchmark Scenarios
 
@@ -90,15 +63,14 @@ This project provides comprehensive performance testing for the DCB event sourci
 - **Real-world validation**: Measures performance for actual usage patterns
 - **Business scenarios**: Reflects real application behavior, not artificial stress tests
 
-#### SQLite Caching Optimization
+#### Runtime Data Generation
 
-**Pre-generated benchmark data eliminates runtime overhead:**
+**Benchmarks generate data at runtime for simplicity and reliability:**
 
-- **Cached Events**: 4,120 pre-generated events stored in SQLite
-- **No Runtime Generation**: Eliminates `fmt.Sprintf` calls during benchmarks
-- **Pure Performance**: Measures actual append operations, not data generation
-- **Consistent Results**: Same data across runs for reliable comparison
-- **Fast Access**: Instant data retrieval from SQLite cache
+- **No External Dependencies**: Pure Go implementation without SQLite
+- **Runtime Generation**: Creates realistic test data during benchmark execution
+- **Consistent Performance**: Measures actual operations, not data generation overhead
+- **Simplified Architecture**: Cleaner codebase without complex caching layers
 
 **Benchmark Data Categories:**
 - **Single Events**: 1,000 unique single event operations
@@ -310,7 +282,7 @@ make generate-datasets
 - **PostgreSQL Integration**: Datasets are loaded into PostgreSQL before benchmarks
 - **Consistent Environment**: Same database configuration across all benchmark types
 - **Performance Validation**: Real-world data validates production readiness
-- **SQLite Caching**: Pre-generated benchmark data eliminates runtime overhead
+- **Runtime Generation**: Clean, simple benchmark execution
 
 ### Enhanced Benchmark Types
 

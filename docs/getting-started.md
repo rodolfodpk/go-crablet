@@ -344,7 +344,7 @@ make generate-datasets
 
 **🚀 New: Realistic Benchmark Scenarios**
 - **Common batch sizes**: 1, 2, 3, 5, 8, 12 events (most real-world usage)
-- **SQLite caching**: Pre-generated data eliminates runtime overhead
+- **Runtime data generation**: Clean, simple benchmark execution
 - **Real-world validation**: Performance reflects actual business patterns
 - **~2,200 ops/sec**: Single events with 1.1-1.2ms latency
 

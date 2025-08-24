@@ -258,8 +258,8 @@ The library includes comprehensive performance testing with realistic scenarios:
 - **Concurrent Operations**: 10-50 concurrent users with realistic contention
 - **Memory Efficiency**: ~1.4KB per operation with minimal allocations
 
-### SQLite Caching Optimization
-- **Pre-generated Data**: 4,120 benchmark events cached in SQLite
+### Runtime Data Generation
+- **Clean Implementation**: Benchmarks generate data at runtime
 - **No Runtime Overhead**: Eliminates string formatting during benchmarks
 - **Pure Performance**: Measures actual operations, not data generation
 - **Consistent Results**: Same data across runs for reliable comparison
