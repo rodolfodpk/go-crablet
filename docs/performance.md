@@ -52,13 +52,18 @@ go-crablet is designed for high-performance event sourcing with realistic real-w
 - **`BenchmarkProjection_Small/Tiny`**: State reconstruction testing
 
 ### **Business Scenario Tests**
-- **Course Enrollment**: Real student registration workflows
-- **Ticket Booking**: Concurrent booking with capacity limits
-- **Mixed Operations**: Combined append, query, and projection sequences
+- **Course Enrollment**: Real student registration workflows (10 concurrent users)
+- **Ticket Booking**: Concurrent booking with capacity limits (10-50 concurrent users)
+- **Mixed Operations**: Combined append, query, and projection sequences (10 concurrent users)
 
 ### **Quick Tests**
 - **Fast Feedback**: Essential operations for development iteration
 - **Performance Validation**: Quick performance checks during development
+
+### **Concurrent User Testing**
+- **10 Users**: Course enrollment and mixed operations scenarios
+- **10-50 Users**: Ticket booking with varying capacity limits
+- **Real-world Validation**: Simulates actual production load patterns
 
 ## 🏃‍♂️ **Running Benchmarks**
 
