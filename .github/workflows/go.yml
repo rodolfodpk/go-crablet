@@ -10,6 +10,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     environment: env1
+    env:
+      GO111MODULE: on
+      GOPRIVATE: github.com/rodolfodpk/go-crablet
 
     steps:
       - name: Checkout code
@@ -19,6 +22,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.25' # Set your Go version here
+          cache: true
 
       - name: Cache Go modules
         uses: actions/cache@v4
@@ -33,11 +37,16 @@ jobs:
       - name: Install dependencies
         run: go mod download
 
+      - name: Verify Go module
+        run: go mod verify
+
       - name: Install gocovmerge
         run: go install github.com/wadey/gocovmerge@latest
 
       - name: Build
-        run: go build ./...
+        run: |
+          go mod tidy
+          go build -v ./...
 
       - name: Run tests with merged coverage
         run: ./scripts/generate-coverage.sh
