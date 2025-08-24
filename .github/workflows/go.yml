@@ -24,10 +24,7 @@ jobs:
           go-version: '1.25' # Set your Go version here
           cache: true
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libsqlite3-dev gcc g++
+
 
       - name: Cache Go modules
         uses: actions/cache@v4
@@ -51,7 +48,8 @@ jobs:
       - name: Build
         run: |
           go mod tidy
-          go build -v ./...
+          go build -v ./pkg/...
+          go build -v ./internal/examples/...
 
       - name: Run tests with merged coverage
         run: ./scripts/generate-coverage.sh
