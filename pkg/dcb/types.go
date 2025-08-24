@@ -87,46 +87,30 @@ type EventStoreConfig struct {
 	// =============================================================================
 	// APPEND OPERATIONS CONFIGURATION
 	// =============================================================================
-	
+
 	// MaxBatchSize controls the maximum number of events that can be appended in a single batch
 	// Larger batches improve performance but increase memory usage and transaction duration
 	MaxBatchSize int `json:"max_batch_size"`
-	
+
 	// DefaultAppendIsolation sets the PostgreSQL transaction isolation level for append operations
 	// Higher isolation levels provide stronger consistency guarantees but may impact performance
 	DefaultAppendIsolation IsolationLevel `json:"default_append_isolation"`
-	
+
 	// AppendTimeout sets the maximum time (in milliseconds) for append operations to complete
 	// This is a defensive timeout to prevent hanging appends
 	AppendTimeout int `json:"append_timeout"`
-	
+
 	// =============================================================================
-	// QUERY OPERATIONS CONFIGURATION  
+	// QUERY OPERATIONS CONFIGURATION
 	// =============================================================================
-	
+
 	// QueryTimeout sets the maximum time (in milliseconds) for query operations to complete
 	// This is a defensive timeout to prevent hanging queries
 	QueryTimeout int `json:"query_timeout"`
-	
+
 	// StreamBuffer sets the channel buffer size for streaming operations (QueryStream, ProjectStream)
 	// Larger buffers improve throughput but increase memory usage
 	StreamBuffer int `json:"stream_buffer"`
-	
-	// =============================================================================
-	// FUTURE EXTENSIBILITY (Optional fields)
-	// =============================================================================
-	
-	// QueryCacheSize sets the size of the query result cache (0 = disabled)
-	// Caching can improve performance for repeated queries
-	QueryCacheSize int `json:"query_cache_size,omitempty"`
-	
-	// AppendRetryAttempts sets the number of retry attempts for append conflicts (0 = no retry)
-	// Useful for handling concurrent modification scenarios
-	AppendRetryAttempts int `json:"append_retry_attempts,omitempty"`
-	
-	// MaxConcurrentQueries limits the number of concurrent query operations (0 = unlimited)
-	// Helps prevent overwhelming the database with too many simultaneous queries
-	MaxConcurrentQueries int `json:"max_concurrent_queries,omitempty"`
 }
 
 // =============================================================================

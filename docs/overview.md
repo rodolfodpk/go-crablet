@@ -188,17 +188,42 @@ events, err := commandExecutor.ExecuteCommand(ctx, command, handler, nil)
 
 ### EventStore Configuration
 
+The EventStore can be configured with logical grouping for append and query operations:
+
 ```go
 config := dcb.EventStoreConfig{
-    MaxBatchSize:           1000,
-    StreamBuffer:           1000,
+    // =============================================================================
+    // APPEND OPERATIONS CONFIGURATION
+    // =============================================================================
+    
+    // MaxBatchSize controls the maximum number of events per batch
+    MaxBatchSize: 1000,
+    
+    // DefaultAppendIsolation sets PostgreSQL transaction isolation level
     DefaultAppendIsolation: dcb.IsolationLevelReadCommitted,
-    QueryTimeout:           15000, // 15 seconds
-    AppendTimeout:          10000, // 10 seconds
+    
+    // AppendTimeout sets maximum time for append operations (milliseconds)
+    AppendTimeout: 10000, // 10 seconds
+    
+    // =============================================================================
+    // QUERY OPERATIONS CONFIGURATION  
+    // =============================================================================
+    
+    // QueryTimeout sets maximum time for query operations (milliseconds)
+    QueryTimeout: 15000, // 15 seconds
+    
+    // StreamBuffer sets channel buffer size for streaming operations
+    StreamBuffer: 1000,
 }
 
 store, err := dcb.NewEventStoreWithConfig(ctx, pool, config)
 ```
+
+**Configuration Benefits:**
+- **Logical Grouping**: Clear separation of append vs query settings
+- **Performance Tuning**: Batch sizes, timeouts, and buffer settings
+- **Database Control**: Transaction isolation levels and timeouts
+- **Streaming Support**: Buffer configuration for high-throughput operations
 
 ## Performance Characteristics
 

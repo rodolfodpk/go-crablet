@@ -32,51 +32,6 @@ func TestNewEventStoreWithConfig(t *testing.T) {
 		}
 	})
 
-	t.Run("handles new optional fields with defaults", func(t *testing.T) {
-		config := EventStoreConfig{
-			MaxBatchSize:           1000,
-			StreamBuffer:           100,
-			DefaultAppendIsolation: IsolationLevelReadCommitted,
-			QueryTimeout:           5000,
-			AppendTimeout:          3000,
-			// Optional fields not set - should use defaults
-		}
-
-		// Test that optional fields have sensible defaults
-		if config.QueryCacheSize != 0 {
-			t.Errorf("expected QueryCacheSize 0, got %d", config.QueryCacheSize)
-		}
-		if config.AppendRetryAttempts != 0 {
-			t.Errorf("expected AppendRetryAttempts 0, got %d", config.AppendRetryAttempts)
-		}
-		if config.MaxConcurrentQueries != 0 {
-			t.Errorf("expected MaxConcurrentQueries 0, got %d", config.MaxConcurrentQueries)
-		}
-	})
-
-	t.Run("allows custom values for optional fields", func(t *testing.T) {
-		config := EventStoreConfig{
-			MaxBatchSize:           1000,
-			StreamBuffer:           100,
-			DefaultAppendIsolation: IsolationLevelReadCommitted,
-			QueryTimeout:           5000,
-			AppendTimeout:          3000,
-			QueryCacheSize:         100,      // Custom cache size
-			AppendRetryAttempts:    3,        // Custom retry attempts
-			MaxConcurrentQueries:   10,       // Custom concurrency limit
-		}
-
-		// Test that custom values are preserved
-		if config.QueryCacheSize != 100 {
-			t.Errorf("expected QueryCacheSize 100, got %d", config.QueryCacheSize)
-		}
-		if config.AppendRetryAttempts != 3 {
-			t.Errorf("expected AppendRetryAttempts 3, got %d", config.AppendRetryAttempts)
-		}
-		if config.MaxConcurrentQueries != 10 {
-			t.Errorf("expected MaxConcurrentQueries 10, got %d", config.MaxConcurrentQueries)
-		}
-	})
 }
 
 func TestParseIsolationLevel(t *testing.T) {
