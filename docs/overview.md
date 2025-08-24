@@ -134,7 +134,6 @@ err := store.AppendIf(ctx, []dcb.InputEvent{accountEvent}, condition)
 - **Conflict Detection**: Identifies when business rules are violated during event appends
 - **Domain Constraints**: Allows you to define conditions that must be met before events can be stored
 - **Non-blocking**: Doesn't wait for locks or other resources
-- **Multi-instance Support**: Can work across different application instances
 
 **How It Works**: The condition checks if any `AccountCreated` events with `account_id: "123"` already exist. If they do, the append fails (preventing duplicates). If none exist, the append succeeds (first-time creation).
 
