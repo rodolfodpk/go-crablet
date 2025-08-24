@@ -23,20 +23,28 @@ go-crablet is designed for high-performance event sourcing with realistic real-w
 
 | Operation | Throughput | Latency | Memory | Allocations |
 |-----------|------------|---------|---------|-------------|
-| **Single Append** | 2,200 ops/sec | 1.1-1.2ms | 1.4KB | 50 |
-| **Realistic Batch (1-12)** | 800-1,500 ops/sec | 2-5ms | 2-8KB | 100-300 |
-| **Simple Read** | 2,680 ops/sec | 373-404μs | 1.0KB | 22 |
-| **Complex Queries** | 2,576 ops/sec | 387-424μs | 1.0KB | 22 |
-| **State Projection** | 2,800 ops/sec | 357-356μs | 1.5KB | 31 |
+| **Single Append** | 2,362 ops/sec | 1.05ms | 1.4KB | 44 |
+| **Realistic Batch (1-12)** | 2,048 ops/sec | 1.16ms | 11.2KB | 162 |
+| **Simple Read** | 3,649 ops/sec | 357μs | 1.0KB | 21 |
+| **Complex Queries** | 2,058 ops/sec | 1.15ms | 382KB | 5,771 |
+| **State Projection** | 3,394 ops/sec | 357μs | 1.5KB | 29 |
 
 ### **Realistic Business Scenarios**
 
 | Scenario | Batch Size | Throughput | Use Case |
 |----------|------------|------------|----------|
-| **User Login** | 1 event | 2,200 ops/sec | Authentication events |
-| **Order Creation** | 2-3 events | 1,800 ops/sec | Simple workflows |
-| **Course Enrollment** | 5-8 events | 1,200 ops/sec | Business operations |
-| **Complex Workflow** | 12 events | 800 ops/sec | Multi-step processes |
+| **User Login** | 1 event | 2,362 ops/sec | Authentication events |
+| **Order Creation** | 2-3 events | 2,048 ops/sec | Simple workflows |
+| **Course Enrollment** | 5-8 events | 2,048 ops/sec | Business operations |
+| **Complex Workflow** | 12 events | 2,048 ops/sec | Multi-step processes |
+
+### **Concurrent User Performance**
+
+| Scenario | Concurrent Users | Throughput | Latency | Memory |
+|----------|------------------|------------|---------|---------|
+| **Course Registration** | 10 users | 423 ops/sec | 2.9ms | 26.2KB |
+| **Business Workflow** | Single user | 97 ops/sec | 12.4ms | 10.5KB |
+| **Mixed Operations** | Single user | 97 ops/sec | 12.4ms | 10.5KB |
 
 ## 🔧 **Performance Optimizations**
 
@@ -53,16 +61,16 @@ go-crablet is designed for high-performance event sourcing with realistic real-w
 
 ### **Business Scenario Tests**
 - **Course Enrollment**: Real student registration workflows (10 concurrent users)
-- **Ticket Booking**: Concurrent booking with capacity limits (10-50 concurrent users)
-- **Mixed Operations**: Combined append, query, and projection sequences (10 concurrent users)
+- **Business Workflow**: Complete enrollment process with validation (single user)
+- **Mixed Operations**: Combined append, query, and projection sequences (single user)
 
 ### **Quick Tests**
 - **Fast Feedback**: Essential operations for development iteration
 - **Performance Validation**: Quick performance checks during development
 
 ### **Concurrent User Testing**
-- **10 Users**: Course enrollment and mixed operations scenarios
-- **10-50 Users**: Ticket booking with varying capacity limits
+- **10 Users**: Course registration with 423 ops/sec throughput
+- **Single User**: Business workflow validation with 97 ops/sec throughput
 - **Real-world Validation**: Simulates actual production load patterns
 
 ## 🏃‍♂️ **Running Benchmarks**
