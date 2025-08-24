@@ -24,8 +24,8 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 ## 📊 Performance
 
 - **[Benchmarks](./docs/benchmarks.md)**: Comprehensive performance analysis with 68 Go benchmarks covering core operations, business scenarios, and enhanced testing
-- **[Performance Analysis](./docs/performance-comparison.md)**: Separate performance analysis for Go library and HTTP API (not comparable)
-- **[Performance Analysis](./docs/performance-improvements.md)**: Technical optimizations and I/O operation analysis
+- **[Performance Comparison](./docs/performance-comparison.md)**: Go library vs HTTP API performance analysis (not comparable)
+- **[Performance Optimizations](./docs/performance-improvements.md)**: Technical optimizations and I/O operation analysis
 
 **⚠️ Important**: Go library and web app benchmarks measure different aspects and should NOT be compared directly. The 700x performance difference is expected and normal.
 
