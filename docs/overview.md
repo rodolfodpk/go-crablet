@@ -59,12 +59,14 @@ type StateProjector struct {
 }
 ```
 
-#### 3. CommandExecutor (High-Level API)
+#### 3. CommandExecutor (Optional High-Level API)
 ```go
 type CommandExecutor interface {
     ExecuteCommand(ctx context.Context, command Command, handler CommandHandler, condition *AppendCondition) ([]InputEvent, error)
 }
 ```
+
+**Note**: CommandExecutor is an optional convenience layer. You can use the core EventStore API directly for full control, or use CommandExecutor for simplified command handling patterns.
 
 ## Architecture
 
@@ -87,11 +89,18 @@ Project() function processes each event
 Returns final state + append condition
 ```
 
-### CommandExecutor Flow
+### CommandExecutor Flow (Optional)
 ```
 Client → CommandExecutor → CommandHandler → EventStore → PostgreSQL
                                     ↓
                                 Events + Commands Tables
+```
+
+**Alternative**: Use EventStore directly for full control
+```
+Client → EventStore → PostgreSQL
+                ↓
+            Events Table
 ```
 
 ## DCB Concurrency Control
