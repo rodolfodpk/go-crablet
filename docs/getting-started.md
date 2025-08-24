@@ -323,7 +323,7 @@ make benchmark-go-enhanced
 make benchmark-go-all
 
 # Run web app benchmarks
-make benchmark-web-app
+make benchmark-go
 
 # Run all benchmarks
 make benchmark-all

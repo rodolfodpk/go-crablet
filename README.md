@@ -23,9 +23,7 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 
 ## 📊 Performance
 
-- **[Benchmarks](./docs/benchmarks.md)**: Focused performance testing with realistic real-world scenarios (1-12 events per transaction)
-- **[Performance Comparison](./docs/performance-comparison.md)**: Go library vs HTTP API performance analysis (not comparable)
-- **[Performance Optimizations](./docs/performance-improvements.md)**: Technical optimizations and I/O operation analysis
+- **[Performance Guide](./docs/performance.md)**: Comprehensive performance information, benchmarks, and optimization details
 
 **Go Library Benchmarks**: Clean, focused benchmark suite testing realistic business scenarios:
 - **Append Operations**: Single events and realistic batch sizes (1-12 events)
