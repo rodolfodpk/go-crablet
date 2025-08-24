@@ -324,4 +324,4 @@ CREATE TABLE commands (
 
 
 
-This library provides a solid foundation for event sourcing with DCB concurrency control, suitable for both simple event logging and complex business applications.
+This library explores event sourcing concepts with Dynamic Consistency Boundary (DCB) concurrency control. It's a learning project that experiments with DCB patterns using PostgreSQL, suitable for understanding event sourcing principles, testing DCB concepts, and benchmarking performance characteristics.
