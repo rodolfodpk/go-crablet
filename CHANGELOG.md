@@ -20,12 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Replaced undefined UserState with generic map[string]any in examples
   - Updated all documentation links to use correct relative paths
   - Corrected overstatements about library capabilities (emphasized exploration status)
-- **Benchmark Documentation**: Updated docs/benchmarks.md with current performance results
+- **Benchmark Documentation**: Updated docs/benchmarks.md with current performance results and comparison disclaimer
   - Added latest Go library benchmark results (2025-08-24)
   - Added latest web app benchmark results (2025-08-24)
   - Fixed AppendIf benchmark status from "failed" to "working successfully"
-  - Updated performance numbers to reflect current reality
-  - Added performance characteristics analysis and improvement areas
+  - Added clear disclaimer: Go vs Web benchmarks should NOT be compared directly
+  - Explained why 700x performance difference is expected and normal
+  - Separated use case recommendations for each benchmark type
+  - Clarified that both benchmark types are valuable for different purposes
 
 ### Fixed
 - **Interface Implementation Consistency**: Added missing marker methods
