@@ -43,12 +43,23 @@ type EventStore interface {
     AppendIf(ctx context.Context, events []InputEvent, condition AppendCondition) error
     Query(ctx context.Context, query Query, after *Cursor) ([]Event, error)
     QueryStream(ctx context.Context, query Query, after *Cursor) (<-chan Event, error)
-    Project(ctx context.Context, projectors []StateProjector, after *Cursor) (map[string]any, *Cursor, error)
-    ProjectStream(ctx context.Context, projectors []StateProjector, after *Cursor) (<-chan map[string]any, <-chan *Cursor, error)
+    Project(ctx context.Context, projectors []StateProjector, after *Cursor) (map[string]any, AppendCondition, error)
+    ProjectStream(ctx context.Context, projectors []StateProjector, after *Cursor) (<-chan map[string]any, <-chan AppendCondition, error)
 }
 ```
 
-#### 2. CommandExecutor (High-Level API)
+#### 2. StateProjector (State Reconstruction)
+```go
+type StateProjector struct {
+    ID           string
+    InitialState any
+    EventTypes   []string
+    Tags         []Tag
+    Project      func(state any, event Event) any
+}
+```
+
+#### 3. CommandExecutor (High-Level API)
 ```go
 type CommandExecutor interface {
     ExecuteCommand(ctx context.Context, command Command, handler CommandHandler, condition *AppendCondition) ([]InputEvent, error)
@@ -65,6 +76,15 @@ Client → EventStore → PostgreSQL
             - type, tags, data
             - transaction_id, position
             - occurred_at
+```
+
+### State Projection Flow
+```
+Events → StateProjector → Aggregated State
+   ↓
+Project() function processes each event
+   ↓
+Returns final state + append condition
 ```
 
 ### CommandExecutor Flow
@@ -103,139 +123,53 @@ err := store.AppendIf(ctx, events, condition)
 
 ```go
 // Create EventStore
-store, err := dcb.NewEventStore(ctx, "postgres://user:pass@localhost:5432/db")
+store, err := dcb.NewEventStore(ctx, pool)
 if err != nil {
     log.Fatal(err)
 }
-defer store.Close()
 
-// BEST PRACTICE: Use typed structs for event data
-type UserRegisteredData struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
-}
-
-// Create events with struct-based data (RECOMMENDED)
+// Create events
 events := []dcb.InputEvent{
-	dcb.NewEvent("UserRegistered").
-		WithTag("user_id", "123").
-		WithData(UserRegisteredData{
-			Name:  "John Doe",
-			Email: "john@example.com",
-		}).
-		Build(),
+    dcb.NewEvent("UserRegistered").
+        WithTag("user_id", "123").
+        WithData(map[string]any{
+            "name": "John Doe",
+            "email": "john@example.com",
+        }).
+        Build(),
 }
 
 // Append events
 err = store.Append(ctx, events)
 ```
 
-## Best Practices
-
-### Event Data Structure
-
-**✅ RECOMMENDED: Use structs for type safety and performance**
+### State Projection
 
 ```go
-// Define event data as structs
-type UserRegisteredData struct {
-    Name         string    `json:"name"`
-    Email        string    `json:"email"`
-    RegisteredAt time.Time `json:"registered_at"`
-}
+// Define projector for user state
+userProjector := dcb.ProjectState("user_state", "UserRegistered", "user_id", "123", 
+    UserState{}, 
+    func(state any, event dcb.Event) any {
+        userState := state.(UserState)
+        // Update state based on event
+        return userState
+    })
 
-// Use structs with WithData (type-safe, performant)
-dcb.NewEvent("UserRegistered").
-    WithTag("user_id", "123").
-    WithData(UserRegisteredData{
-        Name:         "John Doe",
-        Email:        "john@example.com",
-        RegisteredAt: time.Now(),
-    }).
-    Build()
+// Project state from events
+state, condition, err := store.Project(ctx, []dcb.StateProjector{userProjector}, nil)
 ```
-
-**✅ SUPPORTED: Map syntax is a fair user choice**
-
-```go
-// Map syntax is supported and gives you explicit control
-dcb.NewEvent("UserRegistered").
-    WithTag("user_id", "123").
-    WithData(map[string]any{
-        "name": "John Doe",
-        "email": "john@example.com",
-        "registered_at": time.Now(),
-    }).
-    Build()
-```
-
-**Both approaches are supported - choose based on your preference:**
-
-**Struct-based approach benefits:**
-- **Type safety** - Compile-time validation
-- **Performance** - No map allocation overhead
-- **Readability** - Clear data structure
-- **Maintainability** - Easy to refactor
-- **IDE support** - Better autocomplete and error detection
-
-**Map syntax benefits:**
-- **Flexibility** - Use any Go types as values
-- **Explicit control** - Direct data structure definition
-- **Standard Go idiom** - Familiar to most Go developers
-- **Dynamic data** - Easy to modify at runtime
 
 ### Command Execution
 
 ```go
-// BEST PRACTICE: Use typed structs for command data
-type EnrollStudentCommand struct {
-	StudentID string `json:"student_id"`
-	CourseID  string `json:"course_id"`
-}
-
-// Create command with typed data
-command := dcb.NewCommand("EnrollStudent", dcb.ToJSON(EnrollStudentCommand{
-	StudentID: "student123",
-	CourseID:  "CS101",
-}), nil)
-
-// Define command handler with typed data
+// Define command handler
 handler := dcb.CommandHandlerFunc(func(ctx context.Context, store dcb.EventStore, cmd dcb.Command) ([]dcb.InputEvent, error) {
-	var data EnrollStudentCommand
-	json.Unmarshal(cmd.GetData(), &data)
-	
-	// Business logic with typed data
-	events := []dcb.InputEvent{
-		dcb.NewEvent("StudentEnrolled").
-			WithTag("student_id", data.StudentID).
-			WithTag("course_id", data.CourseID).
-			WithData(StudentEnrolledData{
-				EnrolledAt: time.Now(),
-			}).
-			Build(),
-	}
-	
-	return events, nil
+    // Business logic to generate events
+    return events, nil
 })
 
 // Execute command
 events, err := commandExecutor.ExecuteCommand(ctx, command, handler, nil)
-```
-
-### Concurrency Control
-
-```go
-// Create condition to prevent duplicate enrollment using QueryBuilder
-enrollmentCondition := dcb.NewAppendCondition(
-    dcb.NewQueryBuilder().
-        WithTag("student_id", "student123").
-        WithTag("course_id", "CS101").
-        WithType("StudentEnrolled").
-        Build(),
-)
-
-// Execute with condition
-events, err := commandExecutor.ExecuteCommand(ctx, enrollmentCommand, handleEnrollStudent, &enrollmentCondition)
 ```
 
 ## Configuration
@@ -254,74 +188,19 @@ config := dcb.EventStoreConfig{
 store, err := dcb.NewEventStoreWithConfig(ctx, pool, config)
 ```
 
-### Database Schema
-
-```sql
--- Events table (primary data)
-CREATE TABLE events (
-    type VARCHAR(64) NOT NULL,
-    tags TEXT[] NOT NULL,
-    data JSON NOT NULL,
-    transaction_id xid8 NOT NULL,
-    position BIGSERIAL NOT NULL PRIMARY KEY,
-    occurred_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
--- Commands table (metadata for CommandExecutor)
-CREATE TABLE commands (
-    transaction_id xid8 NOT NULL PRIMARY KEY,
-    type VARCHAR(64) NOT NULL,
-    data JSONB NOT NULL,
-    metadata JSONB,
-    occurred_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-```
-
 ## Performance Characteristics
 
-### EventStore Performance
 - **Append**: ~1,000 ops/s (simple append)
 - **AppendIf**: ~800 ops/s (with DCB conditions)
 - **Query**: ~2,000 ops/s (tag-based filtering)
 - **Project**: ~500 ops/s (state reconstruction)
 
-### Memory Usage
-- **Low overhead**: ~6KB per operation
-- **Efficient batching**: Up to 1,000 events per batch
-- **Streaming support**: Memory-efficient for large datasets
-
 ## Best Practices
 
-### 1. Event Design
-- Use descriptive event types
-- Include relevant tags for querying
-- Keep data JSON-serializable
-- Avoid large event payloads
+1. **Use descriptive event types** and relevant tags for querying
+2. **Implement idempotent operations** in command handlers
+3. **Use DCB conditions** for business rule enforcement
+4. **Batch events** when possible for better performance
+5. **Handle concurrency errors** gracefully with retry logic
 
-### 2. Concurrency Control
-- Use DCB conditions for business rules
-- Design idempotent operations
-- Handle concurrency errors gracefully
-
-### 3. Performance
-- Batch events when possible
-- Use streaming for large datasets
-- Optimize tag-based queries
-- Monitor transaction sizes
-
-### 4. Error Handling
-- Check for concurrency errors
-- Validate events before appending
-- Handle database connection issues
-- Implement retry logic for transient failures
-
-## Getting Started
-
-1. **Install**: `go get github.com/rodolfodpk/go-crablet`
-2. **Setup Database**: Use provided Docker Compose or PostgreSQL
-3. **Create EventStore**: Use `dcb.NewEventStore()` or `dcb.NewEventStoreWithConfig()`
-4. **Start Appending**: Use `store.Append()` or `store.AppendIf()`
-
-
-
-This library explores event sourcing concepts with Dynamic Consistency Boundary (DCB) concurrency control. It's a learning project that experiments with DCB patterns using PostgreSQL, suitable for understanding event sourcing principles, testing DCB concepts, and benchmarking performance characteristics.
+This library explores event sourcing concepts with DCB concurrency control. It's a learning project that experiments with DCB patterns using PostgreSQL, suitable for understanding event sourcing principles, testing DCB concepts, and benchmarking performance characteristics.
