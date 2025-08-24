@@ -1,0 +1,358 @@
+package performance
+
+import (
+	"context"
+	"testing"
+
+	"github.com/rodolfodpk/go-crablet/internal/benchmarks/setup"
+	"github.com/rodolfodpk/go-crablet/pkg/dcb"
+)
+
+// BenchmarkSQLiteDirectAccess benchmarks direct SQLite data access
+func BenchmarkSQLiteDirectAccess(b *testing.B) {
+	// Initialize cache
+	if err := setup.InitGlobalCache(); err != nil {
+		b.Fatalf("Failed to initialize cache: %v", err)
+	}
+
+	// Get dataset directly from SQLite
+	config := setup.DatasetSizes["tiny"]
+	dataset, err := setup.GetCachedDataset(config)
+	if err != nil {
+		b.Fatalf("Failed to get cached dataset: %v", err)
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		// Access courses
+		_ = dataset.Courses
+		// Access students
+		_ = dataset.Students
+		// Access enrollments
+		_ = dataset.Enrollments
+	}
+}
+
+// BenchmarkSQLiteDataProcessing benchmarks processing SQLite data
+func BenchmarkSQLiteDataProcessing(b *testing.B) {
+	// Initialize cache
+	if err := setup.InitGlobalCache(); err != nil {
+		b.Fatalf("Failed to initialize cache: %v", err)
+	}
+
+	// Get dataset directly from SQLite
+	config := setup.DatasetSizes["tiny"]
+	dataset, err := setup.GetCachedDataset(config)
+	if err != nil {
+		b.Fatalf("Failed to get cached dataset: %v", err)
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		// Process courses
+		courseCount := len(dataset.Courses)
+		_ = courseCount
+
+		// Process students
+		studentCount := len(dataset.Students)
+		_ = studentCount
+
+		// Process enrollments
+		enrollmentCount := len(dataset.Enrollments)
+		_ = enrollmentCount
+
+		// Simulate data processing
+		totalCapacity := 0
+		for _, course := range dataset.Courses {
+			totalCapacity += course.Capacity
+		}
+		_ = totalCapacity
+	}
+}
+
+// BenchmarkSQLiteDataFiltering benchmarks filtering SQLite data
+func BenchmarkSQLiteDataFiltering(b *testing.B) {
+	// Initialize cache
+	if err := setup.InitGlobalCache(); err != nil {
+		b.Fatalf("Failed to initialize cache: %v", err)
+	}
+
+	// Get dataset directly from SQLite
+	config := setup.DatasetSizes["tiny"]
+	dataset, err := setup.GetCachedDataset(config)
+	if err != nil {
+		b.Fatalf("Failed to get cached dataset: %v", err)
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		// Filter courses by capacity
+		var highCapacityCourses []setup.CourseData
+		for _, course := range dataset.Courses {
+			if course.Capacity > 50 {
+				highCapacityCourses = append(highCapacityCourses, course)
+			}
+		}
+		_ = highCapacityCourses
+
+		// Filter students by year
+		var upperYearStudents []setup.StudentData
+		for _, student := range dataset.Students {
+			if student.Year >= 3 {
+				upperYearStudents = append(upperYearStudents, student)
+			}
+		}
+		_ = upperYearStudents
+
+		// Filter enrollments by grade
+		var gradedEnrollments []setup.EnrollmentData
+		for _, enrollment := range dataset.Enrollments {
+			if enrollment.Grade != "" {
+				gradedEnrollments = append(gradedEnrollments, enrollment)
+			}
+		}
+		_ = gradedEnrollments
+	}
+}
+
+// BenchmarkSQLiteDataAggregation benchmarks aggregating SQLite data
+func BenchmarkSQLiteDataAggregation(b *testing.B) {
+	// Initialize cache
+	if err := setup.InitGlobalCache(); err != nil {
+		b.Fatalf("Failed to initialize cache: %v", err)
+	}
+
+	// Get dataset directly from SQLite
+	config := setup.DatasetSizes["tiny"]
+	dataset, err := setup.GetCachedDataset(config)
+	if err != nil {
+		b.Fatalf("Failed to get cached dataset: %v", err)
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		// Aggregate course statistics
+		totalCapacity := 0
+		for _, course := range dataset.Courses {
+			totalCapacity += course.Capacity
+		}
+		_ = totalCapacity
+
+		// Aggregate student statistics
+		totalYear := 0
+		for _, student := range dataset.Students {
+			totalYear += student.Year
+		}
+		averageYear := float64(totalYear) / float64(len(dataset.Students))
+		_ = averageYear
+
+		// Aggregate enrollment statistics
+		gradedCount := 0
+		for _, enrollment := range dataset.Enrollments {
+			if enrollment.Grade != "" {
+				gradedCount++
+			}
+		}
+		_ = gradedCount
+	}
+}
+
+// BenchmarkSQLiteCachePerformance benchmarks cache performance
+func BenchmarkSQLiteCachePerformance(b *testing.B) {
+	ctx := context.Background()
+
+	// Initialize cache
+	if err := setup.InitGlobalCache(); err != nil {
+		b.Fatalf("Failed to initialize cache: %v", err)
+	}
+
+	config := setup.DatasetSizes["tiny"]
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		// Get dataset from cache multiple times to test cache performance
+		dataset, err := setup.GetCachedDataset(config)
+		if err != nil {
+			b.Fatalf("Failed to get cached dataset: %v", err)
+		}
+		_ = dataset
+	}
+}
+
+// BenchmarkSQLiteVsPostgreSQL compares SQLite vs PostgreSQL data access
+func BenchmarkSQLiteVsPostgreSQL(b *testing.B) {
+	ctx := context.Background()
+
+	// Initialize cache
+	if err := setup.InitGlobalCache(); err != nil {
+		b.Fatalf("Failed to initialize cache: %v", err)
+	}
+
+	// Get dataset directly from SQLite
+	config := setup.DatasetSizes["tiny"]
+	dataset, err := setup.GetCachedDataset(config)
+	if err != nil {
+		b.Fatalf("Failed to get cached dataset: %v", err)
+	}
+
+	// Create event store for PostgreSQL comparison
+	pool, err := getOrCreateGlobalPool()
+	if err != nil {
+		b.Fatalf("Failed to get global pool: %v", err)
+	}
+
+	readCommittedConfig := dcb.EventStoreConfig{
+		MaxBatchSize:           1000,
+		StreamBuffer:           1000,
+		DefaultAppendIsolation: dcb.IsolationLevelReadCommitted,
+		QueryTimeout:           15000,
+		AppendTimeout:          15000,
+	}
+
+	store, err := dcb.NewEventStoreWithConfig(ctx, pool, readCommittedConfig)
+	if err != nil {
+		b.Fatalf("Failed to create event store: %v", err)
+	}
+
+	b.Run("SQLite_Direct", func(b *testing.B) {
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			// Access SQLite data directly
+			_ = dataset.Courses
+			_ = dataset.Students
+			_ = dataset.Enrollments
+		}
+	})
+
+	b.Run("PostgreSQL_Load", func(b *testing.B) {
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			// Load data into PostgreSQL
+			err := setup.LoadDatasetIntoStore(ctx, store, dataset)
+			if err != nil {
+				b.Fatalf("Failed to load dataset into store: %v", err)
+			}
+		}
+	})
+}
+
+// BenchmarkDataAccessPatterns tests different data access patterns
+func BenchmarkDataAccessPatterns(b *testing.B) {
+	ctx := context.Background()
+
+	// Initialize cache
+	if err := setup.InitGlobalCache(); err != nil {
+		b.Fatalf("Failed to initialize cache: %v", err)
+	}
+
+	// Get dataset directly from SQLite
+	config := setup.DatasetSizes["tiny"]
+	dataset, err := setup.GetCachedDataset(config)
+	if err != nil {
+		b.Fatalf("Failed to get cached dataset: %v", err)
+	}
+
+	b.Run("Sequential_Access", func(b *testing.B) {
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			// Sequential access pattern
+			for _, course := range dataset.Courses {
+				_ = course.ID
+				_ = course.Name
+				_ = course.MaxStudents
+			}
+		}
+	})
+
+	b.Run("Random_Access", func(b *testing.B) {
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			// Random access pattern
+			if len(dataset.Courses) > 0 {
+				_ = dataset.Courses[0]
+			}
+			if len(dataset.Students) > 0 {
+				_ = dataset.Students[0]
+			}
+			if len(dataset.Enrollments) > 0 {
+				_ = dataset.Enrollments[0]
+			}
+		}
+	})
+
+	b.Run("Bulk_Access", func(b *testing.B) {
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			// Bulk access pattern
+			_ = dataset.Courses
+			_ = dataset.Students
+			_ = dataset.Enrollments
+		}
+	})
+}
+
+// BenchmarkCachePerformance tests cache performance
+func BenchmarkCachePerformance(b *testing.B) {
+	ctx := context.Background()
+
+	// Initialize cache
+	if err := setup.InitGlobalCache(); err != nil {
+		b.Fatalf("Failed to initialize cache: %v", err)
+	}
+
+	config := setup.DatasetSizes["tiny"]
+
+	b.Run("First_Access", func(b *testing.B) {
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			// Simulate first access (cache miss)
+			dataset, err := setup.GetCachedDataset(config)
+			if err != nil {
+				b.Fatalf("Failed to get cached dataset: %v", err)
+			}
+			_ = dataset
+		}
+	})
+
+	b.Run("Cached_Access", func(b *testing.B) {
+		// Pre-load cache
+		_, err := setup.GetCachedDataset(config)
+		if err != nil {
+			b.Fatalf("Failed to pre-load cache: %v", err)
+		}
+
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			// Simulate cached access (cache hit)
+			dataset, err := setup.GetCachedDataset(config)
+			if err != nil {
+				b.Fatalf("Failed to get cached dataset: %v", err)
+			}
+			_ = dataset
+		}
+	})
+}
