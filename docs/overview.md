@@ -237,11 +237,7 @@ config := dcb.EventStoreConfig{
 store, err := dcb.NewEventStoreWithConfig(ctx, pool, config)
 ```
 
-**Configuration Benefits:**
-- **Logical Grouping**: Clear separation of append vs query settings
-- **Performance Tuning**: Batch sizes, timeouts, and buffer settings
-- **Database Control**: Transaction isolation levels and timeouts
-- **Streaming Support**: Buffer configuration for high-throughput operations
+
 
 ## Performance Characteristics
 
