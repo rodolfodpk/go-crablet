@@ -39,6 +39,60 @@ Choose your dataset size to view detailed performance metrics:
 
 **For detailed performance tables and specific metrics, see the dataset-specific pages above.**
 
+## Operation Types Explained
+
+### **Simple Read vs Complex Queries**
+
+The performance tables show two different types of read operations:
+
+#### **Simple Read**
+- **What it tests**: Single query operations with basic tag filtering
+- **Example**: `Query events with tag "user_id" = "123"`
+- **Use case**: Basic event retrieval, simple filtering
+- **Performance**: Fastest read operations
+
+#### **Complex Queries** 
+- **What it tests**: Multi-step business workflows with sequential queries
+- **Example**: Complete course enrollment process:
+  1. Query if student exists (`StudentRegistered` event)
+  2. Query if course exists (`CourseDefined` event)
+  3. Query if student is already enrolled (`StudentEnrolledInCourse` event)
+  4. Append enrollment event
+- **Use case**: Business rule validation, multi-step workflows, real-world scenarios
+- **Performance**: Slower than simple reads due to multiple sequential operations
+
+#### **Why Performance Differs Between Datasets**
+
+| Dataset | Simple Read | Complex Queries | Performance Pattern |
+|---------|-------------|-----------------|-------------------|
+| **Tiny** | 3,649 ops/sec | 2,058 ops/sec | Complex queries are 1.8x slower |
+| **Small** | 678 ops/sec | 5,179 ops/sec | Complex queries are 7.6x faster |
+
+**Tiny Dataset**: Complex queries are slower because they perform 4 sequential operations, and the overhead of multiple queries is more significant with minimal data.
+
+**Small Dataset**: Complex queries are faster because they benefit from:
+- **Better query optimization** with more data
+- **Improved indexing efficiency** 
+- **Reduced per-operation overhead** at scale
+- **Real-world data patterns** that optimize better
+
+### **Append vs AppendIf**
+
+#### **Append**
+- **What it tests**: Simple event storage without business rule validation
+- **Use case**: High-volume event streaming, event-driven architectures
+- **Performance**: Fastest operation (2,000+ ops/sec)
+
+#### **AppendIf**
+- **What it tests**: Conditional event storage with business rule validation
+- **Use case**: Event sourcing with business consistency, preventing duplicate operations
+- **Performance**: Significantly slower (15-124 ops/sec) due to:
+  - Business rule validation queries
+  - Conflict detection logic
+  - Past event scanning for conditions
+
+**Performance Impact**: AppendIf is 8-147x slower than Append, but provides business consistency guarantees that simple Append cannot.
+
 ## Dataset Comparison
 
 | Metric | Tiny Dataset | Small Dataset | Ratio |

@@ -19,6 +19,8 @@
 | **Complex Queries** | 5,179 ops/sec | 0.44ms | 1.0KB | 21 |
 | **State Projection** | 673 ops/sec | 3.5ms | 1.4MB | 34,462 |
 
+**Note**: For detailed explanations of what "Simple Read" vs "Complex Queries" test, and why performance differs between operations, see the [Operation Types Explained](./performance.md#operation-types-explained) section in the main Performance Guide.
+
 ## Concurrent Scaling Performance
 
 ### Append Operations
