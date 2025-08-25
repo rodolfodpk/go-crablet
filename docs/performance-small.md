@@ -17,9 +17,13 @@
 | **AppendIf Batch - With Conflict (5)** | 13 ops/sec | 76.9ms | 14.7KB | 221 |
 | **Simple Read** | 337 ops/sec | 3.92ms | 1.0KB | 21 |
 | **Complex Business Workflow** | 361 ops/sec | 13.39ms | 9.3KB | 183 |
-| **State Projection** | 673 ops/sec | 3.5ms | 1.4MB | 34,462 |
+| **State Projection (Sync)** | 673 ops/sec | 3.5ms | 1.4MB | 34,462 |
 
 **Note**: For detailed explanations of what "Simple Read" vs "Complex Business Workflow" test, and why performance differs between operations, see the [Operation Types Explained](./performance.md#operation-types-explained) section in the main Performance Guide. The "Complex Business Workflow" tests a 4-step enrollment process: student check, course check, enrollment check, and event append.
+
+**Projection Types**: 
+- **State Projection (Sync)**: Uses `Project()` method for synchronous state reconstruction
+- **State Projection (Async)**: Uses `ProjectStream()` method for asynchronous streaming with goroutines
 
 ## Concurrent Scaling Performance
 

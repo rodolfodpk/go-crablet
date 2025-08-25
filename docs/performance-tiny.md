@@ -17,9 +17,13 @@
 | **AppendIf Batch - With Conflict (5)** | 100 ops/sec | 10.0ms | 14.1KB | 217 |
 | **Simple Read** | 3,649 ops/sec | 357μs | 1.0KB | 21 |
 | **Complex Queries** | 2,058 ops/sec | 1.15ms | 382KB | 5,771 |
-| **State Projection** | 3,394 ops/sec | 357μs | 1.5KB | 29 |
+| **State Projection (Sync)** | 3,394 ops/sec | 357μs | 1.5KB | 29 |
 
 **Note**: For detailed explanations of what "Simple Read" vs "Complex Queries" test, and why performance differs between operations, see the [Operation Types Explained](./performance.md#operation-types-explained) section in the main Performance Guide.
+
+**Projection Types**: 
+- **State Projection (Sync)**: Uses `Project()` method for synchronous state reconstruction
+- **State Projection (Async)**: Uses `ProjectStream()` method for asynchronous streaming with goroutines
 
 ## Concurrent Scaling Performance
 
