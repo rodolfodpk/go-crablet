@@ -18,7 +18,7 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 - **Robust error handling**: Two-tier error handling with guaranteed transaction rollback
 
 **Optional API - CommandExecutor:**
-- **Atomic command execution**: Execute commands with handler-based event generation using the CommandExecutor pattern
+- **Command execution with business logic**: Execute commands with handler-based event generation using the CommandExecutor API
 - **Command tracking**: Automatic storage of commands in the `commands` table with transaction ID linking
 
 
