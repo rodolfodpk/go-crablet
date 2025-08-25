@@ -11,12 +11,12 @@
 
 | Operation | Throughput | Latency | Memory | Allocations |
 |-----------|------------|---------|---------|-------------|
-| **Single Append** | 2,362 ops/sec | 1.05ms | 1.4KB | 44 |
-| **Realistic Batch (1-100)** | 2,048 ops/sec | 1.16ms | 11.2KB | 162 |
-| **AppendIf - No Conflict** | 24 ops/sec | 97.3ms | 3.9KB | 79 |
-| **AppendIf - With Conflict** | ~15 ops/sec | ~150.0ms | ~5KB | ~100 |
-| **AppendIf Batch - No Conflict (1-100)** | 22 ops/sec | 102.1ms | 22.6KB | 308 |
-| **AppendIf Batch - With Conflict (1-100)** | ~8 ops/sec | ~250.0ms | ~250KB | ~3,000 |
+| **Single Append** | 1,008 ops/sec | 0.99ms | 1.4KB | 44 |
+| **Realistic Batch (1-12)** | 890 ops/sec | 1.12ms | 11.1KB | 162 |
+| **AppendIf - No Conflict** | 0.08 ops/sec | 12.4s | 4.3KB | 80 |
+| **AppendIf - With Conflict** | 0.10 ops/sec | 10.4s | 6.5KB | 137 |
+| **AppendIf Batch - No Conflict (5)** | 0.10 ops/sec | 10.2s | 12.4KB | 166 |
+| **AppendIf Batch - With Conflict (5)** | 0.09 ops/sec | 11.5s | 15.1KB | 220 |
 | **Simple Read** | 3,649 ops/sec | 357μs | 1.0KB | 21 |
 | **Complex Queries** | 2,058 ops/sec | 1.15ms | 382KB | 5,771 |
 | **State Projection** | 3,394 ops/sec | 357μs | 1.5KB | 29 |
@@ -74,29 +74,17 @@
 
 | Users | Event Count | Throughput | Latency | Memory | Allocations |
 |-------|-------------|------------|---------|---------|-------------|
-| 1 | 1 | 24 ops/sec | 97.3ms | 3.9KB | 79 |
-| 1 | 10 | ~23 ops/sec | ~100.0ms | ~20KB | ~250 |
-| 1 | 100 | ~20 ops/sec | ~120.0ms | ~200KB | ~2,500 |
-| 10 | 1 | ~20 ops/sec | ~120.0ms | ~40KB | ~800 |
-| 10 | 10 | ~18 ops/sec | ~130.0ms | ~250KB | ~3,000 |
-| 10 | 100 | ~15 ops/sec | ~150.0ms | ~2,500KB | ~30,000 |
-| 100 | 1 | ~15 ops/sec | ~150.0ms | ~400KB | ~8,000 |
-| 100 | 10 | ~12 ops/sec | ~200.0ms | ~2,500KB | ~30,000 |
-| 100 | 100 | ~10 ops/sec | ~250.0ms | ~25,000KB | ~300,000 |
+| 1 | 1 | 0.08 ops/sec | 12.4s | 4.3KB | 80 |
+| 1 | 5 | 0.10 ops/sec | 10.2s | 12.4KB | 166 |
+| 1 | 12 | 0.10 ops/sec | 10.1s | 22.5KB | 309 |
 
 ##### AppendIf - With Conflict (Business Rule Fails)
 
 | Users | Event Count | Throughput | Latency | Memory | Allocations |
 |-------|-------------|------------|---------|---------|-------------|
-| 1 | 1 | ~15 ops/sec | ~150.0ms | ~5KB | ~100 |
-| 1 | 10 | ~12 ops/sec | ~180.0ms | ~25KB | ~300 |
-| 1 | 100 | ~8 ops/sec | ~250.0ms | ~250KB | ~3,000 |
-| 10 | 1 | ~10 ops/sec | ~200.0ms | ~50KB | ~1,000 |
-| 10 | 10 | ~8 ops/sec | ~250.0ms | ~300KB | ~3,500 |
-| 10 | 100 | ~5 ops/sec | ~400.0ms | ~3,000KB | ~35,000 |
-| 100 | 1 | ~5 ops/sec | ~400.0ms | ~500KB | ~10,000 |
-| 100 | 10 | ~3 ops/sec | ~600.0ms | ~3,500KB | ~40,000 |
-| 100 | 100 | ~2 ops/sec | ~800.0ms | ~30,000KB | ~350,000 |
+| 1 | 1 | 0.10 ops/sec | 10.4s | 6.5KB | 137 |
+| 1 | 5 | 0.09 ops/sec | 11.5s | 15.1KB | 220 |
+| 1 | 12 | 0.09 ops/sec | 11.3s | 29.6KB | 367 |
 
 #### Read Operations
 
@@ -142,11 +130,10 @@
 **Concurrency Testing**: Each operation is tested with 1, 10, and 100 concurrent users to show how performance degrades under load. Event count variations (1, 10, 100) are tested to show data volume impact.
 
 **Performance Impact**:
-- **Append**: 2,337 → 198 ops/sec (11.8x slower with 100 users, 1 event)
-- **AppendIf (No Conflict)**: 24 → 15 ops/sec (1.6x slower with 100 users, 1 event)
-- **AppendIf (With Conflict)**: Slower than no-conflict due to rollback
-- **Read**: 1,047 → 50 ops/sec (20.9x slower with 100 events)  
-- **Projection**: 1,180 → 50 ops/sec (23.6x slower with 100 events)
+- **Append**: 1,008 ops/sec (single event baseline)
+- **AppendIf (No Conflict)**: 0.08 ops/sec (12,400x slower than Append)
+- **AppendIf (With Conflict)**: 0.10 ops/sec (10,400x slower than Append)
+- **Note**: AppendIf performance is significantly lower due to business rule validation overhead
 
 **Event Count Explanation**:
 - **Append**: 1 event (single operation) vs 10-100 events (batch operations)
@@ -160,9 +147,9 @@
 - Example: "Only insert enrollment events if student hasn't already enrolled in ANY of these courses"
 
 **Performance Comparison - AppendIf Scenarios**:
-- **No Conflict**: 24 ops/sec (business rule passes)
-- **With Conflict**: ~15 ops/sec (business rule fails) - 1.6x slower due to rollback
-- **Note**: AppendIf is significantly slower than Append due to business rule validation overhead
+- **No Conflict**: 0.08 ops/sec (business rule passes)
+- **With Conflict**: 0.10 ops/sec (business rule fails) - similar performance
+- **Note**: AppendIf is ~12,000x slower than Append due to business rule validation overhead
 
 ## Isolation Levels
 
