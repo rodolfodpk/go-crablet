@@ -33,8 +33,8 @@
 
 #### Append Operations
 
-| Users | Batch Size | Throughput | Latency | Memory | Allocations |
-|-------|------------|------------|---------|---------|-------------|
+| Users | Event Count | Throughput | Latency | Memory | Allocations |
+|-------|-------------|------------|---------|---------|-------------|
 | 1 | 1 | 2,337 ops/sec | 1.14ms | 1.4KB | 44 |
 | 1 | 12 | 1,660 ops/sec | 1.29ms | 20.6KB | 274 |
 | 10 | 1 | 835 ops/sec | 2.77ms | 26.1KB | 530 |
@@ -44,8 +44,8 @@
 
 #### AppendIf Operations (Conditional Append)
 
-| Users | Batch Size | Throughput | Latency | Memory | Allocations |
-|-------|------------|------------|---------|---------|-------------|
+| Users | Event Count | Throughput | Latency | Memory | Allocations |
+|-------|-------------|------------|---------|---------|-------------|
 | 1 | 1 | 24 ops/sec | 97.3ms | 3.9KB | 79 |
 | 1 | 12 | 22 ops/sec | 102.1ms | 22.6KB | 308 |
 | 10 | 1 | ~20 ops/sec | ~120.0ms | ~40KB | ~800 |
