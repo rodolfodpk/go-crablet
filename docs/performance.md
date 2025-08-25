@@ -62,11 +62,14 @@
 | **AppendIf_12** | 22 ops/sec | 102.1ms | 22.6KB | 308 |
 
 **Batch Size Explanation**:
-- **AppendIf_1**: Append 1 event if condition passes
-- **AppendIf_5**: Append 5 events if condition passes  
-- **AppendIf_12**: Append 12 events if condition passes
+- **AppendIf_1**: Process 1 event at a time (e.g., enroll 1 student in 1 course)
+- **AppendIf_5**: Process 5 events at a time (e.g., enroll 1 student in 5 courses)  
+- **AppendIf_12**: Process 12 events at a time (e.g., enroll 1 student in 12 courses)
 
-**What AppendIf Does**: Checks business rule condition before inserting events (e.g., "only insert if user doesn't already exist")
+**What AppendIf Does**: 
+- Checks business rule condition BEFORE inserting ANY events
+- If condition fails, NO events are inserted (atomic operation)
+- Example: "Only insert enrollment events if student hasn't already enrolled in ANY of these courses"
 
 ## Isolation Levels
 
