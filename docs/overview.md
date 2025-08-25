@@ -134,11 +134,13 @@ type CommandHandler interface {
 }
 ```
 
-**Note**: CommandExecutor is an optional convenience layer. You can use the core EventStore API directly for full control, or use CommandExecutor for simplified command handling patterns.
+**Note**: CommandExecutor is an optional convenience layer that helps you organize business logic. Instead of manually calling your business logic and then appending events, you can:
 
+1. **Define commands** that represent business actions (like "EnrollStudent", "TransferMoney")
+2. **Write handlers** that contain your business logic and decide what events to create
+3. **Execute commands** - the system automatically runs your handler, stores the generated events, and keeps an audit trail
 
-
-
+This is purely optional - you can always use the core EventStore API directly for full control.
 
 ## Code Examples
 

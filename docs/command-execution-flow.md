@@ -1,6 +1,6 @@
 # Command Execution Flow
 
-This document illustrates the command execution flow in go-crablet using a sequence diagram, showing how commands are processed, validated, and executed to generate events using the DCB pattern's concurrency control approach.
+This document illustrates how commands are processed in go-crablet, showing the step-by-step flow from command submission to event generation and storage. The system uses database transactions to ensure data consistency and provides an audit trail of all command executions.
 
 ## Sequence Diagram
 
@@ -13,7 +13,7 @@ sequenceDiagram
     participant Commands Table
     participant Events Table
 
-    Note over Client, Events Table: Command Execution Flow with DCB Pattern<br/>Primary: Concurrency Control via Transaction IDs
+    Note over Client, Events Table: Command Execution Flow<br/>Uses database transactions for consistency
 
     Client->>CommandExecutor: ExecuteCommand(command)
     Note right of Client: command: Command interface<br/>with type, data, and metadata
@@ -88,7 +88,7 @@ SELECT * FROM commands WHERE transaction_id = 123;
 **Key Points:**
 - **Same transaction_id**: Both events and command share transaction_id 123
 - **Sequential positions**: Events are ordered by position (1, 2)
-- **Atomic operation**: All data persisted in single transaction
+- **Database transaction**: All data persisted in single database transaction
 - **Complete audit trail**: Command metadata preserved for debugging/auditing
 
 ## Key Components
@@ -103,7 +103,7 @@ type Command interface {
 ```
 
 ### 2. CommandExecutor
-- **Purpose**: High-level API for command execution (optional convenience layer)
+- **Purpose**: High-level API for organizing business logic execution (optional convenience layer)
 - **Responsibilities**:
   - Execute commands using handlers
   - Manage database transactions
@@ -120,7 +120,7 @@ type Command interface {
   - **Does NOT store commands** (handled by CommandExecutor)
 
 ### 4. Database Operations
-- **Transaction Management**: Ensures atomicity
+- **Transaction Management**: Ensures all operations succeed or fail together
 - **DCB Concurrency Control**: Primary mechanism using transaction IDs and append conditions (not classic optimistic locking)
 
 - **Event Storage**: Persists events with metadata
@@ -147,8 +147,8 @@ type Command interface {
 
 ## Benefits
 
-- **Atomicity**: All operations succeed or fail together
-- **DCB Consistency**: Concurrency control uses the DCB approach (not classic optimistic locking). We also introduced transaction_id (inspired by Oskar’s article) to ensure correct event ordering. The DCB pattern governs conflict detection and consistency, while transaction IDs provide a reliable, gapless ordering of events.
+- **Data Consistency**: All operations succeed or fail together using database transactions
+- **DCB Consistency**: Concurrency control uses the DCB approach (not classic optimistic locking). We also introduced transaction_id (inspired by Oskar's article) to ensure correct event ordering. The DCB pattern governs conflict detection and consistency, while transaction IDs provide a reliable, gapless ordering of events.
 - **Audit Trail**: Complete command and event history
 - **Error Recovery**: Automatic rollback on failures
 - **Performance**: Optimized for typical event sourcing workloads
