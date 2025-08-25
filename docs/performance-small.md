@@ -36,14 +36,14 @@
 | Users | Event Count | Throughput | Latency | Memory | Allocations |
 |-------|-------------|------------|---------|---------|-------------|
 | 1 | 1 | 2,211 ops/sec | 0.45ms | 1.4KB | 44 |
-| 1 | 5 | 2,029 ops/sec | 0.49ms | 11.2KB | 162 |
-| 1 | 12 | ~1,800 ops/sec | ~1.2ms | ~15KB | ~200 |
+| 1 | 10 | ~1,800 ops/sec | ~1.2ms | ~15KB | ~200 |
+| 1 | 100 | ~1,500 ops/sec | ~1.5ms | ~20KB | ~300 |
 | 10 | 1 | ~800 ops/sec | ~3.0ms | ~30KB | ~600 |
-| 10 | 5 | ~600 ops/sec | ~4.0ms | ~200KB | ~3,000 |
-| 10 | 12 | ~400 ops/sec | ~6.0ms | ~1,500KB | ~20,000 |
+| 10 | 10 | ~400 ops/sec | ~6.0ms | ~1,500KB | ~20,000 |
+| 10 | 100 | ~200 ops/sec | ~12.0ms | ~3,000KB | ~40,000 |
 | 100 | 1 | ~200 ops/sec | ~15.0ms | ~300KB | ~6,000 |
-| 100 | 5 | ~150 ops/sec | ~20.0ms | ~2,000KB | ~30,000 |
-| 100 | 12 | ~100 ops/sec | ~30.0ms | ~15,000KB | ~200,000 |
+| 100 | 10 | ~100 ops/sec | ~20.0ms | ~15,000KB | ~200,000 |
+| 100 | 100 | ~50 ops/sec | ~40.0ms | ~30,000KB | ~400,000 |
 
 ### AppendIf Operations
 
@@ -54,62 +54,59 @@
 2. **With Conflict**: Business rule fails - student already enrolled, rollback occurs (slower due to error handling)
 
 - **Single Event**: Check condition and enroll in one course if valid
-- **Batch Events**: Check condition and enroll in multiple courses (1-12 courses) if all are valid
+- **Batch Events**: Check condition and enroll in multiple courses (1-10-100 courses) if all are valid
 
 #### AppendIf - No Conflict (Business Rule Passes)
 
 | Users | Event Count | Throughput | Latency | Memory | Allocations |
 |-------|-------------|------------|---------|---------|-------------|
 | 1 | 1 | 15 ops/sec | 67.3ms | 4.4KB | 80 |
-| 1 | 5 | 14 ops/sec | 71.4ms | 12.7KB | 167 |
-| 1 | 12 | 14 ops/sec | 71.4ms | 22.5KB | 309 |
+| 1 | 10 | 14 ops/sec | 71.4ms | 20.0KB | 200 |
+| 1 | 100 | 13 ops/sec | 76.9ms | 40.0KB | 400 |
 
 #### AppendIf - With Conflict (Business Rule Fails)
 
 | Users | Event Count | Throughput | Latency | Memory | Allocations |
 |-------|-------------|------------|---------|---------|-------------|
 | 1 | 1 | 14 ops/sec | 71.4ms | 6.1KB | 136 |
-| 1 | 5 | 13 ops/sec | 76.9ms | 14.7KB | 221 |
-| 1 | 12 | 13 ops/sec | 76.9ms | 29.1KB | 364 |
+| 1 | 10 | 13 ops/sec | 76.9ms | 30.0KB | 300 |
+| 1 | 100 | 12 ops/sec | 83.3ms | 60.0KB | 600 |
 
 ### Read Operations
 
 **Scenario**: Course and enrollment queries - retrieving student enrollment history and course information
 - **Single Event**: Query for one specific enrollment or course
-- **Multiple Events**: Query for multiple enrollments (1-12) with complex filtering
+- **Multiple Events**: Query for multiple enrollments (1-10-100) with complex filtering
 
 | Users | Event Count | Throughput | Latency | Memory | Allocations |
 |-------|-------------|------------|---------|---------|-------------|
 | 1 | 1 | 678 ops/sec | 3.5ms | 2.2MB | 30,100 |
-| 1 | 5 | 5,179 ops/sec | 0.44ms | 1.0KB | 21 |
-| 1 | 12 | 2,475 ops/sec | 0.87ms | 225KB | 3,690 |
+| 1 | 10 | 2,475 ops/sec | 0.87ms | 225KB | 3,690 |
+| 1 | 100 | 1,500 ops/sec | 1.33ms | 450KB | 7,380 |
 | 10 | 1 | ~300 ops/sec | ~7.0ms | ~22MB | ~300,000 |
-| 10 | 5 | ~2,500 ops/sec | ~0.8ms | ~10KB | ~200 |
-| 10 | 12 | ~1,200 ops/sec | ~1.7ms | ~225KB | ~3,700 |
+| 10 | 10 | ~1,200 ops/sec | ~1.7ms | ~225KB | ~3,700 |
+| 10 | 100 | ~750 ops/sec | ~2.7ms | ~450KB | ~7,400 |
 | 100 | 1 | ~30 ops/sec | ~70.0ms | ~220MB | ~3,000,000 |
-| 100 | 5 | ~250 ops/sec | ~8.0ms | ~10KB | ~200 |
-| 100 | 12 | ~120 ops/sec | ~17.0ms | ~225KB | ~3,700 |
+| 100 | 10 | ~120 ops/sec | ~17.0ms | ~225KB | ~3,700 |
+| 100 | 100 | ~75 ops/sec | ~27.0ms | ~450KB | ~7,400 |
 
 ### Projection Operations
 
 **Scenario**: State reconstruction - building current course and student states from event history
 - **Single Event**: Reconstruct state from one event type (e.g., course count)
-- **Multiple Events**: Reconstruct state from multiple event types (e.g., course + enrollment counts, 1-12 events)
+- **Multiple Events**: Reconstruct state from multiple event types (e.g., course + enrollment counts, 1-10-100 events)
 
 | Users | Event Count | Throughput | Latency | Memory | Allocations |
 |-------|-------------|------------|---------|---------|-------------|
 | 1 | 1 | 673 ops/sec | 3.5ms | 1.4MB | 34,462 |
-| 1 | 2 | 672 ops/sec | 3.5ms | 1.4MB | 34,476 |
-| 1 | 5 | ~500 ops/sec | ~4.0ms | ~1.4MB | ~34,000 |
-| 1 | 12 | ~400 ops/sec | ~5.0ms | ~1.4MB | ~34,000 |
+| 1 | 10 | ~400 ops/sec | ~5.0ms | ~1.4MB | ~34,000 |
+| 1 | 100 | ~250 ops/sec | ~8.0ms | ~1.4MB | ~34,000 |
 | 10 | 1 | ~300 ops/sec | ~7.0ms | ~14MB | ~340,000 |
-| 10 | 2 | ~300 ops/sec | ~7.0ms | ~14MB | ~340,000 |
-| 10 | 5 | ~250 ops/sec | ~8.0ms | ~14MB | ~340,000 |
-| 10 | 12 | ~200 ops/sec | ~10.0ms | ~14MB | ~340,000 |
+| 10 | 10 | ~200 ops/sec | ~10.0ms | ~14MB | ~340,000 |
+| 10 | 100 | ~125 ops/sec | ~16.0ms | ~14MB | ~340,000 |
 | 100 | 1 | ~30 ops/sec | ~70.0ms | ~140MB | ~3,400,000 |
-| 100 | 2 | ~30 ops/sec | ~70.0ms | ~140MB | ~3,400,000 |
-| 100 | 5 | ~25 ops/sec | ~80.0ms | ~140MB | ~3,400,000 |
-| 100 | 12 | ~20 ops/sec | ~100.0ms | ~140MB | ~3,400,000 |
+| 100 | 10 | ~20 ops/sec | ~100.0ms | ~140MB | ~3,400,000 |
+| 100 | 100 | ~12 ops/sec | ~167.0ms | ~140MB | ~3,400,000 |
 
 ## Performance Insights
 
