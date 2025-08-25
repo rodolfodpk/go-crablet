@@ -38,8 +38,8 @@
 | 1 | 1 | 2,337 ops/sec | 1.14ms | 1.4KB | 44 |
 | 1 | 5 | 1,993 ops/sec | 1.15ms | 6.4KB | 129 |
 | 1 | 12 | 1,660 ops/sec | 1.29ms | 20.6KB | 274 |
-| 10 | - | 835 ops/sec | 2.77ms | 26.1KB | 530 |
-| 100 | - | 198 ops/sec | 13.7ms | 269.5KB | 5,543 |
+| 10 | 1 | 835 ops/sec | 2.77ms | 26.1KB | 530 |
+| 100 | 1 | 198 ops/sec | 13.7ms | 269.5KB | 5,543 |
 
 #### Read Operations
 
@@ -59,19 +59,21 @@
 
 #### AppendIf Operations (Conditional Append)
 
-| Batch Size | Throughput | Latency | Memory | Allocations |
-|------------|------------|---------|---------|-------------|
-| 1 | 24 ops/sec | 97.3ms | 3.9KB | 79 |
-| 5 | 24 ops/sec | 104.3ms | 12.3KB | 164 |
-| 12 | 22 ops/sec | 102.1ms | 22.6KB | 308 |
+| Users | Batch Size | Throughput | Latency | Memory | Allocations |
+|-------|------------|------------|---------|---------|-------------|
+| 1 | 1 | 24 ops/sec | 97.3ms | 3.9KB | 79 |
+| 1 | 5 | 24 ops/sec | 104.3ms | 12.3KB | 164 |
+| 1 | 12 | 22 ops/sec | 102.1ms | 22.6KB | 308 |
 
 **Scaling Patterns**:
 - **1 User**: Best performance, minimal resource usage
-- **10 Users**: Moderate performance, 10x resource increase
+- **10 Users**: Moderate performance, 10x resource increase  
 - **100 Users**: Lower performance, 100x resource increase
 
+**Concurrency Testing**: Each operation is tested with 1, 10, and 100 concurrent users to show how performance degrades under load. Batch size variations are tested with single users to isolate the impact of data volume from concurrency.
+
 **Performance Impact**:
-- **Append**: 2,535 → 198 ops/sec (12.8x slower with 100 users)
+- **Append**: 2,337 → 198 ops/sec (11.8x slower with 100 users)
 - **Read**: 1,047 → 50 ops/sec (20.9x slower with 100 users)  
 - **Projection**: 1,180 → 52 ops/sec (22.7x slower with 100 users)
 - **AppendIf**: Consistent ~24 ops/sec regardless of batch size
