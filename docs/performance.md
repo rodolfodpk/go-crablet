@@ -1,5 +1,7 @@
 # Performance Guide
 
+> **🚀 Performance Update**: Recent benchmark improvements show significantly better AppendIf performance (124 ops/sec vs previous 0.08 ops/sec) after fixing database event accumulation issues. Results now reflect realistic business rule validation overhead.
+
 ## Test Environment
 - **Platform**: macOS (darwin 23.6.0) with Apple M1 Pro
 - **Database**: PostgreSQL with 50-connection pool
@@ -11,12 +13,12 @@
 
 | Operation | Throughput | Latency | Memory | Allocations |
 |-----------|------------|---------|---------|-------------|
-| **Single Append** | 1,008 ops/sec | 0.99ms | 1.4KB | 44 |
-| **Realistic Batch (1-12)** | 890 ops/sec | 1.12ms | 11.1KB | 162 |
-| **AppendIf - No Conflict** | 0.08 ops/sec | 12.4s | 4.3KB | 80 |
-| **AppendIf - With Conflict** | 0.10 ops/sec | 10.4s | 6.5KB | 137 |
-| **AppendIf Batch - No Conflict (5)** | 0.10 ops/sec | 10.2s | 12.4KB | 166 |
-| **AppendIf Batch - With Conflict (5)** | 0.09 ops/sec | 11.5s | 15.1KB | 220 |
+| **Single Append** | 2,124 ops/sec | 0.47ms | 1.4KB | 44 |
+| **Realistic Batch (1-12)** | 1,941 ops/sec | 0.52ms | 11.2KB | 162 |
+| **AppendIf - No Conflict** | 124 ops/sec | 8.1ms | 3.8KB | 78 |
+| **AppendIf - With Conflict** | 100 ops/sec | 10.0ms | 5.6KB | 133 |
+| **AppendIf Batch - No Conflict (5)** | 118 ops/sec | 8.5ms | 12.0KB | 162 |
+| **AppendIf Batch - With Conflict (5)** | 100 ops/sec | 10.0ms | 14.1KB | 217 |
 | **Simple Read** | 3,649 ops/sec | 357μs | 1.0KB | 21 |
 | **Complex Queries** | 2,058 ops/sec | 1.15ms | 382KB | 5,771 |
 | **State Projection** | 3,394 ops/sec | 357μs | 1.5KB | 29 |
@@ -49,7 +51,7 @@
 
 | Users | Event Count | Throughput | Latency | Memory | Allocations |
 |-------|-------------|------------|---------|---------|-------------|
-| 1 | 1 | 2,337 ops/sec | 1.14ms | 1.4KB | 44 |
+| 1 | 1 | 2,124 ops/sec | 0.47ms | 1.4KB | 44 |
 | 1 | 10 | ~1,800 ops/sec | ~1.2ms | ~15KB | ~200 |
 | 1 | 100 | ~1,200 ops/sec | ~1.5ms | ~150KB | ~2,000 |
 | 10 | 1 | 835 ops/sec | 2.77ms | 26.1KB | 530 |
@@ -74,17 +76,17 @@
 
 | Users | Event Count | Throughput | Latency | Memory | Allocations |
 |-------|-------------|------------|---------|---------|-------------|
-| 1 | 1 | 0.08 ops/sec | 12.4s | 4.3KB | 80 |
-| 1 | 5 | 0.10 ops/sec | 10.2s | 12.4KB | 166 |
-| 1 | 12 | 0.10 ops/sec | 10.1s | 22.5KB | 309 |
+| 1 | 1 | 124 ops/sec | 8.1ms | 3.8KB | 78 |
+| 1 | 5 | 118 ops/sec | 8.5ms | 12.0KB | 162 |
+| 1 | 12 | 100 ops/sec | 10.0ms | 22.1KB | 305 |
 
 ##### AppendIf - With Conflict (Business Rule Fails)
 
 | Users | Event Count | Throughput | Latency | Memory | Allocations |
 |-------|-------------|------------|---------|---------|-------------|
-| 1 | 1 | 0.10 ops/sec | 10.4s | 6.5KB | 137 |
-| 1 | 5 | 0.09 ops/sec | 11.5s | 15.1KB | 220 |
-| 1 | 12 | 0.09 ops/sec | 11.3s | 29.6KB | 367 |
+| 1 | 1 | 100 ops/sec | 10.0ms | 6.1KB | 133 |
+| 1 | 5 | 100 ops/sec | 10.0ms | 14.7KB | 217 |
+| 1 | 12 | 96 ops/sec | 10.4ms | 29.1KB | 364 |
 
 #### Read Operations
 
@@ -130,10 +132,10 @@
 **Concurrency Testing**: Each operation is tested with 1, 10, and 100 concurrent users to show how performance degrades under load. Event count variations (1, 10, 100) are tested to show data volume impact.
 
 **Performance Impact**:
-- **Append**: 1,008 ops/sec (single event baseline)
-- **AppendIf (No Conflict)**: 0.08 ops/sec (12,400x slower than Append)
-- **AppendIf (With Conflict)**: 0.10 ops/sec (10,400x slower than Append)
-- **Note**: AppendIf performance is significantly lower due to business rule validation overhead
+- **Append**: 2,124 ops/sec (single event baseline)
+- **AppendIf (No Conflict)**: 124 ops/sec (17x slower than Append)
+- **AppendIf (With Conflict)**: 100 ops/sec (21x slower than Append)
+- **Note**: AppendIf performance is now much better with clean database state, showing realistic business rule validation overhead
 
 **Event Count Explanation**:
 - **Append**: 1 event (single operation) vs 10-100 events (batch operations)
@@ -147,9 +149,9 @@
 - Example: "Only insert enrollment events if student hasn't already enrolled in ANY of these courses"
 
 **Performance Comparison - AppendIf Scenarios**:
-- **No Conflict**: 0.08 ops/sec (business rule passes)
-- **With Conflict**: 0.10 ops/sec (business rule fails) - similar performance
-- **Note**: AppendIf is ~12,000x slower than Append due to business rule validation overhead
+- **No Conflict**: 124 ops/sec (business rule passes)
+- **With Conflict**: 100 ops/sec (business rule fails) - 24% slower due to rollback handling
+- **Note**: AppendIf is now 17-21x slower than Append, showing realistic business rule validation overhead with clean database state
 
 ## Isolation Levels
 
