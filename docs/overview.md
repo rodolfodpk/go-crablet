@@ -91,6 +91,18 @@ type EventStore interface {
 }
 ```
 
+**Append vs AppendIf: Architectural Approach**
+
+- **Append**: **Event Driven** - High-volume, simple event creation and storage
+  - Use when: You need speed and throughput for event streaming, logging, notifications
+  - Example: "User clicked button" → store click event
+  
+- **AppendIf**: **Event Sourcing** - Business rule validation + conditional event creation
+  - Use when: You need business consistency and validation rules
+  - Example: "Enroll student in course" → only if prerequisites met, capacity available
+  
+- **Trade-off**: Speed/volume vs business integrity and consistency
+
 #### 2. StateProjector (State Reconstruction)
 ```go
 type StateProjector struct {
