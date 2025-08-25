@@ -27,7 +27,11 @@
 | **Course Registration** | 10 | 835 ops/sec | 2.77ms | 26.1KB |
 | **Course Registration** | 100 | 198 ops/sec | 13.7ms | 269.5KB |
 | **Business Workflow** | 1 | 97 ops/sec | 12.4ms | 10.5KB |
+| **Business Workflow** | 10 | ~50 ops/sec | ~25.0ms | ~100KB |
+| **Business Workflow** | 100 | ~10 ops/sec | ~200.0ms | ~1,000KB |
 | **Mixed Operations** | 1 | 97 ops/sec | 12.4ms | 10.5KB |
+| **Mixed Operations** | 10 | ~50 ops/sec | ~25.0ms | ~100KB |
+| **Mixed Operations** | 100 | ~10 ops/sec | ~200.0ms | ~1,000KB |
 
 **Mixed Operations**: Append + Query + Project in sequence (DataUpdate events)
 
