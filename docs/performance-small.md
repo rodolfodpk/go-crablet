@@ -142,4 +142,4 @@
 
 ---
 
-**[← Back to Performance Guide](./performance.md)**
+[← Back to Performance Guide](./performance.md)
