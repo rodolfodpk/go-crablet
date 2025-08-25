@@ -42,6 +42,17 @@
 | 100 | 1 | 198 ops/sec | 13.7ms | 269.5KB | 5,543 |
 | 100 | 12 | ~150 ops/sec | ~20.0ms | ~2,000KB | ~30,000 |
 
+#### AppendIf Operations (Conditional Append)
+
+| Users | Batch Size | Throughput | Latency | Memory | Allocations |
+|-------|------------|------------|---------|---------|-------------|
+| 1 | 1 | 24 ops/sec | 97.3ms | 3.9KB | 79 |
+| 1 | 12 | 22 ops/sec | 102.1ms | 22.6KB | 308 |
+| 10 | 1 | ~20 ops/sec | ~120.0ms | ~40KB | ~800 |
+| 10 | 12 | ~18 ops/sec | ~130.0ms | ~250KB | ~3,000 |
+| 100 | 1 | ~15 ops/sec | ~150.0ms | ~400KB | ~8,000 |
+| 100 | 12 | ~12 ops/sec | ~200.0ms | ~2,500KB | ~30,000 |
+
 #### Read Operations
 
 | Users | Event Count | Throughput | Latency | Memory | Allocations |
@@ -60,17 +71,6 @@
 | 10 | 2 | ~250 ops/sec | ~8.0ms | ~40KB | ~800 |
 | 100 | 1 | ~50 ops/sec | ~40.0ms | ~200KB | ~4,000 |
 | 100 | 2 | ~25 ops/sec | ~80.0ms | ~400KB | ~8,000 |
-
-#### AppendIf Operations (Conditional Append)
-
-| Users | Batch Size | Throughput | Latency | Memory | Allocations |
-|-------|------------|------------|---------|---------|-------------|
-| 1 | 1 | 24 ops/sec | 97.3ms | 3.9KB | 79 |
-| 1 | 12 | 22 ops/sec | 102.1ms | 22.6KB | 308 |
-| 10 | 1 | ~20 ops/sec | ~120.0ms | ~40KB | ~800 |
-| 10 | 12 | ~18 ops/sec | ~130.0ms | ~250KB | ~3,000 |
-| 100 | 1 | ~15 ops/sec | ~150.0ms | ~400KB | ~8,000 |
-| 100 | 12 | ~12 ops/sec | ~200.0ms | ~2,500KB | ~30,000 |
 
 **Scaling Patterns**:
 - **1 User**: Best performance, minimal resource usage
