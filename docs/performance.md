@@ -143,8 +143,8 @@
 
 **Performance Impact**:
 - **Append**: 2,337 → 198 ops/sec (11.8x slower with 100 users, 1 event)
-- **AppendIf (No Conflict)**: 24 → 15 ops/sec (1.6x slower with 100 users, 1 event) - closer to Append performance
-- **AppendIf (With Conflict)**: Slower than no-conflict due to rollback and error handling
+- **AppendIf (No Conflict)**: 24 → 15 ops/sec (1.6x slower with 100 users, 1 event)
+- **AppendIf (With Conflict)**: Slower than no-conflict due to rollback
 - **Read**: 1,047 → 50 ops/sec (20.9x slower with 100 events)  
 - **Projection**: 1,180 → 50 ops/sec (23.6x slower with 100 events)
 
@@ -160,9 +160,9 @@
 - Example: "Only insert enrollment events if student hasn't already enrolled in ANY of these courses"
 
 **Performance Comparison - AppendIf Scenarios**:
-- **No Conflict**: 24 ops/sec (business rule passes) - closer to regular Append performance
-- **With Conflict**: ~15 ops/sec (business rule fails) - 1.6x slower due to rollback overhead
-- **Batch Impact**: Conflict scenarios show higher performance degradation with larger event counts
+- **No Conflict**: 24 ops/sec (business rule passes)
+- **With Conflict**: ~15 ops/sec (business rule fails) - 1.6x slower due to rollback
+- **Note**: AppendIf is significantly slower than Append due to business rule validation overhead
 
 ## Isolation Levels
 
