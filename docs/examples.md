@@ -1,6 +1,6 @@
 # Examples
 
-This document provides comprehensive examples of using go-crablet for **exploring** event sourcing concepts with DCB patterns.
+This document provides comprehensive examples of using go-crablet for **exploring** event sourcing concepts with DCB approaches.
 
 **Note: This is an exploration project for learning and experimenting with DCB concepts, not a production-ready solution.**
 

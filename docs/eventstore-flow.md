@@ -468,4 +468,4 @@ if err != nil {
 }
 ```
 
-This EventStore flow provides the core event sourcing functionality without the command pattern, allowing you to **explore** direct event operations with full control over concurrency and consistency. This approach is useful for learning and experimenting with DCB patterns. 
+This EventStore flow provides the core event sourcing functionality without the command pattern, allowing you to **explore** direct event operations with full control over concurrency and consistency. This approach is useful for learning and experimenting with DCB approaches. 

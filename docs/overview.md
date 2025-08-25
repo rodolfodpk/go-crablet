@@ -328,4 +328,4 @@ Client → CommandExecutor → CommandHandler → EventStore → PostgreSQL (com
 
 
 
-This library explores event sourcing concepts with DCB concurrency control. It's a learning project that experiments with DCB patterns using PostgreSQL, suitable for understanding event sourcing principles and testing DCB concepts.
+This library explores event sourcing concepts with DCB concurrency control. It's a learning project that experiments with DCB approaches using PostgreSQL, suitable for understanding event sourcing principles and testing DCB concepts.

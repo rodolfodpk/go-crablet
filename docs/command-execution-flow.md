@@ -148,7 +148,7 @@ type Command interface {
 ## Benefits
 
 - **Data Consistency**: All operations succeed or fail together using database transactions
-- **DCB Consistency**: Concurrency control uses the DCB approach (not classic optimistic locking). We also introduced transaction_id (inspired by Oskar's article) to ensure correct event ordering. The DCB pattern governs conflict detection and consistency, while transaction IDs provide a reliable, gapless ordering of events.
+- **DCB Consistency**: Concurrency control uses the DCB approach (not classic optimistic locking). We also introduced transaction_id (inspired by Oskar's article) to ensure correct event ordering. The DCB approach governs conflict detection and consistency, while transaction IDs provide a reliable, gapless ordering of events.
 - **Audit Trail**: Complete command and event history
 - **Error Recovery**: Automatic rollback on failures
 - **Performance**: Optimized for typical event sourcing workloads

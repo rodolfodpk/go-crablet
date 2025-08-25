@@ -122,7 +122,7 @@
 - **Development**: Fast iteration and testing
 - **Prototyping**: Quick validation of business logic
 - **Unit Testing**: Isolated performance testing
-- **Learning**: Understanding DCB patterns with minimal overhead
+- **Learning**: Understanding DCB approaches with minimal overhead
 
 ---
 
