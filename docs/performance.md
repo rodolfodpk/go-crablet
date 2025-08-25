@@ -31,20 +31,20 @@
 
 ### Concurrent Scaling Performance
 
-| Operation | Users/Batch | Throughput | Latency | Memory | Allocations |
-|-----------|-------------|------------|---------|---------|-------------|
-| **Append** | 1 user | 2,535 ops/sec | 1.02ms | 2.5KB | 51 |
-| **Append** | 10 users | 835 ops/sec | 2.77ms | 26.1KB | 530 |
-| **Append** | 100 users | 198 ops/sec | 13.7ms | 269.5KB | 5,543 |
-| **Read** | 1 user | 1,047 ops/sec | 2.02ms | 1.1KB | 25 |
-| **Read** | 10 users | 519 ops/sec | 4.21ms | 11.8KB | 270 |
-| **Read** | 100 users | 50 ops/sec | 46.6ms | 120.7KB | 2,853 |
-| **Projection** | 1 user | 1,180 ops/sec | 1.99ms | 2.3KB | 45 |
-| **Projection** | 10 users | 548 ops/sec | 4.44ms | 23.6KB | 470 |
-| **Projection** | 100 users | 52 ops/sec | 48.8ms | 246.2KB | 4,855 |
-| **AppendIf** | 1 event | 24 ops/sec | 97.3ms | 3.9KB | 79 |
-| **AppendIf** | 5 events | 24 ops/sec | 104.3ms | 12.3KB | 164 |
-| **AppendIf** | 12 events | 22 ops/sec | 102.1ms | 22.6KB | 308 |
+| Operation | Users | Batch Size | Throughput | Latency | Memory | Allocations |
+|-----------|-------|------------|------------|---------|---------|-------------|
+| **Append** | 1 | - | 2,535 ops/sec | 1.02ms | 2.5KB | 51 |
+| **Append** | 10 | - | 835 ops/sec | 2.77ms | 26.1KB | 530 |
+| **Append** | 100 | - | 198 ops/sec | 13.7ms | 269.5KB | 5,543 |
+| **Read** | 1 | - | 1,047 ops/sec | 2.02ms | 1.1KB | 25 |
+| **Read** | 10 | - | 519 ops/sec | 4.21ms | 11.8KB | 270 |
+| **Read** | 100 | - | 50 ops/sec | 46.6ms | 120.7KB | 2,853 |
+| **Projection** | 1 | - | 1,180 ops/sec | 1.99ms | 2.3KB | 45 |
+| **Projection** | 10 | - | 548 ops/sec | 4.44ms | 23.6KB | 470 |
+| **Projection** | 100 | - | 52 ops/sec | 48.8ms | 246.2KB | 4,855 |
+| **AppendIf** | - | 1 | 24 ops/sec | 97.3ms | 3.9KB | 79 |
+| **AppendIf** | - | 5 | 24 ops/sec | 104.3ms | 12.3KB | 164 |
+| **AppendIf** | - | 12 | 22 ops/sec | 102.1ms | 22.6KB | 308 |
 
 **Scaling Patterns**:
 - **1 User**: Best performance, minimal resource usage
