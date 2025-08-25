@@ -45,6 +45,13 @@
 | **AppendIf_5** | 24 ops/sec | 104.3ms | 12.3KB | 164 |
 | **AppendIf_12** | 22 ops/sec | 102.1ms | 22.6KB | 308 |
 
+**Batch Size Explanation**:
+- **AppendIf_1**: Append 1 event if condition passes
+- **AppendIf_5**: Append 5 events if condition passes  
+- **AppendIf_12**: Append 12 events if condition passes
+
+**What AppendIf Does**: Checks business rule condition before inserting events (e.g., "only insert if user doesn't already exist")
+
 ## Isolation Levels
 
 - **Simple Append**: READ COMMITTED (benchCtx.Store)
