@@ -322,117 +322,57 @@ func selectCourse(courses []CourseData, courseEnrollments map[string]int, studen
 	return availableCourses[0] // Fallback
 }
 
-// LoadDatasetIntoStore loads the dataset into the event store
+// LoadDatasetIntoStore loads the generated dataset into the event store
 func LoadDatasetIntoStore(ctx context.Context, store dcb.EventStore, dataset *Dataset) error {
-	fmt.Printf("Loading dataset: %d courses, %d students, %d enrollments\n",
-		len(dataset.Courses), len(dataset.Students), len(dataset.Enrollments))
+	// Create course events
+	for _, course := range dataset.Courses {
+		event := dcb.NewInputEvent("CourseCreated",
+			dcb.NewTags("course_id", course.ID, "category", course.Category),
+			[]byte(fmt.Sprintf(`{
+				"id": "%s",
+				"name": "%s",
+				"instructor": "%s",
+				"capacity": %d,
+				"category": "%s",
+				"popularity": %f
+			}`, course.ID, course.Name, course.Instructor, course.Capacity, course.Category, course.Popularity)))
 
-	// Load courses
-	if err := loadCourses(ctx, store, dataset.Courses); err != nil {
-		return fmt.Errorf("failed to load courses: %w", err)
-	}
-
-	// Load students
-	if err := loadStudents(ctx, store, dataset.Students); err != nil {
-		return fmt.Errorf("failed to load students: %w", err)
-	}
-
-	// Load enrollments
-	if err := loadEnrollments(ctx, store, dataset.Enrollments); err != nil {
-		return fmt.Errorf("failed to load enrollments: %w", err)
-	}
-
-	fmt.Println("Dataset loaded successfully")
-	return nil
-}
-
-// loadCourses loads course events into the store
-func loadCourses(ctx context.Context, store dcb.EventStore, courses []CourseData) error {
-	const batchSize = 1000
-
-	for i := 0; i < len(courses); i += batchSize {
-		end := i + batchSize
-		if end > len(courses) {
-			end = len(courses)
-		}
-
-		batch := courses[i:end]
-		events := make([]dcb.InputEvent, len(batch))
-
-		for j, course := range batch {
-			events[j] = dcb.NewInputEvent("CourseDefined",
-				dcb.NewTags("course_id", course.ID, "category", course.Category),
-				[]byte(fmt.Sprintf(`{"courseId": "%s", "name": "%s", "capacity": %d, "instructor": "%s", "category": "%s", "popularity": %.2f}`,
-					course.ID, course.Name, course.Capacity, course.Instructor, course.Category, course.Popularity)))
-		}
-
-		err := store.Append(ctx, events)
-		if err != nil {
-			return fmt.Errorf("failed to append course batch %d-%d: %w", i, end-1, err)
+		if err := store.Append(ctx, []dcb.InputEvent{event}); err != nil {
+			return fmt.Errorf("failed to create course event: %v", err)
 		}
 	}
 
-	return nil
-}
+	// Create student events
+	for _, student := range dataset.Students {
+		event := dcb.NewInputEvent("StudentRegistered",
+			dcb.NewTags("student_id", student.ID, "major", student.Major),
+			[]byte(fmt.Sprintf(`{
+				"id": "%s",
+				"name": "%s",
+				"email": "%s",
+				"major": "%s",
+				"year": %d,
+				"maxCourses": %d
+			}`, student.ID, student.Name, student.Email, student.Major, student.Year, student.MaxCourses)))
 
-// loadStudents loads student events into the store
-func loadStudents(ctx context.Context, store dcb.EventStore, students []StudentData) error {
-	const batchSize = 1000
-
-	for i := 0; i < len(students); i += batchSize {
-		end := i + batchSize
-		if end > len(students) {
-			end = len(students)
-		}
-
-		batch := students[i:end]
-		events := make([]dcb.InputEvent, len(batch))
-
-		for j, student := range batch {
-			events[j] = dcb.NewInputEvent("StudentRegistered",
-				dcb.NewTags("student_id", student.ID, "major", student.Major, "year", fmt.Sprintf("%d", student.Year)),
-				[]byte(fmt.Sprintf(`{"studentId": "%s", "name": "%s", "email": "%s", "major": "%s", "year": %d, "maxCourses": %d}`,
-					student.ID, student.Name, student.Email, student.Major, student.Year, student.MaxCourses)))
-		}
-
-		err := store.Append(ctx, events)
-		if err != nil {
-			return fmt.Errorf("failed to append student batch %d-%d: %w", i, end-1, err)
+		if err := store.Append(ctx, []dcb.InputEvent{event}); err != nil {
+			return fmt.Errorf("failed to create student event: %v", err)
 		}
 	}
 
-	return nil
-}
+	// Create enrollment events
+	for _, enrollment := range dataset.Enrollments {
+		event := dcb.NewInputEvent("StudentEnrolled",
+			dcb.NewTags("student_id", enrollment.StudentID, "course_id", enrollment.CourseID),
+			[]byte(fmt.Sprintf(`{
+				"studentId": "%s",
+				"courseId": "%s",
+				"enrolledAt": "%s",
+				"grade": "%s"
+			}`, enrollment.StudentID, enrollment.CourseID, enrollment.EnrolledAt.Format(time.RFC3339), enrollment.Grade)))
 
-// loadEnrollments loads enrollment events into the store
-func loadEnrollments(ctx context.Context, store dcb.EventStore, enrollments []EnrollmentData) error {
-	const batchSize = 1000
-
-	for i := 0; i < len(enrollments); i += batchSize {
-		end := i + batchSize
-		if end > len(enrollments) {
-			end = len(enrollments)
-		}
-
-		batch := enrollments[i:end]
-		events := make([]dcb.InputEvent, len(batch))
-
-		for j, enrollment := range batch {
-			// Add grade tag if present
-			tags := dcb.NewTags("student_id", enrollment.StudentID, "course_id", enrollment.CourseID)
-			if enrollment.Grade != "" {
-				tags = dcb.NewTags("student_id", enrollment.StudentID, "course_id", enrollment.CourseID, "grade", enrollment.Grade)
-			}
-
-			events[j] = dcb.NewInputEvent("StudentEnrolledInCourse",
-				tags,
-				[]byte(fmt.Sprintf(`{"studentId": "%s", "courseId": "%s", "enrolledAt": "%s", "grade": "%s"}`,
-					enrollment.StudentID, enrollment.CourseID, enrollment.EnrolledAt.Format(time.RFC3339), enrollment.Grade)))
-		}
-
-		err := store.Append(ctx, events)
-		if err != nil {
-			return fmt.Errorf("failed to append enrollment batch %d-%d: %w", i, end-1, err)
+		if err := store.Append(ctx, []dcb.InputEvent{event}); err != nil {
+			return fmt.Errorf("failed to create enrollment event: %v", err)
 		}
 	}
 

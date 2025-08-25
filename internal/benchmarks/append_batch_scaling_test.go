@@ -11,7 +11,7 @@ import (
 
 // BenchmarkAppendBatch_1 tests append with batch size 1
 func BenchmarkAppendBatch_1(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small")
+	benchCtx := SetupBenchmarkContext(b, "small", 100)
 	ctx := context.Background()
 
 	b.ResetTimer()
@@ -34,7 +34,7 @@ func BenchmarkAppendBatch_1(b *testing.B) {
 
 // BenchmarkAppendBatch_5 tests append with batch size 5
 func BenchmarkAppendBatch_5(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small")
+	benchCtx := SetupBenchmarkContext(b, "small", 100)
 	ctx := context.Background()
 
 	b.ResetTimer()
@@ -60,7 +60,7 @@ func BenchmarkAppendBatch_5(b *testing.B) {
 
 // BenchmarkAppendBatch_12 tests append with batch size 12
 func BenchmarkAppendBatch_12(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small")
+	benchCtx := SetupBenchmarkContext(b, "small", 100)
 	ctx := context.Background()
 
 	b.ResetTimer()

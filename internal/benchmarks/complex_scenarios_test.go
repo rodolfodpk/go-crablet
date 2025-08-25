@@ -13,7 +13,7 @@ import (
 // BenchmarkComplexBusinessWorkflow_Small tests a complete business workflow
 // that mirrors real-world usage patterns
 func BenchmarkComplexBusinessWorkflow_Small(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small")
+	benchCtx := SetupBenchmarkContext(b, "small", 100)
 	ctx := context.Background()
 
 	b.ResetTimer()
@@ -71,7 +71,7 @@ func BenchmarkComplexBusinessWorkflow_Small(b *testing.B) {
 // BenchmarkConcurrentAppends_Small simulates multiple concurrent users
 // performing operations simultaneously
 func BenchmarkConcurrentAppends_Small(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small")
+	benchCtx := SetupBenchmarkContext(b, "small", 100)
 	ctx := context.Background()
 
 	b.ResetTimer()
@@ -115,7 +115,7 @@ func BenchmarkConcurrentAppends_Small(b *testing.B) {
 // BenchmarkMixedOperations_Small tests a mix of append, query, and projection
 // operations that mirror real-world application patterns
 func BenchmarkMixedOperations_Small(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small")
+	benchCtx := SetupBenchmarkContext(b, "small", 100)
 	ctx := context.Background()
 
 	b.ResetTimer()
@@ -158,7 +158,7 @@ func BenchmarkMixedOperations_Small(b *testing.B) {
 // BenchmarkBusinessRuleValidation_Small tests complex business rule validation
 // scenarios that require multiple DCB conditions
 func BenchmarkBusinessRuleValidation_Small(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small")
+	benchCtx := SetupBenchmarkContext(b, "small", 100)
 	ctx := context.Background()
 
 	b.ResetTimer()
@@ -195,7 +195,7 @@ func BenchmarkBusinessRuleValidation_Small(b *testing.B) {
 // BenchmarkRequestBurst_Small simulates burst traffic patterns
 // that are common in web applications
 func BenchmarkRequestBurst_Small(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small")
+	benchCtx := SetupBenchmarkContext(b, "small", 100)
 	ctx := context.Background()
 
 	b.ResetTimer()
@@ -230,7 +230,7 @@ func BenchmarkRequestBurst_Small(b *testing.B) {
 // BenchmarkSustainedLoad_Small simulates sustained load over time
 // to test performance consistency
 func BenchmarkSustainedLoad_Small(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small")
+	benchCtx := SetupBenchmarkContext(b, "small", 100)
 	ctx := context.Background()
 
 	b.ResetTimer()

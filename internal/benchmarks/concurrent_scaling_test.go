@@ -12,7 +12,7 @@ import (
 
 // BenchmarkConcurrentScaling_1User tests single user performance
 func BenchmarkConcurrentScaling_1User(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small")
+	benchCtx := SetupBenchmarkContext(b, "small", 100)
 	ctx := context.Background()
 
 	b.ResetTimer()
@@ -21,7 +21,7 @@ func BenchmarkConcurrentScaling_1User(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// Single user performing course registration
 		student := benchCtx.Dataset.Students[i%len(benchCtx.Dataset.Students)]
-		
+
 		event := dcb.NewInputEvent("StudentCourseRegistration",
 			dcb.NewTags("student_id", student.ID, "action_type", "registration", "concurrent_user", "1"),
 			[]byte(fmt.Sprintf(`{
@@ -40,7 +40,7 @@ func BenchmarkConcurrentScaling_1User(b *testing.B) {
 
 // BenchmarkConcurrentScaling_10Users tests 10 concurrent users
 func BenchmarkConcurrentScaling_10Users(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small")
+	benchCtx := SetupBenchmarkContext(b, "small", 100)
 	ctx := context.Background()
 
 	b.ResetTimer()
@@ -57,7 +57,7 @@ func BenchmarkConcurrentScaling_10Users(b *testing.B) {
 				defer wg.Done()
 
 				student := benchCtx.Dataset.Students[userID%len(benchCtx.Dataset.Students)]
-				
+
 				event := dcb.NewInputEvent("StudentCourseRegistration",
 					dcb.NewTags("student_id", student.ID, "action_type", "registration", "concurrent_user", fmt.Sprintf("%d", userID)),
 					[]byte(fmt.Sprintf(`{
@@ -80,7 +80,7 @@ func BenchmarkConcurrentScaling_10Users(b *testing.B) {
 
 // BenchmarkConcurrentScaling_100Users tests 100 concurrent users
 func BenchmarkConcurrentScaling_100Users(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small")
+	benchCtx := SetupBenchmarkContext(b, "small", 100)
 	ctx := context.Background()
 
 	b.ResetTimer()
@@ -97,7 +97,7 @@ func BenchmarkConcurrentScaling_100Users(b *testing.B) {
 				defer wg.Done()
 
 				student := benchCtx.Dataset.Students[userID%len(benchCtx.Dataset.Students)]
-				
+
 				event := dcb.NewInputEvent("StudentCourseRegistration",
 					dcb.NewTags("student_id", student.ID, "action_type", "registration", "concurrent_user", fmt.Sprintf("%d", userID)),
 					[]byte(fmt.Sprintf(`{
@@ -120,7 +120,7 @@ func BenchmarkConcurrentScaling_100Users(b *testing.B) {
 
 // BenchmarkConcurrentRead_1User tests single user read performance
 func BenchmarkConcurrentRead_1User(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small")
+	benchCtx := SetupBenchmarkContext(b, "small", 100)
 	ctx := context.Background()
 
 	b.ResetTimer()
@@ -137,7 +137,7 @@ func BenchmarkConcurrentRead_1User(b *testing.B) {
 
 // BenchmarkConcurrentRead_10Users tests 10 concurrent users reading
 func BenchmarkConcurrentRead_10Users(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small")
+	benchCtx := SetupBenchmarkContext(b, "small", 100)
 	ctx := context.Background()
 
 	b.ResetTimer()
@@ -167,7 +167,7 @@ func BenchmarkConcurrentRead_10Users(b *testing.B) {
 
 // BenchmarkConcurrentRead_100Users tests 100 concurrent users reading
 func BenchmarkConcurrentRead_100Users(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small")
+	benchCtx := SetupBenchmarkContext(b, "small", 100)
 	ctx := context.Background()
 
 	b.ResetTimer()
@@ -197,7 +197,7 @@ func BenchmarkConcurrentRead_100Users(b *testing.B) {
 
 // BenchmarkConcurrentProjection_1User tests single user projection performance
 func BenchmarkConcurrentProjection_1User(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small")
+	benchCtx := SetupBenchmarkContext(b, "small", 100)
 	ctx := context.Background()
 
 	b.ResetTimer()
@@ -217,7 +217,7 @@ func BenchmarkConcurrentProjection_1User(b *testing.B) {
 
 // BenchmarkConcurrentProjection_10Users tests 10 concurrent users projecting
 func BenchmarkConcurrentProjection_10Users(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small")
+	benchCtx := SetupBenchmarkContext(b, "small", 100)
 	ctx := context.Background()
 
 	b.ResetTimer()
@@ -250,7 +250,7 @@ func BenchmarkConcurrentProjection_10Users(b *testing.B) {
 
 // BenchmarkConcurrentProjection_100Users tests 100 concurrent users projecting
 func BenchmarkConcurrentProjection_100Users(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small")
+	benchCtx := SetupBenchmarkContext(b, "small", 100)
 	ctx := context.Background()
 
 	b.ResetTimer()

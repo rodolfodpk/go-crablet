@@ -600,56 +600,86 @@ func BenchmarkReadChannel(b *testing.B, benchCtx *BenchmarkContext, queryIndex i
 	}
 }
 
-// BenchmarkProject benchmarks state projection
-func BenchmarkProject(b *testing.B, benchCtx *BenchmarkContext, projectorCount int) {
-	// Create context with timeout for each benchmark iteration
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	if projectorCount > len(benchCtx.Projectors) {
-		b.Fatalf("Projector count out of range: %d", projectorCount)
+// BenchmarkProject benchmarks synchronous projection operations
+func BenchmarkProject(b *testing.B, benchCtx *BenchmarkContext, eventCount int) {
+	ctx := context.Background()
+	
+	// Create a simple projector for testing
+	projector := dcb.StateProjector{
+		ID:           "test_projection",
+		Query:        dcb.NewQueryBuilder().WithType("TestEvent").WithTag("test", "benchmark").Build(),
+		InitialState: map[string]interface{}{"count": 0, "events": []string{}},
+		TransitionFn: func(state any, event dcb.Event) any {
+			stateMap := state.(map[string]interface{})
+			count := stateMap["count"].(int)
+			events := stateMap["events"].([]string)
+			
+			// Update state based on event
+			stateMap["count"] = count + 1
+			stateMap["events"] = append(events, event.Type)
+			
+			return stateMap
+		},
 	}
-
-	projectors := benchCtx.Projectors[:projectorCount]
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		states, _, err := benchCtx.Store.Project(ctx, projectors, nil)
+		// Project state from events
+		_, _, err := benchCtx.Store.Project(ctx, []dcb.StateProjector{projector}, nil)
 		if err != nil {
-			b.Fatalf("Project failed: %v", err)
+			b.Fatal(err)
 		}
-		_ = states // Prevent compiler optimization
 	}
 }
 
-// BenchmarkProjectStream benchmarks channel-based state projection
-func BenchmarkProjectStream(b *testing.B, benchCtx *BenchmarkContext, projectorCount int) {
-	// Create context with timeout for each benchmark iteration
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	if projectorCount > len(benchCtx.Projectors) {
-		b.Fatalf("Projector count out of range: %d", projectorCount)
+// BenchmarkProjectStream benchmarks asynchronous streaming projection operations
+func BenchmarkProjectStream(b *testing.B, benchCtx *BenchmarkContext, eventCount int) {
+	ctx := context.Background()
+	
+	// Create a simple projector for testing
+	projector := dcb.StateProjector{
+		ID:           "test_stream_projection",
+		Query:        dcb.NewQueryBuilder().WithType("TestEvent").WithTag("test", "benchmark").Build(),
+		InitialState: map[string]interface{}{"count": 0, "events": []string{}},
+		TransitionFn: func(state any, event dcb.Event) any {
+			stateMap := state.(map[string]interface{})
+			count := stateMap["count"].(int)
+			events := stateMap["events"].([]string)
+			
+			// Update state based on event
+			stateMap["count"] = count + 1
+			stateMap["events"] = append(events, event.Type)
+			
+			return stateMap
+		},
 	}
-
-	projectors := benchCtx.Projectors[:projectorCount]
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		stateChan, _, err := benchCtx.ChannelStore.ProjectStream(ctx, projectors, nil)
+		// Start streaming projection
+		stateChan, conditionChan, err := benchCtx.Store.ProjectStream(ctx, []dcb.StateProjector{projector}, nil)
 		if err != nil {
-			b.Fatalf("ProjectStream failed: %v", err)
+			b.Fatal(err)
 		}
 
-		count := 0
-		for range stateChan {
-			count++
+		// Consume from channels
+		select {
+		case state := <-stateChan:
+			_ = state // Use state to prevent optimization
+		case <-time.After(5 * time.Second):
+			b.Fatal("ProjectStream timeout")
 		}
-		_ = count // Prevent compiler optimization
+
+		select {
+		case condition := <-conditionChan:
+			_ = condition // Use condition to prevent optimization
+		case <-time.After(5 * time.Second):
+			b.Fatal("ProjectStream condition timeout")
+		}
 	}
 }
 

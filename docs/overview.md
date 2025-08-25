@@ -254,6 +254,10 @@ config := dcb.EventStoreConfig{
 }
 
 store, err := dcb.NewEventStoreWithConfig(ctx, pool, config)
+
+## Usage Patterns
+
+**Common event batch sizes**: 1 (single), 2-3 (simple), 5-8 (business), 12 (complex workflows)
 ```
 
 
