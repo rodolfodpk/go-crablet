@@ -23,7 +23,6 @@
 
 **Projection Types**: 
 - **State Projection (Sync)**: Uses `Project()` method for synchronous state reconstruction
-- **State Projection (Async)**: Uses `ProjectStream()` method for asynchronous streaming with goroutines
 
 ## Concurrent Scaling Performance
 
