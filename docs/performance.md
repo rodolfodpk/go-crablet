@@ -12,9 +12,9 @@
 | Operation | Throughput | Latency | Memory | Allocations |
 |-----------|------------|---------|---------|-------------|
 | **Single Append** | 2,362 ops/sec | 1.05ms | 1.4KB | 44 |
-| **Realistic Batch (1-12)** | 2,048 ops/sec | 1.16ms | 11.2KB | 162 |
+| **Realistic Batch (1-100)** | 2,048 ops/sec | 1.16ms | 11.2KB | 162 |
 | **AppendIf (Conditional)** | 24 ops/sec | 97.3ms | 3.9KB | 79 |
-| **AppendIf Batch (1-12)** | 22 ops/sec | 102.1ms | 22.6KB | 308 |
+| **AppendIf Batch (1-100)** | 22 ops/sec | 102.1ms | 22.6KB | 308 |
 | **Simple Read** | 3,649 ops/sec | 357μs | 1.0KB | 21 |
 | **Complex Queries** | 2,058 ops/sec | 1.15ms | 382KB | 5,771 |
 | **State Projection** | 3,394 ops/sec | 357μs | 1.5KB | 29 |
@@ -43,7 +43,7 @@
 
 **Scenario**: Course registration events - students enrolling in courses with unique IDs
 - **Single Event**: One student registers for one course
-- **Batch Events**: One student registers for multiple courses (1-12 courses)
+- **Batch Events**: One student registers for multiple courses (1-100 courses)
 
 | Users | Event Count | Throughput | Latency | Memory | Allocations |
 |-------|-------------|------------|---------|---------|-------------|
@@ -61,7 +61,7 @@
 
 **Scenario**: Conditional course enrollment - only enroll if student hasn't already enrolled in any of the requested courses
 - **Single Event**: Check condition and enroll in one course if valid
-- **Batch Events**: Check condition and enroll in multiple courses (1-10-100) if all are valid
+- **Batch Events**: Check condition and enroll in multiple courses (1-100 courses) if all are valid
 
 | Users | Event Count | Throughput | Latency | Memory | Allocations |
 |-------|-------------|------------|---------|---------|-------------|
@@ -79,7 +79,7 @@
 
 **Scenario**: Course and enrollment queries - retrieving student enrollment history and course information
 - **Single Event**: Query for one specific enrollment or course
-- **Multiple Events**: Query for multiple enrollments (10-100) with complex filtering
+- **Multiple Events**: Query for multiple enrollments (1-100) with complex filtering
 
 | Users | Event Count | Throughput | Latency | Memory | Allocations |
 |-------|-------------|------------|---------|---------|-------------|
@@ -97,7 +97,7 @@
 
 **Scenario**: State reconstruction - building current course and student states from event history
 - **Single Event**: Reconstruct state from one event type (e.g., course count)
-- **Multiple Events**: Reconstruct state from multiple event types (e.g., course + enrollment counts)
+- **Multiple Events**: Reconstruct state from multiple event types (e.g., course + enrollment counts, 1-100 events)
 
 | Users | Event Count | Throughput | Latency | Memory | Allocations |
 |-------|-------------|------------|---------|---------|-------------|
