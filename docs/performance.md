@@ -21,11 +21,29 @@
 
 | Scenario | Users | Throughput | Latency | Memory |
 |----------|-------|------------|---------|---------|
-| **Course Registration** | 10 | 423 ops/sec | 2.9ms | 26.2KB |
+| **Course Registration** | 1 | 2,535 ops/sec | 1.02ms | 2.5KB |
+| **Course Registration** | 10 | 835 ops/sec | 2.77ms | 26.1KB |
+| **Course Registration** | 100 | 198 ops/sec | 13.7ms | 269.5KB |
 | **Business Workflow** | 1 | 97 ops/sec | 12.4ms | 10.5KB |
 | **Mixed Operations** | 1 | 97 ops/sec | 12.4ms | 10.5KB |
 
 **Mixed Operations**: Append + Query + Project in sequence (DataUpdate events)
+
+### Concurrent Scaling Performance
+
+| Operation | 1 User | 10 Users | 100 Users |
+|-----------|---------|-----------|------------|
+| **Append** | 2,535 ops/sec | 835 ops/sec | 198 ops/sec |
+| **Read** | 1,047 ops/sec | 519 ops/sec | 50 ops/sec |
+| **Projection** | 1,180 ops/sec | 548 ops/sec | 52 ops/sec |
+
+### AppendIf Performance (Conditional Append)
+
+| Batch Size | Throughput | Latency | Memory | Allocations |
+|------------|------------|---------|---------|-------------|
+| **AppendIf_1** | 24 ops/sec | 97.3ms | 3.9KB | 79 |
+| **AppendIf_5** | 24 ops/sec | 104.3ms | 12.3KB | 164 |
+| **AppendIf_12** | 22 ops/sec | 102.1ms | 22.6KB | 308 |
 
 ## Isolation Levels
 
