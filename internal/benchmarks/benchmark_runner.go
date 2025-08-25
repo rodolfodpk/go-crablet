@@ -71,7 +71,8 @@ func getOrCreateGlobalPool() (*pgxpool.Pool, error) {
 }
 
 // SetupBenchmarkContext creates a new benchmark context with the specified dataset size
-func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
+// pastEventCount specifies how many past events to create for AppendIf testing (1, 10, 100, etc.)
+func SetupBenchmarkContext(b *testing.B, datasetSize string, pastEventCount int) *BenchmarkContext {
 	ctx := context.Background()
 
 	// Use the shared global pool
@@ -125,6 +126,13 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
 	// Load dataset into PostgreSQL for realistic benchmarking
 	if err := setup.LoadDatasetIntoStore(ctx, store, dataset); err != nil {
 		b.Fatalf("Failed to load dataset into store: %v", err)
+	}
+
+	// Create past events for AppendIf testing (business rule validation context)
+	if pastEventCount > 0 {
+		if err := createPastEventsForAppendIf(ctx, store, pastEventCount); err != nil {
+			b.Fatalf("Failed to create past events for AppendIf testing: %v", err)
+		}
 	}
 
 	// Create queries for benchmarking
@@ -332,6 +340,21 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
 		Queries:      queries,
 		Projectors:   projectors,
 	}
+}
+
+// createPastEventsForAppendIf creates a controlled number of past events for AppendIf testing
+// This ensures consistent business rule validation context across benchmark runs
+func createPastEventsForAppendIf(ctx context.Context, store dcb.EventStore, count int) error {
+	events := make([]dcb.InputEvent, count)
+	
+	for i := 0; i < count; i++ {
+		eventID := fmt.Sprintf("past_event_%d", i)
+		events[i] = dcb.NewInputEvent("PastEvent",
+			dcb.NewTags("test", "past", "event_id", eventID),
+			[]byte(fmt.Sprintf(`{"value": "past", "event_id": "%s", "index": %d}`, eventID, i)))
+	}
+	
+	return store.Append(ctx, events)
 }
 
 // BenchmarkAppendSingle benchmarks single event append
@@ -689,7 +712,8 @@ func BenchmarkMemoryUsage(b *testing.B, benchCtx *BenchmarkContext, operation st
 
 // RunAllBenchmarks runs all benchmarks with the specified dataset size
 func RunAllBenchmarks(b *testing.B, datasetSize string) {
-	benchCtx := SetupBenchmarkContext(b, datasetSize)
+	// Use 100 past events for realistic AppendIf testing (business rule validation context)
+	benchCtx := SetupBenchmarkContext(b, datasetSize, 100)
 
 	// Append benchmarks
 	b.Run("AppendSingle", func(b *testing.B) {
