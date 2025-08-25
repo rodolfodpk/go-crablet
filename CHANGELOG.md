@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Performance Documentation Accuracy**: Corrected incorrect benchmark numbers in performance documentation
+  - Fixed misleading claim that "Complex Queries are 7.6x faster than Simple Read" in Small dataset
+  - Updated actual benchmark results: Simple Read (337 ops/sec) vs Complex Business Workflow (361 ops/sec)
+  - Clarified that "Complex Queries" is actually testing a 4-step business workflow, not just queries
+  - Performance reality: Complex operations are slower (1.1x) due to multiple sequential operations
+
 ### Added
 - **Enhanced EventStoreConfig**: Added logical grouping for append and query operations
   - Improved organization with clear sections for append vs query configuration

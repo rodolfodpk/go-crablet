@@ -15,11 +15,11 @@
 | **AppendIf - With Conflict** | 14 ops/sec | 71.4ms | 6.1KB | 136 |
 | **AppendIf Batch - No Conflict (5)** | 14 ops/sec | 71.4ms | 12.7KB | 167 |
 | **AppendIf Batch - With Conflict (5)** | 13 ops/sec | 76.9ms | 14.7KB | 221 |
-| **Simple Read** | 678 ops/sec | 3.5ms | 2.2MB | 30,100 |
-| **Complex Queries** | 5,179 ops/sec | 0.44ms | 1.0KB | 21 |
+| **Simple Read** | 337 ops/sec | 3.92ms | 1.0KB | 21 |
+| **Complex Business Workflow** | 361 ops/sec | 13.39ms | 9.3KB | 183 |
 | **State Projection** | 673 ops/sec | 3.5ms | 1.4MB | 34,462 |
 
-**Note**: For detailed explanations of what "Simple Read" vs "Complex Queries" test, and why performance differs between operations, see the [Operation Types Explained](./performance.md#operation-types-explained) section in the main Performance Guide.
+**Note**: For detailed explanations of what "Simple Read" vs "Complex Business Workflow" test, and why performance differs between operations, see the [Operation Types Explained](./performance.md#operation-types-explained) section in the main Performance Guide. The "Complex Business Workflow" tests a 4-step enrollment process: student check, course check, enrollment check, and event append.
 
 ## Concurrent Scaling Performance
 

@@ -66,11 +66,11 @@ The performance tables show two different types of read operations:
 | Dataset | Simple Read | Complex Queries | Performance Pattern |
 |---------|-------------|-----------------|-------------------|
 | **Tiny** | 3,649 ops/sec | 2,058 ops/sec | Complex queries are 1.8x slower |
-| **Small** | 678 ops/sec | 5,179 ops/sec | Complex queries are 7.6x faster |
+| **Small** | 337 ops/sec | 361 ops/sec | Complex queries are 1.1x slower |
 
 **Tiny Dataset**: Complex queries are slower because they perform 4 sequential operations, and the overhead of multiple queries is more significant with minimal data.
 
-**Small Dataset**: Complex queries are faster because they benefit from:
+**Small Dataset**: Complex queries are slower (1.1x) because they still perform 4 sequential operations, but the performance difference is smaller due to:
 - **Better query optimization** with more data
 - **Improved indexing efficiency** 
 - **Reduced per-operation overhead** at scale
