@@ -120,15 +120,15 @@
 
 **Performance Impact**:
 - **Append**: 2,337 → 198 ops/sec (11.8x slower with 100 users, 1 event)
+- **AppendIf**: 24 → 15 ops/sec (1.6x slower with 100 users, 1 event)
 - **Read**: 1,047 → 50 ops/sec (20.9x slower with 100 events)  
 - **Projection**: 1,180 → 50 ops/sec (23.6x slower with 100 events)
-- **AppendIf**: 24 → 15 ops/sec (1.6x slower with 100 users, 1 event)
 
 **Event Count Explanation**:
 - **Append**: 1 event (single operation) vs 10-100 events (batch operations)
+- **AppendIf**: 1 event (single conditional) vs 10-100 events (batch conditional)
 - **Read**: 1 event (simple query) vs 10-100 events (complex queries)
 - **Projection**: 1 event (single projection) vs 10-100 events (complex projections)
-- **AppendIf**: 1 event (single conditional) vs 10-100 events (batch conditional)
 
 **What AppendIf Does**: 
 - Checks business rule condition BEFORE inserting ANY events
