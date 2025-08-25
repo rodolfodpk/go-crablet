@@ -154,6 +154,174 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
 				return state.(int) + 1
 			},
 		},
+		{
+			ID:           "projector3",
+			Query:        dcb.NewQuery(dcb.NewTags("test", "projector3")),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
+			},
+		},
+		{
+			ID:           "projector4",
+			Query:        dcb.NewQuery(dcb.NewTags("test", "projector4")),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
+			},
+		},
+		{
+			ID:           "projector5",
+			Query:        dcb.NewQuery(dcb.NewTags("test", "projector5")),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
+			},
+		},
+		{
+			ID:           "projector6",
+			Query:        dcb.NewQuery(dcb.NewTags("test", "projector6")),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
+			},
+		},
+		{
+			ID:           "projector7",
+			Query:        dcb.NewQuery(dcb.NewTags("test", "projector7")),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
+			},
+		},
+		{
+			ID:           "projector8",
+			Query:        dcb.NewQuery(dcb.NewTags("test", "projector8")),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
+			},
+		},
+		{
+			ID:           "projector9",
+			Query:        dcb.NewQuery(dcb.NewTags("test", "projector9")),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
+			},
+		},
+		{
+			ID:           "projector10",
+			Query:        dcb.NewQuery(dcb.NewTags("test", "projector10")),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
+			},
+		},
+		{
+			ID:           "projector11",
+			Query:        dcb.NewQuery(dcb.NewTags("test", "projector11")),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
+			},
+		},
+		{
+			ID:           "projector12",
+			Query:        dcb.NewQuery(dcb.NewTags("test", "projector12")),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
+			},
+		},
+		{
+			ID:           "projector13",
+			Query:        dcb.NewQuery(dcb.NewTags("test", "projector13")),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
+			},
+		},
+		{
+			ID:           "projector14",
+			Query:        dcb.NewQuery(dcb.NewTags("test", "projector14")),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
+			},
+		},
+		{
+			ID:           "projector15",
+			Query:        dcb.NewQuery(dcb.NewTags("test", "projector15")),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
+			},
+		},
+		{
+			ID:           "projector16",
+			Query:        dcb.NewQuery(dcb.NewTags("test", "projector16")),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
+			},
+		},
+		{
+			ID:           "projector17",
+			Query:        dcb.NewQuery(dcb.NewTags("test", "projector17")),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
+			},
+		},
+		{
+			ID:           "projector18",
+			Query:        dcb.NewQuery(dcb.NewTags("test", "projector18")),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
+			},
+		},
+		{
+			ID:           "projector19",
+			Query:        dcb.NewQuery(dcb.NewTags("test", "projector19")),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
+			},
+		},
+		{
+			ID:           "projector20",
+			Query:        dcb.NewQuery(dcb.NewTags("test", "projector20")),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
+			},
+		},
+		{
+			ID:           "projector50",
+			Query:        dcb.NewQuery(dcb.NewTags("test", "projector50")),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
+			},
+		},
+		{
+			ID:           "projector100",
+			Query:        dcb.NewQuery(dcb.NewTags("test", "projector100")),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
+			},
+		},
+		{
+			ID:           "projector120",
+			Query:        dcb.NewQuery(dcb.NewTags("test", "projector120")),
+			InitialState: 0,
+			TransitionFn: func(state any, event dcb.Event) any {
+				return state.(int) + 1
+			},
+		},
 	}
 
 	return &BenchmarkContext{
