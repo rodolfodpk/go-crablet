@@ -385,7 +385,8 @@ func BenchmarkAppendRealistic(b *testing.B, benchCtx *BenchmarkContext) {
 	}
 }
 
-// BenchmarkAppendIf benchmarks conditional append with RepeatableRead isolation
+// BenchmarkAppendIf benchmarks conditional append with NO CONFLICT (business rule passes)
+// This should perform closer to regular Append since the condition always succeeds
 func BenchmarkAppendIf(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
 	// Create context with timeout for each benchmark iteration
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -417,40 +418,10 @@ func BenchmarkAppendIf(b *testing.B, benchCtx *BenchmarkContext, batchSize int) 
 	}
 }
 
-// BenchmarkAppendIfWithCondition benchmarks conditional append with configurable isolation
-// NOTE: The isolation level is configured in the EventStore config.
-func BenchmarkAppendIfWithCondition(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
-	// Create context with timeout for each benchmark iteration
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
 
-	b.ResetTimer()
-	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
-		events := make([]dcb.InputEvent, batchSize)
-		uniqueID := fmt.Sprintf("appendif_%d_%d", time.Now().UnixNano(), i)
-
-		for j := 0; j < batchSize; j++ {
-			eventID := fmt.Sprintf("%s_%d", uniqueID, j)
-			events[j] = dcb.NewInputEvent("TestEvent",
-				dcb.NewTags("test", "appendif", "unique_id", eventID),
-				[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, eventID)))
-		}
-
-		// Create a simple condition that should pass (no conflicting events)
-		condition := dcb.NewAppendCondition(
-			dcb.NewQuery(dcb.NewTags("test", "conflict"), "ConflictingEvent"),
-		)
-
-		err := benchCtx.Store.AppendIf(ctx, events, condition)
-		if err != nil {
-			b.Fatalf("AppendIf failed: %v", err)
-		}
-	}
-}
-
-// BenchmarkAppendIfWithConflict benchmarks AppendIf with a condition that should fail
+// BenchmarkAppendIfWithConflict benchmarks AppendIf WITH CONFLICT (business rule fails)
+// This should be slower than no-conflict scenario due to rollback and error handling
 func BenchmarkAppendIfWithConflict(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
 	// Create context with timeout for each benchmark iteration
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -730,27 +701,31 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 		BenchmarkAppendRealistic(b, benchCtx)
 	})
 
-	// Conditional append benchmarks (realistic batch sizes)
-	b.Run("AppendIf_1", func(b *testing.B) {
-		BenchmarkAppendIf(b, benchCtx, 1)
-	})
+	// Conditional append benchmarks - NO CONFLICT (business rule passes)
+b.Run("AppendIf_NoConflict_1", func(b *testing.B) {
+	BenchmarkAppendIf(b, benchCtx, 1)
+})
 
-	b.Run("AppendIf_5", func(b *testing.B) {
-		BenchmarkAppendIf(b, benchCtx, 5)
-	})
+b.Run("AppendIf_NoConflict_5", func(b *testing.B) {
+	BenchmarkAppendIf(b, benchCtx, 5)
+})
 
-	b.Run("AppendIf_12", func(b *testing.B) {
-		BenchmarkAppendIf(b, benchCtx, 12)
-	})
+b.Run("AppendIf_NoConflict_12", func(b *testing.B) {
+	BenchmarkAppendIf(b, benchCtx, 12)
+})
 
-	// Conflict benchmarks (realistic batch sizes)
-	b.Run("AppendIfWithConflict_1", func(b *testing.B) {
-		BenchmarkAppendIfWithConflict(b, benchCtx, 1)
-	})
+// Conditional append benchmarks - WITH CONFLICT (business rule fails)
+b.Run("AppendIf_WithConflict_1", func(b *testing.B) {
+	BenchmarkAppendIfWithConflict(b, benchCtx, 1)
+})
 
-	b.Run("AppendIfWithConflict_5", func(b *testing.B) {
-		BenchmarkAppendIfWithConflict(b, benchCtx, 5)
-	})
+b.Run("AppendIf_WithConflict_5", func(b *testing.B) {
+	BenchmarkAppendIfWithConflict(b, benchCtx, 5)
+})
+
+b.Run("AppendIf_WithConflict_12", func(b *testing.B) {
+	BenchmarkAppendIfWithConflict(b, benchCtx, 12)
+})
 
 	// Read benchmarks
 	b.Run("Read_Single", func(b *testing.B) {

@@ -60,6 +60,11 @@
 #### AppendIf Operations (Conditional Append)
 
 **Scenario**: Conditional course enrollment - only enroll if student hasn't already enrolled in any of the requested courses
+
+**Two Sub-Scenarios**:
+1. **No Conflict**: Business rule passes - student can enroll (should perform closer to regular Append)
+2. **With Conflict**: Business rule fails - student already enrolled, rollback occurs (slower due to error handling)
+
 - **Single Event**: Check condition and enroll in one course if valid
 - **Batch Events**: Check condition and enroll in multiple courses (1-100 courses) if all are valid
 
@@ -120,7 +125,8 @@
 
 **Performance Impact**:
 - **Append**: 2,337 → 198 ops/sec (11.8x slower with 100 users, 1 event)
-- **AppendIf**: 24 → 15 ops/sec (1.6x slower with 100 users, 1 event)
+- **AppendIf (No Conflict)**: 24 → 15 ops/sec (1.6x slower with 100 users, 1 event) - closer to Append performance
+- **AppendIf (With Conflict)**: Slower than no-conflict due to rollback and error handling
 - **Read**: 1,047 → 50 ops/sec (20.9x slower with 100 events)  
 - **Projection**: 1,180 → 50 ops/sec (23.6x slower with 100 events)
 
