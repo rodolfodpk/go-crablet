@@ -32,7 +32,13 @@
 
 ### Concurrent Scaling Performance
 
+**Test Scenarios**: Each operation simulates realistic business scenarios with increasing concurrent user load to measure performance degradation under stress.
+
 #### Append Operations
+
+**Scenario**: Course registration events - students enrolling in courses with unique IDs
+- **Single Event**: One student registers for one course
+- **Batch Events**: One student registers for multiple courses (1-12 courses)
 
 | Users | Event Count | Throughput | Latency | Memory | Allocations |
 |-------|-------------|------------|---------|---------|-------------|
@@ -45,6 +51,10 @@
 
 #### AppendIf Operations (Conditional Append)
 
+**Scenario**: Conditional course enrollment - only enroll if student hasn't already enrolled in any of the requested courses
+- **Single Event**: Check condition and enroll in one course if valid
+- **Batch Events**: Check condition and enroll in multiple courses (1-12) if all are valid
+
 | Users | Event Count | Throughput | Latency | Memory | Allocations |
 |-------|-------------|------------|---------|---------|-------------|
 | 1 | 1 | 24 ops/sec | 97.3ms | 3.9KB | 79 |
@@ -56,6 +66,10 @@
 
 #### Read Operations
 
+**Scenario**: Course and enrollment queries - retrieving student enrollment history and course information
+- **Single Event**: Query for one specific enrollment or course
+- **Multiple Events**: Query for multiple enrollments (10-100) with complex filtering
+
 | Users | Event Count | Throughput | Latency | Memory | Allocations |
 |-------|-------------|------------|---------|---------|-------------|
 | 1 | 1 | 1,047 ops/sec | 2.02ms | 1.1KB | 25 |
@@ -63,6 +77,10 @@
 | 1 | 100 | 50 ops/sec | 46.6ms | 120.7KB | 2,853 |
 
 #### Projection Operations
+
+**Scenario**: State reconstruction - building current course and student states from event history
+- **Single Event**: Reconstruct state from one event type (e.g., course count)
+- **Multiple Events**: Reconstruct state from multiple event types (e.g., course + enrollment counts)
 
 | Users | Event Count | Throughput | Latency | Memory | Allocations |
 |-------|-------------|------------|---------|---------|-------------|
