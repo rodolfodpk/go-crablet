@@ -3,7 +3,7 @@
 # Go-Crablet Cursor Configuration
 
 ## Project Overview
-This is a Go event sourcing library **exploring** the Dynamic Consistency Boundary (DCB) approach with PostgreSQL for production and SQLite for benchmark test data.
+This is a Go event sourcing library **exploring** the Dynamic Consistency Boundary (DCB) pattern with PostgreSQL for production and SQLite for benchmark test data.
 
 **IMPORTANT: This is an exploration project, not a production-ready solution.**
 - We are **learning and experimenting** with DCB concepts
@@ -94,96 +94,6 @@ To improve coverage further:
 2. **Test edge cases** - concurrency errors, table structure errors, etc.
 3. **Add integration tests** - for the config-based constructors
 4. **Test helper functions** - the `is*` type checking functions
-
-## Benchmark System
-
-### Current Benchmark Structure
-The project has a comprehensive benchmark system with two dataset sizes:
-
-#### Dataset Sizes
-- **"tiny"**: 5 courses, 10 students, 17 enrollments
-  - **Use Case**: Quick testing, development, fast feedback
-  - **Past Events**: 10 events for AppendIf testing
-  - **Performance**: Best case scenarios, minimal data volume
-- **"small"**: 1,000 courses, 10,000 students, 49,871 enrollments
-  - **Use Case**: Realistic testing, production planning, scalability analysis
-  - **Past Events**: 100 events for AppendIf testing
-  - **Performance**: Real-world scenarios, data volume impact
-
-#### Benchmark Categories
-- **Core Operations**: Append, AppendIf, Read, Projection
-- **Concurrent Scaling**: 1, 10, and 100 concurrent users
-- **Realistic Batch Sizes**: 1, 5, and 12 events per operation
-- **Business Scenarios**: Course enrollment, account transfers, mixed workflows
-
-### Benchmark Documentation Structure
-Performance documentation is organized into three files:
-
-1. **`docs/performance.md`**: Overview with links to dataset-specific pages
-2. **`docs/performance-tiny.md`**: Detailed results for Tiny dataset
-3. **`docs/performance-small.md`**: Detailed results for Small dataset
-
-### Running Benchmarks
-```bash
-cd internal/benchmarks
-go test -bench=. -benchmem -benchtime=2s -timeout=5m .
-
-# Quick tests
-go test -bench=BenchmarkAppend_Tiny -benchtime=1s
-```
-
-### Benchmark Guidelines
-- **Use realistic batch sizes**: 1-12 events per operation (not 100, 1000)
-- **Test concurrency scaling**: 1, 10, and 100 users
-- **Include both datasets**: Tiny for development, Small for production planning
-- **Document performance insights**: Explain why performance differs between datasets
-- **Show business context**: Explain what each benchmark scenario represents
-
-## Documentation Structure
-
-### Performance Documentation
-- **Main overview** (`docs/performance.md`): High-level summary with navigation links
-- **Dataset-specific pages**: Separate detailed results for each dataset size
-- **Navigation links**: Easy browsing between overview and detailed results
-- **Performance insights**: Clear explanations of performance characteristics
-- **Dataset comparison**: Side-by-side comparison of Tiny vs Small datasets
-
-### Documentation Guidelines
-- **Be concise**: Remove verbose explanations and focus on key information
-- **Use clear language**: Avoid jargon and invented terms
-- **Organize by dataset**: Separate performance data by dataset size for clarity
-- **Include navigation**: Add links between related documentation pages
-- **Maintain consistency**: Use consistent terminology and formatting
-
-### Documentation Files
-- **`docs/overview.md`**: High-level concepts and API overview
-- **`docs/performance.md`**: Performance guide overview with dataset links
-- **`docs/performance-tiny.md`**: Tiny dataset detailed performance
-- **`docs/performance-small.md`**: Small dataset detailed performance
-- **`docs/command-execution-flow.md`**: Command execution workflow
-- **`docs/examples.md`**: Code examples and usage patterns
-
-## Terminology Guidelines
-
-### DCB References
-- **CORRECT**: "DCB approach", "DCB concepts", "DCB concurrency control"
-- **INCORRECT**: "DCB pattern", "DCB patterns"
-- **Reason**: DCB is an approach to thinking about consistency boundaries, not a design pattern
-
-### CommandExecutor References
-- **CORRECT**: "CommandExecutor API", "CommandExecutor convenience layer"
-- **INCORRECT**: "CommandExecutor pattern", "Atomic command execution"
-- **Reason**: CommandExecutor is an optional API helper, not a pattern, and uses database transactions for consistency
-
-### Performance Claims
-- **CORRECT**: "Performance varies by dataset size", "Tiny dataset shows best-case performance"
-- **INCORRECT**: "15x faster than X", "Best performance in class"
-- **Reason**: This is an exploration project, not a production solution
-
-### Event Generation
-- **CORRECT**: "Command handlers apply business logic to generate events"
-- **INCORRECT**: "Commands are converted to events", "Automatic event generation"
-- **Reason**: Business logic in handlers decides what events to create
 
 ## SQLite Test Data System
 
