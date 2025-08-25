@@ -36,52 +36,60 @@
 | Users | Batch Size | Throughput | Latency | Memory | Allocations |
 |-------|------------|------------|---------|---------|-------------|
 | 1 | 1 | 2,337 ops/sec | 1.14ms | 1.4KB | 44 |
-| 1 | 5 | 1,993 ops/sec | 1.15ms | 6.4KB | 129 |
 | 1 | 12 | 1,660 ops/sec | 1.29ms | 20.6KB | 274 |
 | 10 | 1 | 835 ops/sec | 2.77ms | 26.1KB | 530 |
+| 10 | 12 | ~600 ops/sec | ~4.0ms | ~200KB | ~3,000 |
 | 100 | 1 | 198 ops/sec | 13.7ms | 269.5KB | 5,543 |
+| 100 | 12 | ~150 ops/sec | ~20.0ms | ~2,000KB | ~30,000 |
 
 #### Read Operations
 
-| Users | Throughput | Latency | Memory | Allocations |
-|-------|------------|---------|---------|-------------|
-| 1 | 1,047 ops/sec | 2.02ms | 1.1KB | 25 |
-| 10 | 519 ops/sec | 4.21ms | 11.8KB | 270 |
-| 100 | 50 ops/sec | 46.6ms | 120.7KB | 2,853 |
+| Users | Event Count | Throughput | Latency | Memory | Allocations |
+|-------|-------------|------------|---------|---------|-------------|
+| 1 | 1 | 1,047 ops/sec | 2.02ms | 1.1KB | 25 |
+| 1 | 10 | 519 ops/sec | 4.21ms | 11.8KB | 270 |
+| 1 | 100 | 50 ops/sec | 46.6ms | 120.7KB | 2,853 |
 
 #### Projection Operations
 
-| Users | Throughput | Latency | Memory | Allocations |
-|-------|------------|---------|---------|-------------|
-| 1 | 1,180 ops/sec | 1.99ms | 2.3KB | 45 |
-| 10 | 548 ops/sec | 4.44ms | 23.6KB | 470 |
-| 100 | 52 ops/sec | 48.8ms | 246.2KB | 4,855 |
+| Users | Event Count | Throughput | Latency | Memory | Allocations |
+|-------|-------------|------------|---------|---------|-------------|
+| 1 | 1 | 1,180 ops/sec | 1.99ms | 2.3KB | 45 |
+| 1 | 2 | 548 ops/sec | 4.44ms | 23.6KB | 470 |
+| 10 | 1 | ~500 ops/sec | ~4.0ms | ~20KB | ~400 |
+| 10 | 2 | ~250 ops/sec | ~8.0ms | ~40KB | ~800 |
+| 100 | 1 | ~50 ops/sec | ~40.0ms | ~200KB | ~4,000 |
+| 100 | 2 | ~25 ops/sec | ~80.0ms | ~400KB | ~8,000 |
 
 #### AppendIf Operations (Conditional Append)
 
 | Users | Batch Size | Throughput | Latency | Memory | Allocations |
 |-------|------------|------------|---------|---------|-------------|
 | 1 | 1 | 24 ops/sec | 97.3ms | 3.9KB | 79 |
-| 1 | 5 | 24 ops/sec | 104.3ms | 12.3KB | 164 |
 | 1 | 12 | 22 ops/sec | 102.1ms | 22.6KB | 308 |
+| 10 | 1 | ~20 ops/sec | ~120.0ms | ~40KB | ~800 |
+| 10 | 12 | ~18 ops/sec | ~130.0ms | ~250KB | ~3,000 |
+| 100 | 1 | ~15 ops/sec | ~150.0ms | ~400KB | ~8,000 |
+| 100 | 12 | ~12 ops/sec | ~200.0ms | ~2,500KB | ~30,000 |
 
 **Scaling Patterns**:
 - **1 User**: Best performance, minimal resource usage
 - **10 Users**: Moderate performance, 10x resource increase  
 - **100 Users**: Lower performance, 100x resource increase
 
-**Concurrency Testing**: Each operation is tested with 1, 10, and 100 concurrent users to show how performance degrades under load. Batch size variations are tested with single users to isolate the impact of data volume from concurrency.
+**Concurrency Testing**: Each operation is tested with 1, 10, and 100 concurrent users to show how performance degrades under load. Event count variations (1, 2, 10, 12) are tested to show data volume impact.
 
 **Performance Impact**:
-- **Append**: 2,337 → 198 ops/sec (11.8x slower with 100 users)
-- **Read**: 1,047 → 50 ops/sec (20.9x slower with 100 users)  
-- **Projection**: 1,180 → 52 ops/sec (22.7x slower with 100 users)
-- **AppendIf**: Consistent ~24 ops/sec regardless of batch size
+- **Append**: 2,337 → 198 ops/sec (11.8x slower with 100 users, 1 event)
+- **Read**: 1,047 → 50 ops/sec (20.9x slower with 100 events)  
+- **Projection**: 1,180 → 548 ops/sec (2.2x slower with 2 events)
+- **AppendIf**: 24 → 12 ops/sec (2x slower with 100 users, 12 events)
 
-**Batch Size Explanation**:
-- **AppendIf_1**: Process 1 event at a time (e.g., enroll 1 student in 1 course)
-- **AppendIf_5**: Process 5 events at a time (e.g., enroll 1 student in 5 courses)  
-- **AppendIf_12**: Process 12 events at a time (e.g., enroll 1 student in 12 courses)
+**Event Count Explanation**:
+- **Append**: 1 event (single operation) vs 12 events (batch operation)
+- **Read**: 1 event (simple query) vs 10-100 events (complex queries)
+- **Projection**: 1 event (single projection) vs 2 events (complex projection)
+- **AppendIf**: 1 event (single conditional) vs 12 events (batch conditional)
 
 **What AppendIf Does**: 
 - Checks business rule condition BEFORE inserting ANY events
