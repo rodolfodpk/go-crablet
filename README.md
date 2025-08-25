@@ -23,8 +23,6 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 
 ## 📊 Performance
 
-- **[Performance Guide](./docs/performance.md)**: Comprehensive performance information, benchmarks, and optimization details
-
 **Go Library Benchmarks**: Clean, focused benchmark suite testing realistic business scenarios:
 - **Append Operations**: Single events and realistic batch sizes (1-12 events)
 - **Read Performance**: Simple and complex queries with streaming support
@@ -37,6 +35,7 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 - [Overview](./docs/overview.md): DCB pattern exploration, batch projection, and streaming
 - [Quick Start](./docs/quick-start.md): Get started using go-crablet in your project
 - [Getting Started](./docs/getting-started.md): Development setup
+- [Performance Guide](./docs/performance.md): Comprehensive performance information, benchmarks, and optimization details
 - [EventStore Flow](./docs/eventstore-flow.md): Direct event operations without commands
 - [Command Execution Flow](./docs/command-execution-flow.md): Sequence diagram and command processing flow
 - [Low-Level Implementation](./docs/low-level-implementation.md): Database schema, SQL functions, and internal architecture
