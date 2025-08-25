@@ -43,13 +43,14 @@ type Tag interface {
     GetValue() string
 }
 
+// Event represents a single event in the event store
 type Event struct {
-    Type          string
-    Tags          []Tag
-    Data          []byte
-    TransactionID uint64
-    Position      int64
-    OccurredAt    time.Time
+    Type          string    // Event type identifier (e.g., "UserRegistered", "CourseEnrolled")
+    Tags          []Tag     // Key-value pairs for filtering and categorization
+    Data          []byte    // Event payload as JSON bytes
+    TransactionID uint64    // Database transaction ID for ordering
+    Position      int64     // Position within transaction for ordering
+    OccurredAt    time.Time // When the event occurred
 }
 
 type InputEvent interface {
@@ -106,13 +107,15 @@ type EventStore interface {
 #### 2. StateProjector (State Reconstruction)
 ```go
 type StateProjector struct {
-    ID           string
-    InitialState any
-    EventTypes   []string
-    Tags         []Tag
-    Project      func(state any, event Event) any  // Event type defined in Core Types above
+    ID           string                    // Unique identifier for this projection
+    InitialState any                       // Starting state (e.g., empty map, struct, or nil)
+    EventTypes   []string                  // Event types to process (e.g., ["UserRegistered", "ProfileUpdated"])
+    Tags         []Tag                     // Filter events by these tags (e.g., user_id="123")
+    Project      func(state any, event Event) any  // Function that updates state based on each event
 }
 ```
+
+**Project Function**: This function receives the current state and an event, then returns the updated state. It's called for each event in chronological order to reconstruct the current state.
 
 #### 3. CommandExecutor (Optional High-Level API)
 ```go
