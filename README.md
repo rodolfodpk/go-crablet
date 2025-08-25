@@ -21,15 +21,7 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 - **Atomic command execution**: Execute commands with handler-based event generation using the CommandExecutor pattern
 - **Command tracking**: Automatic storage of commands in the `commands` table with transaction ID linking
 
-## 📊 Performance
 
-**Go Library Benchmarks**: Clean, focused benchmark suite testing realistic business scenarios:
-- **Append Operations**: Single events and realistic batch sizes (1-12 events)
-- **Read Performance**: Simple and complex queries with streaming support
-- **State Projections**: Memory-efficient state building from event streams
-- **Business Workflows**: Real-world scenarios like course enrollment and ticket booking
-
-*For benchmark execution commands, see [Development Guide](./docs/getting-started.md).*
 
 ## 📚 Documentation
 - [Overview](./docs/overview.md): DCB pattern exploration, batch projection, and streaming
