@@ -22,6 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Added realistic benchmark scenarios**: Implemented benchmarks for common real-world usage (1-12 events per operation)
   - **SQLite caching optimization**: Pre-generated benchmark data eliminates runtime string formatting overhead
   - **Real-world validation**: Benchmarks now reflect actual business usage patterns, not artificial stress tests
+- **Comprehensive Concurrent Projection Benchmarks**: Implemented missing projection benchmark functions
+  - Added `BenchmarkProject` and `BenchmarkProjectStream` functions that were previously called but not defined
+  - Implemented `LoadDatasetIntoStore` function for proper test data loading into PostgreSQL
+  - Added concurrent projection testing for 1, 10, and 100 goroutines
+  - Test both synchronous (`Project`) and asynchronous (`ProjectStream`) projection methods
+  - Optimized benchmarks for speed using tiny dataset and reduced timeouts
+  - Show performance scaling with concurrency and goroutine contention patterns
 
 ### Changed
 - **Documentation Improvements**: 
@@ -56,6 +63,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Enhanced benchmark runner with statistical analysis (count=3)
   - Added new Makefile targets: `benchmark-go-enhanced`, `benchmark-go-all`
   - Updated documentation with enhanced benchmark capabilities
+- **Performance Documentation Restructuring**: Reorganized performance documentation for better clarity
+  - Restructured `docs/performance.md` as overview with links to dataset-specific pages
+  - Created `docs/performance-tiny.md` for Tiny dataset detailed results (5 courses, 10 students, 17 enrollments)
+  - Created `docs/performance-small.md` for Small dataset detailed results (1,000 courses, 10,000 students, 49,871 enrollments)
+  - Added navigation links between pages for easy browsing
+  - Maintained clear separation between overview and detailed results
+  - Organized performance tables by dataset size for clearer comparison
+- **CommandExecutor Documentation Clarity**: Improved documentation by removing jargon and invented terms
+  - Replaced "CommandExecutor pattern" with clear explanation of what it does
+  - Replaced "Atomic command execution" with "database transactions for consistency"
+  - Replaced "Atomicity" with "Data consistency using database transactions"
+  - Clarified that CommandExecutor helps organize business logic execution
+  - Made the purpose and benefits more concrete and understandable
+  - Removed invented terms that don't clearly explain functionality
 
 ### Fixed
 - **Interface Implementation Consistency**: Added missing marker methods
@@ -67,6 +88,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **AppendIf Benchmark**: Fixed endpoint configuration issue in k6 benchmark script
   - Updated script to use correct `/benchmark-data` endpoint instead of non-existent `/load-test-data`
   - Benchmark now runs successfully with 31.8 req/s sustained throughput
+- **Broken Projection Benchmarks**: Fixed missing benchmark functions and data loading issues
+  - Implemented missing `BenchmarkProject` and `BenchmarkProjectStream` functions
+  - Added `LoadDatasetIntoStore` function to properly load test data into PostgreSQL
+  - Fixed benchmarks that were calling undefined functions
+  - Ensured proper test data loading for accurate benchmark results
+- **Performance Documentation Inconsistencies**: Fixed event count mismatches and table organization
+  - Corrected event counts across all performance tables in `docs/performance.md`
+  - Fixed "Append Operations" scenario description vs table results mismatch
+  - Ensured consistent event count values (1, 10, or 100) across all tables
+  - Reordered `AppendIf Operations` to be immediately after `Append Operations`
+  - Replaced "Batch Size" with "Event Count" for consistency
+  - Added tests to increase events consumed for Projection Operations (5, 10, 20, 50, 100, 120 events)
+  - Ensured "Core Operations" table includes AppendIf
+  - Added "Event Count Explanation" and "Performance Impact" sections with AppendIf positioned after Append
 
 ### Internal
 - **Test Coverage Improvements**: Added high-priority internal unit tests
