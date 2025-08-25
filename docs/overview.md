@@ -256,45 +256,9 @@ config := dcb.EventStoreConfig{
 store, err := dcb.NewEventStoreWithConfig(ctx, pool, config)
 ```
 
-## Performance & Benchmarks
 
-The library includes comprehensive performance testing with realistic scenarios:
 
-### Realistic Benchmark Scenarios
-**Most common real-world usage patterns:**
-- **1 event**: Most common (user login, status updates)
-- **2-3 events**: Very common (small transactions, simple workflows)  
-- **5-8 events**: Common (business operations, user registration)
-- **12 events**: Less common (complex workflows, multi-step processes)
 
-### Performance Characteristics
-- **Single Events**: ~2,200 ops/sec with 1.1-1.2ms latency
-- **Realistic Batches**: Optimized for common batch sizes (1-12 events)
-- **Concurrent Operations**: 10-50 concurrent users with realistic contention
-- **Memory Efficiency**: ~1.4KB per operation with minimal allocations
-
-### Runtime Data Generation
-- **Clean Implementation**: Benchmarks generate data at runtime
-- **No Runtime Overhead**: Eliminates string formatting during benchmarks
-- **Pure Performance**: Measures actual operations, not data generation
-- **Consistent Results**: Same data across runs for reliable comparison
-
-### Benchmark Types
-```bash
-# Core performance tests
-make benchmark-go
-
-# Realistic business scenarios
-make benchmark-go-enhanced
-
-# All benchmarks (comprehensive)
-make benchmark-go-all
-
-# Generate benchmark data
-make generate-benchmark-data
-```
-
-**Performance data reflects real-world usage patterns, not artificial stress tests.**
 
 ## Database Schema
 
@@ -358,4 +322,4 @@ Client → CommandExecutor → CommandHandler → EventStore → PostgreSQL (com
 
 
 
-This library explores event sourcing concepts with DCB concurrency control. It's a learning project that experiments with DCB patterns using PostgreSQL, suitable for understanding event sourcing principles, testing DCB concepts, and benchmarking performance characteristics.
+This library explores event sourcing concepts with DCB concurrency control. It's a learning project that experiments with DCB patterns using PostgreSQL, suitable for understanding event sourcing principles and testing DCB concepts.
