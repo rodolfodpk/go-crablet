@@ -31,11 +31,27 @@
 
 ### Concurrent Scaling Performance
 
-| Operation | 1 User | 10 Users | 100 Users |
-|-----------|---------|-----------|------------|
-| **Append** | 2,535 ops/sec | 835 ops/sec | 198 ops/sec |
-| **Read** | 1,047 ops/sec | 519 ops/sec | 50 ops/sec |
-| **Projection** | 1,180 ops/sec | 548 ops/sec | 52 ops/sec |
+| Operation | Users | Throughput | Latency | Memory | Allocations |
+|-----------|-------|------------|---------|---------|-------------|
+| **Append** | 1 | 2,535 ops/sec | 1.02ms | 2.5KB | 51 |
+| **Append** | 10 | 835 ops/sec | 2.77ms | 26.1KB | 530 |
+| **Append** | 100 | 198 ops/sec | 13.7ms | 269.5KB | 5,543 |
+| **Read** | 1 | 1,047 ops/sec | 2.02ms | 1.1KB | 25 |
+| **Read** | 10 | 519 ops/sec | 4.21ms | 11.8KB | 270 |
+| **Read** | 100 | 50 ops/sec | 46.6ms | 120.7KB | 2,853 |
+| **Projection** | 1 | 1,180 ops/sec | 1.99ms | 2.3KB | 45 |
+| **Projection** | 10 | 548 ops/sec | 4.44ms | 23.6KB | 470 |
+| **Projection** | 100 | 52 ops/sec | 48.8ms | 246.2KB | 4,855 |
+
+**Scaling Patterns**:
+- **1 User**: Best performance, minimal resource usage
+- **10 Users**: Moderate performance, 10x resource increase
+- **100 Users**: Lower performance, 100x resource increase
+
+**Performance Impact**:
+- **Append**: 2,535 → 198 ops/sec (12.8x slower with 100 users)
+- **Read**: 1,047 → 50 ops/sec (20.9x slower with 100 users)  
+- **Projection**: 1,180 → 52 ops/sec (22.7x slower with 100 users)
 
 ### AppendIf Performance (Conditional Append)
 
