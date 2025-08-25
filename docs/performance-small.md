@@ -129,17 +129,6 @@
 - **Performance Tuning**: Identifying bottlenecks in larger systems
 - **Business Validation**: Real-world performance expectations
 
-## Dataset Comparison
-
-| Metric | Tiny Dataset | Small Dataset | Ratio |
-|--------|--------------|---------------|-------|
-| **Courses** | 5 | 1,000 | 200x |
-| **Students** | 10 | 10,000 | 1,000x |
-| **Enrollments** | 17 | 49,871 | 2,933x |
-| **Append Performance** | 2,124 ops/sec | 2,211 ops/sec | 1.04x |
-| **AppendIf Performance** | 124 ops/sec | 15 ops/sec | 8.3x slower |
-| **Memory Usage** | 1.4KB | 2.2MB | 1,571x |
-
 ---
 
 [← Back to Performance Guide](./performance.md)

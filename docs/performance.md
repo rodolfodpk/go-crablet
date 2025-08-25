@@ -38,3 +38,21 @@ Choose your dataset size to view detailed performance metrics:
 **Concurrency Scaling**: All operations tested with 1, 10, and 100 concurrent users to measure performance degradation under load.
 
 **For detailed performance tables and specific metrics, see the dataset-specific pages above.**
+
+## Dataset Comparison
+
+| Metric | Tiny Dataset | Small Dataset | Ratio |
+|--------|--------------|---------------|-------|
+| **Courses** | 5 | 1,000 | 200x |
+| **Students** | 10 | 10,000 | 1,000x |
+| **Enrollments** | 17 | 49,871 | 2,933x |
+| **Append Performance** | 2,124 ops/sec | 2,211 ops/sec | 1.04x |
+| **AppendIf Performance** | 124 ops/sec | 15 ops/sec | 8.3x slower |
+| **Memory Usage** | 1.4KB | 2.2MB | 1,571x |
+
+**Key Insights**:
+- **Append operations** are nearly identical in performance (1.04x difference)
+- **AppendIf operations** are significantly slower with larger datasets (8.3x slower)
+- **Memory usage** scales dramatically with data volume (1,571x increase)
+- **Tiny dataset** provides best-case performance for development and testing
+- **Small dataset** shows realistic production performance expectations
