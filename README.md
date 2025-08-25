@@ -6,7 +6,7 @@
 
 # go-crablet
 
-A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini's Dynamic Consistency Boundary (DCB) pattern. 
+A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini's Dynamic Consistency Boundary (DCB) approach. 
 
 ## 🚀 Key Features
 
