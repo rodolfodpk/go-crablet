@@ -283,9 +283,9 @@
 
 ## Performance Optimizations
 
-- **Connection Pool**: 50 connections
-- **SQL Functions**: 10x faster (50ms → 5ms)
-- **Memory**: Efficient allocations
+- **Connection Pool**: 50 connections for concurrent operations
+- **SQL Functions**: Optimized for 10x performance improvement
+- **Memory**: Efficient allocation patterns with minimal overhead
 
 ## Running Benchmarks
 
@@ -293,21 +293,19 @@
 cd internal/benchmarks
 go test -bench=. -benchmem -benchtime=2s -timeout=5m .
 
-# Specific suites
+# Quick tests
 go test -bench=BenchmarkAppend_Tiny -benchtime=1s
-go test -bench=BenchmarkRead_Small -benchtime=1s
-go test -bench=BenchmarkProjection_Tiny -benchtime=1s
 ```
 
 ## Benchmark Structure
 
 - **Append**: Single events, realistic batches (1-12), conditional appends
-- **Read**: Simple queries, complex queries, streaming, channel operations
+- **Read**: Simple/complex queries, streaming, channel operations
 - **Projection**: State reconstruction, streaming projections
 - **Business Scenarios**: Course enrollment, concurrent operations, mixed workflows
 
 ## Operation Types
 
-- **AppendIf**: Conditional append with business rule validation (checks for conflicts before inserting)
-- **Mixed Operations**: Sequential append → query → project operations in single benchmark iteration
-- **Business Workflow**: Complete enrollment process with validation and business rule checks
+- **AppendIf**: Conditional append with business rule validation
+- **Mixed Operations**: Sequential append → query → project operations
+- **Business Workflow**: Complete enrollment process with validation
