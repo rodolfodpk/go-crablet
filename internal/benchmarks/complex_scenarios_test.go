@@ -13,7 +13,7 @@ import (
 // BenchmarkComplexBusinessWorkflow_Small tests a complete business workflow
 // that mirrors real-world usage patterns
 func BenchmarkComplexBusinessWorkflow_Small(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small", 100)
+	benchCtx := SetupBenchmarkContext(b, "medium", 100)
 	ctx := context.Background()
 
 	b.ResetTimer()

@@ -80,7 +80,7 @@ func BenchmarkConcurrentScaling_10Users(b *testing.B) {
 
 // BenchmarkConcurrentScaling_100Users tests 100 concurrent users
 func BenchmarkConcurrentScaling_100Users(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small", 100)
+	benchCtx := SetupBenchmarkContext(b, "medium", 100)
 	ctx := context.Background()
 
 	b.ResetTimer()
@@ -167,7 +167,7 @@ func BenchmarkConcurrentRead_10Users(b *testing.B) {
 
 // BenchmarkConcurrentRead_100Users tests 100 concurrent users reading
 func BenchmarkConcurrentRead_100Users(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small", 100)
+	benchCtx := SetupBenchmarkContext(b, "medium", 100)
 	ctx := context.Background()
 
 	b.ResetTimer()
@@ -250,7 +250,7 @@ func BenchmarkConcurrentProjection_10Users(b *testing.B) {
 
 // BenchmarkConcurrentProjection_100Users tests 100 concurrent users projecting
 func BenchmarkConcurrentProjection_100Users(b *testing.B) {
-	benchCtx := SetupBenchmarkContext(b, "small", 100)
+	benchCtx := SetupBenchmarkContext(b, "medium", 100)
 	ctx := context.Background()
 
 	b.ResetTimer()

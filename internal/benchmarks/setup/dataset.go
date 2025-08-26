@@ -26,6 +26,12 @@ var DatasetSizes = map[string]DatasetConfig{
 		Capacity:    50,
 	},
 	"small": {
+		Courses:     500,
+		Students:    5_000,
+		Enrollments: 25_000,
+		Capacity:    100,
+	},
+	"medium": {
 		Courses:     1_000,
 		Students:    10_000,
 		Enrollments: 50_000,

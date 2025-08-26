@@ -5,7 +5,7 @@ import "testing"
 // Core projection benchmark suite
 func BenchmarkProjection_Small(b *testing.B) {
 	// Use 100 past events for realistic AppendIf testing
-	benchCtx := SetupBenchmarkContext(b, "small", 100)
+	benchCtx := SetupBenchmarkContext(b, "medium", 100)
 
 	b.Run("Project1", func(b *testing.B) {
 		BenchmarkProject(b, benchCtx, 1)
