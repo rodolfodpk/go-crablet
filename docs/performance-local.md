@@ -87,19 +87,7 @@
 | Tiny | 100 | 100 | 100 | 5 | 210,099,087 | 2,149,004 | 214,000 |
 | Small | 100 | 100 | 100 | 5 | 194,951,683 | 2,148,114 | 213,877 |
 
-## Read Performance
 
-**Read Operations Details**:
-- **Operation**: Event querying and retrieval operations
-- **Scenario**: Single-threaded event reading with different query patterns
-- **Events**: Number of events returned by the query (varies by dataset)
-- **Model**: Generic event queries with JSONB data processing
-
-| Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
-|---------|-------------|--------|---------------------|-----------------|---------------|-------------|
-| Tiny | 1 | 20 | 1,699 | 588,548 | 988 | 21 |
-| Small | 1 | 25,000 | 901 | 1,109,483 | 988 | 21 |
-| Medium | 1 | 50,000 | 557 | 1,794,783 | 989 | 21 |
 
 ## Projection Performance
 

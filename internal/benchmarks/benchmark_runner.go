@@ -1107,27 +1107,7 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 		BenchmarkAppendIfConcurrent(b, benchCtx, 100, 100, true)
 	})
 
-	// Read benchmarks
-	b.Run("Read_Single", func(b *testing.B) {
-		BenchmarkRead(b, benchCtx, 0)
-	})
 
-	b.Run("Read_Batch", func(b *testing.B) {
-		BenchmarkRead(b, benchCtx, 1)
-	})
-
-	b.Run("Read_AppendIf", func(b *testing.B) {
-		BenchmarkRead(b, benchCtx, 2)
-	})
-
-	// Channel read benchmarks
-	b.Run("ReadChannel_Single", func(b *testing.B) {
-		BenchmarkReadChannel(b, benchCtx, 0)
-	})
-
-	b.Run("ReadChannel_Batch", func(b *testing.B) {
-		BenchmarkReadChannel(b, benchCtx, 1)
-	})
 
 	// Projection benchmarks
 	b.Run("Project_1", func(b *testing.B) {
@@ -1174,14 +1154,6 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 	})
 
 	// Memory usage benchmarks
-	b.Run("MemoryUsage_Read", func(b *testing.B) {
-		BenchmarkMemoryUsage(b, benchCtx, "read")
-	})
-
-	b.Run("MemoryUsage_ReadStream", func(b *testing.B) {
-		BenchmarkMemoryUsage(b, benchCtx, "read_stream")
-	})
-
 	b.Run("MemoryUsage_Project", func(b *testing.B) {
 		BenchmarkMemoryUsage(b, benchCtx, "project")
 	})
