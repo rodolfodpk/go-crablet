@@ -25,15 +25,7 @@
 | **AppendIf** | 10 ops/sec | 16 ops/sec | **1.7x faster** |
 | **Projection** | 2,395 ops/sec | 16,834 ops/sec | **7x faster** |
 
-## Dataset-Specific Performance
 
-### **Docker PostgreSQL**
-- **📊 [Tiny Dataset](./performance-docker-tiny.md)**: 5 courses, 10 students, 17 enrollments
-- **📊 [Small Dataset](./performance-docker-small.md)**: 1,000 courses, 10,000 students, 49,871 enrollments
-
-### **Local PostgreSQL**
-- **📊 [Tiny Dataset](./performance-local-tiny.md)**: 5 courses, 10 students, 20 enrollments
-- **📊 [Small Dataset](./performance-local-small.md)**: 500 courses, 5,000 students, 25,000 enrollments
 
 ## Performance Data Comparison
 
