@@ -87,16 +87,30 @@
 | Tiny | 100 | 100 | 100 | 5 | 210,099,087 | 2,149,004 | 214,000 |
 | Small | 100 | 100 | 100 | 5 | 194,951,683 | 2,148,114 | 213,877 |
 
-## Read and Projection Performance
+## Read Performance
+
+**Read Operations Details**:
+- **Operation**: Event querying and retrieval operations
+- **Scenario**: Single-threaded event reading with different query patterns
+- **Events**: Number of events returned by the query (varies by dataset)
+- **Model**: Generic event queries with JSONB data processing
+
+| Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
+|---------|-------------|--------|---------------------|-----------------|---------------|-------------|
+| Tiny | 1 | 20 | 1,699 | 588,548 | 988 | 21 |
+| Small | 1 | 25,000 | 901 | 1,109,483 | 988 | 21 |
+| Medium | 1 | 50,000 | 557 | 1,794,783 | 989 | 21 |
+
+## Projection Performance
+
+**Projection Operations Details**:
+- **Operation**: State reconstruction from event streams
+- **Scenario**: Building aggregate state from historical events
+- **Events**: Not applicable (projection operations)
+- **Model**: Domain-specific state reconstruction with business logic
 
 | Operation | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
 |-----------|---------|-------------|--------|---------------------|-----------------|---------------|-------------|
-| **Read_Single** | Tiny | 1 | - | 1,699 | 588,548 | 988 | 21 |
-| **Read_Single** | Small | 1 | - | 901 | 1,109,483 | 988 | 21 |
-| **Read_Single** | Medium | 1 | - | 557 | 1,794,783 | 989 | 21 |
-| **Read_Batch** | Tiny | 1 | - | 1,751 | 571,190 | 988 | 21 |
-| **Read_Batch** | Small | 1 | - | 901 | 1,109,220 | 990 | 21 |
-| **Read_Batch** | Medium | 1 | - | 549 | 1,819,667 | 990 | 21 |
 | **Projection** | Tiny | 1 | - | 15,534 | 64,393 | 2,036 | 37 |
 | **Projection** | Small | 1 | - | 896 | 1,117,115 | 2,036 | 37 |
 | **Projection** | Medium | 1 | - | 542 | 1,844,966 | 2,038 | 37 |

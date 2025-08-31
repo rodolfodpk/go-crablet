@@ -87,16 +87,30 @@
 | Tiny | 10 | 100 | 10 | 24 | 42,527,353 | 2,146,439 | 21,389 |
 | Tiny | 100 | 1 | 100 | 4 | 231,909,009 | 585,446 | 14,214 |
 | Tiny | 100 | 100 | 100 | 3 | 306,809,588 | 2,147,628 | 213,946 |
-## Read and Projection Performance
+## Read Performance
+
+**Read Operations Details**:
+- **Operation**: Event querying and retrieval operations
+- **Scenario**: Single-threaded event reading with different query patterns
+- **Events**: Number of events returned by the query (varies by dataset)
+- **Model**: Generic event queries with JSONB data processing
+
+| Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
+|---------|-------------|--------|---------------------|-----------------|---------------|-------------|
+| Tiny | 1 | 20 | 1,654 | 379,698 | 989 | 21 |
+| Small | 1 | 25,000 | 167 | 5,972,015 | 991 | 21 |
+| Medium | 1 | 50,000 | 660 | 1,517,642 | 988 | 21 |
+
+## Projection Performance
+
+**Projection Operations Details**:
+- **Operation**: State reconstruction from event streams
+- **Scenario**: Building aggregate state from historical events
+- **Events**: Not applicable (projection operations)
+- **Model**: Domain-specific state reconstruction with business logic
 
 | Operation | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
 |-----------|---------|-------------|--------|---------------------|-----------------|---------------|-------------|
-| **Read_Single** | Tiny | 1 | - | 1,654 | 379,698 | 989 | 21 |
-| **Read_Single** | Small | 1 | - | 167 | 5,972,015 | 991 | 21 |
-| **Read_Single** | Medium | 1 | - | 660 | 1,517,642 | 988 | 21 |
-| **Read_Batch** | Tiny | 1 | - | 1,621 | 377,852 | 990 | 21 |
-| **Read_Batch** | Small | 1 | - | 170 | 5,892,156 | 987 | 21 |
-| **Read_Batch** | Medium | 1 | - | 676 | 1,479,368 | 990 | 21 |
 | **Projection** | Tiny | 1 | - | 2,300 | 434,857 | 2,036 | 37 |
 | **Projection** | Small | 1 | - | 2,550 | 391,810 | 2,036 | 37 |
 | **Projection** | Medium | 1 | - | 2,615 | 382,620 | 2,036 | 37 |
