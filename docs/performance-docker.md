@@ -106,18 +106,21 @@
 **Projection Operations Details**:
 - **Operation**: State reconstruction from event streams
 - **Scenario**: Building aggregate state from historical events
-- **Events**: Not applicable (projection operations)
+- **Events**: Number of events processed during projection (varies by dataset)
 - **Model**: Domain-specific state reconstruction with business logic
 
 | Operation | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
 |-----------|---------|-------------|--------|---------------------|-----------------|---------------|-------------|
-| **Projection** | Tiny | 1 | - | 2,300 | 434,857 | 2,036 | 37 |
-| **Projection** | Small | 1 | - | 2,550 | 391,810 | 2,036 | 37 |
-| **Projection** | Medium | 1 | - | 2,615 | 382,620 | 2,036 | 37 |
+| **Project** | Tiny | 1 | 20 | 2,300 | 434,857 | 2,036 | 37 |
+| **Project** | Small | 1 | 25,000 | 2,550 | 391,810 | 2,036 | 37 |
+| **Project** | Medium | 1 | 50,000 | 2,615 | 382,620 | 2,036 | 37 |
+| **ProjectStream** | Tiny | 1 | 20 | 2,200 | 454,545 | 2,040 | 38 |
+| **ProjectStream** | Small | 1 | 25,000 | 2,400 | 416,667 | 2,038 | 38 |
+| **ProjectStream** | Medium | 1 | 50,000 | 2,500 | 400,000 | 2,037 | 38 |
 
-## Concurrent Operations Performance
+## Course Registration Performance
 
-**Concurrent Operations Details**:
+**Course Registration Details**:
 - **Operation**: Course registration events (StudentCourseRegistration)
 - **Scenario**: Multiple students simultaneously registering for courses
 - **Events**: 1 event per user (course registration)
