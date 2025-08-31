@@ -742,8 +742,6 @@ func BenchmarkProjectStreamConcurrent(b *testing.B, benchCtx *BenchmarkContext, 
 	}
 }
 
-
-
 // RunAllBenchmarks runs all benchmarks with the specified dataset size
 func RunAllBenchmarks(b *testing.B, datasetSize string) {
 	// Use 100 past events for realistic AppendIf testing (business rule validation context)
@@ -854,7 +852,6 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 	b.Run("ProjectStream_Concurrent_25Users", func(b *testing.B) {
 		BenchmarkProjectStreamConcurrent(b, benchCtx, 25)
 	})
-
 
 }
 

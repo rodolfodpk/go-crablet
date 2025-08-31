@@ -97,6 +97,53 @@ make example-enrollment
 make example-concurrency  # runs ticket_booking
 ```
 
+## 🏃‍♂️ Running Benchmarks
+
+### Prerequisites
+- PostgreSQL 16 (local or Docker)
+- Go 1.25+
+- Database setup (see Quick Start above)
+
+### Run All Benchmarks
+```bash
+# Run all benchmarks (Tiny, Small, Medium datasets)
+cd internal/benchmarks
+go test -bench=. -benchmem -benchtime=1s -timeout=10m .
+
+# Expected execution time: ~2.9 minutes
+```
+
+### Run Specific Datasets
+```bash
+# Run only Small dataset benchmarks
+go test -bench=BenchmarkAppend_Small -benchmem -benchtime=1s -timeout=10m .
+
+# Run only Tiny dataset benchmarks  
+go test -bench=BenchmarkAppend_Tiny -benchmem -benchtime=1s -timeout=10m .
+
+# Run only Medium dataset benchmarks
+go test -bench=BenchmarkAppend_Medium -benchmem -benchtime=1s -timeout=10m .
+```
+
+### Run Specific Operations
+```bash
+# Run only Append operations (all datasets)
+go test -bench=Append_Concurrent -benchmem -benchtime=1s -timeout=10m .
+
+# Run only AppendIf operations (all datasets)
+go test -bench=AppendIf_ -benchmem -benchtime=1s -timeout=10m .
+
+# Run only Projection operations (all datasets)
+go test -bench=Project_ -benchmem -benchtime=1s -timeout=10m .
+```
+
+### Benchmark Results
+- **Latest Results**: [Local PostgreSQL Performance](./docs/performance-local.md)
+- **Benchmark Suite**: 54 standardized tests covering Append, AppendIf, and Projection operations
+- **Performance Metrics**: Throughput (ops/sec), Latency (ns/op), Memory (B/op), Allocations
+
+For detailed benchmark documentation, see [internal/benchmarks/README.md](./internal/benchmarks/README.md).
+
 ## 📖 References
 
 - [Dynamic Consistency Boundary (DCB)](https://dcb.events/) - An excellent resource to understand the DCB approach and its applications in event-driven systems
