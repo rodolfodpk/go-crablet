@@ -14,12 +14,16 @@
 
 ## Performance Comparison
 
-| Operation | Docker PostgreSQL | Local PostgreSQL | Performance Gain |
-|-----------|-------------------|------------------|------------------|
-| **AppendSingle** | 850 ops/sec | 8,030 ops/sec | **9.4x faster** |
-| **AppendRealistic** | 764 ops/sec | 4,825 ops/sec | **6.3x faster** |
-| **AppendIf** | 10 ops/sec | 16 ops/sec | **1.6x faster** |
-| **Projection** | 2,395 ops/sec | 16,834 ops/sec | **7.0x faster** |
+| Operation | Dataset | Docker PostgreSQL | Local PostgreSQL | Performance Gain |
+|-----------|---------|-------------------|------------------|------------------|
+| **AppendSingle** | Tiny | 850 ops/sec | 8,030 ops/sec | **9.4x faster** |
+| **AppendRealistic** | Tiny | 764 ops/sec | 4,825 ops/sec | **6.3x faster** |
+| **AppendIf** | Tiny | 10 ops/sec | 16 ops/sec | **1.6x faster** |
+| **Projection** | Tiny | 2,395 ops/sec | 16,834 ops/sec | **7.0x faster** |
+| **AppendSingle** | Small | 850 ops/sec | 7,900 ops/sec | **9.3x faster** |
+| **AppendRealistic** | Small | 764 ops/sec | 5,165 ops/sec | **6.8x faster** |
+| **AppendIf** | Small | 10 ops/sec | 11 ops/sec | **1.1x faster** |
+| **Projection** | Small | 2,395 ops/sec | 14,340 ops/sec | **6.0x faster** |
 
 ## Dataset Performance
 
