@@ -47,7 +47,7 @@
 |------------------|---------|------------------|-------------------|-------------------|
 | **1 User** | Small | 8,230 ops/sec | 347 ops/sec | **23.7x faster** |
 | **10 Users** | Small | 1,438 ops/sec | 157 ops/sec | **9.2x faster** |
-| **100 Users** | Medium | 158 ops/sec | 10.4 ops/sec | **15.2x faster** |
+| **100 Users** | Small | 158 ops/sec | 10.4 ops/sec | **15.2x faster** |
 
 ## Resource Usage
 
@@ -55,7 +55,7 @@
 |------------------|---------|--------|-------------|
 | **1 User** | Small | 1.1KB | 25 |
 | **10 Users** | Small | 11.8KB | 270 |
-| **100 Users** | Medium | 125KB | 2,852 |
+| **100 Users** | Small | 125KB | 2,852 |
 
 ## Setup Guides
 
