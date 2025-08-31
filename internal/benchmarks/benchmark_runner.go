@@ -95,7 +95,7 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string, pastEventCount int)
 
 	// Create event stores with different configurations
 	readCommittedConfig := dcb.EventStoreConfig{
-		MaxBatchSize:           1000,
+		MaxAppendBatchSize:      1000,
 		StreamBuffer:           1000,
 		DefaultAppendIsolation: dcb.IsolationLevelReadCommitted,
 		QueryTimeout:           15000,
@@ -103,7 +103,7 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string, pastEventCount int)
 	}
 
 	repeatableReadConfig := dcb.EventStoreConfig{
-		MaxBatchSize:           1000,
+		MaxAppendBatchSize:      1000,
 		StreamBuffer:           1000,
 		DefaultAppendIsolation: dcb.IsolationLevelRepeatableRead,
 		QueryTimeout:           15000,
