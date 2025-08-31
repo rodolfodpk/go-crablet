@@ -22,6 +22,59 @@ var (
 	globalPoolMu   sync.RWMutex
 )
 
+// Progress tracking for benchmarks
+var (
+	progressMu     sync.Mutex
+	totalBenchmarks int
+	completedBenchmarks int
+	startTime      time.Time
+)
+
+// ProgressTracker provides progress information for benchmark execution
+type ProgressTracker struct {
+	mu              sync.Mutex
+	total           int
+	completed       int
+	startTime       time.Time
+	lastUpdateTime  time.Time
+}
+
+// NewProgressTracker creates a new progress tracker
+func NewProgressTracker(total int) *ProgressTracker {
+	return &ProgressTracker{
+		total:          total,
+		completed:      0,
+		startTime:      time.Now(),
+		lastUpdateTime: time.Now(),
+	}
+}
+
+// Update increments the completed count and prints progress
+func (pt *ProgressTracker) Update(benchmarkName string) {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
+	
+	pt.completed++
+	percentage := float64(pt.completed) / float64(pt.total) * 100
+	elapsed := time.Since(pt.startTime)
+	
+	// Only print progress every 5 seconds or when percentage changes significantly
+	if time.Since(pt.lastUpdateTime) > 5*time.Second || pt.completed == pt.total {
+		fmt.Printf("[PROGRESS] %s - %d/%d (%.1f%%) - Elapsed: %s\n", 
+			benchmarkName, pt.completed, pt.total, percentage, elapsed.Round(time.Second))
+		pt.lastUpdateTime = time.Now()
+	}
+}
+
+// Complete prints final progress information
+func (pt *ProgressTracker) Complete() {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
+	
+	totalTime := time.Since(pt.startTime)
+	fmt.Printf("[COMPLETE] All benchmarks finished - Total time: %s\n", totalTime.Round(time.Second))
+}
+
 // BenchmarkContext holds the context for running benchmarks
 type BenchmarkContext struct {
 	Store        dcb.EventStore
@@ -1027,140 +1080,177 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 	// Use 100 past events for realistic AppendIf testing (business rule validation context)
 	benchCtx := SetupBenchmarkContext(b, datasetSize, 100)
 
+	// Count total benchmarks for progress tracking
+	totalBenchmarks := 30 // Append (6) + AppendIf NoConflict (6) + AppendIf WithConflict (6) + Project (12) + Memory (6)
+	progress := NewProgressTracker(totalBenchmarks)
+	
+	fmt.Printf("[START] Running %d benchmarks for dataset: %s\n", totalBenchmarks, datasetSize)
+
 	// Append benchmarks (concurrent only - standardized to 1 or 100 events)
 
 	// Concurrent Append benchmarks (1 event per user)
 	b.Run("Append_Concurrent_1User_1Event", func(b *testing.B) {
+		progress.Update("Append_Concurrent_1User_1Event")
 		BenchmarkAppendConcurrent(b, benchCtx, 1, 1)
 	})
 
 	b.Run("Append_Concurrent_10Users_1Event", func(b *testing.B) {
+		progress.Update("Append_Concurrent_10Users_1Event")
 		BenchmarkAppendConcurrent(b, benchCtx, 10, 1)
 	})
 
 	b.Run("Append_Concurrent_100Users_1Event", func(b *testing.B) {
+		progress.Update("Append_Concurrent_100Users_1Event")
 		BenchmarkAppendConcurrent(b, benchCtx, 100, 1)
 	})
 
 	// Concurrent Append benchmarks (100 events per user)
 	b.Run("Append_Concurrent_1User_100Events", func(b *testing.B) {
+		progress.Update("Append_Concurrent_1User_100Events")
 		BenchmarkAppendConcurrent(b, benchCtx, 1, 100)
 	})
 
 	b.Run("Append_Concurrent_10Users_100Events", func(b *testing.B) {
+		progress.Update("Append_Concurrent_10Users_100Events")
 		BenchmarkAppendConcurrent(b, benchCtx, 10, 100)
 	})
 
 	b.Run("Append_Concurrent_100Users_100Events", func(b *testing.B) {
+		progress.Update("Append_Concurrent_100Users_100Events")
 		BenchmarkAppendConcurrent(b, benchCtx, 100, 100)
 	})
 
 	// Concurrent AppendIf benchmarks - NO CONFLICT (1 event)
 	b.Run("AppendIf_NoConflict_Concurrent_1User_1Event", func(b *testing.B) {
+		progress.Update("AppendIf_NoConflict_Concurrent_1User_1Event")
 		BenchmarkAppendIfConcurrent(b, benchCtx, 1, 1, false)
 	})
 
 	b.Run("AppendIf_NoConflict_Concurrent_10Users_1Event", func(b *testing.B) {
+		progress.Update("AppendIf_NoConflict_Concurrent_10Users_1Event")
 		BenchmarkAppendIfConcurrent(b, benchCtx, 10, 1, false)
 	})
 
 	b.Run("AppendIf_NoConflict_Concurrent_100Users_1Event", func(b *testing.B) {
+		progress.Update("AppendIf_NoConflict_Concurrent_100Users_1Event")
 		BenchmarkAppendIfConcurrent(b, benchCtx, 100, 1, false)
 	})
 
 	// Concurrent AppendIf benchmarks - NO CONFLICT (100 events)
 	b.Run("AppendIf_NoConflict_Concurrent_1User_100Events", func(b *testing.B) {
+		progress.Update("AppendIf_NoConflict_Concurrent_1User_100Events")
 		BenchmarkAppendIfConcurrent(b, benchCtx, 1, 100, false)
 	})
 
 	b.Run("AppendIf_NoConflict_Concurrent_10Users_100Events", func(b *testing.B) {
+		progress.Update("AppendIf_NoConflict_Concurrent_10Users_100Events")
 		BenchmarkAppendIfConcurrent(b, benchCtx, 10, 100, false)
 	})
 
 	b.Run("AppendIf_NoConflict_Concurrent_100Users_100Events", func(b *testing.B) {
+		progress.Update("AppendIf_NoConflict_Concurrent_100Users_100Events")
 		BenchmarkAppendIfConcurrent(b, benchCtx, 100, 100, false)
 	})
 
 	// Concurrent AppendIf benchmarks - WITH CONFLICT (1 event)
 	b.Run("AppendIf_WithConflict_Concurrent_1User_1Event", func(b *testing.B) {
+		progress.Update("AppendIf_WithConflict_Concurrent_1User_1Event")
 		BenchmarkAppendIfConcurrent(b, benchCtx, 1, 1, true)
 	})
 
 	b.Run("AppendIf_WithConflict_Concurrent_10Users_1Event", func(b *testing.B) {
+		progress.Update("AppendIf_WithConflict_Concurrent_10Users_1Event")
 		BenchmarkAppendIfConcurrent(b, benchCtx, 10, 1, true)
 	})
 
 	b.Run("AppendIf_WithConflict_Concurrent_100Users_1Event", func(b *testing.B) {
+		progress.Update("AppendIf_WithConflict_Concurrent_100Users_1Event")
 		BenchmarkAppendIfConcurrent(b, benchCtx, 100, 1, true)
 	})
 
 	// Concurrent AppendIf benchmarks - WITH CONFLICT (100 events)
 	b.Run("AppendIf_WithConflict_Concurrent_1User_100Events", func(b *testing.B) {
+		progress.Update("AppendIf_WithConflict_Concurrent_1User_100Events")
 		BenchmarkAppendIfConcurrent(b, benchCtx, 1, 100, true)
 	})
 
 	b.Run("AppendIf_WithConflict_Concurrent_10Users_100Events", func(b *testing.B) {
+		progress.Update("AppendIf_WithConflict_Concurrent_10Users_100Events")
 		BenchmarkAppendIfConcurrent(b, benchCtx, 10, 100, true)
 	})
 
 	b.Run("AppendIf_WithConflict_Concurrent_100Users_100Events", func(b *testing.B) {
+		progress.Update("AppendIf_WithConflict_Concurrent_100Users_100Events")
 		BenchmarkAppendIfConcurrent(b, benchCtx, 100, 100, true)
 	})
 
-
-
 	// Projection benchmarks
 	b.Run("Project_1", func(b *testing.B) {
+		progress.Update("Project_1")
 		BenchmarkProject(b, benchCtx, 1)
 	})
 
 	b.Run("Project_2", func(b *testing.B) {
+		progress.Update("Project_2")
 		BenchmarkProject(b, benchCtx, 2)
 	})
 
 	// Channel projection benchmarks
 	b.Run("ProjectStream_1", func(b *testing.B) {
+		progress.Update("ProjectStream_1")
 		BenchmarkProjectStream(b, benchCtx, 1)
 	})
 
 	b.Run("ProjectStream_2", func(b *testing.B) {
+		progress.Update("ProjectStream_2")
 		BenchmarkProjectStream(b, benchCtx, 2)
 	})
 
 	// Concurrent Projection benchmarks (testing the new limits)
 	b.Run("Project_Concurrent_1User", func(b *testing.B) {
+		progress.Update("Project_Concurrent_1User")
 		BenchmarkProjectConcurrent(b, benchCtx, 1)
 	})
 
 	b.Run("Project_Concurrent_10Users", func(b *testing.B) {
+		progress.Update("Project_Concurrent_10Users")
 		BenchmarkProjectConcurrent(b, benchCtx, 10)
 	})
 
 	b.Run("Project_Concurrent_25Users", func(b *testing.B) {
+		progress.Update("Project_Concurrent_25Users")
 		BenchmarkProjectConcurrent(b, benchCtx, 25)
 	})
 
 	// Concurrent ProjectStream benchmarks (testing the new limits)
 	b.Run("ProjectStream_Concurrent_1User", func(b *testing.B) {
+		progress.Update("ProjectStream_Concurrent_1User")
 		BenchmarkProjectStreamConcurrent(b, benchCtx, 1)
 	})
 
 	b.Run("ProjectStream_Concurrent_10Users", func(b *testing.B) {
+		progress.Update("ProjectStream_Concurrent_10Users")
 		BenchmarkProjectStreamConcurrent(b, benchCtx, 10)
 	})
 
 	b.Run("ProjectStream_Concurrent_25Users", func(b *testing.B) {
+		progress.Update("ProjectStream_Concurrent_25Users")
 		BenchmarkProjectStreamConcurrent(b, benchCtx, 25)
 	})
 
 	// Memory usage benchmarks
 	b.Run("MemoryUsage_Project", func(b *testing.B) {
+		progress.Update("MemoryUsage_Project")
 		BenchmarkMemoryUsage(b, benchCtx, "project")
 	})
 
 	b.Run("MemoryUsage_ProjectStream", func(b *testing.B) {
+		progress.Update("MemoryUsage_ProjectStream")
 		BenchmarkMemoryUsage(b, benchCtx, "project_stream")
 	})
+
+	// Mark benchmarks as complete
+	progress.Complete()
 }
 
 // TestMain sets up and tears down the shared global pool for all benchmarks
