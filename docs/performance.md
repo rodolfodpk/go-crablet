@@ -43,19 +43,19 @@
 
 ## Concurrency Performance
 
-| Concurrency Level | Local PostgreSQL | Docker PostgreSQL | Performance Ratio |
-|------------------|------------------|-------------------|-------------------|
-| **1 User** | 8,230 ops/sec | 347 ops/sec | **23.7x faster** |
-| **10 Users** | 1,438 ops/sec | 157 ops/sec | **9.2x faster** |
-| **100 Users** | 158 ops/sec | 10.4 ops/sec | **15.2x faster** |
+| Concurrency Level | Dataset | Local PostgreSQL | Docker PostgreSQL | Performance Ratio |
+|------------------|---------|------------------|-------------------|-------------------|
+| **1 User** | Small | 8,230 ops/sec | 347 ops/sec | **23.7x faster** |
+| **10 Users** | Small | 1,438 ops/sec | 157 ops/sec | **9.2x faster** |
+| **100 Users** | Medium | 158 ops/sec | 10.4 ops/sec | **15.2x faster** |
 
 ## Resource Usage
 
-| Concurrency Level | Memory | Allocations |
-|------------------|--------|-------------|
-| **1 User** | 1.1KB | 25 |
-| **10 Users** | 11.8KB | 270 |
-| **100 Users** | 125KB | 2,852 |
+| Concurrency Level | Dataset | Memory | Allocations |
+|------------------|---------|--------|-------------|
+| **1 User** | Small | 1.1KB | 25 |
+| **10 Users** | Small | 11.8KB | 270 |
+| **100 Users** | Medium | 125KB | 2,852 |
 
 ## Setup Guides
 
