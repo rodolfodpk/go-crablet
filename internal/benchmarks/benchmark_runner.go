@@ -25,7 +25,7 @@ var (
 // Global progress tracking for all benchmarks
 var (
 	globalProgressMu sync.Mutex
-	globalTotalBenchmarks int = 90 // 3 datasets × 30 benchmarks each
+	globalTotalBenchmarks int = 78 // 3 datasets × 26 benchmarks each (removed 4 redundant projection tests)
 	globalCompletedBenchmarks int = 0
 	globalStartTime time.Time
 	globalInitialized bool = false
@@ -61,7 +61,7 @@ func NewGlobalProgressTracker() *ProgressTracker {
 		globalStartTime = time.Now()
 		globalCompletedBenchmarks = 0
 		globalInitialized = true
-		fmt.Printf("[START] Running all benchmarks (90 total across 3 datasets)\n")
+		fmt.Printf("[START] Running all benchmarks (78 total across 3 datasets)\n")
 	}
 	
 	return &ProgressTracker{
@@ -87,12 +87,10 @@ func (pt *ProgressTracker) Update(benchmarkName string) {
 		elapsed := time.Since(globalStartTime)
 		globalProgressMu.Unlock()
 		
-		// Only print progress every 30 seconds or when percentage changes significantly
-		if time.Since(pt.lastUpdateTime) > 30*time.Second || globalCompletedBenchmarks == globalTotalBenchmarks {
-			fmt.Printf("[PROGRESS] %s - %d/%d (%.1f%%) - Elapsed: %s\n",
-				benchmarkName, globalCompletedBenchmarks, globalTotalBenchmarks, percentage, elapsed.Round(time.Second))
-			pt.lastUpdateTime = time.Now()
-		}
+		// Always print progress after each benchmark execution
+		fmt.Printf("[PROGRESS] %s - %d/%d (%.1f%%) - Elapsed: %s\n",
+			benchmarkName, globalCompletedBenchmarks, globalTotalBenchmarks, percentage, elapsed.Round(time.Second))
+		pt.lastUpdateTime = time.Now()
 	} else {
 		percentage := float64(pt.completed) / float64(pt.total) * 100
 		elapsed := time.Since(pt.startTime)
@@ -1236,28 +1234,7 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 	})
 
 	// Projection benchmarks
-	b.Run("Project_1", func(b *testing.B) {
-		progress.Update("Project_1")
-		BenchmarkProject(b, benchCtx, 1)
-	})
-
-	b.Run("Project_2", func(b *testing.B) {
-		progress.Update("Project_2")
-		BenchmarkProject(b, benchCtx, 2)
-	})
-
-	// Channel projection benchmarks
-	b.Run("ProjectStream_1", func(b *testing.B) {
-		progress.Update("ProjectStream_1")
-		BenchmarkProjectStream(b, benchCtx, 1)
-	})
-
-	b.Run("ProjectStream_2", func(b *testing.B) {
-		progress.Update("ProjectStream_2")
-		BenchmarkProjectStream(b, benchCtx, 2)
-	})
-
-	// Concurrent Projection benchmarks (testing the new limits)
+	// Concurrent projection benchmarks (replaces individual Project_1/2 and ProjectStream_1/2)
 	b.Run("Project_Concurrent_1User", func(b *testing.B) {
 		progress.Update("Project_Concurrent_1User")
 		BenchmarkProjectConcurrent(b, benchCtx, 1)
@@ -1273,7 +1250,6 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 		BenchmarkProjectConcurrent(b, benchCtx, 25)
 	})
 
-	// Concurrent ProjectStream benchmarks (testing the new limits)
 	b.Run("ProjectStream_Concurrent_1User", func(b *testing.B) {
 		progress.Update("ProjectStream_Concurrent_1User")
 		BenchmarkProjectStreamConcurrent(b, benchCtx, 1)
