@@ -830,6 +830,141 @@ func BenchmarkProjectStream(b *testing.B, benchCtx *BenchmarkContext, eventCount
 	}
 }
 
+// BenchmarkProjectConcurrent benchmarks concurrent projection operations
+func BenchmarkProjectConcurrent(b *testing.B, benchCtx *BenchmarkContext, goroutines int) {
+	ctx := context.Background()
+
+	// Create a simple projector for testing
+	projector := dcb.StateProjector{
+		ID:           "test_concurrent_projection",
+		Query:        dcb.NewQueryBuilder().WithType("TestEvent").WithTag("test", "benchmark").Build(),
+		InitialState: map[string]interface{}{"count": 0, "events": []string{}},
+		TransitionFn: func(state any, event dcb.Event) any {
+			stateMap := state.(map[string]interface{})
+			count := stateMap["count"].(int)
+			events := stateMap["events"].([]string)
+
+			// Update state based on event
+			stateMap["count"] = count + 1
+			stateMap["events"] = append(events, event.Type)
+
+			return stateMap
+		},
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		var wg sync.WaitGroup
+		results := make(chan error, goroutines)
+
+		// Start concurrent projections
+		for j := 0; j < goroutines; j++ {
+			wg.Add(1)
+			go func(goroutineID int) {
+				defer wg.Done()
+
+				// Project state from events
+				_, _, err := benchCtx.Store.Project(ctx, []dcb.StateProjector{projector}, nil)
+				if err != nil {
+					results <- fmt.Errorf("concurrent projection failed: %v", err)
+					return
+				}
+
+				results <- nil
+			}(j)
+		}
+
+		// Wait for all goroutines to complete
+		wg.Wait()
+		close(results)
+
+		// Check for any errors
+		for err := range results {
+			if err != nil {
+				b.Fatalf("Concurrent Project failed: %v", err)
+			}
+		}
+	}
+}
+
+// BenchmarkProjectStreamConcurrent benchmarks concurrent streaming projection operations
+func BenchmarkProjectStreamConcurrent(b *testing.B, benchCtx *BenchmarkContext, goroutines int) {
+	ctx := context.Background()
+
+	// Create a simple projector for testing
+	projector := dcb.StateProjector{
+		ID:           "test_concurrent_stream_projection",
+		Query:        dcb.NewQueryBuilder().WithType("TestEvent").WithTag("test", "benchmark").Build(),
+		InitialState: map[string]interface{}{"count": 0, "events": []string{}},
+		TransitionFn: func(state any, event dcb.Event) any {
+			stateMap := state.(map[string]interface{})
+			count := stateMap["count"].(int)
+			events := stateMap["events"].([]string)
+
+			// Update state based on event
+			stateMap["count"] = count + 1
+			stateMap["events"] = append(events, event.Type)
+
+			return stateMap
+		},
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		var wg sync.WaitGroup
+		results := make(chan error, goroutines)
+
+		// Start concurrent streaming projections
+		for j := 0; j < goroutines; j++ {
+			wg.Add(1)
+			go func(goroutineID int) {
+				defer wg.Done()
+
+				// Start streaming projection
+				stateChan, conditionChan, err := benchCtx.Store.ProjectStream(ctx, []dcb.StateProjector{projector}, nil)
+				if err != nil {
+					results <- fmt.Errorf("concurrent ProjectStream failed: %v", err)
+					return
+				}
+
+				// Consume from channels
+				select {
+				case state := <-stateChan:
+					_ = state // Use state to prevent optimization
+				case <-time.After(5 * time.Second):
+					results <- fmt.Errorf("ProjectStream timeout")
+					return
+				}
+
+				select {
+				case condition := <-conditionChan:
+					_ = condition // Use condition to prevent optimization
+				case <-time.After(5 * time.Second):
+					results <- fmt.Errorf("ProjectStream condition timeout")
+					return
+				}
+
+				results <- nil
+			}(j)
+		}
+
+		// Wait for all goroutines to complete
+		wg.Wait()
+		close(results)
+
+		// Check for any errors
+		for err := range results {
+			if err != nil {
+				b.Fatalf("Concurrent ProjectStream failed: %v", err)
+			}
+		}
+	}
+}
+
 // BenchmarkMemoryUsage benchmarks memory usage for different operations
 func BenchmarkMemoryUsage(b *testing.B, benchCtx *BenchmarkContext, operation string) {
 	// Create context with timeout for each benchmark iteration
@@ -1010,6 +1145,32 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 
 	b.Run("ProjectStream_2", func(b *testing.B) {
 		BenchmarkProjectStream(b, benchCtx, 2)
+	})
+
+	// Concurrent Projection benchmarks (testing the new limits)
+	b.Run("Project_Concurrent_1User", func(b *testing.B) {
+		BenchmarkProjectConcurrent(b, benchCtx, 1)
+	})
+
+	b.Run("Project_Concurrent_10Users", func(b *testing.B) {
+		BenchmarkProjectConcurrent(b, benchCtx, 10)
+	})
+
+	b.Run("Project_Concurrent_25Users", func(b *testing.B) {
+		BenchmarkProjectConcurrent(b, benchCtx, 25)
+	})
+
+	// Concurrent ProjectStream benchmarks (testing the new limits)
+	b.Run("ProjectStream_Concurrent_1User", func(b *testing.B) {
+		BenchmarkProjectStreamConcurrent(b, benchCtx, 1)
+	})
+
+	b.Run("ProjectStream_Concurrent_10Users", func(b *testing.B) {
+		BenchmarkProjectStreamConcurrent(b, benchCtx, 10)
+	})
+
+	b.Run("ProjectStream_Concurrent_25Users", func(b *testing.B) {
+		BenchmarkProjectStreamConcurrent(b, benchCtx, 25)
 	})
 
 	// Memory usage benchmarks

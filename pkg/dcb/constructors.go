@@ -27,10 +27,10 @@ func newEventStore(pool *pgxpool.Pool, cfg EventStoreConfig) *eventStore {
 		cfg.AppendTimeout = 10000 // 10 seconds default
 	}
 	if cfg.MaxConcurrentProjections <= 0 {
-		cfg.MaxConcurrentProjections = 10 // Default: 10 concurrent projections
+		cfg.MaxConcurrentProjections = 50 // Default: 50 concurrent projections (supports 100 users)
 	}
 	if cfg.MaxProjectionGoroutines <= 0 {
-		cfg.MaxProjectionGoroutines = 50 // Default: 50 goroutines per projection
+		cfg.MaxProjectionGoroutines = 100 // Default: 100 goroutines per projection
 	}
 
 	return &eventStore{
@@ -67,8 +67,8 @@ func NewEventStore(ctx context.Context, pool *pgxpool.Pool) (EventStore, error) 
 		DefaultAppendIsolation:    IsolationLevelReadCommitted,
 		QueryTimeout:              15000, // 15 seconds default
 		AppendTimeout:             10000, // 10 seconds default
-		MaxConcurrentProjections:  10,    // Default: 10 concurrent projections
-		MaxProjectionGoroutines:   50,    // Default: 50 goroutines per projection
+		MaxConcurrentProjections:  50,    // Default: 50 concurrent projections (supports 100 users)
+		MaxProjectionGoroutines:   100,   // Default: 100 goroutines per projection
 	}
 	return newEventStore(pool, config), nil
 }
