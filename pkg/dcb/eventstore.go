@@ -66,7 +66,7 @@ type EventStore interface {
 type eventStore struct {
 	pool   *pgxpool.Pool
 	config EventStoreConfig
-	
+
 	// projectionSemaphore limits concurrent projection operations
 	projectionSemaphore chan struct{}
 }

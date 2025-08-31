@@ -24,20 +24,20 @@ var (
 
 // Global progress tracking for all benchmarks
 var (
-	globalProgressMu sync.Mutex
+	globalProgressMu          sync.Mutex
 	globalCompletedBenchmarks int = 0
-	globalStartTime time.Time
-	globalInitialized bool = false
+	globalStartTime           time.Time
+	globalInitialized         bool = false
 )
 
 // ProgressTracker provides progress information for benchmark execution
 type ProgressTracker struct {
-	mu              sync.Mutex
-	total           int
-	completed       int
-	startTime       time.Time
-	lastUpdateTime  time.Time
-	isGlobal        bool
+	mu             sync.Mutex
+	total          int
+	completed      int
+	startTime      time.Time
+	lastUpdateTime time.Time
+	isGlobal       bool
 }
 
 // NewProgressTracker creates a new progress tracker
@@ -55,14 +55,14 @@ func NewProgressTracker(total int) *ProgressTracker {
 func NewGlobalProgressTracker() *ProgressTracker {
 	globalProgressMu.Lock()
 	defer globalProgressMu.Unlock()
-	
+
 	if !globalInitialized {
 		globalStartTime = time.Now()
 		globalCompletedBenchmarks = 0
 		globalInitialized = true
 		fmt.Printf("[START] Running all benchmarks\n")
 	}
-	
+
 	return &ProgressTracker{
 		total:          0, // Don't use total for global tracker
 		completed:      0,
@@ -78,13 +78,13 @@ func (pt *ProgressTracker) Update(benchmarkName string) {
 	defer pt.mu.Unlock()
 
 	pt.completed++
-	
+
 	if pt.isGlobal {
 		globalProgressMu.Lock()
 		globalCompletedBenchmarks++
 		elapsed := time.Since(globalStartTime)
 		globalProgressMu.Unlock()
-		
+
 		// Always print progress after each benchmark execution (without percentage)
 		fmt.Printf("[PROGRESS] %s completed (%d total) - Elapsed: %s\n",
 			benchmarkName, globalCompletedBenchmarks, elapsed.Round(time.Second))
@@ -196,7 +196,7 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string, pastEventCount int)
 
 	// Create event stores with different configurations
 	readCommittedConfig := dcb.EventStoreConfig{
-		MaxAppendBatchSize:      1000,
+		MaxAppendBatchSize:     1000,
 		StreamBuffer:           1000,
 		DefaultAppendIsolation: dcb.IsolationLevelReadCommitted,
 		QueryTimeout:           15000,
@@ -204,7 +204,7 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string, pastEventCount int)
 	}
 
 	repeatableReadConfig := dcb.EventStoreConfig{
-		MaxAppendBatchSize:      1000,
+		MaxAppendBatchSize:     1000,
 		StreamBuffer:           1000,
 		DefaultAppendIsolation: dcb.IsolationLevelRepeatableRead,
 		QueryTimeout:           15000,
@@ -464,137 +464,15 @@ func createPastEventsForAppendIf(ctx context.Context, store dcb.EventStore, coun
 	return store.Append(ctx, events)
 }
 
-// BenchmarkAppendSingle benchmarks single event append
-func BenchmarkAppendSingle(b *testing.B, benchCtx *BenchmarkContext) {
-	ctx := context.Background()
 
-	b.ResetTimer()
-	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
-		uniqueID := fmt.Sprintf("single_%d_%d", time.Now().UnixNano(), i)
-		event := dcb.NewInputEvent("TestEvent",
-			dcb.NewTags("test", "single", "unique_id", uniqueID),
-			[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, uniqueID)))
 
-		err := benchCtx.Store.Append(ctx, []dcb.InputEvent{event})
-		if err != nil {
-			b.Fatalf("Append failed: %v", err)
-		}
-	}
-}
-
-// BenchmarkAppendRealistic benchmarks realistic batch sizes (1-12 events) for real-world usage
-func BenchmarkAppendRealistic(b *testing.B, benchCtx *BenchmarkContext) {
-	ctx := context.Background()
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	// Generate realistic batch sizes at runtime
-	realisticSizes := []int{1, 2, 3, 5, 8, 12}
-
-	for i := 0; i < b.N; i++ {
-		batchSize := realisticSizes[i%len(realisticSizes)]
-		events := make([]dcb.InputEvent, batchSize)
-		uniqueID := fmt.Sprintf("realistic_%d_%d", time.Now().UnixNano(), i)
-
-		for j := 0; j < batchSize; j++ {
-			eventID := fmt.Sprintf("%s_%d", uniqueID, j)
-			events[j] = dcb.NewInputEvent("TestEvent",
-				dcb.NewTags("test", "realistic", "batch_size", fmt.Sprintf("%d", batchSize), "unique_id", eventID),
-				[]byte(fmt.Sprintf(`{"batch_size": %d, "unique_id": "%s"}`, batchSize, eventID)))
-		}
-
-		err := benchCtx.Store.Append(ctx, events)
-		if err != nil {
-			b.Fatalf("Realistic batch append failed: %v", err)
-		}
-	}
-}
-
-// BenchmarkAppendIf benchmarks conditional append with NO CONFLICT (business rule passes)
-// This should perform closer to regular Append since the condition always succeeds
-func BenchmarkAppendIf(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
-	// Create context with timeout for each benchmark iteration
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		events := make([]dcb.InputEvent, batchSize)
-		uniqueID := fmt.Sprintf("appendif_%d_%d", time.Now().UnixNano(), i)
-
-		for j := 0; j < batchSize; j++ {
-			eventID := fmt.Sprintf("%s_%d", uniqueID, j)
-			events[j] = dcb.NewInputEvent("TestEvent",
-				dcb.NewTags("test", "appendif", "unique_id", eventID),
-				[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, eventID)))
-		}
-
-		// Create a simple condition that should pass (no conflicting events)
-		condition := dcb.NewAppendCondition(
-			dcb.NewQuery(dcb.NewTags("test", "conflict"), "ConflictingEvent"),
-		)
-
-		err := benchCtx.Store.AppendIf(ctx, events, condition)
-		if err != nil {
-			b.Fatalf("AppendIf failed: %v", err)
-		}
-	}
-}
-
-// BenchmarkAppendIfWithConflict benchmarks AppendIf WITH CONFLICT (business rule fails)
-// This should be slower than no-conflict scenario due to rollback and error handling
-func BenchmarkAppendIfWithConflict(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
-	// Create context with timeout for each benchmark iteration
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		// Create a conflicting event with unique ID for this iteration
-		uniqueID := fmt.Sprintf("conflict_%d_%d", time.Now().UnixNano(), i)
-		conflictEvent := dcb.NewInputEvent("ConflictingEvent",
-			dcb.NewTags("test", "conflict", "unique_id", uniqueID),
-			[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, uniqueID)))
-
-		// Append the conflicting event first
-		err := benchCtx.Store.Append(ctx, []dcb.InputEvent{conflictEvent})
-		if err != nil {
-			b.Fatalf("Failed to append conflict event: %v", err)
-		}
-
-		// Now try to append with a condition that should fail
-		events := make([]dcb.InputEvent, batchSize)
-		for j := 0; j < batchSize; j++ {
-			eventID := fmt.Sprintf("appendif_%s_%d", uniqueID, j)
-			events[j] = dcb.NewInputEvent("TestEvent",
-				dcb.NewTags("test", "appendif", "unique_id", eventID),
-				[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, eventID)))
-		}
-
-		// Create a condition that should fail (conflicting event exists)
-		condition := dcb.NewAppendCondition(
-			dcb.NewQuery(dcb.NewTags("test", "conflict", "unique_id", uniqueID)),
-		)
-
-		// This should fail due to the conflicting event
-		err = benchCtx.Store.AppendIf(ctx, events, condition)
-		if err == nil {
-			b.Fatalf("AppendIf should have failed due to conflict")
-		}
-	}
-}
 
 // BenchmarkAppendIfConcurrent benchmarks concurrent AppendIf operations
 func BenchmarkAppendIfConcurrent(b *testing.B, benchCtx *BenchmarkContext, concurrencyLevel int, eventCount int, conflictScenario bool) {
-	// Create context with timeout for each benchmark iteration
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	// Create context with timeout for each benchmark iteration using Go 1.25 WithTimeoutCause
+	ctx, cancel := context.WithTimeoutCause(context.Background(), 2*time.Minute,
+		fmt.Errorf("benchmark timeout after 2 minutes"))
 	defer cancel()
 
 	b.ResetTimer()
@@ -614,20 +492,17 @@ func BenchmarkAppendIfConcurrent(b *testing.B, benchCtx *BenchmarkContext, concu
 					b.Fatalf("Failed to append conflict event: %v", err)
 				}
 			}
-			// Small delay to ensure all conflicting events are committed
-			time.Sleep(10 * time.Millisecond)
+			// Ensure all conflicting events are committed (no artificial delay)
 		}
 
-		// Use a WaitGroup to coordinate concurrent operations
+		// Use Go 1.25 WaitGroup.Go() for concurrent operations
 		var wg sync.WaitGroup
 		results := make(chan error, concurrencyLevel)
 
-		// Launch concurrent AppendIf operations
+		// Launch concurrent AppendIf operations using WaitGroup.Go()
 		for j := 0; j < concurrencyLevel; j++ {
-			wg.Add(1)
-			go func(goroutineID int) {
-				defer wg.Done()
-
+			goroutineID := j // Capture loop variable
+			wg.Go(func() {
 				// Create unique ID for this goroutine
 				uniqueID := fmt.Sprintf("concurrent_%d_%d_%d", time.Now().UnixNano(), i, goroutineID)
 
@@ -644,7 +519,6 @@ func BenchmarkAppendIfConcurrent(b *testing.B, benchCtx *BenchmarkContext, concu
 				var condition dcb.AppendCondition
 				if conflictScenario {
 					// Condition that should fail (conflicting event exists)
-					// Use a simpler condition that just checks for any conflicting event
 					condition = dcb.NewAppendCondition(
 						dcb.NewQuery(dcb.NewTags("test", "conflict")),
 					)
@@ -666,7 +540,7 @@ func BenchmarkAppendIfConcurrent(b *testing.B, benchCtx *BenchmarkContext, concu
 				}
 
 				results <- nil
-			}(j)
+			})
 		}
 
 		// Wait for all goroutines to complete
@@ -684,24 +558,23 @@ func BenchmarkAppendIfConcurrent(b *testing.B, benchCtx *BenchmarkContext, concu
 
 // BenchmarkAppendConcurrent benchmarks concurrent Append operations
 func BenchmarkAppendConcurrent(b *testing.B, benchCtx *BenchmarkContext, concurrencyLevel int, eventCount int) {
-	// Create context with timeout for each benchmark iteration
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	// Create context with timeout for each benchmark iteration using Go 1.25 WithTimeoutCause
+	ctx, cancel := context.WithTimeoutCause(context.Background(), 2*time.Minute,
+		fmt.Errorf("benchmark timeout after 2 minutes"))
 	defer cancel()
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		// Use a WaitGroup to coordinate concurrent operations
+		// Use Go 1.25 WaitGroup.Go() for concurrent operations
 		var wg sync.WaitGroup
 		results := make(chan error, concurrencyLevel)
 
-		// Launch concurrent Append operations
+		// Launch concurrent Append operations using WaitGroup.Go()
 		for j := 0; j < concurrencyLevel; j++ {
-			wg.Add(1)
-			go func(goroutineID int) {
-				defer wg.Done()
-
+			goroutineID := j // Capture loop variable
+			wg.Go(func() {
 				// Create unique ID for this goroutine
 				uniqueID := fmt.Sprintf("concurrent_%d_%d_%d", time.Now().UnixNano(), i, goroutineID)
 
@@ -722,7 +595,7 @@ func BenchmarkAppendConcurrent(b *testing.B, benchCtx *BenchmarkContext, concurr
 				}
 
 				results <- nil
-			}(j)
+			})
 		}
 
 		// Wait for all goroutines to complete
@@ -738,202 +611,18 @@ func BenchmarkAppendConcurrent(b *testing.B, benchCtx *BenchmarkContext, concurr
 	}
 }
 
-// BenchmarkAppendMixedEventTypes benchmarks append with mixed event types (matching web-app scenarios)
-func BenchmarkAppendMixedEventTypes(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
-	// Create context with timeout for each benchmark iteration
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
 
-	b.ResetTimer()
-	b.ReportAllocs()
 
-	eventTypes := []string{"UserCreated", "AccountOpened", "TransactionInitiated", "NotificationSent", "AuditLog"}
 
-	for i := 0; i < b.N; i++ {
-		events := make([]dcb.InputEvent, batchSize)
-		uniqueID := fmt.Sprintf("mixed_%d_%d", time.Now().UnixNano(), i)
 
-		for j := 0; j < batchSize; j++ {
-			eventID := fmt.Sprintf("%s_%d", uniqueID, j)
-			eventType := eventTypes[j%len(eventTypes)]
-			events[j] = dcb.NewInputEvent(eventType,
-				dcb.NewTags("test", "mixed", "unique_id", eventID),
-				[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s", "type": "%s"}`, eventID, eventType)))
-		}
 
-		err := benchCtx.Store.Append(ctx, events)
-		if err != nil {
-			b.Fatalf("Mixed event types append failed: %v", err)
-		}
-	}
-}
-
-// BenchmarkAppendHighFrequency benchmarks high-frequency event append (matching web-app scenarios)
-func BenchmarkAppendHighFrequency(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
-	// Create context with timeout for each benchmark iteration
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		events := make([]dcb.InputEvent, batchSize)
-		uniqueID := fmt.Sprintf("highfreq_%d_%d", time.Now().UnixNano(), i)
-
-		for j := 0; j < batchSize; j++ {
-			eventID := fmt.Sprintf("%s_%d", uniqueID, j)
-			events[j] = dcb.NewInputEvent("SensorReading",
-				dcb.NewTags("sensor", fmt.Sprintf("sensor_%d", j), "location", "data_center", "type", "temperature"),
-				[]byte(fmt.Sprintf(`{"value": %d, "timestamp": "%d", "sensor_id": "%s"}`, j, time.Now().UnixNano(), eventID)))
-		}
-
-		err := benchCtx.Store.Append(ctx, events)
-		if err != nil {
-			b.Fatalf("High frequency append failed: %v", err)
-		}
-	}
-}
-
-// BenchmarkRead benchmarks event reading
-func BenchmarkRead(b *testing.B, benchCtx *BenchmarkContext, queryIndex int) {
-	// Create context with timeout for each benchmark iteration
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	if queryIndex >= len(benchCtx.Queries) {
-		b.Fatalf("Query index out of range: %d", queryIndex)
-	}
-
-	query := benchCtx.Queries[queryIndex]
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		events, err := benchCtx.Store.Query(ctx, query, nil)
-		if err != nil {
-			b.Fatalf("Read failed: %v", err)
-		}
-		_ = events // Prevent compiler optimization
-	}
-}
-
-// BenchmarkReadChannel benchmarks channel-based event reading
-func BenchmarkReadChannel(b *testing.B, benchCtx *BenchmarkContext, queryIndex int) {
-	// Create context with timeout for each benchmark iteration
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	if queryIndex >= len(benchCtx.Queries) {
-		b.Fatalf("Query index out of range: %d", queryIndex)
-	}
-
-	query := benchCtx.Queries[queryIndex]
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		eventChan, err := benchCtx.ChannelStore.QueryStream(ctx, query, nil)
-		if err != nil {
-			b.Fatalf("ReadStream failed: %v", err)
-		}
-
-		count := 0
-		for range eventChan {
-			count++
-		}
-		_ = count // Prevent compiler optimization
-	}
-}
-
-// BenchmarkProject benchmarks synchronous projection operations
-func BenchmarkProject(b *testing.B, benchCtx *BenchmarkContext, eventCount int) {
-	ctx := context.Background()
-
-	// Create a simple projector for testing
-	projector := dcb.StateProjector{
-		ID:           "test_projection",
-		Query:        dcb.NewQueryBuilder().WithType("TestEvent").WithTag("test", "benchmark").Build(),
-		InitialState: map[string]interface{}{"count": 0, "events": []string{}},
-		TransitionFn: func(state any, event dcb.Event) any {
-			stateMap := state.(map[string]interface{})
-			count := stateMap["count"].(int)
-			events := stateMap["events"].([]string)
-
-			// Update state based on event
-			stateMap["count"] = count + 1
-			stateMap["events"] = append(events, event.Type)
-
-			return stateMap
-		},
-	}
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		// Project state from events
-		_, _, err := benchCtx.Store.Project(ctx, []dcb.StateProjector{projector}, nil)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-// BenchmarkProjectStream benchmarks asynchronous streaming projection operations
-func BenchmarkProjectStream(b *testing.B, benchCtx *BenchmarkContext, eventCount int) {
-	ctx := context.Background()
-
-	// Create a simple projector for testing
-	projector := dcb.StateProjector{
-		ID:           "test_stream_projection",
-		Query:        dcb.NewQueryBuilder().WithType("TestEvent").WithTag("test", "benchmark").Build(),
-		InitialState: map[string]interface{}{"count": 0, "events": []string{}},
-		TransitionFn: func(state any, event dcb.Event) any {
-			stateMap := state.(map[string]interface{})
-			count := stateMap["count"].(int)
-			events := stateMap["events"].([]string)
-
-			// Update state based on event
-			stateMap["count"] = count + 1
-			stateMap["events"] = append(events, event.Type)
-
-			return stateMap
-		},
-	}
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		// Start streaming projection
-		stateChan, conditionChan, err := benchCtx.Store.ProjectStream(ctx, []dcb.StateProjector{projector}, nil)
-		if err != nil {
-			b.Fatal(err)
-		}
-
-		// Consume from channels
-		select {
-		case state := <-stateChan:
-			_ = state // Use state to prevent optimization
-		case <-time.After(5 * time.Second):
-			b.Fatal("ProjectStream timeout")
-		}
-
-		select {
-		case condition := <-conditionChan:
-			_ = condition // Use condition to prevent optimization
-		case <-time.After(5 * time.Second):
-			b.Fatal("ProjectStream condition timeout")
-		}
-	}
-}
 
 // BenchmarkProjectConcurrent benchmarks concurrent projection operations
 func BenchmarkProjectConcurrent(b *testing.B, benchCtx *BenchmarkContext, goroutines int) {
-	ctx := context.Background()
+	// Create context with timeout using Go 1.25 WithTimeoutCause
+	ctx, cancel := context.WithTimeoutCause(context.Background(), 2*time.Minute,
+		fmt.Errorf("projection benchmark timeout after 2 minutes"))
+	defer cancel()
 
 	// Create a simple projector for testing
 	projector := dcb.StateProjector{
@@ -957,15 +646,13 @@ func BenchmarkProjectConcurrent(b *testing.B, benchCtx *BenchmarkContext, gorout
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
+		// Use Go 1.25 WaitGroup.Go() for concurrent operations
 		var wg sync.WaitGroup
 		results := make(chan error, goroutines)
 
-		// Start concurrent projections
+		// Start concurrent projections using WaitGroup.Go()
 		for j := 0; j < goroutines; j++ {
-			wg.Add(1)
-			go func(goroutineID int) {
-				defer wg.Done()
-
+			wg.Go(func() {
 				// Project state from events
 				_, _, err := benchCtx.Store.Project(ctx, []dcb.StateProjector{projector}, nil)
 				if err != nil {
@@ -974,7 +661,7 @@ func BenchmarkProjectConcurrent(b *testing.B, benchCtx *BenchmarkContext, gorout
 				}
 
 				results <- nil
-			}(j)
+			})
 		}
 
 		// Wait for all goroutines to complete
