@@ -110,26 +110,14 @@
 **Projection Operations Details**:
 - **Operation**: State reconstruction from event streams
 - **Scenario**: Building aggregate state from historical events
-- **Events**: Number of events processed during projection (varies by dataset)
-- **Model**: Domain-specific state reconstruction with business logic
+- **Events**: Number of events processed during projection (~100 events from AppendIf operations)
+- **Model**: Simple counter increment for each event processed
 
 | Operation | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
 |-----------|---------|-------------|--------|---------------------|-----------------|---------------|-------------|
-| **ProjectStream** | Small | 1 | ~100 | 15,602 | 77,190 | 11,359 | 53 |
-| **Project** | Small | 10 | ~100 | 4,142 | 341,142 | 22,177 | 403 |
-| **ProjectStream** | Small | 10 | ~100 | 4,206 | 331,163 | 112,433 | 503 |
-| **ProjectStream** | Medium | 1 | ~100 | 2,395 | 537,631 | 11,356 | 53 |
-| **Project** | Medium | 1 | ~100 | 2,323 | 559,914 | 2,332 | 43 |
-| **Project** | Small | 25 | ~100 | 2,029 | 774,387 | 55,305 | 1,003 |
-| **ProjectStream** | Small | 25 | ~100 | 1,869 | 738,889 | 280,907 | 1,253 |
-| **Project** | Medium | 10 | ~100 | 1,084 | 1,090,445 | 22,159 | 403 |
-| **ProjectStream** | Medium | 10 | ~100 | 1,076 | 1,102,881 | 112,444 | 503 |
-| **Project** | Small | 1 | ~100 | 1,892 | 530,840 | 2,334 | 43 |
-| **ProjectStream** | Medium | 25 | ~100 | 502 | 2,474,054 | 280,892 | 1,253 |
-| **Project** | Medium | 25 | ~100 | 499 | 2,375,864 | 55,320 | 1,003 |
-| **Project** | Tiny | 1 | ~100 | 739 | 1,831,012 | 2,335 | 43 |
-| **ProjectStream** | Tiny | 1 | ~100 | 594 | 1,868,685 | 11,365 | 53 |
-| **Project** | Tiny | 10 | ~100 | 340 | 3,526,449 | 22,110 | 403 |
-| **ProjectStream** | Tiny | 10 | ~100 | 336 | 3,547,493 | 112,478 | 503 |
-| **Project** | Tiny | 25 | ~100 | 168 | 7,172,446 | 55,339 | 1,003 |
-| **ProjectStream** | Tiny | 25 | ~100 | 165 | 7,189,972 | 281,002 | 1,253 |
+| **ProjectStream** | Small | 1 | ~100 | 8.5 | 352,288,792 | 199,048,933 | 4,803,245 |
+| **Project** | Small | 1 | ~100 | 8.0 | 372,054,778 | 199,039,501 | 4,803,233 |
+| **ProjectStream** | Small | 10 | ~100 | 0.5 | 1,980,970,708 | 1,990,485,304 | 48,032,434 |
+| **Project** | Small | 10 | ~100 | 0.4 | 2,501,983,416 | 1,990,402,880 | 48,032,473 |
+| **ProjectStream** | Small | 25 | ~100 | 0.2 | 5,394,729,375 | 4,976,219,360 | 120,081,173 |
+| **Project** | Small | 25 | ~100 | 0.1 | 9,304,960,042 | 4,976,002,024 | 120,081,085 |
