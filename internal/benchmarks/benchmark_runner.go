@@ -49,8 +49,14 @@ func getOrCreateGlobalPool() (*pgxpool.Pool, error) {
 		return globalPool, nil
 	}
 
+	// Get database URL from environment or use default
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		dbURL = "postgres://crablet:crablet@localhost:5432/crablet"
+	}
+
 	// Create new pool with conservative settings
-	poolConfig, err := pgxpool.ParseConfig("postgres://crablet:crablet@localhost:5432/crablet")
+	poolConfig, err := pgxpool.ParseConfig(dbURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse connection string: %v", err)
 	}
@@ -346,14 +352,14 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string, pastEventCount int)
 // This ensures consistent business rule validation context across benchmark runs
 func createPastEventsForAppendIf(ctx context.Context, store dcb.EventStore, count int) error {
 	events := make([]dcb.InputEvent, count)
-	
+
 	for i := 0; i < count; i++ {
 		eventID := fmt.Sprintf("past_event_%d", i)
 		events[i] = dcb.NewInputEvent("PastEvent",
 			dcb.NewTags("test", "past", "event_id", eventID),
 			[]byte(fmt.Sprintf(`{"value": "past", "event_id": "%s", "index": %d}`, eventID, i)))
 	}
-	
+
 	return store.Append(ctx, events)
 }
 
@@ -377,8 +383,6 @@ func BenchmarkAppendSingle(b *testing.B, benchCtx *BenchmarkContext) {
 	}
 }
 
-
-
 // BenchmarkAppendRealistic benchmarks realistic batch sizes (1-12 events) for real-world usage
 func BenchmarkAppendRealistic(b *testing.B, benchCtx *BenchmarkContext) {
 	ctx := context.Background()
@@ -388,7 +392,7 @@ func BenchmarkAppendRealistic(b *testing.B, benchCtx *BenchmarkContext) {
 
 	// Generate realistic batch sizes at runtime
 	realisticSizes := []int{1, 2, 3, 5, 8, 12}
-	
+
 	for i := 0; i < b.N; i++ {
 		batchSize := realisticSizes[i%len(realisticSizes)]
 		events := make([]dcb.InputEvent, batchSize)
@@ -441,8 +445,6 @@ func BenchmarkAppendIf(b *testing.B, benchCtx *BenchmarkContext, batchSize int) 
 	}
 }
 
-
-
 // BenchmarkAppendIfWithConflict benchmarks AppendIf WITH CONFLICT (business rule fails)
 // This should be slower than no-conflict scenario due to rollback and error handling
 func BenchmarkAppendIfWithConflict(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
@@ -487,8 +489,6 @@ func BenchmarkAppendIfWithConflict(b *testing.B, benchCtx *BenchmarkContext, bat
 		}
 	}
 }
-
-
 
 // BenchmarkAppendMixedEventTypes benchmarks append with mixed event types (matching web-app scenarios)
 func BenchmarkAppendMixedEventTypes(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
@@ -603,7 +603,7 @@ func BenchmarkReadChannel(b *testing.B, benchCtx *BenchmarkContext, queryIndex i
 // BenchmarkProject benchmarks synchronous projection operations
 func BenchmarkProject(b *testing.B, benchCtx *BenchmarkContext, eventCount int) {
 	ctx := context.Background()
-	
+
 	// Create a simple projector for testing
 	projector := dcb.StateProjector{
 		ID:           "test_projection",
@@ -613,11 +613,11 @@ func BenchmarkProject(b *testing.B, benchCtx *BenchmarkContext, eventCount int) 
 			stateMap := state.(map[string]interface{})
 			count := stateMap["count"].(int)
 			events := stateMap["events"].([]string)
-			
+
 			// Update state based on event
 			stateMap["count"] = count + 1
 			stateMap["events"] = append(events, event.Type)
-			
+
 			return stateMap
 		},
 	}
@@ -637,7 +637,7 @@ func BenchmarkProject(b *testing.B, benchCtx *BenchmarkContext, eventCount int) 
 // BenchmarkProjectStream benchmarks asynchronous streaming projection operations
 func BenchmarkProjectStream(b *testing.B, benchCtx *BenchmarkContext, eventCount int) {
 	ctx := context.Background()
-	
+
 	// Create a simple projector for testing
 	projector := dcb.StateProjector{
 		ID:           "test_stream_projection",
@@ -647,11 +647,11 @@ func BenchmarkProjectStream(b *testing.B, benchCtx *BenchmarkContext, eventCount
 			stateMap := state.(map[string]interface{})
 			count := stateMap["count"].(int)
 			events := stateMap["events"].([]string)
-			
+
 			// Update state based on event
 			stateMap["count"] = count + 1
 			stateMap["events"] = append(events, event.Type)
-			
+
 			return stateMap
 		},
 	}
@@ -756,30 +756,30 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 	})
 
 	// Conditional append benchmarks - NO CONFLICT (business rule passes)
-b.Run("AppendIf_NoConflict_1", func(b *testing.B) {
-	BenchmarkAppendIf(b, benchCtx, 1)
-})
+	b.Run("AppendIf_NoConflict_1", func(b *testing.B) {
+		BenchmarkAppendIf(b, benchCtx, 1)
+	})
 
-b.Run("AppendIf_NoConflict_5", func(b *testing.B) {
-	BenchmarkAppendIf(b, benchCtx, 5)
-})
+	b.Run("AppendIf_NoConflict_5", func(b *testing.B) {
+		BenchmarkAppendIf(b, benchCtx, 5)
+	})
 
-b.Run("AppendIf_NoConflict_12", func(b *testing.B) {
-	BenchmarkAppendIf(b, benchCtx, 12)
-})
+	b.Run("AppendIf_NoConflict_12", func(b *testing.B) {
+		BenchmarkAppendIf(b, benchCtx, 12)
+	})
 
-// Conditional append benchmarks - WITH CONFLICT (business rule fails)
-b.Run("AppendIf_WithConflict_1", func(b *testing.B) {
-	BenchmarkAppendIfWithConflict(b, benchCtx, 1)
-})
+	// Conditional append benchmarks - WITH CONFLICT (business rule fails)
+	b.Run("AppendIf_WithConflict_1", func(b *testing.B) {
+		BenchmarkAppendIfWithConflict(b, benchCtx, 1)
+	})
 
-b.Run("AppendIf_WithConflict_5", func(b *testing.B) {
-	BenchmarkAppendIfWithConflict(b, benchCtx, 5)
-})
+	b.Run("AppendIf_WithConflict_5", func(b *testing.B) {
+		BenchmarkAppendIfWithConflict(b, benchCtx, 5)
+	})
 
-b.Run("AppendIf_WithConflict_12", func(b *testing.B) {
-	BenchmarkAppendIfWithConflict(b, benchCtx, 12)
-})
+	b.Run("AppendIf_WithConflict_12", func(b *testing.B) {
+		BenchmarkAppendIfWithConflict(b, benchCtx, 12)
+	})
 
 	// Read benchmarks
 	b.Run("Read_Single", func(b *testing.B) {

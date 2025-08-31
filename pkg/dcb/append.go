@@ -190,6 +190,37 @@ func (es *eventStore) AppendIf(ctx context.Context, events []InputEvent, conditi
 	return nil
 }
 
+// extractConditionPrimitives extracts primitive values from AppendCondition for optimized PostgreSQL function
+func extractConditionPrimitives(condition AppendCondition) ([]string, []string, *uint64, *int64) {
+	var eventTypes []string
+	var conditionTags []string
+	var afterCursorTxID *uint64
+	var afterCursorPosition *int64
+
+	// Extract after cursor if present
+	if afterCursor := condition.getAfterCursor(); afterCursor != nil {
+		afterCursorTxID = &afterCursor.TransactionID
+		afterCursorPosition = &afterCursor.Position
+	}
+
+	// Extract fail condition if present
+	if failQuery := condition.getFailIfEventsMatch(); failQuery != nil {
+		items := (*failQuery).GetItems()
+		if len(items) > 0 {
+			// Extract event types from first item
+			eventTypes = items[0].GetEventTypes()
+
+			// Extract tags from first item
+			tags := items[0].GetTags()
+			for _, tag := range tags {
+				conditionTags = append(conditionTags, tag.GetKey()+":"+tag.GetValue())
+			}
+		}
+	}
+
+	return eventTypes, conditionTags, afterCursorTxID, afterCursorPosition
+}
+
 // Add helper function to encode tags as Postgres array literal
 func encodeTagsArrayLiteral(tags []string) string {
 	if len(tags) == 0 {
@@ -271,9 +302,12 @@ func (es *eventStore) appendInTx(ctx context.Context, tx pgx.Tx, events []InputE
 	var result []byte
 	var err error
 	if condition != nil {
+		// Extract primitive values from condition for optimized function
+		eventTypes, conditionTags, afterCursorTxID, afterCursorPosition := extractConditionPrimitives(condition)
+
 		err = tx.QueryRow(ctx, `
-			SELECT append_events_with_condition($1, $2, $3, $4)
-		`, types, tags, data, conditionJSON).Scan(&result)
+			SELECT append_events_with_condition_optimized($1, $2, $3, $4, $5, $6, $7)
+		`, types, tags, data, eventTypes, conditionTags, afterCursorTxID, afterCursorPosition).Scan(&result)
 	} else {
 		_, err = tx.Exec(ctx, `SELECT append_events_batch($1, $2, $3)`, types, tags, data)
 	}
