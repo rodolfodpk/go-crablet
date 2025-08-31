@@ -25,7 +25,6 @@ var (
 // Global progress tracking for all benchmarks
 var (
 	globalProgressMu sync.Mutex
-	globalTotalBenchmarks int = 78 // 3 datasets × 26 benchmarks each (removed 4 redundant projection tests)
 	globalCompletedBenchmarks int = 0
 	globalStartTime time.Time
 	globalInitialized bool = false
@@ -61,11 +60,11 @@ func NewGlobalProgressTracker() *ProgressTracker {
 		globalStartTime = time.Now()
 		globalCompletedBenchmarks = 0
 		globalInitialized = true
-		fmt.Printf("[START] Running all benchmarks (78 total across 3 datasets)\n")
+		fmt.Printf("[START] Running all benchmarks\n")
 	}
 	
 	return &ProgressTracker{
-		total:          globalTotalBenchmarks,
+		total:          0, // Don't use total for global tracker
 		completed:      0,
 		startTime:      globalStartTime,
 		lastUpdateTime: time.Now(),
@@ -83,13 +82,12 @@ func (pt *ProgressTracker) Update(benchmarkName string) {
 	if pt.isGlobal {
 		globalProgressMu.Lock()
 		globalCompletedBenchmarks++
-		percentage := float64(globalCompletedBenchmarks) / float64(globalTotalBenchmarks) * 100
 		elapsed := time.Since(globalStartTime)
 		globalProgressMu.Unlock()
 		
-		// Always print progress after each benchmark execution
-		fmt.Printf("[PROGRESS] %s - %d/%d (%.1f%%) - Elapsed: %s\n",
-			benchmarkName, globalCompletedBenchmarks, globalTotalBenchmarks, percentage, elapsed.Round(time.Second))
+		// Always print progress after each benchmark execution (without percentage)
+		fmt.Printf("[PROGRESS] %s completed (%d total) - Elapsed: %s\n",
+			benchmarkName, globalCompletedBenchmarks, elapsed.Round(time.Second))
 		pt.lastUpdateTime = time.Now()
 	} else {
 		percentage := float64(pt.completed) / float64(pt.total) * 100
@@ -111,7 +109,7 @@ func (pt *ProgressTracker) Complete() {
 
 	if pt.isGlobal {
 		globalProgressMu.Lock()
-		if globalCompletedBenchmarks >= globalTotalBenchmarks {
+		if globalCompletedBenchmarks > 0 {
 			totalTime := time.Since(globalStartTime)
 			fmt.Printf("[COMPLETE] All benchmarks finished - Total time: %s\n", totalTime.Round(time.Second))
 			// Reset for next run
