@@ -25,9 +25,10 @@ var (
 // Global progress tracking for all benchmarks
 var (
 	globalProgressMu sync.Mutex
-	globalTotalBenchmarks int
-	globalCompletedBenchmarks int
+	globalTotalBenchmarks int = 90 // 3 datasets × 30 benchmarks each
+	globalCompletedBenchmarks int = 0
 	globalStartTime time.Time
+	globalInitialized bool = false
 )
 
 // ProgressTracker provides progress information for benchmark execution
@@ -56,10 +57,11 @@ func NewGlobalProgressTracker() *ProgressTracker {
 	globalProgressMu.Lock()
 	defer globalProgressMu.Unlock()
 	
-	if globalStartTime.IsZero() {
+	if !globalInitialized {
 		globalStartTime = time.Now()
-		globalTotalBenchmarks = 90 // 3 datasets × 30 benchmarks each
 		globalCompletedBenchmarks = 0
+		globalInitialized = true
+		fmt.Printf("[START] Running all benchmarks (90 total across 3 datasets)\n")
 	}
 	
 	return &ProgressTracker{
@@ -85,8 +87,8 @@ func (pt *ProgressTracker) Update(benchmarkName string) {
 		elapsed := time.Since(globalStartTime)
 		globalProgressMu.Unlock()
 		
-		// Only print progress every 1 minute or when percentage changes significantly
-		if time.Since(pt.lastUpdateTime) > 1*time.Minute || globalCompletedBenchmarks == globalTotalBenchmarks {
+		// Only print progress every 30 seconds or when percentage changes significantly
+		if time.Since(pt.lastUpdateTime) > 30*time.Second || globalCompletedBenchmarks == globalTotalBenchmarks {
 			fmt.Printf("[PROGRESS] %s - %d/%d (%.1f%%) - Elapsed: %s\n",
 				benchmarkName, globalCompletedBenchmarks, globalTotalBenchmarks, percentage, elapsed.Round(time.Second))
 			pt.lastUpdateTime = time.Now()
@@ -95,8 +97,8 @@ func (pt *ProgressTracker) Update(benchmarkName string) {
 		percentage := float64(pt.completed) / float64(pt.total) * 100
 		elapsed := time.Since(pt.startTime)
 
-		// Only print progress every 1 minute or when percentage changes significantly
-		if time.Since(pt.lastUpdateTime) > 1*time.Minute || pt.completed == pt.total {
+		// Only print progress every 30 seconds or when percentage changes significantly
+		if time.Since(pt.lastUpdateTime) > 30*time.Second || pt.completed == pt.total {
 			fmt.Printf("[PROGRESS] %s - %d/%d (%.1f%%) - Elapsed: %s\n",
 				benchmarkName, pt.completed, pt.total, percentage, elapsed.Round(time.Second))
 			pt.lastUpdateTime = time.Now()
@@ -111,8 +113,13 @@ func (pt *ProgressTracker) Complete() {
 
 	if pt.isGlobal {
 		globalProgressMu.Lock()
-		totalTime := time.Since(globalStartTime)
-		fmt.Printf("[COMPLETE] All benchmarks finished - Total time: %s\n", totalTime.Round(time.Second))
+		if globalCompletedBenchmarks >= globalTotalBenchmarks {
+			totalTime := time.Since(globalStartTime)
+			fmt.Printf("[COMPLETE] All benchmarks finished - Total time: %s\n", totalTime.Round(time.Second))
+			// Reset for next run
+			globalInitialized = false
+			globalCompletedBenchmarks = 0
+		}
 		globalProgressMu.Unlock()
 	} else {
 		totalTime := time.Since(pt.startTime)
@@ -1128,7 +1135,7 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 	// Use global progress tracker for all datasets
 	progress := NewGlobalProgressTracker()
 	
-	fmt.Printf("[START] Running benchmarks for dataset: %s\n", datasetSize)
+	// Don't print dataset start message since global tracker handles it
 
 	// Append benchmarks (concurrent only - standardized to 1 or 100 events)
 
