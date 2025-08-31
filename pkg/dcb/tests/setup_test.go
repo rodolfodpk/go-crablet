@@ -34,7 +34,7 @@ var (
 // Test setup and teardown
 var _ = BeforeSuite(func() {
 	// Create context with timeout for test setup
-	ctx, cancel = context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 120*time.Second)
 	// Don't defer cancel here - we need the context for tests
 	// The context will be cleaned up in AfterSuite
 
@@ -42,6 +42,9 @@ var _ = BeforeSuite(func() {
 	var err error
 	pool, container, err = setupPostgresContainer(context.Background()) // Use context.Background() for pool creation
 	Expect(err).NotTo(HaveOccurred())
+
+	// Wait a bit for the database to be fully ready
+	time.Sleep(2 * time.Second)
 
 	// Read and execute schema.sql (path from pkg/dcb/tests to root)
 	schemaSQL, err := os.ReadFile("../../../docker-entrypoint-initdb.d/schema.sql")
@@ -56,8 +59,14 @@ var _ = BeforeSuite(func() {
 	// Debug: print the filtered SQL
 	fmt.Printf("Filtered SQL:\n%s\n", filteredSQL)
 
-	// Execute schema
-	_, err = pool.Exec(ctx, filteredSQL)
+	// Execute schema with retry logic
+	for i := 0; i < 3; i++ {
+		_, err = pool.Exec(ctx, filteredSQL)
+		if err == nil {
+			break
+		}
+		time.Sleep(time.Duration(1<<uint(i)) * time.Second)
+	}
 	Expect(err).NotTo(HaveOccurred())
 
 	// Create event store
@@ -106,12 +115,14 @@ func setupPostgresContainer(ctx context.Context) (*pgxpool.Pool, testcontainers.
 	}
 
 	req := testcontainers.ContainerRequest{
-		Image:        "postgres:17.5-alpine",
+		Image:        "postgres:16.10",
 		ExposedPorts: []string{"5432/tcp"},
 		Env: map[string]string{
 			"POSTGRES_PASSWORD": password,
+			"POSTGRES_USER":     "postgres",
+			"POSTGRES_DB":       "postgres",
 		},
-		WaitingFor: wait.ForListeningPort("5432/tcp"),
+		WaitingFor: wait.ForListeningPort("5432/tcp").WithStartupTimeout(60 * time.Second),
 	}
 
 	postgresC, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
@@ -142,9 +153,26 @@ func setupPostgresContainer(ctx context.Context) (*pgxpool.Pool, testcontainers.
 	poolConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeCacheDescribe
 	poolConfig.ConnConfig.StatementCacheCapacity = 100
 
-	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+	// Add connection timeout and retry logic
+	poolConfig.ConnConfig.ConnectTimeout = 30 * time.Second
+	poolConfig.MaxConns = 10
+	poolConfig.MinConns = 2
+
+	// Retry connection with exponential backoff
+	var pool *pgxpool.Pool
+	for i := 0; i < 5; i++ {
+		pool, err = pgxpool.NewWithConfig(ctx, poolConfig)
+		if err == nil {
+			break
+		}
+		
+		// Wait before retry with exponential backoff
+		waitTime := time.Duration(1<<uint(i)) * time.Second
+		time.Sleep(waitTime)
+	}
+	
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to connect after retries: %w", err)
 	}
 
 	return pool, postgresC, nil
