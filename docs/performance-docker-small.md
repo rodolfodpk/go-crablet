@@ -19,7 +19,7 @@
 | **Complex Business Workflow** | 361 ops/sec | 13.39ms | 9.3KB | 183 |
 | **State Projection (Sync)** | 673 ops/sec | 3.5ms | 1.4MB | 34,462 |
 
-**Note**: For detailed explanations of what "Simple Read" vs "Complex Business Workflow" test, and why performance differs between operations, see the [Operation Types Explained](./performance.md#operation-types-explained) section in the main Performance Guide. The "Complex Business Workflow" tests a 4-step enrollment process: student check, course check, enrollment check, and event append.
+**Note**: For detailed explanations of what "Simple Read" vs "Complex Business Workflow" test, and why performance differs between operations, see the [Operation Types Explained](./performance-docker.md#operation-types-explained) section in the main Performance Guide. The "Complex Business Workflow" tests a 4-step enrollment process: student check, course check, enrollment check, and event append.
 
 **Projection Types**: 
 - **State Projection (Sync)**: Uses `Project()` method for synchronous state reconstruction
@@ -79,15 +79,17 @@
 
 | Users | Event Count | Throughput | Latency | Memory | Allocations |
 |-------|-------------|------------|---------|---------|-------------|
-| 1 | 1 | 678 ops/sec | 3.5ms | 2.2MB | 30,100 |
+| 1 | 1 | **347 ops/sec** | **2.88ms** | **1.1KB** | **25** |
 | 1 | 10 | 2,475 ops/sec | 0.87ms | 225KB | 3,690 |
 | 1 | 100 | 1,500 ops/sec | 1.33ms | 450KB | 7,380 |
-| 10 | 1 | ~300 ops/sec | ~7.0ms | ~22MB | ~300,000 |
+| 10 | 1 | **157 ops/sec** | **6.36ms** | **11.8KB** | **270** |
 | 10 | 10 | ~1,200 ops/sec | ~1.7ms | ~225KB | ~3,700 |
 | 10 | 100 | ~750 ops/sec | ~2.7ms | ~450KB | ~7,400 |
-| 100 | 1 | ~30 ops/sec | ~70.0ms | ~220MB | ~3,000,000 |
+| 100 | 1 | **10.4 ops/sec** | **96.25ms** | **124.5KB** | **2,853** |
 | 100 | 10 | ~120 ops/sec | ~17.0ms | ~225KB | ~3,700 |
 | 100 | 100 | ~75 ops/sec | ~27.0ms | ~450KB | ~7,400 |
+
+**Note**: Bold values represent actual benchmark results from latest testing. Other values are estimates based on previous testing patterns.
 
 ### Projection Operations
 
@@ -130,6 +132,52 @@
 - **Scalability Testing**: Understanding performance under realistic loads
 - **Performance Tuning**: Identifying bottlenecks in larger systems
 - **Business Validation**: Real-world performance expectations
+
+## Latest Concurrency Performance Results
+
+### **Read Operations - Concurrency Scaling (Latest)**
+
+**Test Date**: August 28, 2025  
+**Environment**: macOS (darwin 23.6.0) with Apple M1 Pro  
+**Database**: PostgreSQL with 50-connection pool  
+
+| Concurrency Level | Dataset Size | Throughput | Latency | Memory | Allocations | Performance Pattern |
+|------------------|--------------|------------|---------|---------|-------------|-------------------|
+| **1 User** | Small (25K enrollments) | **347 ops/sec** | **2.88ms** | 1.1KB | 25 | Excellent baseline |
+| **10 Users** | Small (25K enrollments) | **157 ops/sec** | **6.36ms** | 11.8KB | 270 | Moderate impact (45% of baseline) |
+| **100 Users** | Medium (50K enrollments) | **10.4 ops/sec** | **96.25ms** | 124.5KB | 2,853 | Significant bottleneck (3% of baseline) |
+
+### **Concurrency Performance Insights**
+
+#### **✅ Strong Performance Areas**
+- **Single-threaded**: Excellent performance at 347 ops/sec with 2.88ms latency
+- **Low concurrency**: Reasonable performance with 10 users (157 ops/sec)
+- **Memory efficiency**: Low memory usage for single operations (1.1KB)
+
+#### **⚠️ Performance Bottlenecks**
+- **High concurrency**: Significant performance degradation with 100 users
+- **Resource scaling**: Memory and allocation overhead grows dramatically (100x increase)
+- **Dataset impact**: Medium dataset adds significant overhead
+
+#### **Concurrency Scaling Pattern**
+- **1 User**: 347 operations/second (baseline performance)
+- **10 Users**: 157 operations/second (**45% of baseline** - moderate concurrency impact)
+- **100 Users**: 10.4 operations/second (**3% of baseline** - significant concurrency bottleneck)
+
+### **Resource Usage Scaling**
+- **Memory**: 1.1KB → 11.8KB → 124.5KB (100x increase with high concurrency)
+- **Allocations**: 25 → 270 → 2,853 (100x increase with high concurrency)
+- **Latency**: 2.88ms → 6.36ms → 96.25ms (33x increase with high concurrency)
+
+### **Comparison with Previous Results**
+
+| Metric | Previous (Small Dataset) | Current (Concurrency Test) | Change |
+|--------|-------------------------|---------------------------|--------|
+| **Single User Read** | 337 ops/sec | 347 ops/sec | **+3% improvement** |
+| **10 User Read** | ~300 ops/sec | 157 ops/sec | **-48% degradation** |
+| **100 User Read** | ~30 ops/sec | 10.4 ops/sec | **-65% degradation** |
+
+**Note**: The current results show better single-user performance but higher concurrency overhead, indicating the system may need optimization for high-concurrency scenarios while maintaining excellent single-threaded performance.
 
 ---
 

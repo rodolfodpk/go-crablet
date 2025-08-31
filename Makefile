@@ -119,19 +119,137 @@ benchmark-concurrency:
 benchmark-go:
 	@echo "🚀 Running Go Library Benchmarks..."
 	@mkdir -p $(BENCHMARK_RESULTS_DIR)
-	@cd internal/benchmarks/performance && $(GO) test -bench=. -benchmem -benchtime=2s -timeout=5m . > ../../../$(BENCHMARK_RESULTS_DIR)/go_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@cd internal/benchmarks && $(GO) test -bench=. -benchmem -benchtime=2s -timeout=5m . > ../../$(BENCHMARK_RESULTS_DIR)/go_benchmarks_$(TIMESTAMP).txt 2>&1 || true
 	@echo "✅ Go benchmarks completed"
+
+benchmark-go-quick:
+	@echo "🚀 Running Quick Go Benchmarks..."
+	@mkdir -p $(BENCHMARK_RESULTS_DIR)
+	@cd internal/benchmarks && $(GO) test -bench=BenchmarkQuick -benchmem -benchtime=1s -timeout=2m . > ../../$(BENCHMARK_RESULTS_DIR)/go_quick_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@echo "✅ Quick Go benchmarks completed"
+
+
+
+# Core Operations (Single-threaded, Tiny dataset)
+benchmark-go-append:
+	@echo "🚀 Running Append Operation Benchmarks (Tiny dataset, single-threaded)..."
+	@mkdir -p $(BENCHMARK_RESULTS_DIR)
+	@cd internal/benchmarks && $(GO) test -bench="BenchmarkAppend_Tiny" -benchmem -benchtime=1s -timeout=3m . > ../../$(BENCHMARK_RESULTS_DIR)/go_append_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@echo "✅ Append benchmarks completed"
+
+benchmark-go-appendif:
+	@echo "🚀 Running AppendIf Operation Benchmarks (Tiny dataset, single-threaded)..."
+	@mkdir -p $(BENCHMARK_RESULTS_DIR)
+	@cd internal/benchmarks && $(GO) test -bench="BenchmarkAppend.*AppendIf.*_Tiny" -benchmem -benchtime=1s -timeout=3m . > ../../$(BENCHMARK_RESULTS_DIR)/go_appendif_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@echo "✅ AppendIf benchmarks completed"
+
+benchmark-go-read:
+	@echo "🚀 Running Read Operation Benchmarks (Tiny dataset, single-threaded)..."
+	@mkdir -p $(BENCHMARK_RESULTS_DIR)
+	@cd internal/benchmarks && $(GO) test -bench="BenchmarkRead_Tiny" -benchmem -benchtime=1s -timeout=3m . > ../../$(BENCHMARK_RESULTS_DIR)/go_read_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@echo "✅ Read benchmarks completed"
+
+benchmark-go-projection:
+	@echo "🚀 Running Projection Benchmarks (Tiny dataset, single-threaded)..."
+	@mkdir -p $(BENCHMARK_RESULTS_DIR)
+	@cd internal/benchmarks && $(GO) test -bench="BenchmarkProjection_Tiny" -benchmem -benchtime=1s -timeout=3m . > ../../$(BENCHMARK_RESULTS_DIR)/go_projection_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@echo "✅ Projection benchmarks completed"
+
+benchmark-go-batch:
+	@echo "🚀 Running Batch Operation Benchmarks (Tiny dataset, single-threaded)..."
+	@mkdir -p $(BENCHMARK_RESULTS_DIR)
+	@cd internal/benchmarks && $(GO) test -bench="BenchmarkAppendBatch" -benchmem -benchtime=1s -timeout=2m . > ../../$(BENCHMARK_RESULTS_DIR)/go_batch_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@echo "✅ Batch operation benchmarks completed"
+
+# Concurrency + Operations (Concurrent, different datasets)
+benchmark-go-append-concurrent:
+	@echo "🚀 Running Append Operation Benchmarks with Concurrency (Small dataset)..."
+	@mkdir -p $(BENCHMARK_RESULTS_DIR)
+	@cd internal/benchmarks && $(GO) test -bench="BenchmarkConcurrentAppends" -benchmem -benchtime=1s -timeout=3m . > ../../$(BENCHMARK_RESULTS_DIR)/go_append_concurrent_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@echo "✅ Append concurrency benchmarks completed"
+
+# Concurrency levels for read operations
+benchmark-go-read-concurrent-1:
+	@echo "🚀 Running Read Operation Benchmarks with 1 User (Small dataset, fast)..."
+	@mkdir -p $(BENCHMARK_RESULTS_DIR)
+	@cd internal/benchmarks && $(GO) test -bench="BenchmarkConcurrentRead_1User" -benchmem -benchtime=1s -timeout=2m . > ../../$(BENCHMARK_RESULTS_DIR)/go_read_concurrent_1user_$(TIMESTAMP).txt 2>&1 || true
+	@echo "✅ Read 1-user concurrency benchmarks completed"
+
+benchmark-go-read-concurrent-10:
+	@echo "🚀 Running Read Operation Benchmarks with 10 Users (Small dataset, medium)..."
+	@mkdir -p $(BENCHMARK_RESULTS_DIR)
+	@cd internal/benchmarks && $(GO) test -bench="BenchmarkConcurrentRead_10Users" -benchmem -benchtime=1s -timeout=3m . > ../../$(BENCHMARK_RESULTS_DIR)/go_read_concurrent_10users_$(TIMESTAMP).txt 2>&1 || true
+	@echo "✅ Read 10-user concurrency benchmarks completed"
+
+benchmark-go-read-concurrent-100:
+	@echo "🚀 Running Read Operation Benchmarks with 100 Users (Medium dataset, slow)..."
+	@mkdir -p $(BENCHMARK_RESULTS_DIR)
+	@cd internal/benchmarks && $(GO) test -bench="BenchmarkConcurrentRead_100Users" -benchmem -benchtime=1s -timeout=5m . > ../../$(BENCHMARK_RESULTS_DIR)/go_read_concurrent_100users_$(TIMESTAMP).txt 2>&1 || true
+	@echo "✅ Read 100-user concurrency benchmarks completed"
+
+# Concurrency levels for projection operations
+benchmark-go-projection-concurrent-1:
+	@echo "🚀 Running Projection Benchmarks with 1 Goroutine (Small dataset, fast)..."
+	@mkdir -p $(BENCHMARK_RESULTS_DIR)
+	@cd internal/benchmarks && $(GO) test -bench="BenchmarkConcurrentProjection_1Goroutine" -benchmem -benchtime=1s -timeout=2m . > ../../$(BENCHMARK_RESULTS_DIR)/go_projection_concurrent_1goroutine_$(TIMESTAMP).txt 2>&1 || true
+	@echo "✅ Projection 1-goroutine concurrency benchmarks completed"
+
+benchmark-go-projection-concurrent-10:
+	@echo "🚀 Running Projection Benchmarks with 10 Goroutines (Small dataset, medium)..."
+	@mkdir -p $(BENCHMARK_RESULTS_DIR)
+	@cd internal/benchmarks && $(GO) test -bench="BenchmarkConcurrentProjection_10Goroutines" -benchmem -benchtime=1s -timeout=3m . > ../../$(BENCHMARK_RESULTS_DIR)/go_projection_concurrent_10goroutines_$(TIMESTAMP).txt 2>&1 || true
+	@echo "✅ Projection 10-goroutine concurrency benchmarks completed"
+
+benchmark-go-projection-concurrent-100:
+	@echo "🚀 Running Projection Benchmarks with 100 Goroutines (Small dataset, slow)..."
+	@mkdir -p $(BENCHMARK_RESULTS_DIR)
+	@cd internal/benchmarks && $(GO) test -bench="BenchmarkConcurrentProjection_100Goroutines" -benchmem -benchtime=1s -timeout=5m . > ../../$(BENCHMARK_RESULTS_DIR)/go_projection_concurrent_100goroutines_$(TIMESTAMP).txt 2>&1 || true
+	@echo "✅ Projection 100-goroutine concurrency benchmarks completed"
+
+# Dataset-specific targets (all operations with specific dataset size)
+benchmark-go-tiny:
+	@echo "🚀 Running All Operations with Tiny Dataset (5 courses, 10 students, 20 enrollments)..."
+	@mkdir -p $(BENCHMARK_RESULTS_DIR)
+	@cd internal/benchmarks && $(GO) test -bench=".*_Tiny" -benchmem -benchtime=1s -timeout=3m . > ../../$(BENCHMARK_RESULTS_DIR)/go_tiny_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@echo "✅ Tiny dataset benchmarks completed"
+
+benchmark-go-small:
+	@echo "🚀 Running All Operations with Small Dataset (500 courses, 5K students, 25K enrollments)..."
+	@mkdir -p $(BENCHMARK_RESULTS_DIR)
+	@cd internal/benchmarks && $(GO) test -bench=".*_Small" -benchmem -benchtime=2s -timeout=5m . > ../../$(BENCHMARK_RESULTS_DIR)/go_small_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@echo "✅ Small dataset benchmarks completed"
+
+benchmark-go-medium:
+	@echo "🚀 Running All Operations with Medium Dataset (1K courses, 10K students, 50K enrollments)..."
+	@mkdir -p $(BENCHMARK_RESULTS_DIR)
+	@cd internal/benchmarks && $(GO) test -bench=".*_Medium" -benchmem -benchtime=5s -timeout=10m . > ../../$(BENCHMARK_RESULTS_DIR)/go_medium_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@echo "✅ Medium dataset benchmarks completed"
+
+
+
+# Business Scenarios (Complex workflows)
+benchmark-go-business:
+	@echo "🚀 Running Business Logic Benchmarks..."
+	@mkdir -p $(BENCHMARK_RESULTS_DIR)
+	@cd internal/benchmarks && $(GO) test -bench="BenchmarkComplex|BenchmarkBusiness|BenchmarkMixed|BenchmarkRequest|BenchmarkSustained" -benchmem -benchtime=1s -timeout=5m . > ../../$(BENCHMARK_RESULTS_DIR)/go_business_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@echo "✅ Business logic benchmarks completed"
+
+benchmark-go-stress:
+	@echo "🚀 Running Stress and Load Benchmarks..."
+	@mkdir -p $(BENCHMARK_RESULTS_DIR)
+	@cd internal/benchmarks && $(GO) test -bench="BenchmarkRequestBurst|BenchmarkSustainedLoad" -benchmem -benchtime=1s -timeout=5m . > ../../$(BENCHMARK_RESULTS_DIR)/go_stress_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@echo "✅ Stress benchmarks completed"
 
 benchmark-go-enhanced:
 	@echo "🚀 Running Enhanced Go Benchmarks with Complex Business Scenarios..."
 	@mkdir -p $(BENCHMARK_RESULTS_DIR)
-	@cd internal/benchmarks/performance && $(GO) test -bench=BenchmarkComplex -benchmem -benchtime=5s -count=3 -timeout=10m . > ../../../$(BENCHMARK_RESULTS_DIR)/go_enhanced_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@cd internal/benchmarks && $(GO) test -bench=BenchmarkComplex -benchmem -benchtime=5s -count=3 -timeout=10m . > ../../$(BENCHMARK_RESULTS_DIR)/go_enhanced_benchmarks_$(TIMESTAMP).txt 2>&1 || true
 	@echo "✅ Enhanced Go benchmarks completed"
 
 benchmark-go-all:
 	@echo "🚀 Running All Go Benchmarks (Basic + Enhanced)..."
 	@mkdir -p $(BENCHMARK_RESULTS_DIR)
-	@cd internal/benchmarks/performance && $(GO) test -bench=. -benchmem -benchtime=2s -count=3 -timeout=10m . > ../../../$(BENCHMARK_RESULTS_DIR)/go_all_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@cd internal/benchmarks && $(GO) test -bench=. -benchmem -benchtime=2s -count=3 -timeout=10m . > ../../$(BENCHMARK_RESULTS_DIR)/go_all_benchmarks_$(TIMESTAMP).txt 2>&1 || true
 	@echo "✅ All Go benchmarks completed"
 
 benchmark-web-app:
@@ -152,6 +270,40 @@ benchmark-results:
 	@echo "📊 Collecting benchmark results..."
 	@echo "Results saved in: $(BENCHMARK_RESULTS_DIR)/"
 	@ls -la $(BENCHMARK_RESULTS_DIR)/*_$(TIMESTAMP).txt 2>/dev/null || echo "No results files found"
+
+benchmark-summary:
+	@echo "📊 Benchmark Summary - Three-Dimensional Organization..."
+	@echo ""
+	@echo "🔧 Core Operations (Single-threaded, Tiny dataset - 5 courses, 10 students, 20 enrollments):"
+	@echo "  make benchmark-go-append     - Basic append operations (2-3 minutes)"
+	@echo "  make benchmark-go-appendif   - AppendIf operations (2-3 minutes)"
+	@echo "  make benchmark-go-read       - Read operations (2-3 minutes)"
+	@echo "  make benchmark-go-projection - Projection operations (2-3 minutes)"
+	@echo "  make benchmark-go-batch      - Batch operations (1-2 minutes)"
+	@echo ""
+	@echo "⚡ Concurrency + Operations (Concurrent, different datasets):"
+	@echo "  make benchmark-go-append-concurrent     - Append with concurrency (3-5 minutes)"
+	@echo "  make benchmark-go-read-concurrent-1     - Read with 1 user (2-3 minutes, small dataset)"
+	@echo "  make benchmark-go-read-concurrent-10    - Read with 10 users (3-5 minutes, small dataset)"
+	@echo "  make benchmark-go-read-concurrent-100   - Read with 100 users (5-10 minutes, medium dataset)"
+	@echo "  make benchmark-go-projection-concurrent-1  - Projection with 1 goroutine (2-3 minutes, small dataset)"
+	@echo "  make benchmark-go-projection-concurrent-10 - Projection with 10 goroutines (3-5 minutes, small dataset)"
+	@echo "  make benchmark-go-projection-concurrent-100- Projection with 100 goroutines (5-10 minutes, small dataset)"
+	@echo ""
+	@echo "📊 Dataset Scaling (Single-threaded, different sizes):"
+	@echo "  make benchmark-go-tiny       - All operations, tiny dataset (1-2 minutes)"
+	@echo "  make benchmark-go-small      - All operations, small dataset (15-20 minutes)"
+	@echo "  make benchmark-go-medium     - All operations, medium dataset (30-60 minutes)"
+	@echo ""
+	@echo "🏢 Business Scenarios:"
+	@echo "  make benchmark-go-business   - Complex business workflows (3-5 minutes)"
+	@echo "  make benchmark-go-stress     - Stress and load tests (3-5 minutes)"
+	@echo ""
+	@echo "🚀 Quick Tests:"
+	@echo "  make benchmark-go-quick      - Quick tests (4-5 seconds)"
+	@echo ""
+	@echo "🎯 Full Suite:"
+	@echo "  make benchmark-go            - Complete benchmark suite (very long - hours)"
 
 # Run examples
 examples:
