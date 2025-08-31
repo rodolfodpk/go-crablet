@@ -15,27 +15,30 @@
 |-----------|---------|-------------------|------------------|------------------|
 | **AppendSingle** | Tiny | 850 ops/sec | 8,030 ops/sec | **9.4x faster** |
 | **AppendRealistic** | Tiny | 764 ops/sec | 4,825 ops/sec | **6.3x faster** |
-| **AppendIf** | Tiny | 10 ops/sec | 16 ops/sec | **1.6x faster** |
+| **AppendIf_NoConflict** | Tiny | 10 ops/sec | 16 ops/sec | **1.6x faster** |
+| **AppendIf_WithConflict** | Tiny | 10 ops/sec | 18 ops/sec | **1.8x faster** |
 | **Projection** | Tiny | 2,395 ops/sec | 16,834 ops/sec | **7.0x faster** |
 | **AppendSingle** | Small | 850 ops/sec | 7,900 ops/sec | **9.3x faster** |
 | **AppendRealistic** | Small | 764 ops/sec | 5,165 ops/sec | **6.8x faster** |
-| **AppendIf** | Small | 10 ops/sec | 11 ops/sec | **1.1x faster** |
+| **AppendIf_NoConflict** | Small | 10 ops/sec | 11 ops/sec | **1.1x faster** |
+| **AppendIf_WithConflict** | Small | 10 ops/sec | 11 ops/sec | **1.1x faster** |
 | **Projection** | Small | 2,395 ops/sec | 14,340 ops/sec | **6.0x faster** |
 | **AppendSingle** | Medium | 850 ops/sec | 8,000 ops/sec | **9.4x faster** |
 | **AppendRealistic** | Medium | 764 ops/sec | 5,000 ops/sec | **6.5x faster** |
-| **AppendIf** | Medium | 10 ops/sec | 10 ops/sec | **1.0x faster** |
+| **AppendIf_NoConflict** | Medium | 10 ops/sec | 10 ops/sec | **1.0x faster** |
+| **AppendIf_WithConflict** | Medium | 10 ops/sec | 10 ops/sec | **1.0x faster** |
 | **Projection** | Medium | 2,395 ops/sec | 12,000 ops/sec | **5.0x faster** |
 
 ## Dataset Performance
 
-| Environment | Dataset | Append (ops/sec) | AppendIf (ops/sec) | Projection (ops/sec) |
-|-------------|---------|------------------|-------------------|---------------------|
-| **Local PostgreSQL** | Tiny | 8,030 | 16 | 16,834 |
-| **Local PostgreSQL** | Small | 7,900 | 11 | 14,340 |
-| **Local PostgreSQL** | Medium | 8,000 | 10 | 12,000 |
-| **Docker PostgreSQL** | Tiny | 850 | 10 | 2,395 |
-| **Docker PostgreSQL** | Small | 850 | 10 | 2,395 |
-| **Docker PostgreSQL** | Medium | 850 | 10 | 2,395 |
+| Environment | Dataset | Append (ops/sec) | AppendIf_NoConflict (ops/sec) | AppendIf_WithConflict (ops/sec) | Projection (ops/sec) |
+|-------------|---------|------------------|------------------------------|--------------------------------|---------------------|
+| **Local PostgreSQL** | Tiny | 8,030 | 16 | 18 | 16,834 |
+| **Local PostgreSQL** | Small | 7,900 | 11 | 11 | 14,340 |
+| **Local PostgreSQL** | Medium | 8,000 | 10 | 10 | 12,000 |
+| **Docker PostgreSQL** | Tiny | 850 | 10 | 10 | 2,395 |
+| **Docker PostgreSQL** | Small | 850 | 10 | 10 | 2,395 |
+| **Docker PostgreSQL** | Medium | 850 | 10 | 10 | 2,395 |
 
 ## Dataset Sizes
 
