@@ -479,13 +479,104 @@ func BenchmarkAppendIfWithConflict(b *testing.B, benchCtx *BenchmarkContext, bat
 
 		// Create a condition that should fail (conflicting event exists)
 		condition := dcb.NewAppendCondition(
-			dcb.NewQuery(dcb.NewTags("test", "conflict", "unique_id", uniqueID), "ConflictingEvent"),
+			dcb.NewQuery(dcb.NewTags("test", "conflict", "unique_id", uniqueID)),
 		)
 
 		// This should fail due to the conflicting event
 		err = benchCtx.Store.AppendIf(ctx, events, condition)
 		if err == nil {
 			b.Fatalf("AppendIf should have failed due to conflict")
+		}
+	}
+}
+
+// BenchmarkAppendIfConcurrent benchmarks concurrent AppendIf operations
+func BenchmarkAppendIfConcurrent(b *testing.B, benchCtx *BenchmarkContext, concurrencyLevel int, eventCount int, conflictScenario bool) {
+	// Create context with timeout for each benchmark iteration
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		// For conflict scenarios, create all conflicting events first
+		if conflictScenario {
+			for j := 0; j < concurrencyLevel; j++ {
+				uniqueID := fmt.Sprintf("concurrent_%d_%d_%d", time.Now().UnixNano(), i, j)
+				conflictEvent := dcb.NewInputEvent("ConflictingEvent",
+					dcb.NewTags("test", "conflict", "unique_id", uniqueID),
+					[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, uniqueID)))
+
+				err := benchCtx.Store.Append(ctx, []dcb.InputEvent{conflictEvent})
+				if err != nil {
+					b.Fatalf("Failed to append conflict event: %v", err)
+				}
+			}
+			// Small delay to ensure all conflicting events are committed
+			time.Sleep(10 * time.Millisecond)
+		}
+
+		// Use a WaitGroup to coordinate concurrent operations
+		var wg sync.WaitGroup
+		results := make(chan error, concurrencyLevel)
+
+		// Launch concurrent AppendIf operations
+		for j := 0; j < concurrencyLevel; j++ {
+			wg.Add(1)
+			go func(goroutineID int) {
+				defer wg.Done()
+
+				// Create unique ID for this goroutine
+				uniqueID := fmt.Sprintf("concurrent_%d_%d_%d", time.Now().UnixNano(), i, goroutineID)
+
+				// Create events to append
+				events := make([]dcb.InputEvent, eventCount)
+				for k := 0; k < eventCount; k++ {
+					eventID := fmt.Sprintf("appendif_%s_%d", uniqueID, k)
+					events[k] = dcb.NewInputEvent("TestEvent",
+						dcb.NewTags("test", "appendif", "unique_id", eventID),
+						[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, eventID)))
+				}
+
+				// Create condition
+				var condition dcb.AppendCondition
+				if conflictScenario {
+					// Condition that should fail (conflicting event exists)
+					// Use a simpler condition that just checks for any conflicting event
+					condition = dcb.NewAppendCondition(
+						dcb.NewQuery(dcb.NewTags("test", "conflict")),
+					)
+				} else {
+					// Condition that should pass (no conflicting event)
+					condition = dcb.NewAppendCondition(
+						dcb.NewQuery(dcb.NewTags("test", "noconflict", "unique_id", uniqueID)),
+					)
+				}
+
+				// Execute AppendIf
+				err := benchCtx.Store.AppendIf(ctx, events, condition)
+				if conflictScenario && err == nil {
+					results <- fmt.Errorf("AppendIf should have failed due to conflict")
+					return
+				} else if !conflictScenario && err != nil {
+					results <- fmt.Errorf("AppendIf should have succeeded: %v", err)
+					return
+				}
+
+				results <- nil
+			}(j)
+		}
+
+		// Wait for all goroutines to complete
+		wg.Wait()
+		close(results)
+
+		// Check for any errors
+		for err := range results {
+			if err != nil {
+				b.Fatalf("Concurrent AppendIf failed: %v", err)
+			}
 		}
 	}
 }
@@ -755,30 +846,56 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 		BenchmarkAppendRealistic(b, benchCtx)
 	})
 
-	// Conditional append benchmarks - NO CONFLICT (business rule passes)
-	b.Run("AppendIf_NoConflict_1", func(b *testing.B) {
-		BenchmarkAppendIf(b, benchCtx, 1)
+	// Concurrent AppendIf benchmarks - NO CONFLICT (1 event)
+	b.Run("AppendIf_NoConflict_Concurrent_1User_1Event", func(b *testing.B) {
+		BenchmarkAppendIfConcurrent(b, benchCtx, 1, 1, false)
 	})
 
-	b.Run("AppendIf_NoConflict_5", func(b *testing.B) {
-		BenchmarkAppendIf(b, benchCtx, 5)
+	b.Run("AppendIf_NoConflict_Concurrent_10Users_1Event", func(b *testing.B) {
+		BenchmarkAppendIfConcurrent(b, benchCtx, 10, 1, false)
 	})
 
-	b.Run("AppendIf_NoConflict_12", func(b *testing.B) {
-		BenchmarkAppendIf(b, benchCtx, 12)
+	b.Run("AppendIf_NoConflict_Concurrent_100Users_1Event", func(b *testing.B) {
+		BenchmarkAppendIfConcurrent(b, benchCtx, 100, 1, false)
 	})
 
-	// Conditional append benchmarks - WITH CONFLICT (business rule fails)
-	b.Run("AppendIf_WithConflict_1", func(b *testing.B) {
-		BenchmarkAppendIfWithConflict(b, benchCtx, 1)
+	// Concurrent AppendIf benchmarks - NO CONFLICT (100 events)
+	b.Run("AppendIf_NoConflict_Concurrent_1User_100Events", func(b *testing.B) {
+		BenchmarkAppendIfConcurrent(b, benchCtx, 1, 100, false)
 	})
 
-	b.Run("AppendIf_WithConflict_5", func(b *testing.B) {
-		BenchmarkAppendIfWithConflict(b, benchCtx, 5)
+	b.Run("AppendIf_NoConflict_Concurrent_10Users_100Events", func(b *testing.B) {
+		BenchmarkAppendIfConcurrent(b, benchCtx, 10, 100, false)
 	})
 
-	b.Run("AppendIf_WithConflict_12", func(b *testing.B) {
-		BenchmarkAppendIfWithConflict(b, benchCtx, 12)
+	b.Run("AppendIf_NoConflict_Concurrent_100Users_100Events", func(b *testing.B) {
+		BenchmarkAppendIfConcurrent(b, benchCtx, 100, 100, false)
+	})
+
+	// Concurrent AppendIf benchmarks - WITH CONFLICT (1 event)
+	b.Run("AppendIf_WithConflict_Concurrent_1User_1Event", func(b *testing.B) {
+		BenchmarkAppendIfConcurrent(b, benchCtx, 1, 1, true)
+	})
+
+	b.Run("AppendIf_WithConflict_Concurrent_10Users_1Event", func(b *testing.B) {
+		BenchmarkAppendIfConcurrent(b, benchCtx, 10, 1, true)
+	})
+
+	b.Run("AppendIf_WithConflict_Concurrent_100Users_1Event", func(b *testing.B) {
+		BenchmarkAppendIfConcurrent(b, benchCtx, 100, 1, true)
+	})
+
+	// Concurrent AppendIf benchmarks - WITH CONFLICT (100 events)
+	b.Run("AppendIf_WithConflict_Concurrent_1User_100Events", func(b *testing.B) {
+		BenchmarkAppendIfConcurrent(b, benchCtx, 1, 100, true)
+	})
+
+	b.Run("AppendIf_WithConflict_Concurrent_10Users_100Events", func(b *testing.B) {
+		BenchmarkAppendIfConcurrent(b, benchCtx, 10, 100, true)
+	})
+
+	b.Run("AppendIf_WithConflict_Concurrent_100Users_100Events", func(b *testing.B) {
+		BenchmarkAppendIfConcurrent(b, benchCtx, 100, 100, true)
 	})
 
 	// Read benchmarks
