@@ -4,13 +4,10 @@
 
 ## PostgreSQL Setup Options
 
-### **🐳 [Docker PostgreSQL Performance](./performance-docker.md)**
-- **Environment**: Docker containerized PostgreSQL
-- **Setup**: `docker-compose up -d`
-
-### **💻 [Local PostgreSQL Performance](./performance-local.md)**
-- **Environment**: Native PostgreSQL installation (macOS/Homebrew)
-- **Setup**: Native PostgreSQL installation
+| Environment | Setup Command | Use Case |
+|-------------|---------------|----------|
+| **🐳 Docker PostgreSQL** | `docker-compose up -d` | Containerized environment |
+| **💻 Local PostgreSQL** | Native installation | Development environment |
 
 ## Performance Comparison
 
@@ -31,20 +28,22 @@
 
 ## Dataset Performance
 
-### **Local PostgreSQL**
-- **Tiny**: 8,030 ops/sec Append, 16 ops/sec AppendIf, 16,834 ops/sec Projection
-- **Small**: 7,900 ops/sec Append, 11 ops/sec AppendIf, 14,340 ops/sec Projection
-- **Medium**: 8,000 ops/sec Append, 10 ops/sec AppendIf, 12,000 ops/sec Projection
+| Environment | Dataset | Append (ops/sec) | AppendIf (ops/sec) | Projection (ops/sec) |
+|-------------|---------|------------------|-------------------|---------------------|
+| **Local PostgreSQL** | Tiny | 8,030 | 16 | 16,834 |
+| **Local PostgreSQL** | Small | 7,900 | 11 | 14,340 |
+| **Local PostgreSQL** | Medium | 8,000 | 10 | 12,000 |
+| **Docker PostgreSQL** | Tiny | 850 | 10 | 2,395 |
+| **Docker PostgreSQL** | Small | 850 | 10 | 2,395 |
+| **Docker PostgreSQL** | Medium | 850 | 10 | 2,395 |
 
-### **Docker PostgreSQL**
-- **Tiny**: 850 ops/sec Append, 10 ops/sec AppendIf, 2,395 ops/sec Projection
-- **Small**: 850 ops/sec Append, 10 ops/sec AppendIf, 2,395 ops/sec Projection
-- **Medium**: 850 ops/sec Append, 10 ops/sec AppendIf, 2,395 ops/sec Projection
+## Dataset Sizes
 
-### **Dataset Sizes**
-- **Tiny**: 5 courses, 10 students, 20 enrollments
-- **Small**: 500 courses, 5,000 students, 25,000 enrollments
-- **Medium**: 1,000 courses, 10,000 students, 50,000 enrollments
+| Dataset | Courses | Students | Enrollments |
+|---------|---------|----------|-------------|
+| **Tiny** | 5 | 10 | 20 |
+| **Small** | 500 | 5,000 | 25,000 |
+| **Medium** | 1,000 | 10,000 | 50,000 |
 
 ## Concurrency Performance
 
@@ -64,6 +63,8 @@
 
 ## Setup Guides
 
-- **🐳 [Docker PostgreSQL Setup](./benchmark-setup-docker.md)**
-- **💻 [Local PostgreSQL Setup](./benchmark-setup-local.md)**
-- **📊 [Performance Comparison](./performance-comparison.md)**
+| Guide | Description |
+|-------|-------------|
+| **🐳 [Docker PostgreSQL Setup](./benchmark-setup-docker.md)** | Containerized setup |
+| **💻 [Local PostgreSQL Setup](./benchmark-setup-local.md)** | Native installation |
+| **📊 [Performance Comparison](./performance-comparison.md)** | Detailed analysis |
