@@ -35,22 +35,25 @@
 - **📊 [Tiny Dataset](./performance-local-tiny.md)**: 5 courses, 10 students, 20 enrollments
 - **📊 [Small Dataset](./performance-local-small.md)**: 500 courses, 5,000 students, 25,000 enrollments
 
-## Performance Recommendations
+## Performance Data Comparison
 
-### **For Development**
-- **Use Local PostgreSQL**: 6-9x faster performance for daily development
-- **Faster feedback**: Quicker test cycles and iteration
-- **Realistic performance**: Closer to production expectations
+### **Local PostgreSQL Performance**
+- **Append operations**: 8,030 ops/sec (Tiny), 7,900 ops/sec (Small)
+- **AppendIf operations**: 16 ops/sec (Tiny), 11 ops/sec (Small)
+- **Projection operations**: 16,834 ops/sec (Tiny), 14,340 ops/sec (Small)
+- **Concurrency scaling**: 23.7x faster at 1 user, 15.2x faster at 100 users
 
-### **For CI/CD & Production Planning**
-- **Use Docker PostgreSQL**: Consistent, containerized environment
-- **Conservative estimates**: Safe for production planning
-- **Reproducible**: Same environment across all deployments
+### **Docker PostgreSQL Performance**
+- **Append operations**: 850 ops/sec (Tiny), 850 ops/sec (Small)
+- **AppendIf operations**: 10 ops/sec (Tiny), 10 ops/sec (Small)
+- **Projection operations**: 2,395 ops/sec (Tiny), 2,395 ops/sec (Small)
+- **Concurrency scaling**: 347 ops/sec at 1 user, 10.4 ops/sec at 100 users
 
-### **For Benchmarking**
-- **Compare both**: Understand performance differences
-- **Local for development**: Use local setup for daily work
-- **Docker for validation**: Use Docker for final validation
+### **Dataset Differences**
+- **Docker Tiny**: 5 courses, 10 students, 17 enrollments
+- **Local Tiny**: 5 courses, 10 students, 20 enrollments
+- **Docker Small**: 1,000 courses, 10,000 students, 49,871 enrollments
+- **Local Small**: 500 courses, 5,000 students, 25,000 enrollments
 
 ## Setup Guides
 
@@ -148,19 +151,22 @@ The performance tables show two different types of read operations:
 | **Docker Append Performance** | 850 ops/sec | 850 ops/sec | 850 ops/sec |
 | **Performance Ratio** | 9.4x | 9.3x | 9.4x |
 
-## Performance Recommendations
+## Performance Data Summary
 
-### **For Development**
-- Use **Local PostgreSQL** for fast feedback and testing
-- **Append operations** provide excellent performance (8,000+ ops/sec)
-- **AppendIf operations** suitable for business rule validation (16+ ops/sec)
+### **Dataset Performance Patterns**
+- **Tiny dataset**: Higher throughput across all operations
+- **Small dataset**: Lower throughput, higher data volume
+- **Memory usage**: Scales with dataset size (1.4KB → 33.2MB)
+- **Allocation patterns**: Similar scaling across both setups
 
-### **For Production Planning**
-- **Docker PostgreSQL** provides realistic production expectations
-- **Concurrency testing** essential for production workloads
-- **Memory monitoring** critical for high-concurrency scenarios
+### **Operation Performance Patterns**
+- **Append operations**: Highest throughput, minimal latency
+- **AppendIf operations**: Lowest throughput, highest latency
+- **Read operations**: Variable performance based on complexity
+- **Projection operations**: High throughput with streaming, lower with sync
 
-### **For High-Performance Scenarios**
-- **Local PostgreSQL** offers maximum performance potential
-- **Batch operations** provide 2x performance improvement
-- **Streaming projections** offer best performance for state reconstruction
+### **Concurrency Performance Patterns**
+- **1 User**: Maximum performance for both setups
+- **10 Users**: Moderate performance degradation
+- **100 Users**: Significant performance degradation
+- **Resource scaling**: Linear increase in memory and allocations
