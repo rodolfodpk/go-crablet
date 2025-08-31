@@ -5,16 +5,11 @@
 **Append Operations Details**:
 - **Operation**: Simple event append operations
 - **Scenario**: Basic event writing without conditions or business logic
-- **Events**: Single event (1) or realistic batch (1-12 events)
+- **Events**: Single event (1) or batch (100 events)
 - **Model**: Generic test events with simple JSON data
 
 | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
 |---------|-------------|--------|---------------------|-----------------|---------------|-------------|
-| Tiny | 1 | 1 | 4,867 | 205,321 | 1,384 | 44 |
-| Small | 1 | 1 | 4,760 | 210,104 | 1,384 | 44 |
-| Tiny | 1 | 1-12 | 3,210 | 311,863 | 11,230 | 162 |
-| Small | 1 | 1-12 | 3,440 | 290,598 | 11,232 | 162 |
-| Medium | 1 | 1-12 | 3,310 | 302,039 | 11,224 | 162 |
 | Tiny | 1 | 1 | 4,245 | 235,601 | 1,884 | 56 |
 | Small | 1 | 1 | 3,821 | 261,668 | 1,888 | 56 |
 | Medium | 1 | 1 | 4,199 | 238,131 | 1,882 | 56 |
