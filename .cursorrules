@@ -251,3 +251,120 @@ go test -v ./pkg/dcb/tests/...
   - The function must process, filter, and reconstruct tags as a valid array-literal string for each event, not as a comma-separated string or a nested array.
 
 - Never require Go code to pass [][]string or Postgres text[][] for tags. Always use the array-literal string contract. 
+
+# Performance Documentation Format Rules
+
+## Mandatory Performance Report Structure
+**ALL performance documentation MUST follow this exact table-based format:**
+
+### Required Sections (in order)
+1. **Performance Overview** - Brief one-line summary with key metrics
+2. **Environment Setup** - Table comparing different environments
+3. **Performance Comparison** - Main comparison table with all operations and datasets
+4. **Dataset Performance** - Detailed performance by environment and dataset
+5. **Dataset Sizes** - Dataset dimensions table
+6. **Concurrency Performance** - Multi-user scaling table
+7. **Resource Usage** - Memory and allocation table
+
+### Table Format Requirements
+- **NO bullet points or free-form text** - Only structured tables
+- **Consistent column headers** across all tables
+- **Dataset column** in all performance tables
+- **Performance ratios** calculated and displayed
+- **Units clearly specified** (ops/sec, KB, MB, etc.)
+
+### Performance Comparison Table Structure
+```markdown
+| Operation | Dataset | Environment A | Environment B | Performance Gain |
+|-----------|---------|---------------|---------------|------------------|
+| **OperationName** | Tiny | 100 ops/sec | 1000 ops/sec | **10x faster** |
+| **OperationName** | Small | 100 ops/sec | 1000 ops/sec | **10x faster** |
+| **OperationName** | Medium | 100 ops/sec | 1000 ops/sec | **10x faster** |
+```
+
+### Dataset Performance Table Structure
+```markdown
+| Environment | Dataset | Operation A (ops/sec) | Operation B (ops/sec) | Operation C (ops/sec) |
+|-------------|---------|----------------------|----------------------|----------------------|
+| **Environment A** | Tiny | 1000 | 100 | 5000 |
+| **Environment A** | Small | 1000 | 100 | 5000 |
+| **Environment A** | Medium | 1000 | 100 | 5000 |
+```
+
+### Dataset Sizes Table Structure
+```markdown
+| Dataset | Dimension A | Dimension B | Dimension C |
+|---------|-------------|-------------|-------------|
+| **Tiny** | 5 | 10 | 20 |
+| **Small** | 500 | 5000 | 25000 |
+| **Medium** | 1000 | 10000 | 50000 |
+```
+
+### Concurrency Performance Table Structure
+```markdown
+| Concurrency Level | Dataset | Environment A | Environment B | Performance Ratio |
+|------------------|---------|---------------|---------------|-------------------|
+| **1 User** | Small | 1000 ops/sec | 100 ops/sec | **10x faster** |
+| **10 Users** | Small | 500 ops/sec | 50 ops/sec | **10x faster** |
+| **100 Users** | Medium | 100 ops/sec | 10 ops/sec | **10x faster** |
+```
+
+### Resource Usage Table Structure
+```markdown
+| Concurrency Level | Dataset | Memory | Allocations |
+|------------------|---------|--------|-------------|
+| **1 User** | Small | 1KB | 25 |
+| **10 Users** | Small | 10KB | 250 |
+| **100 Users** | Medium | 100KB | 2500 |
+```
+
+## Performance Documentation Content Rules
+
+### Operation Naming Conventions
+- **AppendSingle** - Simple single event append
+- **AppendRealistic** - Batch append with realistic data
+- **AppendIf_NoConflict** - Conditional append (success scenario)
+- **AppendIf_WithConflict** - Conditional append (failure scenario)
+- **Projection** - State reconstruction from events
+- **Read** - Query operations
+- **ReadChannel** - Streaming read operations
+
+### Dataset Naming Conventions
+- **Tiny** - Minimal dataset for quick testing
+- **Small** - Balanced dataset for development
+- **Medium** - Larger dataset for production planning
+
+### Performance Metrics Format
+- **Throughput**: Always in ops/sec (operations per second)
+- **Latency**: In milliseconds (ms) or nanoseconds (ns)
+- **Memory**: In KB or MB with clear units
+- **Allocations**: Number of allocations per operation
+- **Performance Gain**: Always show as "Xx faster" or "Xx slower"
+
+### Objectivity Requirements
+- **NO subjective opinions** - Only factual data
+- **NO performance recommendations** - Only measurable metrics
+- **NO qualitative descriptions** - Only quantitative results
+- **NO redundant information** - Each table should add unique value
+- **NO broken links** - Only reference existing files
+
+### Consistency Requirements
+- **Same dataset sizes** across all tables
+- **Same environment names** across all tables
+- **Same operation names** across all tables
+- **Same performance metrics** across all tables
+- **Same table structure** for similar data types
+
+## Performance Documentation Validation Checklist
+Before considering any performance documentation complete:
+- [ ] All sections use table format (no bullet points)
+- [ ] Dataset column present in all performance tables
+- [ ] Performance ratios calculated and displayed
+- [ ] Units clearly specified for all metrics
+- [ ] No subjective opinions or recommendations
+- [ ] No broken links or references to non-existent files
+- [ ] Consistent naming across all tables
+- [ ] All datasets (Tiny, Small, Medium) represented
+- [ ] All environments compared consistently
+- [ ] Resource usage data included
+- [ ] Concurrency scaling data included 
