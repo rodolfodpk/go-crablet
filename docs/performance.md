@@ -26,6 +26,24 @@
 | **[Local PostgreSQL Performance](performance-local.md)** | Local PostgreSQL 16 | Tiny, Small, Medium | **Latest benchmark results** |
 | **[Docker PostgreSQL Performance](performance-docker.md)** | Docker PostgreSQL 16 | Tiny, Small, Medium | Containerized benchmark results |
 
+## Local vs Docker PostgreSQL Comparison
+
+| Aspect | Local PostgreSQL | Docker PostgreSQL |
+|--------|------------------|-------------------|
+| **Performance** | **Faster** - Direct system access | Slower - Container overhead |
+| **Setup** | One-time Homebrew install | Docker Compose required |
+| **Resource Usage** | Native system resources | Containerized with limits |
+| **Persistence** | Native PostgreSQL data directory | Docker volumes |
+| **Network** | Localhost (127.0.0.1:5432) | Docker network |
+| **Configuration** | System-level PostgreSQL config | Container environment |
+| **Development** | **Recommended** for local development | Good for CI/CD and testing |
+
+### Performance Differences
+- **Local PostgreSQL**: ~20-30% faster for most operations
+- **Docker PostgreSQL**: Additional latency from containerization
+- **Memory**: Local uses system memory, Docker has container limits
+- **I/O**: Local has direct disk access, Docker uses volume mounts
+
 ## Environment Switching
 
 To switch between PostgreSQL environments:
