@@ -581,6 +581,62 @@ func BenchmarkAppendIfConcurrent(b *testing.B, benchCtx *BenchmarkContext, concu
 	}
 }
 
+// BenchmarkAppendConcurrent benchmarks concurrent Append operations
+func BenchmarkAppendConcurrent(b *testing.B, benchCtx *BenchmarkContext, concurrencyLevel int, eventCount int) {
+	// Create context with timeout for each benchmark iteration
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		// Use a WaitGroup to coordinate concurrent operations
+		var wg sync.WaitGroup
+		results := make(chan error, concurrencyLevel)
+
+		// Launch concurrent Append operations
+		for j := 0; j < concurrencyLevel; j++ {
+			wg.Add(1)
+			go func(goroutineID int) {
+				defer wg.Done()
+
+				// Create unique ID for this goroutine
+				uniqueID := fmt.Sprintf("concurrent_%d_%d_%d", time.Now().UnixNano(), i, goroutineID)
+
+				// Create multiple events to append
+				events := make([]dcb.InputEvent, eventCount)
+				for k := 0; k < eventCount; k++ {
+					eventID := fmt.Sprintf("append_%s_%d", uniqueID, k)
+					events[k] = dcb.NewInputEvent("TestEvent",
+						dcb.NewTags("test", "concurrent", "unique_id", eventID),
+						[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, eventID)))
+				}
+
+				// Execute Append
+				err := benchCtx.Store.Append(ctx, events)
+				if err != nil {
+					results <- fmt.Errorf("concurrent append failed: %v", err)
+					return
+				}
+
+				results <- nil
+			}(j)
+		}
+
+		// Wait for all goroutines to complete
+		wg.Wait()
+		close(results)
+
+		// Check for any errors
+		for err := range results {
+			if err != nil {
+				b.Fatalf("Concurrent Append failed: %v", err)
+			}
+		}
+	}
+}
+
 // BenchmarkAppendMixedEventTypes benchmarks append with mixed event types (matching web-app scenarios)
 func BenchmarkAppendMixedEventTypes(b *testing.B, benchCtx *BenchmarkContext, batchSize int) {
 	// Create context with timeout for each benchmark iteration
@@ -844,6 +900,32 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 	// Realistic append benchmarks (1-12 events, most common real-world scenarios)
 	b.Run("AppendRealistic", func(b *testing.B) {
 		BenchmarkAppendRealistic(b, benchCtx)
+	})
+
+	// Concurrent Append benchmarks (1 event per user)
+	b.Run("Append_Concurrent_1User_1Event", func(b *testing.B) {
+		BenchmarkAppendConcurrent(b, benchCtx, 1, 1)
+	})
+
+	b.Run("Append_Concurrent_10Users_1Event", func(b *testing.B) {
+		BenchmarkAppendConcurrent(b, benchCtx, 10, 1)
+	})
+
+	b.Run("Append_Concurrent_100Users_1Event", func(b *testing.B) {
+		BenchmarkAppendConcurrent(b, benchCtx, 100, 1)
+	})
+
+	// Concurrent Append benchmarks (100 events per user)
+	b.Run("Append_Concurrent_1User_100Events", func(b *testing.B) {
+		BenchmarkAppendConcurrent(b, benchCtx, 1, 100)
+	})
+
+	b.Run("Append_Concurrent_10Users_100Events", func(b *testing.B) {
+		BenchmarkAppendConcurrent(b, benchCtx, 10, 100)
+	})
+
+	b.Run("Append_Concurrent_100Users_100Events", func(b *testing.B) {
+		BenchmarkAppendConcurrent(b, benchCtx, 100, 100)
 	})
 
 	// Concurrent AppendIf benchmarks - NO CONFLICT (1 event)
