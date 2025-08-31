@@ -892,15 +892,7 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 	// Use 100 past events for realistic AppendIf testing (business rule validation context)
 	benchCtx := SetupBenchmarkContext(b, datasetSize, 100)
 
-	// Append benchmarks
-	b.Run("AppendSingle", func(b *testing.B) {
-		BenchmarkAppendSingle(b, benchCtx)
-	})
-
-	// Realistic append benchmarks (1-12 events, most common real-world scenarios)
-	b.Run("AppendRealistic", func(b *testing.B) {
-		BenchmarkAppendRealistic(b, benchCtx)
-	})
+	// Append benchmarks (concurrent only - standardized to 1 or 100 events)
 
 	// Concurrent Append benchmarks (1 event per user)
 	b.Run("Append_Concurrent_1User_1Event", func(b *testing.B) {
