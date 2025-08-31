@@ -99,9 +99,9 @@ The performance tables show two different types of read operations:
 
 ### **Read Operations - Concurrency Scaling**
 
-**Local PostgreSQL**: Excellent single-threaded performance (8,230 ops/sec) with moderate concurrency impact (1,438 ops/sec at 10 users) and reasonable degradation under high load (158 ops/sec at 100 users).
-
-**Docker PostgreSQL**: Good single-threaded performance (347 ops/sec) with moderate concurrency impact (157 ops/sec at 10 users) and significant degradation under high load (10.4 ops/sec at 100 users).
+**Test Environment**: macOS (darwin 23.6.0) with Apple M1 Pro  
+**Database**: PostgreSQL with 50-connection pool  
+**Test Data**: Small dataset (500 courses, 5,000 students, 25,000 enrollments) and Medium dataset (1,000 courses, 10,000 students, 50,000 enrollments)
 
 ### **Performance Scaling Pattern**
 
@@ -111,19 +111,31 @@ The performance tables show two different types of read operations:
 | **10 Users** | 1,438 ops/sec | 157 ops/sec | **9.2x faster** |
 | **100 Users** | 158 ops/sec | 10.4 ops/sec | **15.2x faster** |
 
-## Key Performance Insights
+### **Resource Usage Scaling**
 
-### **Local PostgreSQL Advantages**
-- **No Docker overhead**: Direct hardware access
-- **Optimized configuration**: Homebrew PostgreSQL tuned for macOS
-- **Better resource allocation**: Full system resources available
-- **Faster filesystem access**: Direct disk access vs Docker layers
+| Concurrency Level | Local PostgreSQL | Docker PostgreSQL |
+|------------------|------------------|-------------------|
+| **1 User** | 1.1KB memory, 25 allocations | 1.1KB memory, 25 allocations |
+| **10 Users** | 11.8KB memory, 270 allocations | 11.8KB memory, 270 allocations |
+| **100 Users** | 125KB memory, 2,852 allocations | 124.5KB memory, 2,853 allocations |
 
-### **Docker PostgreSQL Benefits**
-- **Consistent environment**: Same setup across all deployments
-- **Production-like**: Containerized deployment simulation
-- **Resource isolation**: Controlled resource allocation
-- **Easy setup**: `docker-compose up -d`
+## Performance Data Summary
+
+### **Throughput Performance**
+- **Append operations**: Local PostgreSQL 9.4x faster than Docker PostgreSQL
+- **AppendIf operations**: Local PostgreSQL 1.6x faster than Docker PostgreSQL
+- **Projection operations**: Local PostgreSQL 7.0x faster than Docker PostgreSQL
+- **Business workflows**: Local PostgreSQL 6.1x faster than Docker PostgreSQL
+
+### **Concurrency Performance**
+- **1 User**: Local PostgreSQL 23.7x faster than Docker PostgreSQL
+- **10 Users**: Local PostgreSQL 9.2x faster than Docker PostgreSQL
+- **100 Users**: Local PostgreSQL 15.2x faster than Docker PostgreSQL
+
+### **Resource Usage**
+- **Memory scaling**: Both setups show similar memory usage patterns
+- **Allocation patterns**: Both setups show similar allocation scaling
+- **Connection pooling**: Both use 50-connection pools
 
 ## Dataset Comparison
 
