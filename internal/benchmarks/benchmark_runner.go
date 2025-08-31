@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -743,62 +742,7 @@ func BenchmarkProjectStreamConcurrent(b *testing.B, benchCtx *BenchmarkContext, 
 	}
 }
 
-// BenchmarkMemoryUsage benchmarks memory usage for different operations
-func BenchmarkMemoryUsage(b *testing.B, benchCtx *BenchmarkContext, operation string) {
-	// Create context with timeout for each benchmark iteration
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-	initialAlloc := m.Alloc
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		switch operation {
-		case "read":
-			events, err := benchCtx.Store.Query(ctx, benchCtx.Queries[0], nil)
-			if err != nil {
-				b.Fatalf("Read failed: %v", err)
-			}
-			_ = events
-		case "read_stream", "stream":
-			eventChan, err := benchCtx.ChannelStore.QueryStream(ctx, benchCtx.Queries[0], nil)
-			if err != nil {
-				b.Fatalf("ReadStream failed: %v", err)
-			}
-			count := 0
-			for range eventChan {
-				count++
-			}
-			_ = count
-		case "project":
-			states, _, err := benchCtx.Store.Project(ctx, benchCtx.Projectors, nil)
-			if err != nil {
-				b.Fatalf("Project failed: %v", err)
-			}
-			_ = states
-		case "project_stream":
-			stateChan, _, err := benchCtx.ChannelStore.ProjectStream(ctx, benchCtx.Projectors, nil)
-			if err != nil {
-				b.Fatalf("ProjectStream failed: %v", err)
-			}
-			count := 0
-			for range stateChan {
-				count++
-			}
-			_ = count
-		default:
-			b.Fatalf("Unknown operation: %s", operation)
-		}
-	}
-
-	runtime.ReadMemStats(&m)
-	finalAlloc := m.Alloc
-	b.ReportMetric(float64(finalAlloc-initialAlloc), "bytes/op")
-}
 
 // RunAllBenchmarks runs all benchmarks with the specified dataset size
 func RunAllBenchmarks(b *testing.B, datasetSize string) {
@@ -911,14 +855,7 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 		BenchmarkProjectStreamConcurrent(b, benchCtx, 25)
 	})
 
-	// Memory usage benchmarks
-	b.Run("MemoryUsage_Project", func(b *testing.B) {
-		BenchmarkMemoryUsage(b, benchCtx, "project")
-	})
 
-	b.Run("MemoryUsage_ProjectStream", func(b *testing.B) {
-		BenchmarkMemoryUsage(b, benchCtx, "project_stream")
-	})
 }
 
 // TestMain sets up and tears down the shared global pool for all benchmarks
