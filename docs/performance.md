@@ -60,11 +60,3 @@
 | **1 User** | Small | 1.1KB | 25 |
 | **10 Users** | Small | 11.8KB | 270 |
 | **100 Users** | Medium | 125KB | 2,852 |
-
-## Setup Guides
-
-| Guide | Description |
-|-------|-------------|
-| **🐳 [Docker PostgreSQL Setup](./benchmark-setup-docker.md)** | Containerized setup |
-| **💻 [Local PostgreSQL Setup](./benchmark-setup-local.md)** | Native installation |
-| **📊 [Performance Comparison](./performance-comparison.md)** | Detailed analysis |
