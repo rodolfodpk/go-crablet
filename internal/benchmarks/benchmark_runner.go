@@ -464,10 +464,6 @@ func createPastEventsForAppendIf(ctx context.Context, store dcb.EventStore, coun
 	return store.Append(ctx, events)
 }
 
-
-
-
-
 // BenchmarkAppendIfConcurrent benchmarks concurrent AppendIf operations
 func BenchmarkAppendIfConcurrent(b *testing.B, benchCtx *BenchmarkContext, concurrencyLevel int, eventCount int, conflictScenario bool) {
 	// Create context with timeout for each benchmark iteration using Go 1.25 WithTimeoutCause
@@ -610,12 +606,6 @@ func BenchmarkAppendConcurrent(b *testing.B, benchCtx *BenchmarkContext, concurr
 		}
 	}
 }
-
-
-
-
-
-
 
 // BenchmarkProjectConcurrent benchmarks concurrent projection operations
 func BenchmarkProjectConcurrent(b *testing.B, benchCtx *BenchmarkContext, goroutines int) {
