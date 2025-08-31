@@ -223,6 +223,23 @@ func EventMatchesProjector(event Event, projector StateProjector) bool {
 // cursor != nil: project from specified cursor position
 // Returns final aggregated states and append condition for DCB concurrency control
 func (es *eventStore) Project(ctx context.Context, projectors []StateProjector, after *Cursor) (map[string]any, AppendCondition, error) {
+	// Acquire projection semaphore with context timeout
+	select {
+	case es.projectionSemaphore <- struct{}{}:
+		// Acquired semaphore slot
+		defer func() { <-es.projectionSemaphore }() // Release slot when done
+	case <-ctx.Done():
+		// Context cancelled while waiting for semaphore
+		return nil, nil, &TooManyProjectionsError{
+			EventStoreError: EventStoreError{
+				Op:  "Project",
+				Err: fmt.Errorf("context cancelled while waiting for projection slot"),
+			},
+			MaxConcurrent: es.config.MaxConcurrentProjections,
+			CurrentCount:  len(es.projectionSemaphore),
+		}
+	}
+
 	// Validate projectors
 	for _, bp := range projectors {
 		if bp.ID == "" {
@@ -491,6 +508,22 @@ func BuildAppendConditionFromQuery(query Query) AppendCondition {
 // for efficient memory usage and Go-idiomatic streaming
 // Returns final aggregated states (same as batch version) via streaming
 func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProjector, after *Cursor) (<-chan map[string]any, <-chan AppendCondition, error) {
+	// Acquire projection semaphore with context timeout
+	select {
+	case es.projectionSemaphore <- struct{}{}:
+		// Acquired semaphore slot - will be released when channels are closed
+	case <-ctx.Done():
+		// Context cancelled while waiting for semaphore
+		return nil, nil, &TooManyProjectionsError{
+			EventStoreError: EventStoreError{
+				Op:  "ProjectStream",
+				Err: fmt.Errorf("context cancelled while waiting for projection slot"),
+			},
+			MaxConcurrent: es.config.MaxConcurrentProjections,
+			CurrentCount:  len(es.projectionSemaphore),
+		}
+	}
+
 	if len(projectors) == 0 {
 		return nil, nil, fmt.Errorf("at least one projector is required")
 	}
@@ -563,6 +596,8 @@ func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProje
 			rows.Close()
 			close(resultChan)
 			close(appendConditionChan)
+			// Release projection semaphore slot
+			<-es.projectionSemaphore
 			// No need to cancel - using caller's context
 		}()
 

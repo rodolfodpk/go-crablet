@@ -111,6 +111,20 @@ type EventStoreConfig struct {
 	// StreamBuffer sets the channel buffer size for streaming operations (QueryStream, ProjectStream)
 	// Larger buffers improve throughput but increase memory usage
 	StreamBuffer int `json:"stream_buffer"`
+
+	// =============================================================================
+	// PROJECTION OPERATIONS CONFIGURATION
+	// =============================================================================
+
+	// MaxConcurrentProjections limits the number of projection operations that can run simultaneously
+	// This prevents resource exhaustion when many users perform projections concurrently
+	// Default: 10 concurrent projections
+	MaxConcurrentProjections int `json:"max_concurrent_projections"`
+
+	// MaxProjectionGoroutines limits the number of internal goroutines used per projection operation
+	// This prevents excessive goroutine creation in ProjectStream operations
+	// Default: 50 goroutines per projection
+	MaxProjectionGoroutines int `json:"max_projection_goroutines"`
 }
 
 // =============================================================================
