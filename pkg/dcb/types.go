@@ -88,9 +88,9 @@ type EventStoreConfig struct {
 	// APPEND OPERATIONS CONFIGURATION
 	// =============================================================================
 
-	// MaxBatchSize controls the maximum number of events that can be appended in a single batch
+	// MaxAppendBatchSize controls the maximum number of events that can be appended in a single batch
 	// Larger batches improve performance but increase memory usage and transaction duration
-	MaxBatchSize int `json:"max_batch_size"`
+	MaxAppendBatchSize int `json:"max_append_batch_size"`
 
 	// DefaultAppendIsolation sets the PostgreSQL transaction isolation level for append operations
 	// Higher isolation levels provide stronger consistency guarantees but may impact performance

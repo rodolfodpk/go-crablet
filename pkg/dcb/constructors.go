@@ -14,8 +14,8 @@ import (
 
 func newEventStore(pool *pgxpool.Pool, cfg EventStoreConfig) *eventStore {
 	// Set sensible defaults for required fields
-	if cfg.MaxBatchSize <= 0 {
-		cfg.MaxBatchSize = 1000 // Default batch size
+	if cfg.MaxAppendBatchSize <= 0 {
+		cfg.MaxAppendBatchSize = 1000 // Default batch size
 	}
 	if cfg.StreamBuffer <= 0 {
 		cfg.StreamBuffer = 1000 // Default stream buffer size
@@ -62,13 +62,13 @@ func NewEventStore(ctx context.Context, pool *pgxpool.Pool) (EventStore, error) 
 	}
 
 	config := EventStoreConfig{
-		MaxBatchSize:              1000,
-		StreamBuffer:              1000,
-		DefaultAppendIsolation:    IsolationLevelReadCommitted,
-		QueryTimeout:              15000, // 15 seconds default
-		AppendTimeout:             10000, // 10 seconds default
-		MaxConcurrentProjections:  50,    // Default: 50 concurrent projections (supports 100 users)
-		MaxProjectionGoroutines:   100,   // Default: 100 goroutines per projection
+		MaxAppendBatchSize:       1000,
+		StreamBuffer:             500,
+		DefaultAppendIsolation:   IsolationLevelReadCommitted,
+		QueryTimeout:             15000, // 15 seconds default
+		AppendTimeout:            10000, // 10 seconds default
+		MaxConcurrentProjections: 50,    // Default: 50 concurrent projections (supports 100 users)
+		MaxProjectionGoroutines:  100,   // Default: 100 goroutines per projection
 	}
 	return newEventStore(pool, config), nil
 }

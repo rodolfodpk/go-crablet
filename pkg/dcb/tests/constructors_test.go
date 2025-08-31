@@ -261,7 +261,7 @@ var _ = Describe("Alternative Constructors", func() {
 
 	It("NewEventStoreWithConfig validates config", func() {
 		config := dcb.EventStoreConfig{
-			MaxBatchSize:           1000,
+			MaxAppendBatchSize:      1000,
 			StreamBuffer:           100,
 			DefaultAppendIsolation: dcb.IsolationLevelRepeatableRead,
 			QueryTimeout:           5000,
@@ -269,7 +269,7 @@ var _ = Describe("Alternative Constructors", func() {
 		}
 
 		// Test config validation (without requiring actual database connection)
-		Expect(config.MaxBatchSize).To(Equal(1000))
+		Expect(config.MaxAppendBatchSize).To(Equal(1000))
 		Expect(config.StreamBuffer).To(Equal(100))
 		Expect(config.DefaultAppendIsolation).To(Equal(dcb.IsolationLevelRepeatableRead))
 		Expect(config.QueryTimeout).To(Equal(5000))
