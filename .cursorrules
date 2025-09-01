@@ -532,3 +532,98 @@ Before considering any performance documentation complete:
 - [ ] No duplicate rows or inconsistent data
 - [ ] Maintains data extraction capability
 - [ ] Uses objective, factual language only 
+
+# Projection Benchmarking Best Practices
+
+## Core API Concurrency Architecture
+The EventStore has **built-in goroutine limits** that must be respected:
+
+### Built-in Concurrency Controls
+- **`MaxConcurrentProjections`** (default: 50) - Limits concurrent projection operations
+- **`MaxProjectionGoroutines`** (default: 100) - Limits internal goroutines per projection
+- **`StreamBuffer`** - Controls channel buffer size for streaming operations
+- **`projectionSemaphore`** - Internal semaphore for concurrency control
+
+### Mandatory Benchmarking Rules
+**ALWAYS use the core API's built-in concurrency controls:**
+
+```go
+// CORRECT: Let the API handle concurrency
+func BenchmarkProjectStreamConcurrent(b *testing.B, benchCtx *BenchmarkContext, goroutines int) {
+    for i := 0; i < b.N; i++ {
+        // Use Go 1.25 WaitGroup.Go() for concurrent operations
+        var wg sync.WaitGroup
+        results := make(chan error, goroutines)
+        
+        for j := 0; j < goroutines; j++ {
+            wg.Go(func() {
+                // Let the core API handle goroutine limits and streaming
+                stateChan, conditionChan, err := benchCtx.Store.ProjectStream(ctx, projectors, nil)
+                if err != nil {
+                    results <- fmt.Errorf("concurrent ProjectStream failed: %v", err)
+                    return
+                }
+                
+                // Consume from channels (API handles concurrency internally)
+                select {
+                case state := <-stateChan:
+                    _ = state // Use state to prevent optimization
+                case <-time.After(5 * time.Second):
+                    results <- fmt.Errorf("ProjectStream timeout")
+                    return
+                }
+                
+                results <- nil
+            })
+        }
+        
+        wg.Wait()
+        close(results)
+    }
+}
+```
+
+### Go 1.25 Concurrency Features
+**ALWAYS use Go 1.25 concurrency features:**
+
+1. **`WaitGroup.Go()`** instead of manual `wg.Add(1); go func()`
+2. **`context.WithTimeoutCause()`** for better error handling
+3. **Let the API handle streaming** - don't implement your own
+
+### What NOT to Do
+**NEVER implement manual concurrency controls:**
+
+```go
+// WRONG: Don't add your own goroutine limits
+semaphore := make(chan struct{}, goroutines) // Don't do this
+wg.Add(1)
+go func() {
+    defer wg.Done()
+    semaphore <- struct{}{} // Don't do this
+    defer func() { <-semaphore }() // Don't do this
+    // ...
+}(j)
+```
+
+### Performance Expectations
+**Realistic projection performance:**
+- **Single-threaded**: ~10-15 ops/sec (full scan)
+- **Concurrent (1 user)**: ~8-10 ops/sec (with API overhead)
+- **Concurrent (10+ users)**: ~0.5-2 ops/sec (resource contention)
+- **Memory usage**: ~200-500MB per operation (large event streams)
+- **Allocations**: ~4-11M per operation (complex state reconstruction)
+
+### Benchmark Architecture
+**The correct approach:**
+1. **Use core API's built-in limits** - don't fight the architecture
+2. **Let API handle streaming** - it's designed for it
+3. **Use Go 1.25 features** - cleaner concurrency
+4. **Respect the API design** - don't add manual controls
+5. **Measure realistic performance** - not artificial optimizations
+
+### Common Mistakes to Avoid
+- **Adding manual goroutine limits** when API already has them
+- **Implementing custom streaming** when API handles it
+- **Fighting the API architecture** instead of working with it
+- **Expecting unrealistic performance** for large event streams
+- **Not using Go 1.25 concurrency features** 
