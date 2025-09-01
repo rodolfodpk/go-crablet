@@ -167,3 +167,59 @@ func TestAsTableStructureError(t *testing.T) {
 		}
 	})
 }
+
+func TestIsTooManyProjectionsError(t *testing.T) {
+	t.Run("detects TooManyProjectionsError correctly", func(t *testing.T) {
+		err := &TooManyProjectionsError{
+			EventStoreError: EventStoreError{
+				Op:  "test",
+				Err: errors.New("too many projections"),
+			},
+			MaxConcurrent: 10,
+			CurrentCount:  15,
+		}
+
+		if !IsTooManyProjectionsError(err) {
+			t.Error("IsTooManyProjectionsError should return true for TooManyProjectionsError")
+		}
+	})
+
+	t.Run("returns false for non-TooManyProjectionsError", func(t *testing.T) {
+		err := errors.New("regular error")
+		if IsTooManyProjectionsError(err) {
+			t.Error("IsTooManyProjectionsError should return false for regular error")
+		}
+	})
+}
+
+func TestGetTooManyProjectionsError(t *testing.T) {
+	t.Run("extracts TooManyProjectionsError correctly", func(t *testing.T) {
+		err := &TooManyProjectionsError{
+			EventStoreError: EventStoreError{
+				Op:  "test",
+				Err: errors.New("too many projections"),
+			},
+			MaxConcurrent: 10,
+			CurrentCount:  15,
+		}
+
+		projectionErr, ok := GetTooManyProjectionsError(err)
+		if !ok {
+			t.Error("GetTooManyProjectionsError should return true for TooManyProjectionsError")
+		}
+		if projectionErr.MaxConcurrent != 10 {
+			t.Errorf("expected MaxConcurrent 10, got %d", projectionErr.MaxConcurrent)
+		}
+		if projectionErr.CurrentCount != 15 {
+			t.Errorf("expected CurrentCount 15, got %d", projectionErr.CurrentCount)
+		}
+	})
+
+	t.Run("returns false when extracting non-TooManyProjectionsError", func(t *testing.T) {
+		err := errors.New("regular error")
+		_, ok := GetTooManyProjectionsError(err)
+		if ok {
+			t.Error("GetTooManyProjectionsError should return false for regular error")
+		}
+	})
+}

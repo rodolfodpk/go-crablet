@@ -1,217 +1,121 @@
-# Performance Guide
+# Docker PostgreSQL Performance
 
-> **🚀 Performance Update**: Latest benchmarks (August 28th, 2025) show excellent performance across all operations. **Append operations achieve 850+ ops/sec**, **AppendIf operations reach 10+ ops/sec** with business rule validation, and **concurrent read performance scales well** from 347 ops/sec (1 user) to 10.4 ops/sec (100 users). **New dataset configuration enables comprehensive concurrent testing with realistic business scenarios.**
+## Performance Results
 
-## Test Environment
-- **Platform**: macOS (darwin 23.6.0) with Apple M1 Pro
-- **Database**: PostgreSQL with 50-connection pool
-- **Test Data**: Runtime-generated datasets with controlled past event counts
-- **Benchmark Date**: August 28th, 2025
+## Append Performance
 
-## Dataset-Specific Performance Results
+**Append Operations Details**:
+- **Operation**: Simple event append operations
+- **Scenario**: Basic event writing without conditions or business logic
+- **Events**: Single event (1) or batch (100 events)
+- **Model**: Generic test events with simple JSON data
 
-Choose your dataset size to view detailed performance metrics:
+| Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
+|---------|-------------|--------|---------------------|-----------------|---------------|-------------|
+| Medium | 1 | 1 | 984 | 1,016,378 | 1,877 | 55 |
+| Small | 1 | 1 | 979 | 1,021,591 | 1,901 | 55 |
+| Tiny | 1 | 1 | 940 | 1,063,937 | 1,875 | 55 |
+| Small | 10 | 1 | 337 | 2,964,403 | 17,553 | 521 |
+| Tiny | 10 | 1 | 328 | 3,046,159 | 17,525 | 521 |
+| Medium | 10 | 1 | 299 | 3,339,308 | 17,522 | 521 |
+| Medium | 1 | 100 | 261 | 3,837,844 | 209,569 | 2,053 |
+| Small | 1 | 100 | 246 | 4,060,320 | 209,981 | 2,053 |
+| Tiny | 1 | 100 | 244 | 4,097,649 | 210,149 | 2,054 |
+| Medium | 100 | 1 | 73 | 13,711,205 | 182,523 | 5,257 |
+| Tiny | 100 | 1 | 72 | 13,835,732 | 182,497 | 5,258 |
+| Small | 100 | 1 | 62 | 16,006,970 | 182,861 | 5,258 |
+| Tiny | 10 | 100 | 40 | 24,919,232 | 2,096,906 | 20,505 |
+| Small | 10 | 100 | 39 | 25,352,330 | 2,095,482 | 20,496 |
+| Medium | 10 | 100 | 34 | 29,217,043 | 2,094,413 | 20,490 |
+| Medium | 100 | 100 | 4 | 234,358,689 | 2,095,436 | 205,059 |
+| Small | 100 | 100 | 4 | 265,204,075 | 2,095,318 | 205,066 |
+| Tiny | 100 | 100 | 4 | 253,122,474 | 2,096,825 | 205,114 |
 
-### **📊 [Tiny Dataset Performance](./performance-docker-tiny.md)**
-- **Size**: 5 courses, 10 students, 20 enrollments
-- **Use Case**: Quick testing, development, fast feedback
-- **Past Events**: 10 events for AppendIf testing
-- **Performance**: Best case scenarios, minimal data volume
+## AppendIf Performance (No Conflict)
 
-### **📊 [Small Dataset Performance](./performance-docker-small.md)**
-- **Size**: 500 courses, 5,000 students, 25,000 enrollments  
-- **Use Case**: High concurrency testing, balanced performance
-- **Past Events**: 100 events for AppendIf testing
-- **Performance**: Optimized for concurrent user scenarios
+**AppendIf No Conflict Details**:
+- **Attempted Events**: Number of events AppendIf operation tries to append (1 or 100 events per operation)
+- **Actual Events**: Number of events successfully appended (1 or 100 events)
+- **Past Events**: Number of existing events in database before benchmark (100 events for all scenarios)
+- **Conflict Events**: 0 (no conflicts exist)
 
-### **📊 [Medium Dataset Performance](./performance-docker-medium.md)**
-- **Size**: 1,000 courses, 10,000 students, 50,000 enrollments  
-- **Use Case**: Production planning, scalability analysis
-- **Past Events**: 100 events for AppendIf testing
-- **Performance**: Real-world scenarios, maximum data volume
+| Dataset | Concurrency | Attempted Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
+|---------|-------------|------------------|---------------------|-----------------|---------------|-------------|
+| Tiny | 1 | 1 | 658 | 1,518,450 | 4,465 | 95 |
+| Small | 1 | 1 | 651 | 1,535,504 | 4,459 | 95 |
+| Tiny | 10 | 1 | 169 | 5,920,910 | 43,420 | 921 |
+| Small | 10 | 1 | 161 | 6,202,469 | 43,309 | 918 |
+| Medium | 10 | 1 | 62 | 16,137,540 | 43,184 | 914 |
+| Medium | 1 | 100 | 99 | 10,136,572 | 213,737 | 2,092 |
+| Small | 1 | 100 | 93 | 10,748,651 | 213,802 | 2,092 |
+| Tiny | 1 | 100 | 92 | 10,877,061 | 214,163 | 2,094 |
+| Small | 10 | 100 | 28 | 35,541,658 | 2,133,903 | 20,905 |
+| Tiny | 10 | 100 | 28 | 35,448,964 | 2,136,494 | 20,922 |
+| Medium | 10 | 100 | 27 | 37,589,242 | 2,132,165 | 20,893 |
+| Small | 100 | 1 | 17 | 59,991,582 | 442,743 | 9,274 |
+| Tiny | 100 | 1 | 16 | 63,685,427 | 441,085 | 9,270 |
+| Medium | 100 | 1 | 8 | 132,163,729 | 440,483 | 9,269 |
+| Medium | 100 | 100 | 3 | 350,805,663 | 2,133,741 | 209,041 |
+| Small | 100 | 100 | 3 | 311,342,023 | 2,134,947 | 209,075 |
+| Tiny | 100 | 100 | 3 | 297,525,060 | 2,135,738 | 209,122 |
 
-## Performance Summary
+## AppendIf Performance (With Conflict)
 
-**Key Performance Insights**:
-- **Append**: 850+ ops/sec (single event), scales well with concurrency
-- **AppendIf**: 10+ ops/sec depending on dataset size and conflict scenarios
-- **Read**: 347-5,000+ ops/sec depending on query complexity and data volume
-- **Projection**: 100-700 ops/sec for state reconstruction from event streams
-- **Concurrency**: Excellent single-threaded performance (347 ops/sec), moderate impact at 10 users (157 ops/sec), significant degradation at 100 users (10.4 ops/sec)
+**AppendIf With Conflict Details**:
+- **Attempted Events**: Number of events AppendIf operation tries to append (1 or 100 events per operation)
+- **Actual Events**: Number of events successfully appended (0 - all operations fail due to conflicts)
+- **Past Events**: Number of existing events in database before benchmark (100 events for all scenarios)
+- **Conflict Events**: Number of conflicting events created before AppendIf (1, 10, or 100 events, matching concurrency level)
 
-**Dataset Impact**:
-- **Tiny Dataset**: Best performance, minimal resource usage, ideal for development
-- **Small Dataset**: Balanced performance, optimized for high concurrency testing
-- **Medium Dataset**: Realistic performance, shows data volume impact, production planning
+| Dataset | Concurrency | Attempted Events | Conflict Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
+|---------|-------------|------------------|-----------------|---------------------|-----------------|---------------|-------------|
+| Medium | 1 | 1 | 1 | 57 | 17,503,340 | 5,865 | 144 |
+| Medium | 1 | 100 | 1 | 53 | 18,956,997 | 214,815 | 2,140 |
+| Medium | 10 | 1 | 10 | 34 | 29,250,650 | 57,151 | 1,405 |
+| Medium | 10 | 100 | 10 | 27 | 36,491,811 | 2,144,395 | 21,372 |
+| Medium | 100 | 1 | 100 | 6 | 166,019,014 | 581,526 | 14,178 |
+| Medium | 100 | 100 | 100 | 5 | 216,381,090 | 2,146,916 | 213,806 |
+| Small | 1 | 1 | 1 | 47 | 21,263,682 | 5,907 | 144 |
+| Tiny | 1 | 1 | 1 | 47 | 21,266,647 | 5,890 | 144 |
+| Small | 1 | 100 | 1 | 43 | 23,517,665 | 214,845 | 2,141 |
+| Tiny | 1 | 100 | 1 | 44 | 22,743,746 | 215,146 | 2,143 |
+| Small | 10 | 1 | 10 | 25 | 40,611,760 | 57,216 | 1,406 |
+| Tiny | 10 | 1 | 10 | 26 | 38,563,592 | 57,385 | 1,406 |
+| Tiny | 10 | 100 | 10 | 24 | 42,527,353 | 2,146,439 | 21,389 |
+| Small | 10 | 100 | 10 | 23 | 43,642,002 | 2,143,954 | 21,379 |
+| Small | 100 | 1 | 100 | 4 | 230,691,143 | 579,527 | 14,176 |
+| Tiny | 100 | 1 | 100 | 4 | 231,909,009 | 585,446 | 14,214 |
+| Small | 100 | 100 | 100 | 4 | 256,274,453 | 2,146,931 | 213,822 |
+| Tiny | 100 | 100 | 100 | 3 | 306,809,588 | 2,147,628 | 213,946 |
 
-**Concurrency Scaling**: All operations tested with 1, 10, and 100 concurrent users to measure performance degradation under load. **Latest Results**: Read operations show excellent single-threaded performance (347 ops/sec) with moderate concurrency impact (157 ops/sec at 10 users) and significant degradation under high load (10.4 ops/sec at 100 users).
 
-**For detailed performance tables and specific metrics, see the dataset-specific pages above.**
+## Projection Performance
 
-## Latest Benchmark Results (August 28th, 2025)
+**Projection Operations Details**:
+- **Operation**: State reconstruction from event streams
+- **Scenario**: Building aggregate state from historical events
+- **Events**: Number of events processed during projection (varies by dataset)
+- **Model**: Domain-specific state reconstruction with business logic
 
-### **Tiny Dataset Performance**
+| Operation | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
+|-----------|---------|-------------|--------|---------------------|-----------------|---------------|-------------|
+| **Project** | Tiny | 1 | 20 | 2,300 | 434,857 | 2,036 | 37 |
+| **Project** | Small | 1 | 25,000 | 2,550 | 391,810 | 2,036 | 37 |
+| **Project** | Medium | 1 | 50,000 | 2,555 | 391,495 | 2,036 | 37 |
+| **ProjectStream** | Tiny | 1 | 20 | 2,200 | 454,545 | 2,040 | 38 |
+| **ProjectStream** | Small | 1 | 25,000 | 2,400 | 416,667 | 2,038 | 38 |
+| **ProjectStream** | Medium | 1 | 50,000 | 2,130 | 469,442 | 11,079 | 48 |
 
-| Operation | Throughput | Latency | Memory | Allocations | Performance Notes |
-|-----------|------------|---------|---------|-------------|-------------------|
-| **AppendSingle** | **850 ops/sec** | **1.18ms** | 1.4KB | 44 | Fastest operation, minimal overhead |
-| **AppendRealistic** | **764 ops/sec** | **1.31ms** | 11.1KB | 162 | Realistic event with tags and metadata |
-| **AppendIf_NoConflict_1** | **10 ops/sec** | **100.4ms** | 4.1KB | 80 | Business rule validation overhead |
-| **AppendIf_NoConflict_5** | **10 ops/sec** | **102.9ms** | 12.8KB | 166 | Multiple past events scanned |
-| **AppendIf_NoConflict_12** | **10 ops/sec** | **104.4ms** | 22.5KB | 309 | Maximum past events for validation |
-| **AppendIf_WithConflict_1** | **9 ops/sec** | **105.9ms** | 6.8KB | 140 | Conflict detection adds overhead |
-| **AppendIf_WithConflict_5** | **10 ops/sec** | **103.4ms** | 14.7KB | 221 | Conflict scenarios with multiple events |
-| **AppendIf_WithConflict_12** | **9 ops/sec** | **107.0ms** | 29.2KB | 366 | Maximum conflict scenarios |
-| **Read_Single** | **347 ops/sec** | **2.88ms** | 1.0MB | 14,433 | Complex query with business logic |
-| **Read_Batch** | **810 ops/sec** | **1.24ms** | 1.0KB | 21 | Optimized batch reading |
-| **Read_AppendIf** | **516 ops/sec** | **1.94ms** | 182KB | 2,689 | Read operations for AppendIf validation |
-| **ReadChannel_Single** | **343 ops/sec** | **2.91ms** | 720KB | 14,424 | Streaming read with channel |
-| **ReadChannel_Batch** | **770 ops/sec** | **1.30ms** | 108KB | 24 | Streaming batch read |
-| **Project_1** | **625 ops/sec** | **1.60ms** | 2.0KB | 37 | State projection from events |
-| **Project_2** | **629 ops/sec** | **1.59ms** | 2.0KB | 37 | Alternative projection scenario |
-| **ProjectStream_1** | **712 ops/sec** | **1.40ms** | 11.1KB | 48 | Streaming projection |
-| **ProjectStream_2** | **2,395 ops/sec** | **0.42ms** | 11.1KB | 48 | Optimized streaming projection |
+## Course Registration Performance
 
-### **Memory Usage Analysis**
+**Course Registration Details**:
+- **Operation**: Course registration events (StudentCourseRegistration)
+- **Scenario**: Multiple students simultaneously registering for courses
+- **Events**: 1 event per user (course registration)
+- **Model**: Domain-specific business scenario with realistic data
 
-| Operation | Memory Usage | Performance Impact |
-|-----------|--------------|-------------------|
-| **Read Operations** | 1.6MB | High memory for complex queries |
-| **Read Stream** | 2.3MB | Streaming adds memory overhead |
-| **Projection** | 1.4MB | State reconstruction memory cost |
-| **Projection Stream** | 682KB | Optimized streaming projection |
-
-## Operation Types Explained
-
-### **Simple Read vs Complex Queries**
-
-The performance tables show two different types of read operations:
-
-#### **Simple Read**
-- **What it tests**: Single query operations with basic tag filtering
-- **Example**: `Query events with tag "user_id" = "123"`
-- **Use case**: Basic event retrieval, simple filtering
-- **Performance**: Fastest read operations
-
-#### **Complex Queries** 
-- **What it tests**: Multi-step business workflows with sequential queries
-- **Example**: Complete course enrollment process:
-  1. Query if student exists (`StudentRegistered` event)
-  2. Query if course exists (`CourseDefined` event)
-  3. Query if student is already enrolled (`StudentEnrolledInCourse` event)
-  4. Append enrollment event
-- **Use case**: Business rule validation, multi-step workflows, real-world scenarios
-- **Performance**: Slower than simple reads due to multiple sequential operations
-
-#### **Why Performance Differs Between Datasets**
-
-| Dataset | Simple Read | Complex Queries | Performance Pattern |
-|---------|-------------|-----------------|-------------------|
-| **Tiny** | 3,649 ops/sec | 2,058 ops/sec | Complex queries are 1.8x slower than Simple Read |
-| **Small** | 337 ops/sec | 361 ops/sec | Complex queries are 1.1x slower than Simple Read |
-
-**Tiny Dataset**: Complex queries are slower because they perform 4 sequential operations, and the overhead of multiple queries is more significant with minimal data.
-
-**Small Dataset**: Complex queries are slower (1.1x) because they still perform 4 sequential operations, but the performance difference is smaller due to:
-- **Better query optimization** with more data
-- **Improved indexing efficiency** 
-- **Reduced per-operation overhead** at scale
-- **Real-world data patterns** that optimize better
-
-### **Append vs AppendIf**
-
-#### **Append**
-- **What it tests**: Simple event storage without business rule validation
-- **Use case**: High-volume event streaming, event-driven architectures
-- **Performance**: Fastest operation (850+ ops/sec)
-
-#### **AppendIf**
-- **What it tests**: Conditional event storage with business rule validation
-- **Use case**: Event sourcing with business consistency, preventing duplicate operations
-- **Performance**: Significantly slower (10+ ops/sec) due to:
-  - Business rule validation queries
-  - Conflict detection logic
-  - Past event scanning for conditions
-
-**Performance Impact**: AppendIf is 85x slower than Append, but provides business consistency guarantees that simple Append cannot.
-
-## Concurrency Performance Analysis
-
-### **Read Operations - Concurrency Scaling**
-
-**Test Environment**: macOS (darwin 23.6.0) with Apple M1 Pro  
-**Database**: PostgreSQL with 50-connection pool  
-**Test Data**: Small dataset (500 courses, 5,000 students, 25,000 enrollments) and Medium dataset (1,000 courses, 10,000 students, 50,000 enrollments)  
-**Benchmark Date**: August 28th, 2025
-
-| Concurrency Level | Dataset Size | Throughput | Latency | Memory | Allocations | Performance Pattern |
-|------------------|--------------|------------|---------|---------|-------------|-------------------|
-| **1 User** | Small (25K enrollments) | **347 ops/sec** | **2.88ms** | 1.1KB | 25 | Excellent baseline |
-| **10 Users** | Small (25K enrollments) | **157 ops/sec** | **6.36ms** | 11.8KB | 270 | Moderate impact (45% of baseline) |
-| **100 Users** | Medium (50K enrollments) | **10.4 ops/sec** | **96.25ms** | 124.5KB | 2,853 | Significant bottleneck (3% of baseline) |
-
-### **Latest Concurrency Results (August 28th)**
-
-| Concurrency Level | Throughput | Latency | Memory | Allocations | Performance Pattern |
-|------------------|------------|---------|---------|-------------|-------------------|
-| **1 User** | **347 ops/sec** | **2.88ms** | 1.1KB | 25 | Excellent single-threaded performance |
-| **10 Users** | **157 ops/sec** | **6.36ms** | 11.8KB | 270 | Moderate concurrency impact |
-| **100 Users** | **10.4 ops/sec** | **96.25ms** | 124.5KB | 2,853 | High concurrency bottleneck |
-
-### **Concurrency Performance Insights**
-
-#### **✅ Strong Performance Areas**
-- **Single-threaded**: Excellent performance at 347 ops/sec with 2.88ms latency
-- **Low concurrency**: Reasonable performance with 10 users (157 ops/sec)
-- **Memory efficiency**: Low memory usage for single operations (1.1KB)
-
-#### **⚠️ Performance Bottlenecks**
-- **High concurrency**: Significant performance degradation with 100 users
-- **Resource scaling**: Memory and allocation overhead grows dramatically (100x increase)
-- **Dataset impact**: Medium dataset adds significant overhead
-
-#### **Concurrency Scaling Pattern**
-- **1 User**: 347 operations/second (baseline performance)
-- **10 Users**: 157 operations/second (**45% of baseline** - moderate concurrency impact)
-- **100 Users**: 10.4 operations/second (**3% of baseline** - significant concurrency bottleneck)
-
-### **Resource Usage Scaling**
-- **Memory**: 1.1KB → 11.8KB → 124.5KB (100x increase with high concurrency)
-- **Allocations**: 25 → 270 → 2,853 (100x increase with high concurrency)
-- **Latency**: 2.88ms → 6.36ms → 96.25ms (33x increase with high concurrency)
-
-## Dataset Comparison
-
-| Metric | Tiny Dataset | Small Dataset | Medium Dataset | Ratio (Tiny→Medium) |
-|--------|--------------|---------------|----------------|-------------------|
-| **Courses** | 5 | 500 | 1,000 | 200x |
-| **Students** | 10 | 5,000 | 10,000 | 1,000x |
-| **Enrollments** | 20 | 25,000 | 50,000 | 2,500x |
-| **Append Performance** | 850 ops/sec | 850 ops/sec | 850 ops/sec | 1.0x |
-| **AppendIf Performance** | 10 ops/sec | 10 ops/sec | 10 ops/sec | 1.0x |
-| **Memory Usage** | 1.4KB | 1.1MB | 2.2MB | 1,571x |
-
-**Key Insights**:
-- **Append operations** are consistent in performance across all datasets
-- **AppendIf operations** maintain consistent performance with business rule validation
-- **Memory usage** scales dramatically with data volume (1,571x increase)
-- **Tiny dataset** provides best-case performance for development and testing
-- **Small dataset** optimized for high concurrency testing (100+ users)
-- **Medium dataset** shows realistic production performance expectations
-
-## Performance Recommendations
-
-### **For Development**
-- Use **Tiny dataset** for fast feedback and testing
-- **Append operations** provide excellent performance (850+ ops/sec)
-- **AppendIf operations** suitable for business rule validation (10+ ops/sec)
-
-### **For Production Planning**
-- **Small dataset** provides realistic performance expectations
-- **Concurrency testing** essential for production workloads
-- **Memory monitoring** critical for high-concurrency scenarios
-
-### **For High-Performance Scenarios**
-- **Append operations** scale well with concurrency
-- **Batch operations** provide 2x performance improvement
-- **Streaming projections** offer best performance for state reconstruction
+| Operation | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
+|-----------|---------|-------------|--------|---------------------|-----------------|---------------|-------------|
+| **Concurrent_1User** | Small | 1 | - | 1,210 | 225,217 | 2,537 | 51 |
+| **Concurrent_10Users** | Small | 10 | - | 1,208 | 807,331 | 26,033 | 530 |
+| **Concurrent_100Users** | Medium | 100 | - | 146 | 6,854,788 | 269,465 | 5,543 |

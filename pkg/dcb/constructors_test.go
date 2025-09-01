@@ -7,7 +7,7 @@ import (
 func TestNewEventStoreWithConfig(t *testing.T) {
 	t.Run("validates config structure", func(t *testing.T) {
 		config := EventStoreConfig{
-			MaxBatchSize:           1000,
+			MaxAppendBatchSize:      1000,
 			StreamBuffer:           100,
 			DefaultAppendIsolation: IsolationLevelRepeatableRead,
 			QueryTimeout:           5000,
@@ -15,9 +15,9 @@ func TestNewEventStoreWithConfig(t *testing.T) {
 		}
 
 		// Test config validation (without requiring actual database connection)
-		if config.MaxBatchSize != 1000 {
-			t.Errorf("expected MaxBatchSize 1000, got %d", config.MaxBatchSize)
-		}
+			if config.MaxAppendBatchSize != 1000 {
+		t.Errorf("expected MaxAppendBatchSize 1000, got %d", config.MaxAppendBatchSize)
+	}
 		if config.StreamBuffer != 100 {
 			t.Errorf("expected StreamBuffer 100, got %d", config.StreamBuffer)
 		}

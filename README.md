@@ -97,6 +97,19 @@ make example-enrollment
 make example-concurrency  # runs ticket_booking
 ```
 
+## 🏃‍♂️ Performance & Benchmarks
+
+For comprehensive performance information, benchmarks, and detailed instructions:
+
+- **[Performance Guide](./docs/performance.md)**: Main performance index with links to all benchmark results
+- **[Local PostgreSQL Performance](./docs/performance-local.md)**: Latest benchmark results and analysis
+- **[Benchmark Documentation](./internal/benchmarks/README.md)**: Detailed benchmark instructions and test suite overview
+
+**Quick benchmark command:**
+```bash
+cd internal/benchmarks && go test -bench=. -benchmem -benchtime=1s -timeout=10m .
+```
+
 ## 📖 References
 
 - [Dynamic Consistency Boundary (DCB)](https://dcb.events/) - An excellent resource to understand the DCB approach and its applications in event-driven systems

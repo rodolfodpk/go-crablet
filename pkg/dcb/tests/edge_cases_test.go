@@ -148,37 +148,37 @@ var _ = Describe("Interface Type Guards and Edge Cases", func() {
 			// Use the global store from support_test.go
 			config := store.GetConfig()
 			Expect(config).NotTo(BeNil())
-			Expect(config.MaxBatchSize).To(BeNumerically(">", 0))
+			Expect(config.MaxAppendBatchSize).To(BeNumerically(">", 0))
 			Expect(config.QueryTimeout).To(BeNumerically(">", 0))
 		})
 
 		It("should handle zero values in config", func() {
-			config := dcb.EventStoreConfig{
-				MaxBatchSize:           0,
-				StreamBuffer:           0,
-				DefaultAppendIsolation: dcb.IsolationLevelReadCommitted,
-				QueryTimeout:           0,
-			}
-			Expect(config.MaxBatchSize).To(Equal(0))
+					config := dcb.EventStoreConfig{
+			MaxAppendBatchSize:      0,
+			StreamBuffer:           0,
+			DefaultAppendIsolation: dcb.IsolationLevelReadCommitted,
+			QueryTimeout:           0,
+		}
+		Expect(config.MaxAppendBatchSize).To(Equal(0))
 			Expect(config.StreamBuffer).To(Equal(0))
 			Expect(config.QueryTimeout).To(Equal(0))
 		})
 
 		It("should handle extreme values in config", func() {
-			config := dcb.EventStoreConfig{
-				MaxBatchSize:           999999,
-				StreamBuffer:           999999,
-				DefaultAppendIsolation: dcb.IsolationLevelSerializable,
-				QueryTimeout:           999999,
-			}
-			Expect(config.MaxBatchSize).To(Equal(999999))
+					config := dcb.EventStoreConfig{
+			MaxAppendBatchSize:      999999,
+			StreamBuffer:           999999,
+			DefaultAppendIsolation: dcb.IsolationLevelSerializable,
+			QueryTimeout:           999999,
+		}
+		Expect(config.MaxAppendBatchSize).To(Equal(999999))
 			Expect(config.StreamBuffer).To(Equal(999999))
 			Expect(config.QueryTimeout).To(Equal(999999))
 		})
 
 		It("should create EventStore with custom config using NewEventStoreWithConfig", func() {
 			customConfig := dcb.EventStoreConfig{
-				MaxBatchSize:           500,
+				MaxAppendBatchSize:      500,
 				StreamBuffer:           500,
 				DefaultAppendIsolation: dcb.IsolationLevelRepeatableRead,
 				QueryTimeout:           8000,
@@ -194,7 +194,7 @@ var _ = Describe("Interface Type Guards and Edge Cases", func() {
 
 			// Verify the config was applied correctly
 			retrievedConfig := customStore.GetConfig()
-			Expect(retrievedConfig.MaxBatchSize).To(Equal(500))
+			Expect(retrievedConfig.MaxAppendBatchSize).To(Equal(500))
 			Expect(retrievedConfig.StreamBuffer).To(Equal(500))
 			Expect(retrievedConfig.DefaultAppendIsolation).To(Equal(dcb.IsolationLevelRepeatableRead))
 			Expect(retrievedConfig.QueryTimeout).To(Equal(8000))

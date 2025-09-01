@@ -10,3 +10,7 @@ func BenchmarkAppend_Small(b *testing.B) {
 func BenchmarkAppend_Tiny(b *testing.B) {
 	RunAllBenchmarks(b, "tiny")
 }
+
+func BenchmarkAppend_Medium(b *testing.B) {
+	RunAllBenchmarks(b, "medium")
+}

@@ -1,8 +1,8 @@
 // This example demonstrates command execution with the DCB approach for account transfers
-// 
+//
 // BEST PRACTICE: This example shows the recommended approach of using structs with WithData()
 // instead of map[string]interface{} for better type safety, performance, and readability.
-// 
+//
 // ✅ RECOMMENDED: WithData(AccountOpened{...})
 // ❌ AVOID: WithData(map[string]interface{}{...})
 package main
@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/rodolfodpk/go-crablet/internal/examples/utils"
@@ -51,7 +52,7 @@ type MoneyTransferred struct {
 
 // Command types
 const (
-	CommandTypeOpenAccount = "open_account"
+	CommandTypeOpenAccount   = "open_account"
 	CommandTypeTransferMoney = "transfer_money"
 )
 
@@ -216,13 +217,13 @@ func HandleTransferMoney(ctx context.Context, store dcb.EventStore, cmd Transfer
 // HandleCommand routes commands to appropriate handlers
 func HandleCommand(ctx context.Context, store dcb.EventStore, command dcb.Command) ([]dcb.InputEvent, *dcb.AppendCondition, error) {
 	switch command.GetType() {
-			case CommandTypeOpenAccount:
-			var cmd OpenAccountCommand
-			if err := json.Unmarshal(command.GetData(), &cmd); err != nil {
-				return nil, nil, fmt.Errorf("failed to unmarshal open account command: %w", err)
-			}
-			events, err := HandleOpenAccount(ctx, store, cmd)
-			return events, nil, err
+	case CommandTypeOpenAccount:
+		var cmd OpenAccountCommand
+		if err := json.Unmarshal(command.GetData(), &cmd); err != nil {
+			return nil, nil, fmt.Errorf("failed to unmarshal open account command: %w", err)
+		}
+		events, err := HandleOpenAccount(ctx, store, cmd)
+		return events, nil, err
 	case CommandTypeTransferMoney:
 		var cmd TransferMoneyCommand
 		if err := json.Unmarshal(command.GetData(), &cmd); err != nil {
@@ -281,7 +282,12 @@ func executeTransferCommand(ctx context.Context, commandExecutor dcb.CommandExec
 
 // setupDatabase initializes the database connection and event store
 func setupDatabase(ctx context.Context) (*pgxpool.Pool, dcb.EventStore, dcb.CommandExecutor, error) {
-	pool, err := pgxpool.New(ctx, "postgres://crablet:crablet@localhost:5432/crablet?sslmode=disable")
+	// Get database URL from environment or use default
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		dbURL = "postgres://crablet:crablet@localhost:5432/crablet?sslmode=disable"
+	}
+	pool, err := pgxpool.New(ctx, dbURL)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to connect to db: %w", err)
 	}
