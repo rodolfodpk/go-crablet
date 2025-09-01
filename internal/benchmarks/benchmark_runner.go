@@ -607,6 +607,7 @@ func BenchmarkAppendConcurrent(b *testing.B, benchCtx *BenchmarkContext, concurr
 }
 
 // BenchmarkProjectConcurrent benchmarks concurrent projection operations
+// Uses core API's built-in goroutine limits and Go 1.25 concurrency features
 func BenchmarkProjectConcurrent(b *testing.B, benchCtx *BenchmarkContext, goroutines int) {
 	// Create context with timeout using Go 1.25 WithTimeoutCause
 	ctx, cancel := context.WithTimeoutCause(context.Background(), 2*time.Minute,
@@ -617,7 +618,7 @@ func BenchmarkProjectConcurrent(b *testing.B, benchCtx *BenchmarkContext, gorout
 	projector := dcb.StateProjector{
 		ID:           "test_concurrent_projection",
 		Query:        dcb.NewQueryBuilder().WithType("TestEvent").WithTag("test", "appendif").Build(),
-		InitialState: 0, // Simple integer state instead of map
+		InitialState: 0, // Simple integer state
 		TransitionFn: func(state any, event dcb.Event) any {
 			return state.(int) + 1 // Simple increment
 		},
@@ -631,10 +632,10 @@ func BenchmarkProjectConcurrent(b *testing.B, benchCtx *BenchmarkContext, gorout
 		var wg sync.WaitGroup
 		results := make(chan error, goroutines)
 
-		// Start concurrent projections using WaitGroup.Go()
+		// Start concurrent projections using core API's built-in limits
 		for j := 0; j < goroutines; j++ {
 			wg.Go(func() {
-				// Project state from events
+				// Let the core API handle goroutine limits
 				_, _, err := benchCtx.Store.Project(ctx, []dcb.StateProjector{projector}, nil)
 				if err != nil {
 					results <- fmt.Errorf("concurrent projection failed: %v", err)
@@ -645,7 +646,7 @@ func BenchmarkProjectConcurrent(b *testing.B, benchCtx *BenchmarkContext, gorout
 			})
 		}
 
-		// Wait for all goroutines to complete
+		// Wait for all goroutines to complete using Go 1.25 WaitGroup
 		wg.Wait()
 		close(results)
 
@@ -659,6 +660,7 @@ func BenchmarkProjectConcurrent(b *testing.B, benchCtx *BenchmarkContext, gorout
 }
 
 // BenchmarkProjectStreamConcurrent benchmarks concurrent streaming projection operations
+// Uses core API's built-in goroutine limits and Go 1.25 concurrency features
 func BenchmarkProjectStreamConcurrent(b *testing.B, benchCtx *BenchmarkContext, goroutines int) {
 	ctx := context.Background()
 
@@ -666,7 +668,7 @@ func BenchmarkProjectStreamConcurrent(b *testing.B, benchCtx *BenchmarkContext, 
 	projector := dcb.StateProjector{
 		ID:           "test_concurrent_stream_projection",
 		Query:        dcb.NewQueryBuilder().WithType("TestEvent").WithTag("test", "appendif").Build(),
-		InitialState: 0, // Simple integer state instead of map
+		InitialState: 0, // Simple integer state
 		TransitionFn: func(state any, event dcb.Event) any {
 			return state.(int) + 1 // Simple increment
 		},
@@ -676,23 +678,21 @@ func BenchmarkProjectStreamConcurrent(b *testing.B, benchCtx *BenchmarkContext, 
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
+		// Use Go 1.25 WaitGroup.Go() for concurrent operations
 		var wg sync.WaitGroup
 		results := make(chan error, goroutines)
 
-		// Start concurrent streaming projections
+		// Start concurrent streaming projections using core API's built-in limits
 		for j := 0; j < goroutines; j++ {
-			wg.Add(1)
-			go func(goroutineID int) {
-				defer wg.Done()
-
-				// Start streaming projection
+			wg.Go(func() {
+				// Let the core API handle goroutine limits and streaming
 				stateChan, conditionChan, err := benchCtx.Store.ProjectStream(ctx, []dcb.StateProjector{projector}, nil)
 				if err != nil {
 					results <- fmt.Errorf("concurrent ProjectStream failed: %v", err)
 					return
 				}
 
-				// Consume from channels
+				// Consume from channels (API handles concurrency internally)
 				select {
 				case state := <-stateChan:
 					_ = state // Use state to prevent optimization
@@ -710,10 +710,10 @@ func BenchmarkProjectStreamConcurrent(b *testing.B, benchCtx *BenchmarkContext, 
 				}
 
 				results <- nil
-			}(j)
+			})
 		}
 
-		// Wait for all goroutines to complete
+		// Wait for all goroutines to complete using Go 1.25 WaitGroup
 		wg.Wait()
 		close(results)
 
