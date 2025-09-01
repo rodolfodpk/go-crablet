@@ -128,8 +128,6 @@ type BenchmarkContext struct {
 	ChannelStore dcb.EventStore
 	HasChannel   bool
 	Dataset      *setup.Dataset
-	Queries      []dcb.Query
-	Projectors   []dcb.StateProjector
 }
 
 // getOrCreateGlobalPool returns the shared global pool, creating it if necessary
@@ -176,6 +174,52 @@ func getOrCreateGlobalPool() (*pgxpool.Pool, error) {
 	return globalPool, nil
 }
 
+// SetupProjectionBenchmarkContext creates a clean context for projection benchmarks
+// This ensures projection benchmarks run against only the events created by Append benchmarks
+func SetupProjectionBenchmarkContext(b *testing.B, datasetSize string) *BenchmarkContext {
+	ctx := context.Background()
+
+	// Use the shared global pool
+	pool, err := getOrCreateGlobalPool()
+	if err != nil {
+		b.Fatalf("Failed to get global pool: %v", err)
+	}
+
+	// Create event stores with different configurations
+	readCommittedConfig := dcb.EventStoreConfig{
+		MaxAppendBatchSize:     1000,
+		StreamBuffer:           1000,
+		DefaultAppendIsolation: dcb.IsolationLevelReadCommitted,
+		QueryTimeout:           15000,
+		AppendTimeout:          15000,
+	}
+
+	repeatableReadConfig := dcb.EventStoreConfig{
+		MaxAppendBatchSize:     1000,
+		StreamBuffer:           1000,
+		DefaultAppendIsolation: dcb.IsolationLevelRepeatableRead,
+		QueryTimeout:           15000,
+		AppendTimeout:          15000,
+	}
+
+	store, err := dcb.NewEventStoreWithConfig(ctx, pool, readCommittedConfig)
+	if err != nil {
+		b.Fatalf("Failed to create event store: %v", err)
+	}
+
+	channelStore, err := dcb.NewEventStoreWithConfig(ctx, pool, repeatableReadConfig)
+	if err != nil {
+		b.Fatalf("Failed to create channel event store: %v", err)
+	}
+
+	return &BenchmarkContext{
+		Store:        store,
+		ChannelStore: channelStore,
+		HasChannel:   true,
+		Dataset:      nil, // No dataset for projection benchmarks
+	}
+}
+
 // SetupBenchmarkContext creates a new benchmark context with the specified dataset size
 // pastEventCount specifies how many past events to create for AppendIf testing (1, 10, 100, etc.)
 func SetupBenchmarkContext(b *testing.B, datasetSize string, pastEventCount int) *BenchmarkContext {
@@ -185,12 +229,6 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string, pastEventCount int)
 	pool, err := getOrCreateGlobalPool()
 	if err != nil {
 		b.Fatalf("Failed to get global pool: %v", err)
-	}
-
-	// Truncate events table before running benchmarks
-	_, err = pool.Exec(ctx, "TRUNCATE TABLE events RESTART IDENTITY CASCADE")
-	if err != nil {
-		b.Fatalf("Failed to truncate events table: %v", err)
 	}
 
 	// Create event stores with different configurations
@@ -241,210 +279,11 @@ func SetupBenchmarkContext(b *testing.B, datasetSize string, pastEventCount int)
 		}
 	}
 
-	// Create queries for benchmarking
-	queries := []dcb.Query{
-		dcb.NewQuery(dcb.NewTags("test", "single")),
-		dcb.NewQuery(dcb.NewTags("test", "batch")),
-		dcb.NewQuery(dcb.NewTags("test", "appendif")),
-		dcb.NewQuery(dcb.NewTags("test", "conflict")),
-		dcb.NewQuery(dcb.NewTags("test", "appendifconflict")),
-	}
-
-	// Create projectors for benchmarking
-	projectors := []dcb.StateProjector{
-		{
-			ID:           "count",
-			Query:        dcb.NewQuery(dcb.NewTags("test", "single")),
-			InitialState: 0,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return state.(int) + 1
-			},
-		},
-		{
-			ID:           "sum",
-			Query:        dcb.NewQuery(dcb.NewTags("test", "batch")),
-			InitialState: 0,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return state.(int) + 1
-			},
-		},
-		{
-			ID:           "projector3",
-			Query:        dcb.NewQuery(dcb.NewTags("test", "projector3")),
-			InitialState: 0,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return state.(int) + 1
-			},
-		},
-		{
-			ID:           "projector4",
-			Query:        dcb.NewQuery(dcb.NewTags("test", "projector4")),
-			InitialState: 0,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return state.(int) + 1
-			},
-		},
-		{
-			ID:           "projector5",
-			Query:        dcb.NewQuery(dcb.NewTags("test", "projector5")),
-			InitialState: 0,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return state.(int) + 1
-			},
-		},
-		{
-			ID:           "projector6",
-			Query:        dcb.NewQuery(dcb.NewTags("test", "projector6")),
-			InitialState: 0,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return state.(int) + 1
-			},
-		},
-		{
-			ID:           "projector7",
-			Query:        dcb.NewQuery(dcb.NewTags("test", "projector7")),
-			InitialState: 0,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return state.(int) + 1
-			},
-		},
-		{
-			ID:           "projector8",
-			Query:        dcb.NewQuery(dcb.NewTags("test", "projector8")),
-			InitialState: 0,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return state.(int) + 1
-			},
-		},
-		{
-			ID:           "projector9",
-			Query:        dcb.NewQuery(dcb.NewTags("test", "projector9")),
-			InitialState: 0,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return state.(int) + 1
-			},
-		},
-		{
-			ID:           "projector10",
-			Query:        dcb.NewQuery(dcb.NewTags("test", "projector10")),
-			InitialState: 0,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return state.(int) + 1
-			},
-		},
-		{
-			ID:           "projector11",
-			Query:        dcb.NewQuery(dcb.NewTags("test", "projector11")),
-			InitialState: 0,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return state.(int) + 1
-			},
-		},
-		{
-			ID:           "projector12",
-			Query:        dcb.NewQuery(dcb.NewTags("test", "projector12")),
-			InitialState: 0,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return state.(int) + 1
-			},
-		},
-		{
-			ID:           "projector13",
-			Query:        dcb.NewQuery(dcb.NewTags("test", "projector13")),
-			InitialState: 0,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return state.(int) + 1
-			},
-		},
-		{
-			ID:           "projector14",
-			Query:        dcb.NewQuery(dcb.NewTags("test", "projector14")),
-			InitialState: 0,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return state.(int) + 1
-			},
-		},
-		{
-			ID:           "projector15",
-			Query:        dcb.NewQuery(dcb.NewTags("test", "projector15")),
-			InitialState: 0,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return state.(int) + 1
-			},
-		},
-		{
-			ID:           "projector16",
-			Query:        dcb.NewQuery(dcb.NewTags("test", "projector16")),
-			InitialState: 0,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return state.(int) + 1
-			},
-		},
-		{
-			ID:           "projector17",
-			Query:        dcb.NewQuery(dcb.NewTags("test", "projector17")),
-			InitialState: 0,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return state.(int) + 1
-			},
-		},
-		{
-			ID:           "projector18",
-			Query:        dcb.NewQuery(dcb.NewTags("test", "projector18")),
-			InitialState: 0,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return state.(int) + 1
-			},
-		},
-		{
-			ID:           "projector19",
-			Query:        dcb.NewQuery(dcb.NewTags("test", "projector19")),
-			InitialState: 0,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return state.(int) + 1
-			},
-		},
-		{
-			ID:           "projector20",
-			Query:        dcb.NewQuery(dcb.NewTags("test", "projector20")),
-			InitialState: 0,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return state.(int) + 1
-			},
-		},
-		{
-			ID:           "projector50",
-			Query:        dcb.NewQuery(dcb.NewTags("test", "projector50")),
-			InitialState: 0,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return state.(int) + 1
-			},
-		},
-		{
-			ID:           "projector100",
-			Query:        dcb.NewQuery(dcb.NewTags("test", "projector100")),
-			InitialState: 0,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return state.(int) + 1
-			},
-		},
-		{
-			ID:           "projector120",
-			Query:        dcb.NewQuery(dcb.NewTags("test", "projector120")),
-			InitialState: 0,
-			TransitionFn: func(state any, event dcb.Event) any {
-				return state.(int) + 1
-			},
-		},
-	}
-
 	return &BenchmarkContext{
 		Store:        store,
 		ChannelStore: channelStore,
 		HasChannel:   true,
 		Dataset:      dataset,
-		Queries:      queries,
-		Projectors:   projectors,
 	}
 }
 
@@ -469,6 +308,17 @@ func BenchmarkAppendIfConcurrent(b *testing.B, benchCtx *BenchmarkContext, concu
 	ctx, cancel := context.WithTimeoutCause(context.Background(), 2*time.Minute,
 		fmt.Errorf("benchmark timeout after 2 minutes"))
 	defer cancel()
+
+	// Truncate events table BEFORE timing starts (but after dataset is loaded)
+	pool, err := getOrCreateGlobalPool()
+	if err != nil {
+		b.Fatalf("Failed to get global pool: %v", err)
+	}
+
+	_, err = pool.Exec(ctx, "TRUNCATE TABLE events RESTART IDENTITY CASCADE")
+	if err != nil {
+		b.Fatalf("Failed to truncate events table: %v", err)
+	}
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -558,6 +408,17 @@ func BenchmarkAppendConcurrent(b *testing.B, benchCtx *BenchmarkContext, concurr
 		fmt.Errorf("benchmark timeout after 2 minutes"))
 	defer cancel()
 
+	// Truncate events table BEFORE timing starts (but after dataset is loaded)
+	pool, err := getOrCreateGlobalPool()
+	if err != nil {
+		b.Fatalf("Failed to get global pool: %v", err)
+	}
+
+	_, err = pool.Exec(ctx, "TRUNCATE TABLE events RESTART IDENTITY CASCADE")
+	if err != nil {
+		b.Fatalf("Failed to truncate events table: %v", err)
+	}
+
 	b.ResetTimer()
 	b.ReportAllocs()
 
@@ -614,21 +475,38 @@ func BenchmarkProjectConcurrent(b *testing.B, benchCtx *BenchmarkContext, gorout
 		fmt.Errorf("projection benchmark timeout after 2 minutes"))
 	defer cancel()
 
+	// Truncate events table and create test data BEFORE timing starts
+	pool, err := getOrCreateGlobalPool()
+	if err != nil {
+		b.Fatalf("Failed to get global pool: %v", err)
+	}
+
+	_, err = pool.Exec(ctx, "TRUNCATE TABLE events RESTART IDENTITY CASCADE")
+	if err != nil {
+		b.Fatalf("Failed to truncate events table: %v", err)
+	}
+
+	// Create test events for projection benchmarks
+	testEvents := make([]dcb.InputEvent, 100)
+	for i := 0; i < 100; i++ {
+		eventID := fmt.Sprintf("test_event_%d", i)
+		testEvents[i] = dcb.NewInputEvent("TestEvent",
+			dcb.NewTags("test", "concurrent", "unique_id", eventID),
+			[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, eventID)))
+	}
+
+	// Append test events to the store
+	if err := benchCtx.Store.Append(ctx, testEvents); err != nil {
+		b.Fatalf("Failed to append test events: %v", err)
+	}
+
 	// Create a simple projector for testing
 	projector := dcb.StateProjector{
 		ID:           "test_concurrent_projection",
-		Query:        dcb.NewQueryBuilder().WithType("TestEvent").WithTag("test", "benchmark").Build(),
-		InitialState: map[string]interface{}{"count": 0, "events": []string{}},
+		Query:        dcb.NewQueryBuilder().WithType("TestEvent").WithTag("test", "concurrent").Build(),
+		InitialState: 0,
 		TransitionFn: func(state any, event dcb.Event) any {
-			stateMap := state.(map[string]interface{})
-			count := stateMap["count"].(int)
-			events := stateMap["events"].([]string)
-
-			// Update state based on event
-			stateMap["count"] = count + 1
-			stateMap["events"] = append(events, event.Type)
-
-			return stateMap
+			return state.(int) + 1
 		},
 	}
 
@@ -672,21 +550,38 @@ func BenchmarkProjectConcurrent(b *testing.B, benchCtx *BenchmarkContext, gorout
 func BenchmarkProjectStreamConcurrent(b *testing.B, benchCtx *BenchmarkContext, goroutines int) {
 	ctx := context.Background()
 
+	// Truncate events table and create test data BEFORE timing starts
+	pool, err := getOrCreateGlobalPool()
+	if err != nil {
+		b.Fatalf("Failed to get global pool: %v", err)
+	}
+
+	_, err = pool.Exec(ctx, "TRUNCATE TABLE events RESTART IDENTITY CASCADE")
+	if err != nil {
+		b.Fatalf("Failed to truncate events table: %v", err)
+	}
+
+	// Create test events for projection benchmarks
+	testEvents := make([]dcb.InputEvent, 100)
+	for i := 0; i < 100; i++ {
+		eventID := fmt.Sprintf("test_event_%d", i)
+		testEvents[i] = dcb.NewInputEvent("TestEvent",
+			dcb.NewTags("test", "concurrent", "unique_id", eventID),
+			[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, eventID)))
+	}
+
+	// Append test events to the store
+	if err := benchCtx.Store.Append(ctx, testEvents); err != nil {
+		b.Fatalf("Failed to append test events: %v", err)
+	}
+
 	// Create a simple projector for testing
 	projector := dcb.StateProjector{
 		ID:           "test_concurrent_stream_projection",
-		Query:        dcb.NewQueryBuilder().WithType("TestEvent").WithTag("test", "benchmark").Build(),
-		InitialState: map[string]interface{}{"count": 0, "events": []string{}},
+		Query:        dcb.NewQueryBuilder().WithType("TestEvent").WithTag("test", "concurrent").Build(),
+		InitialState: 0,
 		TransitionFn: func(state any, event dcb.Event) any {
-			stateMap := state.(map[string]interface{})
-			count := stateMap["count"].(int)
-			events := stateMap["events"].([]string)
-
-			// Update state based on event
-			stateMap["count"] = count + 1
-			stateMap["events"] = append(events, event.Type)
-
-			return stateMap
+			return state.(int) + 1
 		},
 	}
 
@@ -828,29 +723,32 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 	})
 
 	// Projection benchmarks
+	// Use separate setup for projection benchmarks to avoid scanning large datasets
+	projectionCtx := SetupProjectionBenchmarkContext(b, datasetSize)
+
 	// Concurrent projection benchmarks (replaces individual Project_1/2 and ProjectStream_1/2)
 	b.Run("Project_Concurrent_1User", func(b *testing.B) {
-		BenchmarkProjectConcurrent(b, benchCtx, 1)
+		BenchmarkProjectConcurrent(b, projectionCtx, 1)
 	})
 
 	b.Run("Project_Concurrent_10Users", func(b *testing.B) {
-		BenchmarkProjectConcurrent(b, benchCtx, 10)
+		BenchmarkProjectConcurrent(b, projectionCtx, 10)
 	})
 
 	b.Run("Project_Concurrent_25Users", func(b *testing.B) {
-		BenchmarkProjectConcurrent(b, benchCtx, 25)
+		BenchmarkProjectConcurrent(b, projectionCtx, 25)
 	})
 
 	b.Run("ProjectStream_Concurrent_1User", func(b *testing.B) {
-		BenchmarkProjectStreamConcurrent(b, benchCtx, 1)
+		BenchmarkProjectStreamConcurrent(b, projectionCtx, 1)
 	})
 
 	b.Run("ProjectStream_Concurrent_10Users", func(b *testing.B) {
-		BenchmarkProjectStreamConcurrent(b, benchCtx, 10)
+		BenchmarkProjectStreamConcurrent(b, projectionCtx, 10)
 	})
 
 	b.Run("ProjectStream_Concurrent_25Users", func(b *testing.B) {
-		BenchmarkProjectStreamConcurrent(b, benchCtx, 25)
+		BenchmarkProjectStreamConcurrent(b, projectionCtx, 25)
 	})
 
 }
