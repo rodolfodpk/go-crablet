@@ -617,10 +617,18 @@ func BenchmarkProjectConcurrent(b *testing.B, benchCtx *BenchmarkContext, gorout
 	// Create a simple projector for testing
 	projector := dcb.StateProjector{
 		ID:           "test_concurrent_projection",
-		Query:        dcb.NewQueryBuilder().WithType("TestEvent").WithTag("test", "appendif").Build(),
-		InitialState: 0, // Simple integer state
+		Query:        dcb.NewQueryBuilder().WithType("TestEvent").WithTag("test", "benchmark").Build(),
+		InitialState: map[string]interface{}{"count": 0, "events": []string{}},
 		TransitionFn: func(state any, event dcb.Event) any {
-			return state.(int) + 1 // Simple increment
+			stateMap := state.(map[string]interface{})
+			count := stateMap["count"].(int)
+			events := stateMap["events"].([]string)
+
+			// Update state based on event
+			stateMap["count"] = count + 1
+			stateMap["events"] = append(events, event.Type)
+
+			return stateMap
 		},
 	}
 
@@ -667,10 +675,18 @@ func BenchmarkProjectStreamConcurrent(b *testing.B, benchCtx *BenchmarkContext, 
 	// Create a simple projector for testing
 	projector := dcb.StateProjector{
 		ID:           "test_concurrent_stream_projection",
-		Query:        dcb.NewQueryBuilder().WithType("TestEvent").WithTag("test", "appendif").Build(),
-		InitialState: 0, // Simple integer state
+		Query:        dcb.NewQueryBuilder().WithType("TestEvent").WithTag("test", "benchmark").Build(),
+		InitialState: map[string]interface{}{"count": 0, "events": []string{}},
 		TransitionFn: func(state any, event dcb.Event) any {
-			return state.(int) + 1 // Simple increment
+			stateMap := state.(map[string]interface{})
+			count := stateMap["count"].(int)
+			events := stateMap["events"].([]string)
+
+			// Update state based on event
+			stateMap["count"] = count + 1
+			stateMap["events"] = append(events, event.Type)
+
+			return stateMap
 		},
 	}
 
