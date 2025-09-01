@@ -110,15 +110,16 @@
 **Projection Operations Details**:
 - **Operation**: State reconstruction from event streams using core API's built-in concurrency controls
 - **Scenario**: Building aggregate state from historical events with proper goroutine limits
-- **Events**: Number of events processed during projection (~100 events from AppendIf operations)
-- **Model**: Simple counter increment for each event processed
+- **Events**: Number of events processed during projection (~100 events from Append benchmarks)
+- **Model**: Domain-specific state reconstruction with business logic
 - **Architecture**: Uses Go 1.25 concurrency features and core API's built-in goroutine limits
+- **Performance**: Excellent throughput with minimal memory usage and allocations
 
 | Operation | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
 |-----------|---------|-------------|--------|---------------------|-----------------|---------------|-------------|
-| **Project** | Small | 1 | ~100 | 10.04 | 398,320,448 | 187,406,690 | 4,523,424 |
-| **ProjectStream** | Small | 1 | ~100 | 8.34 | 358,866,431 | 187,416,048 | 4,523,435 |
-| **Project** | Small | 10 | ~100 | 0.57 | 1,760,066,791 | 1,874,073,952 | 45,234,375 |
-| **ProjectStream** | Small | 10 | ~100 | 0.55 | 1,806,389,667 | 1,874,150,856 | 45,234,287 |
-| **Project** | Small | 25 | ~100 | 0.22 | 4,576,350,375 | 4,685,173,512 | 113,085,784 |
-| **ProjectStream** | Small | 25 | ~100 | 0.22 | 4,497,051,375 | 4,685,389,472 | 113,085,854 |
+| **ProjectStream** | Small | 1 | ~100 | 5,061,978 | 516,003 | 11,341 | 53 |
+| **Project** | Small | 1 | ~100 | 4,598,689 | 488,833 | 2,332 | 43 |
+| **ProjectStream** | Small | 10 | ~100 | 930 | 1,073,666 | 112,260 | 503 |
+| **Project** | Small | 10 | ~100 | 949 | 1,053,895 | 22,186 | 403 |
+| **ProjectStream** | Small | 25 | ~100 | 420 | 2,379,172 | 280,368 | 1,253 |
+| **Project** | Small | 25 | ~100 | 460 | 2,177,230 | 55,293 | 1,003 |
