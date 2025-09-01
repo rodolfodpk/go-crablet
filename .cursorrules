@@ -272,6 +272,9 @@ go test -v ./pkg/dcb/tests/...
 - **Dataset column** in all performance tables
 - **Performance ratios** calculated and displayed
 - **Units clearly specified** (ops/sec, KB, MB, etc.)
+- **ALL tables MUST be sorted by Throughput (ops/sec) in descending order** - Highest throughput first
+
+### Performance Comparison Table Structure
 
 ### Performance Comparison Table Structure
 ```markdown
@@ -521,6 +524,12 @@ Before considering any performance documentation complete:
    - **Keep detailed operation names** in benchmark code for easy extraction
    - **Use simplified table presentation** in documentation
    - **Maintain correlation** between benchmark results and table cells
+
+7. **Table Sorting**:
+   - **ALL performance tables MUST be sorted by Throughput (ops/sec) in descending order**
+   - **Highest throughput operations first**
+   - **Consistent sorting across all tables**
+   - **No exceptions to this rule**
 
 ### Validation Checklist for New Performance Documentation
 Before considering any performance documentation complete:
