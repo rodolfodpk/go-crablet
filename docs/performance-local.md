@@ -1,23 +1,5 @@
 # Local PostgreSQL Performance
 
-## Performance Summary
-
-**Optimized with Go 1.25 Features**:
-- **Go 1.25 WaitGroup.Go()**: Improved concurrent benchmark performance
-- **context.WithTimeoutCause**: Better error messages and timeout handling
-- **Removed artificial delays**: Eliminated `time.Sleep(10 * time.Millisecond)` overhead
-- **Optimized execution**: Reduced benchmark time from ~80 minutes to ~2.9 minutes
-- **Clean benchmark suite**: Removed 15+ redundant benchmarks, standardized names
-
-**Key Improvements**:
-- **AppendIf With Conflict**: 6-13x faster (removed artificial delay)
-- **AppendIf No Conflict**: 2-3x faster (Go 1.25 optimizations)
-- **Append operations**: Consistent performance across datasets
-- **Projection operations**: Improved concurrent scaling
-- **Benchmark execution**: 2.9 minutes (vs previous 3.2+ minutes)
-
-**Benchmark Execution Time**: ~2.9 minutes (Tiny: ~58s, Small: ~58s, Medium: ~58s)
-
 ## Append Performance
 
 **Append Operations Details**:
@@ -117,8 +99,21 @@
 
 | Operation | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
 |-----------|---------|-------------|--------|---------------------|-----------------|---------------|-------------|
-| **Project** | Tiny | 1 | ~100 | 5,747 | 173,984 | 55,470 | 1,450 |
+| **ProjectStream** | Small | 1 | ~100 | 6,155 | 162,415 | 64,475 | 1,460 |
 | **Project** | Small | 1 | ~100 | 6,012 | 166,283 | 55,468 | 1,450 |
+| **ProjectStream** | Tiny | 1 | ~100 | 5,819 | 171,782 | 64,477 | 1,460 |
+| **Project** | Tiny | 1 | ~100 | 5,747 | 173,984 | 55,470 | 1,450 |
+| **ProjectStream** | Medium | 1 | ~100 | 5,819 | 171,781 | 64,476 | 1,460 |
 | **Project** | Medium | 1 | ~100 | 5,967 | 167,636 | 55,470 | 1,450 |
+| **ProjectStream** | Small | 10 | ~100 | 1,390 | 719,260 | 643,992 | 14,577 |
 | **Project** | Small | 10 | ~100 | 1,419 | 704,803 | 553,802 | 14,476 |
+| **ProjectStream** | Tiny | 10 | ~100 | 1,343 | 744,711 | 644,030 | 14,577 |
+| **Project** | Tiny | 10 | ~100 | 1,149 | 870,000 | 553,800 | 14,476 |
+| **ProjectStream** | Medium | 10 | ~100 | 1,359 | 735,880 | 644,042 | 14,577 |
+| **Project** | Medium | 10 | ~100 | 1,085 | 921,000 | 553,800 | 14,476 |
+| **ProjectStream** | Small | 25 | ~100 | 538 | 1,858,836 | 1,610,307 | 36,442 |
 | **Project** | Small | 25 | ~100 | 583 | 1,715,607 | 1,384,525 | 36,188 |
+| **ProjectStream** | Tiny | 25 | ~100 | 511 | 1,955,246 | 1,610,389 | 36,442 |
+| **Project** | Tiny | 25 | ~100 | 574 | 1,742,000 | 1,384,500 | 36,188 |
+| **ProjectStream** | Medium | 25 | ~100 | 543 | 1,843,332 | 1,610,359 | 36,442 |
+| **Project** | Medium | 25 | ~100 | 542 | 1,845,000 | 1,384,500 | 36,188 |
