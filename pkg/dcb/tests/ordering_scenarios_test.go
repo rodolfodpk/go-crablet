@@ -34,9 +34,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			errors := make(chan error, 10)
 
 			// Transaction 1: Will succeed
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				event := dcb.NewInputEvent("TestEvent", dcb.NewTags("test", "1"), []byte(`{"data": "success"}`))
 				err := store.Append(context.Background(), []dcb.InputEvent{event})
 				if err != nil {
@@ -53,12 +51,10 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 				if len(events) > 0 {
 					results <- int(events[len(events)-1].Position)
 				}
-			}()
+			})
 
 			// Transaction 2: Will rollback (simulate failure)
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				// This will create a gap in the sequence
 				event := dcb.NewInputEvent("TestEvent", dcb.NewTags("test", "2"), []byte(`{"data": "will_rollback"}`))
 				err := store.Append(context.Background(), []dcb.InputEvent{event})
@@ -68,12 +64,10 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 				}
 				// This should not happen due to rollback
 				results <- -1
-			}()
+			})
 
 			// Transaction 3: Will succeed
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				event := dcb.NewInputEvent("TestEvent", dcb.NewTags("test", "3"), []byte(`{"data": "success"}`))
 				err := store.Append(context.Background(), []dcb.InputEvent{event})
 				if err != nil {
@@ -90,7 +84,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 				if len(events) > 0 {
 					results <- int(events[len(events)-1].Position)
 				}
-			}()
+			})
 
 			wg.Wait()
 			close(results)
@@ -123,9 +117,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 			}, 3)
 
 			// Transaction 1: Slow transaction (starts first, commits last)
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				started := time.Now()
 
 				// Simulate slow processing
@@ -155,12 +147,10 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 						started:  started,
 					}
 				}
-			}()
+			})
 
 			// Transaction 2: Fast transaction (starts second, commits first)
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				started := time.Now()
 
 				// Simulate fast processing
@@ -190,12 +180,10 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 						started:  started,
 					}
 				}
-			}()
+			})
 
 			// Transaction 3: Medium transaction
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				started := time.Now()
 
 				time.Sleep(50 * time.Millisecond)
@@ -224,7 +212,7 @@ var _ = Describe("PostgreSQL Ordering Scenarios", func() {
 						started:  started,
 					}
 				}
-			}()
+			})
 
 			wg.Wait()
 			close(results)

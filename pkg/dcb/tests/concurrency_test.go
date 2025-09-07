@@ -93,9 +93,8 @@ var _ = Describe("Concurrency and Locking", func() {
 			start := make(chan struct{})
 
 			for i := 1; i <= numUsers; i++ {
-				wg.Add(1)
-				go func(userID int) {
-					defer wg.Done()
+				userID := i // Capture loop variable
+				wg.Go(func() {
 					<-start
 
 					usageEvent := dcb.NewInputEvent("ResourceUsageUpdated",
@@ -112,7 +111,7 @@ var _ = Describe("Concurrency and Locking", func() {
 					} else {
 						results <- fmt.Sprintf("User %d: SUCCESS", userID)
 					}
-				}(i)
+				})
 			}
 
 			time.Sleep(100 * time.Millisecond)

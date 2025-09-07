@@ -72,12 +72,10 @@ var _ = Describe("Projection Limits", func() {
 			results := make(chan error, 8)
 
 			for i := 0; i < 8; i++ {
-				wg.Add(1)
-				go func(id int) {
-					defer wg.Done()
+				wg.Go(func() {
 					_, _, err := store.Project(ctxWithTimeout, []dcb.StateProjector{projector}, nil)
 					results <- err
-				}(i)
+				})
 			}
 
 			wg.Wait()
@@ -157,10 +155,7 @@ var _ = Describe("Projection Limits", func() {
 			results := make(chan error, 5)
 
 			for i := 0; i < 5; i++ {
-				wg.Add(1)
-				go func(id int) {
-					defer wg.Done()
-
+				wg.Go(func() {
 					stateChan, conditionChan, err := store.ProjectStream(ctxWithTimeout, []dcb.StateProjector{projector}, nil)
 					if err != nil {
 						results <- err
@@ -186,7 +181,7 @@ var _ = Describe("Projection Limits", func() {
 					}
 
 					results <- nil
-				}(i)
+				})
 			}
 
 			wg.Wait()
@@ -262,12 +257,10 @@ var _ = Describe("Projection Limits", func() {
 			results := make(chan error, 3)
 
 			for i := 0; i < 3; i++ {
-				wg.Add(1)
-				go func(id int) {
-					defer wg.Done()
+				wg.Go(func() {
 					_, _, err := store.Project(ctx, []dcb.StateProjector{projector}, nil)
 					results <- err
-				}(i)
+				})
 			}
 
 			wg.Wait()
@@ -407,21 +400,17 @@ var _ = Describe("Projection Limits", func() {
 			start := make(chan struct{})
 
 			// First projection (should succeed and hold semaphore)
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				_, _, err := store.Project(ctx, []dcb.StateProjector{projector}, nil)
 				results <- err
-			}()
+			})
 
 			// Second projection (should fail with TooManyProjectionsError)
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				<-start // Wait for synchronization
 				_, _, err := store.Project(ctx, []dcb.StateProjector{projector}, nil)
 				results <- err
-			}()
+			})
 
 			// Give first projection time to acquire semaphore
 			time.Sleep(10 * time.Millisecond)
