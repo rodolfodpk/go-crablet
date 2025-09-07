@@ -637,6 +637,91 @@ func BenchmarkProjectStreamConcurrent(b *testing.B, benchCtx *BenchmarkContext, 
 	}
 }
 
+// BenchmarkProjectionLimits benchmarks projection limits with low limits
+func BenchmarkProjectionLimits(b *testing.B, benchCtx *BenchmarkContext, goroutines int) {
+	// Create EventStore with low limit for testing
+	config := dcb.EventStoreConfig{
+		MaxConcurrentProjections: 5, // Low limit for testing
+		MaxProjectionGoroutines:  10,
+		StreamBuffer:             100,
+		QueryTimeout:             5000,
+		AppendTimeout:            3000,
+	}
+
+	pool, err := getOrCreateGlobalPool()
+	if err != nil {
+		b.Fatalf("Failed to get global pool: %v", err)
+	}
+
+	store, err := dcb.NewEventStoreWithConfig(context.Background(), pool, config)
+	if err != nil {
+		b.Fatalf("Failed to create store with config: %v", err)
+	}
+
+	// Create test data
+	testEvents := make([]dcb.InputEvent, 100)
+	for i := 0; i < 100; i++ {
+		testEvents[i] = dcb.NewInputEvent("TestEvent",
+			dcb.NewTags("test", "limits", "id", fmt.Sprintf("event_%d", i)),
+			dcb.ToJSON(map[string]string{"value": fmt.Sprintf("test_%d", i)}))
+	}
+
+	err = store.Append(context.Background(), testEvents)
+	if err != nil {
+		b.Fatalf("Failed to append test events: %v", err)
+	}
+
+	// Create projector
+	projector := dcb.StateProjector{
+		ID:           "test_limit_projection",
+		Query:        dcb.NewQuery(dcb.NewTags("test", "limits"), "TestEvent"),
+		InitialState: 0,
+		TransitionFn: func(state any, event dcb.Event) any {
+			return state.(int) + 1
+		},
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	successCount := 0
+	limitExceededCount := 0
+
+	for i := 0; i < b.N; i++ {
+		// Launch concurrent projections (may exceed limit of 5)
+		var wg sync.WaitGroup
+		results := make(chan error, goroutines)
+
+		for j := 0; j < goroutines; j++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_, _, err := store.Project(context.Background(), []dcb.StateProjector{projector}, nil)
+				results <- err
+			}()
+		}
+
+		wg.Wait()
+		close(results)
+
+		// Count results
+		for err := range results {
+			if err == nil {
+				successCount++
+			} else if _, ok := err.(*dcb.TooManyProjectionsError); ok {
+				limitExceededCount++
+			}
+		}
+	}
+
+	// Report metrics
+	totalOperations := successCount + limitExceededCount
+	if totalOperations > 0 {
+		b.ReportMetric(float64(successCount)/float64(totalOperations), "success_rate")
+		b.ReportMetric(float64(limitExceededCount)/float64(totalOperations), "limit_exceeded_rate")
+	}
+}
+
 // RunAllBenchmarks runs all benchmarks with the specified dataset size
 func RunAllBenchmarks(b *testing.B, datasetSize string) {
 	// Use 100 past events for realistic AppendIf testing (business rule validation context)
@@ -749,6 +834,19 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 
 	b.Run("ProjectStream_Concurrent_25Users", func(b *testing.B) {
 		BenchmarkProjectStreamConcurrent(b, projectionCtx, 25)
+	})
+
+	// Projection limits benchmarks
+	b.Run("ProjectionLimits_5Users", func(b *testing.B) {
+		BenchmarkProjectionLimits(b, projectionCtx, 5)
+	})
+
+	b.Run("ProjectionLimits_8Users", func(b *testing.B) {
+		BenchmarkProjectionLimits(b, projectionCtx, 8)
+	})
+
+	b.Run("ProjectionLimits_10Users", func(b *testing.B) {
+		BenchmarkProjectionLimits(b, projectionCtx, 10)
 	})
 
 }
