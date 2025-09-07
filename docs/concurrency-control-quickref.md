@@ -2,7 +2,7 @@
 
 ## Fail-Fast Semaphore Pattern
 
-The DCB library uses a **fail-fast semaphore** to limit concurrent projections and protect system resources.
+This library uses a **fail-fast semaphore** to limit concurrent projections and protect system resources.
 
 ### Key Concepts
 
