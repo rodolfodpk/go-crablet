@@ -61,39 +61,6 @@ if err != nil {
 }
 ```
 
-## External Circuit Breaker
-
-For production systems, implement external circuit breakers at the API gateway or service level:
-
-```go
-// External circuit breaker (in your API service)
-func (h *APIHandler) HandleProjection(w http.ResponseWriter, r *http.Request) {
-    err := h.circuitBreaker.Call(func() error {
-        _, _, err := h.eventStore.Project(ctx, projectors, nil)
-        return err
-    })
-    
-    if err != nil {
-        if strings.Contains(err.Error(), "too many concurrent projections") {
-            http.Error(w, "System busy, please try again", http.StatusTooManyRequests)
-        } else {
-            http.Error(w, "Internal server error", http.StatusInternalServerError)
-        }
-        return
-    }
-    
-    w.WriteHeader(http.StatusOK)
-}
-```
-
-## Performance
-
-| Metric | Value |
-|--------|-------|
-| **Memory per semaphore** | ~8 bytes |
-| **Acquisition time** | ~1ns |
-| **Release time** | ~1ns |
-
 ## Best Practices
 
 1. **Configure appropriate limits** based on your system capacity
