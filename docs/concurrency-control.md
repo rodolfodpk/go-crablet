@@ -65,5 +65,7 @@ if err != nil {
 
 1. **Configure appropriate limits** based on your system capacity
 2. **Implement retry logic** for `TooManyProjectionsError`
-3. **Use external circuit breakers** for system-wide protection
-4. **Monitor concurrency metrics** to tune limits
+3. **Consider external libraries** for production resilience:
+   - Circuit breaker: [gobreaker](https://github.com/sony/gobreaker) or [go-circuitbreaker](https://github.com/mercari/go-circuitbreaker)
+   - Metrics: [Prometheus Go client](https://github.com/prometheus/client_golang) or [OpenTelemetry](https://github.com/open-telemetry/opentelemetry-go)
+   - pgx metrics: [pgxpoolprometheus](https://github.com/IBM/pgxpoolprometheus)
