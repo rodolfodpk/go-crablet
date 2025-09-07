@@ -1,12 +1,23 @@
-# Concurrency Control in DCB
-
-## Quick Reference
-
-For a condensed version of this documentation, see [Concurrency Control Quick Reference](./concurrency-control-quickref.md).
+# Concurrency Control in go-crablet
 
 ## Overview
 
-The DCB (Dynamic Consistency Boundary) library implements **fail-fast concurrency control** to protect system resources and prevent resource exhaustion under high load scenarios.
+The go-crablet library implements **fail-fast concurrency control** to protect system resources and prevent resource exhaustion under high load scenarios. This control is specifically designed for projection operations that create goroutines.
+
+## Scope of Concurrency Control
+
+**IMPORTANT**: Concurrency limits apply ONLY to projection methods that create goroutines:
+
+- ✅ **`Project()`** - Limited by `MaxConcurrentProjections`
+- ✅ **`ProjectStream()`** - Limited by `MaxConcurrentProjections`  
+- ❌ **`Append()`** - NOT limited (fast, no goroutines)
+- ❌ **`AppendIf()`** - NOT limited (fast, no goroutines)
+- ❌ **`Query()`** - NOT limited (fast, no goroutines)
+
+**Why only projections?**
+- Projection operations scan large event streams and create internal goroutines
+- Append operations are typically fast and don't create goroutines
+- Query operations are read-only and don't need concurrency protection
 
 ## Design Philosophy
 
@@ -54,8 +65,8 @@ type EventStoreConfig struct {
 ```
 
 **Default Values:**
-- `MaxConcurrentProjections: 200 (supports ~100 concurrent users)
-- `MaxProjectionGoroutines`: 100 (internal goroutines per projection)
+- `MaxConcurrentProjections: 100` (supports ~200 concurrent users)
+- `MaxProjectionGoroutines`: 50 (internal goroutines per projection)
 
 ### Semaphore Initialization
 
@@ -135,6 +146,93 @@ func (es *eventStore) ProjectStream(ctx context.Context, projectors []StateProje
         }()
         // ... cleanup logic
     }()
+}
+```
+
+## External Circuit Breaker Integration
+
+### Why External Circuit Breaker?
+
+The go-crablet library provides internal fail-fast protection, but production systems should implement external circuit breakers at the API gateway or service level.
+
+**Reasons for external circuit breaker:**
+
+1. **Separation of Concerns**: Library focuses on data operations, not system-wide protection
+2. **Flexibility**: Different services may need different circuit breaker strategies
+3. **Monitoring**: External circuit breakers can integrate with monitoring systems
+4. **Recovery**: External circuit breakers can implement sophisticated recovery logic
+
+### Circuit Breaker Architecture
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   API Gateway   │    │   go-crablet     │    │   PostgreSQL    │
+│                 │    │                  │    │                 │
+│ Circuit Breaker │───▶│ Fail-Fast        │───▶│ Database        │
+│ (External)      │    │ Semaphore        │    │                 │
+│                 │    │ (Internal)       │    │                 │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+```
+
+### Implementation Example
+
+```go
+// External circuit breaker (in your API service)
+type CircuitBreaker struct {
+    maxFailures    int
+    failureCount   int64
+    lastFailure    time.Time
+    timeout        time.Duration
+    state          string // "closed", "open", "half-open"
+}
+
+func (cb *CircuitBreaker) Call(fn func() error) error {
+    if cb.state == "open" {
+        if time.Since(cb.lastFailure) > cb.timeout {
+            cb.state = "half-open"
+        } else {
+            return fmt.Errorf("circuit breaker is open")
+        }
+    }
+    
+    err := fn()
+    if err != nil {
+        atomic.AddInt64(&cb.failureCount, 1)
+        cb.lastFailure = time.Now()
+        
+        if cb.failureCount >= int64(cb.maxFailures) {
+            cb.state = "open"
+        }
+        return err
+    }
+    
+    // Reset on success
+    atomic.StoreInt64(&cb.failureCount, 0)
+    cb.state = "closed"
+    return nil
+}
+
+// Usage in your API handler
+func (h *APIHandler) HandleProjection(w http.ResponseWriter, r *http.Request) {
+    err := h.circuitBreaker.Call(func() error {
+        // This calls go-crablet's Project method
+        _, _, err := h.eventStore.Project(ctx, projectors, nil)
+        return err
+    })
+    
+    if err != nil {
+        if strings.Contains(err.Error(), "circuit breaker is open") {
+            http.Error(w, "Service temporarily unavailable", http.StatusServiceUnavailable)
+        } else if strings.Contains(err.Error(), "too many concurrent projections") {
+            http.Error(w, "System busy, please try again", http.StatusTooManyRequests)
+        } else {
+            http.Error(w, "Internal server error", http.StatusInternalServerError)
+        }
+        return
+    }
+    
+    // Success response
+    w.WriteHeader(http.StatusOK)
 }
 ```
 
@@ -430,4 +528,4 @@ The fail-fast semaphore implementation provides:
 - **High performance**: Non-blocking operations
 - **Easy integration**: Simple error handling
 
-This design is well-suited for event sourcing applications where projections can be retried and resource protection is critical.
+This design is well-suited for event sourcing applications where projections can be retried and resource protection is critical. The library focuses on internal protection while external circuit breakers handle system-wide resilience.
