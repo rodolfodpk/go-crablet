@@ -10,6 +10,15 @@
 - **Events**: Single event (1) or batch (100 events)
 - **Model**: Generic test events with simple JSON data
 
+**Column Explanations**:
+- **Dataset**: Test data size (Tiny: 5 courses/10 students, Small: 1K courses/10K students, Medium: 1K courses/10K students)
+- **Concurrency**: Number of concurrent users/goroutines running operations simultaneously
+- **Events**: Number of events appended per operation (1 = single event, 100 = batch of 100 events)
+- **Throughput (ops/sec)**: Operations completed per second (higher is better)
+- **Latency (ns/op)**: Time per operation in nanoseconds (lower is better)
+- **Memory (B/op)**: Memory allocated per operation in bytes (lower is better)
+- **Allocations**: Number of memory allocations per operation (lower is better)
+
 | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
 |---------|-------------|--------|---------------------|-----------------|---------------|-------------|
 | Medium | 1 | 1 | 984 | 1,016,378 | 1,877 | 55 |
@@ -39,6 +48,15 @@
 - **Past Events**: Number of existing events in database before benchmark (100 events for all scenarios)
 - **Conflict Events**: 0 (no conflicts exist)
 
+**Column Explanations**:
+- **Dataset**: Test data size (Tiny: 5 courses/10 students, Small: 1K courses/10K students, Medium: 1K courses/10K students)
+- **Concurrency**: Number of concurrent users/goroutines running operations simultaneously
+- **Attempted Events**: Number of events the AppendIf operation tries to append per operation
+- **Throughput (ops/sec)**: Operations completed per second (higher is better)
+- **Latency (ns/op)**: Time per operation in nanoseconds (lower is better)
+- **Memory (B/op)**: Memory allocated per operation in bytes (lower is better)
+- **Allocations**: Number of memory allocations per operation (lower is better)
+
 | Dataset | Concurrency | Attempted Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
 |---------|-------------|------------------|---------------------|-----------------|---------------|-------------|
 | Tiny | 1 | 1 | 658 | 1,518,450 | 4,465 | 95 |
@@ -66,6 +84,16 @@
 - **Actual Events**: Number of events successfully appended (0 - all operations fail due to conflicts)
 - **Past Events**: Number of existing events in database before benchmark (100 events for all scenarios)
 - **Conflict Events**: Number of conflicting events created before AppendIf (1, 10, or 100 events, matching concurrency level)
+
+**Column Explanations**:
+- **Dataset**: Test data size (Tiny: 5 courses/10 students, Small: 1K courses/10K students, Medium: 1K courses/10K students)
+- **Concurrency**: Number of concurrent users/goroutines running operations simultaneously
+- **Attempted Events**: Number of events the AppendIf operation tries to append per operation
+- **Conflict Events**: Number of conflicting events created before the AppendIf operation (causes all operations to fail)
+- **Throughput (ops/sec)**: Operations completed per second (higher is better, but all fail due to conflicts)
+- **Latency (ns/op)**: Time per operation in nanoseconds (lower is better)
+- **Memory (B/op)**: Memory allocated per operation in bytes (lower is better)
+- **Allocations**: Number of memory allocations per operation (lower is better)
 
 | Dataset | Concurrency | Attempted Events | Conflict Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
 |---------|-------------|------------------|-----------------|---------------------|-----------------|---------------|-------------|
@@ -97,13 +125,23 @@
 - **Events**: Number of events processed during projection (varies by dataset)
 - **Model**: Domain-specific state reconstruction with business logic
 
+**Column Explanations**:
+- **Operation**: Type of projection operation (Project = single-threaded, ProjectStream = streaming with channels)
+- **Dataset**: Test data size (Tiny: 5 courses/10 students, Small: 1K courses/10K students, Medium: 1K courses/10K students)
+- **Concurrency**: Number of concurrent users/goroutines running operations simultaneously
+- **Events**: Number of events processed during projection (varies by dataset size)
+- **Throughput (ops/sec)**: Operations completed per second (higher is better)
+- **Latency (ns/op)**: Time per operation in nanoseconds (lower is better)
+- **Memory (B/op)**: Memory allocated per operation in bytes (lower is better)
+- **Allocations**: Number of memory allocations per operation (lower is better)
+
 | Operation | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
 |-----------|---------|-------------|--------|---------------------|-----------------|---------------|-------------|
-| **Project** | Tiny | 1 | 20 | 2,300 | 434,857 | 2,036 | 37 |
-| **Project** | Small | 1 | 25,000 | 2,550 | 391,810 | 2,036 | 37 |
 | **Project** | Medium | 1 | 50,000 | 2,555 | 391,495 | 2,036 | 37 |
-| **ProjectStream** | Tiny | 1 | 20 | 2,200 | 454,545 | 2,040 | 38 |
+| **Project** | Small | 1 | 25,000 | 2,550 | 391,810 | 2,036 | 37 |
+| **Project** | Tiny | 1 | 20 | 2,300 | 434,857 | 2,036 | 37 |
 | **ProjectStream** | Small | 1 | 25,000 | 2,400 | 416,667 | 2,038 | 38 |
+| **ProjectStream** | Tiny | 1 | 20 | 2,200 | 454,545 | 2,040 | 38 |
 | **ProjectStream** | Medium | 1 | 50,000 | 2,130 | 469,442 | 11,079 | 48 |
 
 ## Course Registration Performance
@@ -113,6 +151,16 @@
 - **Scenario**: Multiple students simultaneously registering for courses
 - **Events**: 1 event per user (course registration)
 - **Model**: Domain-specific business scenario with realistic data
+
+**Column Explanations**:
+- **Operation**: Type of course registration operation (Concurrent_1User, Concurrent_10Users, Concurrent_100Users)
+- **Dataset**: Test data size (Small: 1K courses/10K students, Medium: 1K courses/10K students)
+- **Concurrency**: Number of concurrent users/goroutines running operations simultaneously
+- **Events**: Number of events per operation (- indicates variable based on concurrency level)
+- **Throughput (ops/sec)**: Operations completed per second (higher is better)
+- **Latency (ns/op)**: Time per operation in nanoseconds (lower is better)
+- **Memory (B/op)**: Memory allocated per operation in bytes (lower is better)
+- **Allocations**: Number of memory allocations per operation (lower is better)
 
 | Operation | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
 |-----------|---------|-------------|--------|---------------------|-----------------|---------------|-------------|

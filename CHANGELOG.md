@@ -26,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
             - Dataset sizes: Tiny (5 courses/10 students), Small (1K courses/10K students), Medium (1K courses/10K students)
             - Performance metrics: Throughput (higher better), Latency (lower better), Memory (lower better), Allocations (lower better)
             - Operation-specific details: Events per operation, concurrency levels, conflict scenarios
+          - **Docker Performance Documentation**: Applied same improvements to Docker PostgreSQL performance tables
+            - Added comprehensive column explanations for all Docker benchmark tables
+            - Fixed throughput column ordering: All tables sorted by throughput (ops/sec) in descending order
+            - Consistent documentation format between local and Docker performance results
+            - Improved readability and understanding of Docker benchmark results
 
 ### Fixed
 - **Performance Documentation Accuracy**: Corrected incorrect benchmark numbers in performance documentation
