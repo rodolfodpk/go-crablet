@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
           - All performance tables maintain standardized format with factual data only
           - Data extracted from `go_benchmarks_20250907_175510.txt` benchmark results
           - **Fixed throughput column ordering**: All tables now sorted by throughput (ops/sec) in descending order for better readability
+          - **Added column explanations**: Detailed explanations for all table columns to improve understanding
+            - Dataset sizes: Tiny (5 courses/10 students), Small (1K courses/10K students), Medium (1K courses/10K students)
+            - Performance metrics: Throughput (higher better), Latency (lower better), Memory (lower better), Allocations (lower better)
+            - Operation-specific details: Events per operation, concurrency levels, conflict scenarios
 
 ### Fixed
 - **Performance Documentation Accuracy**: Corrected incorrect benchmark numbers in performance documentation
