@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Test Coverage Improvements**: Added comprehensive tests for previously untested functions
+  - Added tests for `IsTableStructureError` and `GetTableStructureError` error detection functions
+  - Added tests for `AsConcurrencyError`, `AsResourceError`, `AsTableStructureError` error extraction aliases
+  - Added tests for `NewEventStoreWithConfig` constructor function existence and configuration validation
+  - Added comprehensive tests for `NewCommand` constructor with various parameter combinations
+  - Improved test coverage for error handling and constructor functions without changing existing code
+- **Performance Documentation Updates**: Updated performance tables with fresh benchmark data
+  - Updated Append Performance table with September 7th benchmark results
+  - Updated AppendIf No Conflict Performance table with latest throughput and latency metrics
+  - Updated AppendIf With Conflict Performance table with current performance data
+  - Updated Projection Performance table with recent benchmark results
+  - All performance tables maintain standardized format with factual data only
+  - Data extracted from `go_benchmarks_20250907_175510.txt` benchmark results
+
 ### Fixed
 - **Performance Documentation Accuracy**: Corrected incorrect benchmark numbers in performance documentation
   - Fixed misleading claim that "Complex Queries are 7.6x faster than Simple Read" in Small dataset
