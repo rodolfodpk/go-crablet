@@ -324,20 +324,17 @@ func BenchmarkAppendIfConcurrent(b *testing.B, benchCtx *BenchmarkContext, concu
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		// For conflict scenarios, create all conflicting events first
+		// For conflict scenarios, create exactly 1 conflicting event
 		if conflictScenario {
-			for j := 0; j < concurrencyLevel; j++ {
-				uniqueID := fmt.Sprintf("concurrent_%d_%d_%d", time.Now().UnixNano(), i, j)
-				conflictEvent := dcb.NewInputEvent("ConflictingEvent",
-					dcb.NewTags("test", "conflict", "unique_id", uniqueID),
-					[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, uniqueID)))
+			uniqueID := fmt.Sprintf("conflict_%d_%d", time.Now().UnixNano(), i)
+			conflictEvent := dcb.NewInputEvent("ConflictingEvent",
+				dcb.NewTags("test", "conflict", "unique_id", uniqueID),
+				[]byte(fmt.Sprintf(`{"value": "test", "unique_id": "%s"}`, uniqueID)))
 
-				err := benchCtx.Store.Append(ctx, []dcb.InputEvent{conflictEvent})
-				if err != nil {
-					b.Fatalf("Failed to append conflict event: %v", err)
-				}
+			err := benchCtx.Store.Append(ctx, []dcb.InputEvent{conflictEvent})
+			if err != nil {
+				b.Fatalf("Failed to append conflict event: %v", err)
 			}
-			// Ensure all conflicting events are committed (no artificial delay)
 		}
 
 		// Use Go 1.25 WaitGroup.Go() for concurrent operations
@@ -732,25 +729,17 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 		BenchmarkAppendConcurrent(b, benchCtx, 1, 1)
 	})
 
-	b.Run("Append_Concurrent_10Users_1Event", func(b *testing.B) {
-		BenchmarkAppendConcurrent(b, benchCtx, 10, 1)
-	})
-
 	b.Run("Append_Concurrent_100Users_1Event", func(b *testing.B) {
 		BenchmarkAppendConcurrent(b, benchCtx, 100, 1)
 	})
 
-	// Concurrent Append benchmarks (100 events per user)
-	b.Run("Append_Concurrent_1User_100Events", func(b *testing.B) {
-		BenchmarkAppendConcurrent(b, benchCtx, 1, 100)
+	// Concurrent Append benchmarks (10 events per user)
+	b.Run("Append_Concurrent_1User_10Events", func(b *testing.B) {
+		BenchmarkAppendConcurrent(b, benchCtx, 1, 10)
 	})
 
-	b.Run("Append_Concurrent_10Users_100Events", func(b *testing.B) {
-		BenchmarkAppendConcurrent(b, benchCtx, 10, 100)
-	})
-
-	b.Run("Append_Concurrent_100Users_100Events", func(b *testing.B) {
-		BenchmarkAppendConcurrent(b, benchCtx, 100, 100)
+	b.Run("Append_Concurrent_100Users_10Events", func(b *testing.B) {
+		BenchmarkAppendConcurrent(b, benchCtx, 100, 10)
 	})
 
 	// Concurrent AppendIf benchmarks - NO CONFLICT (1 event)
@@ -758,25 +747,17 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 		BenchmarkAppendIfConcurrent(b, benchCtx, 1, 1, false)
 	})
 
-	b.Run("AppendIf_NoConflict_Concurrent_10Users_1Event", func(b *testing.B) {
-		BenchmarkAppendIfConcurrent(b, benchCtx, 10, 1, false)
-	})
-
 	b.Run("AppendIf_NoConflict_Concurrent_100Users_1Event", func(b *testing.B) {
 		BenchmarkAppendIfConcurrent(b, benchCtx, 100, 1, false)
 	})
 
-	// Concurrent AppendIf benchmarks - NO CONFLICT (100 events)
-	b.Run("AppendIf_NoConflict_Concurrent_1User_100Events", func(b *testing.B) {
-		BenchmarkAppendIfConcurrent(b, benchCtx, 1, 100, false)
+	// Concurrent AppendIf benchmarks - NO CONFLICT (10 events)
+	b.Run("AppendIf_NoConflict_Concurrent_1User_10Events", func(b *testing.B) {
+		BenchmarkAppendIfConcurrent(b, benchCtx, 1, 10, false)
 	})
 
-	b.Run("AppendIf_NoConflict_Concurrent_10Users_100Events", func(b *testing.B) {
-		BenchmarkAppendIfConcurrent(b, benchCtx, 10, 100, false)
-	})
-
-	b.Run("AppendIf_NoConflict_Concurrent_100Users_100Events", func(b *testing.B) {
-		BenchmarkAppendIfConcurrent(b, benchCtx, 100, 100, false)
+	b.Run("AppendIf_NoConflict_Concurrent_100Users_10Events", func(b *testing.B) {
+		BenchmarkAppendIfConcurrent(b, benchCtx, 100, 10, false)
 	})
 
 	// Concurrent AppendIf benchmarks - WITH CONFLICT (1 event)
@@ -784,25 +765,17 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 		BenchmarkAppendIfConcurrent(b, benchCtx, 1, 1, true)
 	})
 
-	b.Run("AppendIf_WithConflict_Concurrent_10Users_1Event", func(b *testing.B) {
-		BenchmarkAppendIfConcurrent(b, benchCtx, 10, 1, true)
-	})
-
 	b.Run("AppendIf_WithConflict_Concurrent_100Users_1Event", func(b *testing.B) {
 		BenchmarkAppendIfConcurrent(b, benchCtx, 100, 1, true)
 	})
 
-	// Concurrent AppendIf benchmarks - WITH CONFLICT (100 events)
-	b.Run("AppendIf_WithConflict_Concurrent_1User_100Events", func(b *testing.B) {
-		BenchmarkAppendIfConcurrent(b, benchCtx, 1, 100, true)
+	// Concurrent AppendIf benchmarks - WITH CONFLICT (10 events)
+	b.Run("AppendIf_WithConflict_Concurrent_1User_10Events", func(b *testing.B) {
+		BenchmarkAppendIfConcurrent(b, benchCtx, 1, 10, true)
 	})
 
-	b.Run("AppendIf_WithConflict_Concurrent_10Users_100Events", func(b *testing.B) {
-		BenchmarkAppendIfConcurrent(b, benchCtx, 10, 100, true)
-	})
-
-	b.Run("AppendIf_WithConflict_Concurrent_100Users_100Events", func(b *testing.B) {
-		BenchmarkAppendIfConcurrent(b, benchCtx, 100, 100, true)
+	b.Run("AppendIf_WithConflict_Concurrent_100Users_10Events", func(b *testing.B) {
+		BenchmarkAppendIfConcurrent(b, benchCtx, 100, 10, true)
 	})
 
 	// Projection benchmarks
@@ -814,24 +787,16 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 		BenchmarkProjectConcurrent(b, projectionCtx, 1)
 	})
 
-	b.Run("Project_Concurrent_10Users", func(b *testing.B) {
-		BenchmarkProjectConcurrent(b, projectionCtx, 10)
-	})
-
-	b.Run("Project_Concurrent_25Users", func(b *testing.B) {
-		BenchmarkProjectConcurrent(b, projectionCtx, 25)
+	b.Run("Project_Concurrent_100Users", func(b *testing.B) {
+		BenchmarkProjectConcurrent(b, projectionCtx, 100)
 	})
 
 	b.Run("ProjectStream_Concurrent_1User", func(b *testing.B) {
 		BenchmarkProjectStreamConcurrent(b, projectionCtx, 1)
 	})
 
-	b.Run("ProjectStream_Concurrent_10Users", func(b *testing.B) {
-		BenchmarkProjectStreamConcurrent(b, projectionCtx, 10)
-	})
-
-	b.Run("ProjectStream_Concurrent_25Users", func(b *testing.B) {
-		BenchmarkProjectStreamConcurrent(b, projectionCtx, 25)
+	b.Run("ProjectStream_Concurrent_100Users", func(b *testing.B) {
+		BenchmarkProjectStreamConcurrent(b, projectionCtx, 100)
 	})
 
 	// Projection limits benchmarks

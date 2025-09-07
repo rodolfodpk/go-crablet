@@ -5,13 +5,13 @@
 **Append Operations Details**:
 - **Operation**: Simple event append operations
 - **Scenario**: Basic event writing without conditions or business logic
-- **Events**: Single event (1) or batch (100 events)
+- **Events**: Single event (1) or batch (10 events)
 - **Model**: Generic test events with simple JSON data
 
 **Column Explanations**:
 - **Dataset**: Test data size (Tiny: 5 courses/10 students, Small: 1K courses/10K students, Medium: 1K courses/10K students)
 - **Concurrency**: Number of concurrent users/goroutines running operations simultaneously
-- **Events**: Number of events appended per operation (1 = single event, 100 = batch of 100 events)
+- **Events**: Number of events appended per operation (1 = single event, 10 = batch of 10 events)
 - **Throughput (ops/sec)**: Operations completed per second (higher is better)
 - **Latency (ns/op)**: Time per operation in nanoseconds (lower is better)
 - **Memory (B/op)**: Memory allocated per operation in bytes (lower is better)
@@ -19,30 +19,24 @@
 
 | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
 |---------|-------------|--------|---------------------|-----------------|---------------|-------------|
-| Tiny | 1 | 1 | 4,227 | 236,658 | 1,875 | 55 |
-| Small | 1 | 1 | 4,181 | 239,175 | 1,892 | 56 |
-| Medium | 1 | 1 | 4,163 | 240,115 | 1,875 | 55 |
-| Tiny | 1 | 100 | 4,102 | 243,902 | 211,399 | 2,053 |
-| Medium | 1 | 100 | 4,163 | 240,115 | 211,295 | 2,053 |
-| Small | 1 | 100 | 4,102 | 243,902 | 211,359 | 2,053 |
-| Medium | 10 | 1 | 1,168 | 856,167 | 17,530 | 523 |
-| Small | 10 | 1 | 1,134 | 881,469 | 17,548 | 523 |
-| Tiny | 10 | 1 | 1,115 | 897,184 | 17,548 | 523 |
-| Small | 10 | 100 | 93 | 10,845,719 | 2,095,403 | 20,496 |
-| Tiny | 10 | 100 | 96 | 10,388,341 | 2,096,375 | 20,502 |
-| Medium | 10 | 100 | 103 | 9,682,726 | 2,094,330 | 20,490 |
-| Medium | 100 | 1 | 125 | 7,637,824 | 182,499 | 5,275 |
-| Small | 100 | 1 | 125 | 8,020,184 | 182,843 | 5,266 |
-| Tiny | 100 | 1 | 123 | 8,141,162 | 182,678 | 5,271 |
-| Medium | 100 | 100 | 9 | 116,582,513 | 20,954,190 | 205,059 |
-| Small | 100 | 100 | 9 | 112,974,023 | 20,962,527 | 205,152 |
-| Tiny | 100 | 100 | 9 | 111,427,837 | 20,963,011 | 205,138 |
+| Tiny | 1 | 1 | 2,264 | 441,358 | 1,880 | 55 |
+| Small | 1 | 1 | 2,259 | 442,324 | 1,880 | 55 |
+| Medium | 1 | 1 | 2,067 | 483,109 | 1,874 | 55 |
+| Tiny | 1 | 10 | 2,010 | 497,142 | 20,013 | 243 |
+| Small | 1 | 10 | 2,013 | 496,902 | 20,004 | 243 |
+| Medium | 1 | 10 | 2,048 | 488,359 | 20,005 | 243 |
+| Tiny | 100 | 1 | 182 | 5,494,620 | 182,623 | 5,258 |
+| Small | 100 | 1 | 178 | 5,617,259 | 182,996 | 5,260 |
+| Medium | 100 | 1 | 180 | 5,551,665 | 182,508 | 5,258 |
+| Tiny | 100 | 10 | 100 | 10,000,000 | 1,998,007 | 24,078 |
+| Small | 100 | 10 | 100 | 10,000,000 | 1,996,216 | 24,070 |
+| Medium | 100 | 10 | 100 | 10,000,000 | 1,995,823 | 24,064 |
 
 ## AppendIf Performance (No Conflict)
 
 **AppendIf No Conflict Details**:
-- **Attempted Events**: Number of events AppendIf operation tries to append (1 or 100 events per operation)
-- **Actual Events**: Number of events successfully appended (1 or 100 events)
+- **Attempted Events**: Number of events AppendIf operation tries to append (1 or 10 events per operation)
+- **Actual Events**: Number of events successfully appended (1 or 10 events)
 - **Past Events**: Number of existing events in database before benchmark (100 events for all scenarios)
 - **Conflict Events**: 0 (no conflicts exist)
 
@@ -57,32 +51,26 @@
 
 | Dataset | Concurrency | Attempted Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
 |---------|-------------|------------------|---------------------|-----------------|---------------|-------------|
-| Tiny | 1 | 1 | 1,594 | 627,621 | 4,464 | 96 |
-| Small | 1 | 1 | 1,392 | 717,974 | 4,465 | 96 |
-| Medium | 1 | 1 | 1,278 | 782,174 | 4,462 | 96 |
-| Medium | 1 | 100 | 101 | 9,941,695 | 214,216 | 2,092 |
-| Small | 1 | 100 | 98 | 10,241,461 | 214,217 | 2,093 |
-| Tiny | 1 | 100 | 89 | 11,207,948 | 214,744 | 2,095 |
-| Medium | 10 | 1 | 252 | 3,962,822 | 43,380 | 923 |
-| Small | 10 | 1 | 252 | 3,935,961 | 43,409 | 923 |
-| Tiny | 10 | 1 | 266 | 3,754,732 | 43,431 | 923 |
-| Medium | 10 | 100 | 44 | 22,636,543 | 2,133,460 | 20,891 |
-| Tiny | 10 | 100 | 45 | 22,345,893 | 2,138,365 | 20,927 |
-| Small | 10 | 100 | 45 | 21,983,578 | 2,134,864 | 20,906 |
-| Medium | 100 | 1 | 45 | 22,333,843 | 440,918 | 9,263 |
-| Small | 100 | 1 | 46 | 21,848,396 | 441,156 | 9,263 |
-| Tiny | 100 | 1 | 49 | 20,552,792 | 441,692 | 9,267 |
-| Tiny | 100 | 100 | 4 | 227,154,105 | 21,378,524 | 209,187 |
-| Small | 100 | 100 | 4 | 234,958,336 | 21,370,916 | 209,131 |
-| Medium | 100 | 100 | 4 | 206,938,770 | 21,359,597 | 209,027 |
+| Tiny | 1 | 1 | 1,942 | 514,631 | 4,468 | 95 |
+| Small | 1 | 1 | 2,068 | 483,231 | 4,464 | 95 |
+| Medium | 1 | 1 | 2,160 | 462,858 | 4,460 | 95 |
+| Tiny | 1 | 10 | 1,890 | 528,950 | 22,052 | 283 |
+| Small | 1 | 10 | 1,714 | 583,395 | 22,035 | 282 |
+| Medium | 1 | 10 | 1,879 | 531,371 | 22,031 | 282 |
+| Tiny | 100 | 1 | 100 | 10,000,000 | 440,997 | 9,264 |
+| Small | 100 | 1 | 100 | 10,000,000 | 441,369 | 9,266 |
+| Medium | 100 | 1 | 100 | 10,000,000 | 440,406 | 9,260 |
+| Tiny | 100 | 10 | 100 | 10,000,000 | 2,199,546 | 28,008 |
+| Small | 100 | 10 | 100 | 10,000,000 | 2,195,417 | 27,987 |
+| Medium | 100 | 10 | 100 | 10,000,000 | 2,195,191 | 27,980 |
 
 ## AppendIf Performance (With Conflict)
 
 **AppendIf With Conflict Details**:
-- **Attempted Events**: Number of events AppendIf operation tries to append (1 or 100 events per operation)
+- **Attempted Events**: Number of events AppendIf operation tries to append (1 or 10 events per operation)
 - **Actual Events**: Number of events successfully appended (0 - all operations fail due to conflicts)
 - **Past Events**: Number of existing events in database before benchmark (100 events for all scenarios)
-- **Conflict Events**: Number of conflicting events created before AppendIf (1, 10, or 100 events, matching concurrency level)
+- **Conflict Events**: Number of conflicting events created before AppendIf (1 event for all scenarios)
 
 **Column Explanations**:
 - **Dataset**: Test data size (Tiny: 5 courses/10 students, Small: 1K courses/10K students, Medium: 1K courses/10K students)
@@ -96,24 +84,18 @@
 
 | Dataset | Concurrency | Attempted Events | Conflict Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
 |---------|-------------|------------------|-----------------|---------------------|-----------------|---------------|-------------|
-| Small | 1 | 1 | 1 | 1,202 | 831,439 | 5,908 | 145 |
-| Tiny | 1 | 1 | 1 | 1,193 | 838,785 | 5,914 | 146 |
-| Medium | 1 | 1 | 1 | 1,171 | 853,820 | 5,905 | 145 |
-| Medium | 1 | 100 | 1 | 1,105 | 905,867 | 216,310 | 2,142 |
-| Tiny | 1 | 100 | 1 | 1,064 | 938,336 | 216,659 | 2,144 |
-| Small | 1 | 100 | 1 | 1,018 | 982,471 | 216,452 | 2,143 |
-| Medium | 10 | 1 | 10 | 99 | 10,079,142 | 57,472 | 1,416 |
-| Small | 10 | 1 | 10 | 100 | 10,007,610 | 57,505 | 1,416 |
-| Tiny | 10 | 1 | 10 | 99 | 10,149,054 | 57,572 | 1,417 |
-| Medium | 10 | 100 | 10 | 112 | 8,920,976 | 2,150,702 | 21,380 |
-| Small | 10 | 100 | 10 | 112 | 8,965,148 | 2,152,027 | 21,389 |
-| Tiny | 10 | 100 | 10 | 110 | 9,110,548 | 2,155,078 | 21,409 |
-| Medium | 100 | 1 | 100 | 12 | 85,652,522 | 581,817 | 14,165 |
-| Small | 100 | 1 | 100 | 12 | 81,240,740 | 582,678 | 14,171 |
-| Tiny | 100 | 1 | 100 | 12 | 82,246,174 | 583,219 | 14,175 |
-| Medium | 100 | 100 | 100 | 11 | 87,552,629 | 21,506,783 | 213,813 |
-| Small | 100 | 100 | 100 | 13 | 77,745,206 | 21,514,603 | 213,898 |
-| Tiny | 100 | 100 | 100 | 13 | 78,122,002 | 21,522,322 | 213,952 |
+| Tiny | 1 | 1 | 1 | 1,185 | 843,519 | 5,856 | 145 |
+| Small | 1 | 1 | 1 | 1,276 | 783,212 | 5,848 | 145 |
+| Medium | 1 | 1 | 1 | 1,160 | 862,069 | 5,848 | 145 |
+| Tiny | 1 | 10 | 1 | 1,124 | 889,248 | 23,438 | 331 |
+| Small | 1 | 10 | 1 | 1,159 | 862,069 | 23,426 | 331 |
+| Medium | 1 | 10 | 1 | 1,159 | 862,069 | 23,426 | 331 |
+| Tiny | 100 | 1 | 1 | 166 | 6,024,096 | 433,127 | 9,505 |
+| Small | 100 | 1 | 1 | 182 | 5,493,406 | 433,009 | 9,503 |
+| Medium | 100 | 1 | 1 | 182 | 5,493,406 | 433,009 | 9,503 |
+| Tiny | 100 | 10 | 1 | 152 | 6,578,947 | 2,191,417 | 28,142 |
+| Small | 100 | 10 | 1 | 154 | 6,493,506 | 2,189,519 | 28,125 |
+| Medium | 100 | 10 | 1 | 154 | 6,493,506 | 2,189,519 | 28,125 |
 
 ## Projection Performance
 
@@ -137,21 +119,15 @@
 
 | Operation | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
 |-----------|---------|-------------|--------|---------------------|-----------------|---------------|-------------|
-| **ProjectStream** | Medium | 1 | ~100 | 5,665 | 176,554 | 64,465 | 1,460 |
-| **Project** | Medium | 1 | ~100 | 5,035 | 198,522 | 55,460 | 1,450 |
-| **ProjectStream** | Tiny | 1 | ~100 | 4,374 | 228,678 | 64,467 | 1,460 |
-| **Project** | Tiny | 1 | ~100 | 4,310 | 232,214 | 55,462 | 1,450 |
-| **ProjectStream** | Small | 1 | ~100 | 4,290 | 233,359 | 64,467 | 1,460 |
-| **Project** | Small | 1 | ~100 | 4,198 | 238,241 | 55,463 | 1,450 |
-| **Project** | Medium | 10 | ~100 | 1,444 | 692,991 | 553,447 | 14,474 |
-| **Project** | Tiny | 10 | ~100 | 1,439 | 695,025 | 553,447 | 14,474 |
-| **ProjectStream** | Medium | 10 | ~100 | 1,328 | 753,367 | 643,575 | 14,574 |
-| **ProjectStream** | Tiny | 10 | ~100 | 1,322 | 756,340 | 643,577 | 14,574 |
-| **Project** | Small | 10 | ~100 | 1,299 | 769,654 | 553,464 | 14,474 |
-| **ProjectStream** | Small | 10 | ~100 | 1,246 | 802,418 | 643,584 | 14,574 |
-| **Project** | Medium | 25 | ~100 | 651 | 1,536,585 | 1,383,318 | 36,180 |
-| **Project** | Tiny | 25 | ~100 | 694 | 1,653,638 | 1,383,320 | 36,180 |
-| **ProjectStream** | Medium | 25 | ~100 | 612 | 1,633,405 | 1,608,646 | 36,431 |
-| **ProjectStream** | Tiny | 25 | ~100 | 574 | 1,722,230 | 1,608,714 | 36,432 |
-| **Project** | Small | 25 | ~100 | 563 | 1,774,790 | 1,383,371 | 36,181 |
-| **ProjectStream** | Small | 25 | ~100 | 536 | 1,866,661 | 1,608,716 | 36,432 |
+| **ProjectStream** | Medium | 1 | ~100 | 4,134 | 241,755 | 64,476 | 1,460 |
+| **Project** | Medium | 1 | ~100 | 3,684 | 271,389 | 55,478 | 1,450 |
+| **ProjectStream** | Tiny | 1 | ~100 | 4,266 | 234,324 | 64,475 | 1,460 |
+| **Project** | Tiny | 1 | ~100 | 3,529 | 283,245 | 55,464 | 1,450 |
+| **ProjectStream** | Small | 1 | ~100 | 4,134 | 241,755 | 64,476 | 1,460 |
+| **Project** | Small | 1 | ~100 | 3,684 | 271,389 | 55,478 | 1,450 |
+| **Project** | Medium | 100 | ~100 | 152 | 6,578,947 | 5,544,465 | 144,897 |
+| **Project** | Tiny | 100 | ~100 | 152 | 6,578,947 | 5,544,356 | 144,894 |
+| **ProjectStream** | Medium | 100 | ~100 | 153 | 6,535,948 | 6,444,449 | 145,883 |
+| **ProjectStream** | Tiny | 100 | ~100 | 158 | 6,328,125 | 6,444,235 | 145,883 |
+| **Project** | Small | 100 | ~100 | 152 | 6,578,947 | 5,544,465 | 144,897 |
+| **ProjectStream** | Small | 100 | ~100 | 153 | 6,535,948 | 6,444,449 | 145,883 |

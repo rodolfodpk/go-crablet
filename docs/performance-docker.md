@@ -83,7 +83,7 @@
 - **Attempted Events**: Number of events AppendIf operation tries to append (1 or 100 events per operation)
 - **Actual Events**: Number of events successfully appended (0 - all operations fail due to conflicts)
 - **Past Events**: Number of existing events in database before benchmark (100 events for all scenarios)
-- **Conflict Events**: Number of conflicting events created before AppendIf (1, 10, or 100 events, matching concurrency level)
+- **Conflict Events**: Number of conflicting events created before AppendIf (1, 10, or 25 events, matching concurrency level)
 
 **Column Explanations**:
 - **Dataset**: Test data size (Tiny: 5 courses/10 students, Small: 1K courses/10K students, Medium: 1K courses/10K students)

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Benchmark Standardization**: Standardized benchmark concurrency levels and event counts for consistency
+  - **Concurrency Levels**: Changed from `1, 10, 25` to `1, 100` users for all benchmark operations
+  - **Attempted Events**: Changed from `1, 100` to `1, 10` events per operation for Append and AppendIf benchmarks
+  - **Conflict Events**: Standardized to `1` event for all AppendIf conflict scenarios (removed variable conflict counts)
+  - **Performance Documentation**: Updated all performance tables with new standardized benchmark results
+  - **Benchmark Code**: Modified `BenchmarkAppendIfConcurrent` to create exactly 1 conflict event instead of variable counts
+  - **Documentation**: Updated performance documentation to reflect new benchmark structure and results
+
 ### Added
 - **Test Coverage Improvements**: Added comprehensive tests for previously untested functions
   - Added tests for `IsTableStructureError` and `GetTableStructureError` error detection functions

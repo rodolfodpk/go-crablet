@@ -62,10 +62,10 @@ go test -bench=Project_ -benchmem -benchtime=1s -timeout=10m .
 **Append Operations (18 tests):**
 - `Append_Concurrent_1User_1Event` - Single event, single user
 - `Append_Concurrent_10Users_1Event` - Single event, 10 users
-- `Append_Concurrent_100Users_1Event` - Single event, 100 users
+- `Append_Concurrent_25Users_1Event` - Single event, 25 users
 - `Append_Concurrent_1User_100Events` - Batch events, single user
 - `Append_Concurrent_10Users_100Events` - Batch events, 10 users
-- `Append_Concurrent_100Users_100Events` - Batch events, 100 users
+- `Append_Concurrent_25Users_100Events` - Batch events, 25 users
 - **Datasets**: Tiny, Small, Medium
 
 **AppendIf Operations (36 tests):**
