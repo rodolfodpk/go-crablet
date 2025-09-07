@@ -693,12 +693,10 @@ func BenchmarkProjectionLimits(b *testing.B, benchCtx *BenchmarkContext, gorouti
 		results := make(chan error, goroutines)
 
 		for j := 0; j < goroutines; j++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				_, _, err := store.Project(context.Background(), []dcb.StateProjector{projector}, nil)
 				results <- err
-			}()
+			})
 		}
 
 		wg.Wait()
