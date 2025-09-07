@@ -14,13 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added tests for `NewEventStoreWithConfig` constructor function existence and configuration validation
   - Added comprehensive tests for `NewCommand` constructor with various parameter combinations
   - Improved test coverage for error handling and constructor functions without changing existing code
-- **Performance Documentation Updates**: Updated performance tables with fresh benchmark data
-  - Updated Append Performance table with September 7th benchmark results
-  - Updated AppendIf No Conflict Performance table with latest throughput and latency metrics
-  - Updated AppendIf With Conflict Performance table with current performance data
-  - Updated Projection Performance table with recent benchmark results
-  - All performance tables maintain standardized format with factual data only
-  - Data extracted from `go_benchmarks_20250907_175510.txt` benchmark results
+        - **Performance Documentation Updates**: Updated performance tables with fresh benchmark data
+          - Updated Append Performance table with September 7th benchmark results
+          - Updated AppendIf No Conflict Performance table with latest throughput and latency metrics
+          - Updated AppendIf With Conflict Performance table with current performance data
+          - Updated Projection Performance table with recent benchmark results
+          - All performance tables maintain standardized format with factual data only
+          - Data extracted from `go_benchmarks_20250907_175510.txt` benchmark results
+          - **Fixed throughput column ordering**: All tables now sorted by throughput (ops/sec) in descending order for better readability
 
 ### Fixed
 - **Performance Documentation Accuracy**: Corrected incorrect benchmark numbers in performance documentation
