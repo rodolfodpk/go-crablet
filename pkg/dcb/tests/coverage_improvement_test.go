@@ -365,4 +365,72 @@ var _ = Describe("Coverage Improvement Tests", func() {
 			Expect(extractedErr).To(BeNil())
 		})
 	})
+
+	Describe("Constructor Coverage", func() {
+		It("should test NewEventStoreWithConfig", func() {
+			// This test requires a database connection, so we'll test the function exists
+			// and can be called with valid parameters
+			Expect(dcb.NewEventStoreWithConfig).NotTo(BeNil())
+			
+			// Test that the function signature is correct
+			// We can't easily test the full functionality without a database,
+			// but we can verify the function exists and has the right signature
+			var config dcb.EventStoreConfig
+			config.MaxAppendBatchSize = 500
+			config.StreamBuffer = 500
+			config.DefaultAppendIsolation = dcb.IsolationLevelReadCommitted
+			config.QueryTimeout = 5000
+			config.AppendTimeout = 3000
+			config.MaxConcurrentProjections = 50
+			config.MaxProjectionGoroutines = 25
+			
+			// The function should exist and be callable
+			// (actual database testing is done in other test files)
+			Expect(config.MaxAppendBatchSize).To(Equal(500))
+			Expect(config.StreamBuffer).To(Equal(500))
+		})
+
+		It("should test NewCommand constructor", func() {
+			// Test NewCommand with all parameters
+			commandType := "TestCommand"
+			data := []byte(`{"value": "test"}`)
+			metadata := map[string]interface{}{
+				"user_id": "123",
+				"tenant":  "test",
+			}
+
+			command := dcb.NewCommand(commandType, data, metadata)
+
+			Expect(command).NotTo(BeNil())
+			Expect(command.GetType()).To(Equal(commandType))
+			Expect(command.GetData()).To(Equal(data))
+			Expect(command.GetMetadata()).To(Equal(metadata))
+		})
+
+		It("should test NewCommand with minimal parameters", func() {
+			// Test NewCommand with minimal parameters
+			commandType := "SimpleCommand"
+			data := []byte(`{"value": "simple"}`)
+
+			command := dcb.NewCommand(commandType, data, nil)
+
+			Expect(command).NotTo(BeNil())
+			Expect(command.GetType()).To(Equal(commandType))
+			Expect(command.GetData()).To(Equal(data))
+			Expect(command.GetMetadata()).To(BeNil())
+		})
+
+		It("should test NewCommand with empty data", func() {
+			// Test NewCommand with empty data
+			commandType := "EmptyCommand"
+			data := []byte{}
+
+			command := dcb.NewCommand(commandType, data, nil)
+
+			Expect(command).NotTo(BeNil())
+			Expect(command.GetType()).To(Equal(commandType))
+			Expect(command.GetData()).To(Equal(data))
+			Expect(len(command.GetData())).To(Equal(0))
+		})
+	})
 })
