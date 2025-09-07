@@ -31,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
             - Fixed throughput column ordering: All tables sorted by throughput (ops/sec) in descending order
             - Consistent documentation format between local and Docker performance results
             - Improved readability and understanding of Docker benchmark results
+          - **Fixed Docker Projection Performance Table**: Added missing concurrency levels (10 and 25 users)
+            - Docker benchmarks were running with concurrency 1, 10, and 25 but documentation only showed concurrency 1
+            - Added complete projection performance data for all concurrency levels
+            - Docker projection performance: 2,555 ops/sec (1 user) → 620 ops/sec (25 users)
+            - Consistent with local performance documentation format
 
 ### Fixed
 - **Performance Documentation Accuracy**: Corrected incorrect benchmark numbers in performance documentation
