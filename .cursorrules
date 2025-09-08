@@ -638,3 +638,48 @@ go func() {
 - **Fighting the API architecture** instead of working with it
 - **Expecting unrealistic performance** for large event streams
 - **Not using Go 1.25 concurrency features** 
+
+# Benchmark Testing Rules
+
+## Mandatory Benchmark Testing Strategy
+
+### Two-Phase Testing Approach
+**ALWAYS follow this two-phase testing strategy:**
+
+1. **Phase 1: Quick Validation with Tiny Dataset**
+   ```bash
+   go test -bench="BenchmarkAppend_Tiny_Realistic" -benchtime=1s -timeout=30s .
+   ```
+   - **Purpose**: Quick validation that all realistic benchmarks work
+   - **Dataset**: Tiny (5 courses, 10 students, 20 enrollments) - fastest execution
+   - **Verify**: All operations (Append, AppendIf, Project, ProjectStream, ProjectionLimits)
+   - **Timeout**: 30 seconds maximum
+
+2. **Phase 2: Complete Benchmark Suite with All Datasets**
+   ```bash
+   go test -bench="BenchmarkAppend_.*_Realistic" -benchtime=2s -timeout=120s .
+   ```
+   - **Purpose**: Generate comprehensive performance data for documentation
+   - **Datasets**: Tiny, Small, Medium (all three datasets)
+   - **Operations**: Complete realistic benchmark suite
+   - **Timeout**: 120 seconds maximum
+
+### Benchmark Testing Requirements
+- **ALWAYS test with Tiny dataset first** for quick validation
+- **ALWAYS run all three datasets** (Tiny, Small, Medium) for complete data
+- **ALWAYS use realistic benchmarks** for documentation (not generic)
+- **ALWAYS include all operations**: Append, AppendIf, Project, ProjectStream, ProjectionLimits
+- **ALWAYS verify success/limit rates** for ProjectionLimits benchmarks
+
+### Benchmark Data Collection
+- **Save results to files**: `/tmp/tiny_realistic_benchmarks.txt`, `/tmp/small_realistic_benchmarks.txt`, `/tmp/medium_realistic_benchmarks.txt`
+- **Extract key metrics**: ns/op, B/op, allocs/op, success_rate, limit_exceeded_rate
+- **Validate all operations work** before proceeding to documentation
+- **Use results for performance documentation** updates
+
+### Why This Approach?
+- **Tiny dataset first** = quick validation (5 courses, 10 students, 20 enrollments)
+- **All datasets** = complete performance picture across different data sizes
+- **All benchmarks** = comprehensive coverage of all EventStore operations
+- **Realistic events** = business-focused performance data for documentation
+- **Efficient workflow** = validate first, then collect complete data

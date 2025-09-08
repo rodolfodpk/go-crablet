@@ -526,7 +526,7 @@ func BenchmarkAppendIfConcurrentRealistic(b *testing.B, benchCtx *BenchmarkConte
 				events := make([]dcb.InputEvent, eventCount)
 				for k := 0; k < eventCount; k++ {
 					eventID := fmt.Sprintf("warmup_%s_%d", uniqueID, k)
-					
+
 					// Alternate between different realistic event types
 					switch k % 3 {
 					case 0: // CourseOffered
@@ -638,7 +638,7 @@ func BenchmarkAppendIfConcurrentRealistic(b *testing.B, benchCtx *BenchmarkConte
 				events := make([]dcb.InputEvent, eventCount)
 				for k := 0; k < eventCount; k++ {
 					eventID := fmt.Sprintf("realistic_%s_%d", uniqueID, k)
-					
+
 					// Alternate between different realistic event types
 					switch k % 3 {
 					case 0: // CourseOffered
@@ -1157,7 +1157,7 @@ func BenchmarkProjectConcurrentRealistic(b *testing.B, benchCtx *BenchmarkContex
 	testEvents := make([]dcb.InputEvent, 100)
 	for i := 0; i < 100; i++ {
 		eventID := fmt.Sprintf("realistic_event_%d", i)
-		
+
 		// Alternate between different realistic event types
 		switch i % 3 {
 		case 0: // CourseOffered
@@ -1437,6 +1437,199 @@ func BenchmarkProjectStreamConcurrent(b *testing.B, benchCtx *BenchmarkContext, 
 	}
 }
 
+// BenchmarkProjectStreamConcurrentRealistic benchmarks concurrent streaming projection operations using realistic dataset events
+// Uses CourseOffered, StudentRegistered, and EnrollmentCompleted events with realistic projectors
+func BenchmarkProjectStreamConcurrentRealistic(b *testing.B, benchCtx *BenchmarkContext, goroutines int) {
+	ctx := context.Background()
+
+	// Truncate events table and create realistic test data BEFORE timing starts
+	pool, err := getOrCreateGlobalPool()
+	if err != nil {
+		b.Fatalf("Failed to get global pool: %v", err)
+	}
+
+	_, err = pool.Exec(ctx, "TRUNCATE TABLE events RESTART IDENTITY CASCADE")
+	if err != nil {
+		b.Fatalf("Failed to truncate events table: %v", err)
+	}
+
+	// Create realistic test events for projection benchmarks
+	testEvents := make([]dcb.InputEvent, 100)
+	for i := 0; i < 100; i++ {
+		eventID := fmt.Sprintf("realistic_stream_event_%d", i)
+
+		// Alternate between different realistic event types
+		switch i % 3 {
+		case 0: // CourseOffered
+			testEvents[i] = dcb.NewInputEvent("CourseOffered",
+				dcb.NewTags("course_id", eventID, "category", "Computer Science"),
+				[]byte(fmt.Sprintf(`{
+					"id": "%s",
+					"name": "Advanced Programming",
+					"instructor": "Dr. Smith",
+					"capacity": 50,
+					"category": "Computer Science",
+					"popularity": 0.8
+				}`, eventID)))
+		case 1: // StudentRegistered
+			testEvents[i] = dcb.NewInputEvent("StudentRegistered",
+				dcb.NewTags("student_id", eventID, "major", "Computer Science"),
+				[]byte(fmt.Sprintf(`{
+					"id": "%s",
+					"name": "John Doe",
+					"email": "john.doe@university.edu",
+					"major": "Computer Science",
+					"year": 3,
+					"maxCourses": 5
+				}`, eventID)))
+		case 2: // EnrollmentCompleted
+			testEvents[i] = dcb.NewInputEvent("EnrollmentCompleted",
+				dcb.NewTags("student_id", eventID, "course_id", fmt.Sprintf("course_%d", i)),
+				[]byte(fmt.Sprintf(`{
+					"studentId": "%s",
+					"courseId": "course_%d",
+					"enrolledAt": "%s",
+					"grade": ""
+				}`, eventID, i, time.Now().Format(time.RFC3339))))
+		}
+	}
+
+	// Append realistic test events to the store
+	if err := benchCtx.Store.Append(ctx, testEvents); err != nil {
+		b.Fatalf("Failed to append realistic test events: %v", err)
+	}
+
+	// Create realistic projectors for testing
+	courseProjector := dcb.StateProjector{
+		ID:           "course_count_stream_projection",
+		Query:        dcb.NewQueryBuilder().WithType("CourseOffered").WithTag("category", "Computer Science").Build(),
+		InitialState: 0,
+		TransitionFn: func(state any, event dcb.Event) any {
+			return state.(int) + 1
+		},
+	}
+
+	studentProjector := dcb.StateProjector{
+		ID:           "student_count_stream_projection",
+		Query:        dcb.NewQueryBuilder().WithType("StudentRegistered").WithTag("major", "Computer Science").Build(),
+		InitialState: 0,
+		TransitionFn: func(state any, event dcb.Event) any {
+			return state.(int) + 1
+		},
+	}
+
+	enrollmentProjector := dcb.StateProjector{
+		ID:           "enrollment_count_stream_projection",
+		Query:        dcb.NewQueryBuilder().WithType("EnrollmentCompleted").Build(),
+		InitialState: 0,
+		TransitionFn: func(state any, event dcb.Event) any {
+			return state.(int) + 1
+		},
+	}
+
+	// Combine all realistic projectors
+	realisticProjectors := []dcb.StateProjector{courseProjector, studentProjector, enrollmentProjector}
+
+	// WARM-UP PHASE: Run the exact same logic we'll benchmark without timing
+	warmupBenchmark(func() {
+		var wg sync.WaitGroup
+		results := make(chan error, goroutines)
+
+		// Start concurrent realistic streaming projections using core API's built-in limits
+		for j := 0; j < goroutines; j++ {
+			wg.Go(func() {
+				// Let the core API handle goroutine limits and streaming
+				stateChan, conditionChan, err := benchCtx.Store.ProjectStream(ctx, realisticProjectors, nil)
+				if err != nil {
+					results <- fmt.Errorf("warmup realistic ProjectStream failed: %v", err)
+					return
+				}
+
+				// Consume from channels (API handles concurrency internally)
+				select {
+				case state := <-stateChan:
+					_ = state // Use state to prevent optimization
+				case <-time.After(5 * time.Second):
+					results <- fmt.Errorf("warmup realistic ProjectStream timeout")
+					return
+				}
+
+				select {
+				case condition := <-conditionChan:
+					_ = condition // Use condition to prevent optimization
+				case <-time.After(5 * time.Second):
+					results <- fmt.Errorf("warmup realistic ProjectStream condition timeout")
+					return
+				}
+
+				results <- nil
+			})
+		}
+
+		wg.Wait()
+		close(results)
+
+		// Check for errors but don't fail on warm-up
+		for err := range results {
+			if err != nil {
+				// Log but don't fail during warm-up
+				continue
+			}
+		}
+	})
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		// Use Go 1.25 WaitGroup.Go() for concurrent operations
+		var wg sync.WaitGroup
+		results := make(chan error, goroutines)
+
+		// Start concurrent realistic streaming projections using core API's built-in limits
+		for j := 0; j < goroutines; j++ {
+			wg.Go(func() {
+				// Let the core API handle goroutine limits and streaming
+				stateChan, conditionChan, err := benchCtx.Store.ProjectStream(ctx, realisticProjectors, nil)
+				if err != nil {
+					results <- fmt.Errorf("concurrent realistic ProjectStream failed: %v", err)
+					return
+				}
+
+				// Consume from channels (API handles concurrency internally)
+				select {
+				case state := <-stateChan:
+					_ = state // Use state to prevent optimization
+				case <-time.After(5 * time.Second):
+					results <- fmt.Errorf("realistic ProjectStream timeout")
+					return
+				}
+
+				select {
+				case condition := <-conditionChan:
+					_ = condition // Use condition to prevent optimization
+				case <-time.After(5 * time.Second):
+					results <- fmt.Errorf("realistic ProjectStream condition timeout")
+					return
+				}
+
+				results <- nil
+			})
+		}
+
+		// Wait for all goroutines to complete using Go 1.25 WaitGroup
+		wg.Wait()
+		close(results)
+
+		// Check for any errors
+		for err := range results {
+			if err != nil {
+				b.Fatalf("Concurrent realistic ProjectStream failed: %v", err)
+			}
+		}
+	}
+}
+
 // BenchmarkProjectionLimits benchmarks projection limits with low limits
 func BenchmarkProjectionLimits(b *testing.B, benchCtx *BenchmarkContext, goroutines int) {
 	// Create EventStore with low limit for testing
@@ -1514,6 +1707,148 @@ func BenchmarkProjectionLimits(b *testing.B, benchCtx *BenchmarkContext, gorouti
 
 	for i := 0; i < b.N; i++ {
 		// Launch concurrent projections (may exceed limit of 5)
+		var wg sync.WaitGroup
+		results := make(chan error, goroutines)
+
+		for j := 0; j < goroutines; j++ {
+			wg.Go(func() {
+				_, _, err := store.Project(context.Background(), []dcb.StateProjector{projector}, nil)
+				results <- err
+			})
+		}
+
+		wg.Wait()
+		close(results)
+
+		// Count results
+		for err := range results {
+			if err == nil {
+				successCount++
+			} else if _, ok := err.(*dcb.TooManyProjectionsError); ok {
+				limitExceededCount++
+			}
+		}
+	}
+
+	// Report metrics
+	totalOperations := successCount + limitExceededCount
+	if totalOperations > 0 {
+		b.ReportMetric(float64(successCount)/float64(totalOperations), "success_rate")
+		b.ReportMetric(float64(limitExceededCount)/float64(totalOperations), "limit_exceeded_rate")
+	}
+}
+
+// BenchmarkProjectionLimitsRealistic benchmarks projection limits with realistic dataset events
+// Uses CourseOffered, StudentRegistered, and EnrollmentCompleted events with realistic projectors
+func BenchmarkProjectionLimitsRealistic(b *testing.B, benchCtx *BenchmarkContext, goroutines int) {
+	// Create EventStore with low limit for testing
+	config := dcb.EventStoreConfig{
+		MaxConcurrentProjections: 5, // Low limit for testing
+		MaxProjectionGoroutines:  10,
+		StreamBuffer:             100,
+		QueryTimeout:             5000,
+		AppendTimeout:            3000,
+	}
+
+	pool, err := getOrCreateGlobalPool()
+	if err != nil {
+		b.Fatalf("Failed to get global pool: %v", err)
+	}
+
+	store, err := dcb.NewEventStoreWithConfig(context.Background(), pool, config)
+	if err != nil {
+		b.Fatalf("Failed to create store with config: %v", err)
+	}
+
+	// Create realistic test data
+	testEvents := make([]dcb.InputEvent, 100)
+	for i := 0; i < 100; i++ {
+		eventID := fmt.Sprintf("realistic_limits_event_%d", i)
+
+		// Alternate between different realistic event types
+		switch i % 3 {
+		case 0: // CourseOffered
+			testEvents[i] = dcb.NewInputEvent("CourseOffered",
+				dcb.NewTags("course_id", eventID, "category", "Computer Science"),
+				[]byte(fmt.Sprintf(`{
+					"id": "%s",
+					"name": "Advanced Programming",
+					"instructor": "Dr. Smith",
+					"capacity": 50,
+					"category": "Computer Science",
+					"popularity": 0.8
+				}`, eventID)))
+		case 1: // StudentRegistered
+			testEvents[i] = dcb.NewInputEvent("StudentRegistered",
+				dcb.NewTags("student_id", eventID, "major", "Computer Science"),
+				[]byte(fmt.Sprintf(`{
+					"id": "%s",
+					"name": "John Doe",
+					"email": "john.doe@university.edu",
+					"major": "Computer Science",
+					"year": 3,
+					"maxCourses": 5
+				}`, eventID)))
+		case 2: // EnrollmentCompleted
+			testEvents[i] = dcb.NewInputEvent("EnrollmentCompleted",
+				dcb.NewTags("student_id", eventID, "course_id", fmt.Sprintf("course_%d", i)),
+				[]byte(fmt.Sprintf(`{
+					"studentId": "%s",
+					"courseId": "course_%d",
+					"enrolledAt": "%s",
+					"grade": ""
+				}`, eventID, i, time.Now().Format(time.RFC3339))))
+		}
+	}
+
+	err = store.Append(context.Background(), testEvents)
+	if err != nil {
+		b.Fatalf("Failed to append realistic test events: %v", err)
+	}
+
+	// Create realistic projector
+	projector := dcb.StateProjector{
+		ID:           "realistic_limit_projection",
+		Query:        dcb.NewQuery(dcb.NewTags("course_id", "realistic_limits_event_0", "category", "Computer Science"), "CourseOffered"),
+		InitialState: 0,
+		TransitionFn: func(state any, event dcb.Event) any {
+			return state.(int) + 1
+		},
+	}
+
+	// WARM-UP PHASE: Run the exact same logic we'll benchmark without timing
+	warmupBenchmark(func() {
+		// Launch concurrent realistic projections (may exceed limit of 5)
+		var wg sync.WaitGroup
+		results := make(chan error, goroutines)
+
+		for j := 0; j < goroutines; j++ {
+			wg.Go(func() {
+				_, _, err := store.Project(context.Background(), []dcb.StateProjector{projector}, nil)
+				results <- err
+			})
+		}
+
+		wg.Wait()
+		close(results)
+
+		// Check for errors but don't fail on warm-up
+		for err := range results {
+			if err != nil {
+				// Log but don't fail during warm-up
+				continue
+			}
+		}
+	})
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	successCount := 0
+	limitExceededCount := 0
+
+	for i := 0; i < b.N; i++ {
+		// Launch concurrent realistic projections (may exceed limit of 5)
 		var wg sync.WaitGroup
 		results := make(chan error, goroutines)
 
@@ -1713,7 +2048,27 @@ func RunAllBenchmarksRealistic(b *testing.B, datasetSize string) {
 		BenchmarkProjectConcurrentRealistic(b, benchCtx, 100)
 	})
 
-	// Note: ProjectStream realistic benchmarks can be added in future phases
+	// Concurrent Realistic ProjectStream benchmarks
+	b.Run("ProjectStream_Concurrent_1User", func(b *testing.B) {
+		BenchmarkProjectStreamConcurrentRealistic(b, benchCtx, 1)
+	})
+
+	b.Run("ProjectStream_Concurrent_100Users", func(b *testing.B) {
+		BenchmarkProjectStreamConcurrentRealistic(b, benchCtx, 100)
+	})
+
+	// Realistic ProjectionLimits benchmarks
+	b.Run("ProjectionLimits_5Users", func(b *testing.B) {
+		BenchmarkProjectionLimitsRealistic(b, benchCtx, 5)
+	})
+
+	b.Run("ProjectionLimits_8Users", func(b *testing.B) {
+		BenchmarkProjectionLimitsRealistic(b, benchCtx, 8)
+	})
+
+	b.Run("ProjectionLimits_10Users", func(b *testing.B) {
+		BenchmarkProjectionLimitsRealistic(b, benchCtx, 10)
+	})
 }
 
 // TestMain sets up and tears down the shared global pool for all benchmarks
