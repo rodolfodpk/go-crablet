@@ -2,7 +2,9 @@ package dcb
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -81,4 +83,24 @@ func (es *eventStore) GetConfig() EventStoreConfig {
 // GetPool returns the underlying database pool
 func (es *eventStore) GetPool() *pgxpool.Pool {
 	return es.pool
+}
+
+// executeReadInTx executes a read operation within a transaction using the configured read isolation level
+// This is an internal helper method that wraps read operations in transactions for consistency
+func (es *eventStore) executeReadInTx(ctx context.Context, operation func(tx pgx.Tx) error) error {
+	tx, err := es.pool.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: toPgxIsoLevel(es.config.DefaultReadIsolation),
+	})
+	if err != nil {
+		return &ResourceError{
+			EventStoreError: EventStoreError{
+				Op:  "read_transaction",
+				Err: fmt.Errorf("failed to begin read transaction: %w", err),
+			},
+			Resource: "database",
+		}
+	}
+	defer tx.Rollback(ctx)
+
+	return operation(tx)
 }

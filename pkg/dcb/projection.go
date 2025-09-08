@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // =============================================================================
@@ -308,19 +310,6 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 		}
 	}
 
-	// Execute query
-	rows, err := es.pool.Query(ctx, sqlQuery, args...)
-	if err != nil {
-		return nil, nil, &ResourceError{
-			EventStoreError: EventStoreError{
-				Op:  "Project",
-				Err: fmt.Errorf("query failed: %w", err),
-			},
-			Resource: "database",
-		}
-	}
-	defer rows.Close()
-
 	// Initialize states with initial values
 	states := make(map[string]any)
 	for _, projector := range projectors {
@@ -330,50 +319,71 @@ func (es *eventStore) projectDecisionModelWithQuery(ctx context.Context, query Q
 	// Track latest cursor for append condition
 	var latestCursor *Cursor
 
-	// Process events
-	for rows.Next() {
-		var row rowEvent
-		err := rows.Scan(&row.Type, &row.Tags, &row.Data, &row.TransactionID, &row.Position, &row.OccurredAt)
+	// Execute query within a transaction for consistency
+	err = es.executeReadInTx(ctx, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, sqlQuery, args...)
 		if err != nil {
-			return nil, nil, &ResourceError{
+			return &ResourceError{
 				EventStoreError: EventStoreError{
 					Op:  "Project",
-					Err: fmt.Errorf("failed to scan row: %w", err),
+					Err: fmt.Errorf("query failed: %w", err),
+				},
+				Resource: "database",
+			}
+		}
+		defer rows.Close()
+
+		// Process events
+		for rows.Next() {
+			var row rowEvent
+			err := rows.Scan(&row.Type, &row.Tags, &row.Data, &row.TransactionID, &row.Position, &row.OccurredAt)
+			if err != nil {
+				return &ResourceError{
+					EventStoreError: EventStoreError{
+						Op:  "Project",
+						Err: fmt.Errorf("failed to scan row: %w", err),
+					},
+					Resource: "database",
+				}
+			}
+
+			// Convert row to event
+			event := convertRowToEvent(row)
+
+			// Update latest cursor (events are ordered by transaction_id ASC, position ASC)
+			if latestCursor == nil ||
+				event.TransactionID > latestCursor.TransactionID ||
+				(event.TransactionID == latestCursor.TransactionID && event.Position > latestCursor.Position) {
+				latestCursor = &Cursor{
+					TransactionID: event.TransactionID,
+					Position:      event.Position,
+				}
+			}
+
+			// Apply event to matching projectors
+			for _, projector := range projectors {
+				if EventMatchesProjector(event, projector) {
+					states[projector.ID] = projector.TransitionFn(states[projector.ID], event)
+				}
+			}
+		}
+
+		// Check for row iteration errors
+		if err := rows.Err(); err != nil {
+			return &ResourceError{
+				EventStoreError: EventStoreError{
+					Op:  "Project",
+					Err: fmt.Errorf("row iteration failed: %w", err),
 				},
 				Resource: "database",
 			}
 		}
 
-		// Convert row to event
-		event := convertRowToEvent(row)
+		return nil
+	})
 
-		// Update latest cursor (events are ordered by transaction_id ASC, position ASC)
-		if latestCursor == nil ||
-			event.TransactionID > latestCursor.TransactionID ||
-			(event.TransactionID == latestCursor.TransactionID && event.Position > latestCursor.Position) {
-			latestCursor = &Cursor{
-				TransactionID: event.TransactionID,
-				Position:      event.Position,
-			}
-		}
-
-		// Apply event to matching projectors
-		for _, projector := range projectors {
-			if EventMatchesProjector(event, projector) {
-				states[projector.ID] = projector.TransitionFn(states[projector.ID], event)
-			}
-		}
-	}
-
-	// Check for row iteration errors
-	if err := rows.Err(); err != nil {
-		return nil, nil, &ResourceError{
-			EventStoreError: EventStoreError{
-				Op:  "Project",
-				Err: fmt.Errorf("row iteration failed: %w", err),
-			},
-			Resource: "database",
-		}
+	if err != nil {
+		return nil, nil, err
 	}
 
 	// Build append condition from projector queries for DCB concurrency control

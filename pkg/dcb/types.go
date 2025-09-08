@@ -96,6 +96,11 @@ type EventStoreConfig struct {
 	// Higher isolation levels provide stronger consistency guarantees but may impact performance
 	DefaultAppendIsolation IsolationLevel `json:"default_append_isolation"`
 
+	// DefaultReadIsolation sets the PostgreSQL transaction isolation level for read operations
+	// Higher isolation levels provide stronger consistency guarantees for projections and queries
+	// Defaults to READ_COMMITTED for backward compatibility
+	DefaultReadIsolation IsolationLevel `json:"default_read_isolation"`
+
 	// AppendTimeout sets the maximum time (in milliseconds) for append operations to complete
 	// This is a defensive timeout to prevent hanging appends
 	AppendTimeout int `json:"append_timeout"`

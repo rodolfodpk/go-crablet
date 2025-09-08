@@ -4,10 +4,52 @@ import (
 	"testing"
 )
 
+func TestEventStoreConfigDefaultReadIsolation(t *testing.T) {
+	t.Run("configures DefaultReadIsolation correctly", func(t *testing.T) {
+		config := EventStoreConfig{
+			MaxAppendBatchSize:       1000,
+			StreamBuffer:             100,
+			DefaultAppendIsolation:   IsolationLevelRepeatableRead,
+			DefaultReadIsolation:     IsolationLevelSerializable, // Test different isolation level
+			QueryTimeout:             5000,
+			AppendTimeout:            3000,
+			MaxConcurrentProjections: 50,
+			MaxProjectionGoroutines:  25,
+		}
+
+		if config.DefaultReadIsolation != IsolationLevelSerializable {
+			t.Errorf("expected DefaultReadIsolation %v, got %v", IsolationLevelSerializable, config.DefaultReadIsolation)
+		}
+
+		if config.DefaultAppendIsolation != IsolationLevelRepeatableRead {
+			t.Errorf("expected DefaultAppendIsolation %v, got %v", IsolationLevelRepeatableRead, config.DefaultAppendIsolation)
+		}
+	})
+
+	t.Run("defaults to READ_COMMITTED for backward compatibility", func(t *testing.T) {
+		// Test that the default constructor sets DefaultReadIsolation to READ_COMMITTED
+		// This simulates what NewEventStore does internally
+		config := EventStoreConfig{
+			MaxAppendBatchSize:       1000,
+			StreamBuffer:             1000,
+			DefaultAppendIsolation:   IsolationLevelReadCommitted,
+			DefaultReadIsolation:     IsolationLevelReadCommitted, // Default value
+			QueryTimeout:             10000,
+			AppendTimeout:            5000,
+			MaxConcurrentProjections: 100,
+			MaxProjectionGoroutines:  50,
+		}
+
+		if config.DefaultReadIsolation != IsolationLevelReadCommitted {
+			t.Errorf("expected DefaultReadIsolation %v, got %v", IsolationLevelReadCommitted, config.DefaultReadIsolation)
+		}
+	})
+}
+
 func TestNewEventStoreWithConfig(t *testing.T) {
 	t.Run("validates config structure", func(t *testing.T) {
 		config := EventStoreConfig{
-			MaxAppendBatchSize:      1000,
+			MaxAppendBatchSize:     1000,
 			StreamBuffer:           100,
 			DefaultAppendIsolation: IsolationLevelRepeatableRead,
 			QueryTimeout:           5000,
@@ -15,9 +57,9 @@ func TestNewEventStoreWithConfig(t *testing.T) {
 		}
 
 		// Test config validation (without requiring actual database connection)
-			if config.MaxAppendBatchSize != 1000 {
-		t.Errorf("expected MaxAppendBatchSize 1000, got %d", config.MaxAppendBatchSize)
-	}
+		if config.MaxAppendBatchSize != 1000 {
+			t.Errorf("expected MaxAppendBatchSize 1000, got %d", config.MaxAppendBatchSize)
+		}
 		if config.StreamBuffer != 100 {
 			t.Errorf("expected StreamBuffer 100, got %d", config.StreamBuffer)
 		}

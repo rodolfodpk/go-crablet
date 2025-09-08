@@ -71,10 +71,11 @@ func NewEventStore(ctx context.Context, pool *pgxpool.Pool) (EventStore, error) 
 		MaxAppendBatchSize:       1000,
 		StreamBuffer:             1000,
 		DefaultAppendIsolation:   IsolationLevelReadCommitted,
-		QueryTimeout:             10000, // 5 seconds default
-		AppendTimeout:            5000, // 5 seconds default
-		MaxConcurrentProjections: 100,    // Default: 100 concurrent projections (supports ~200 users)
-		MaxProjectionGoroutines:   50,   // Default: 50 goroutines per projection
+		DefaultReadIsolation:     IsolationLevelReadCommitted, // Default to same as append for consistency
+		QueryTimeout:             10000,                       // 5 seconds default
+		AppendTimeout:            5000,                        // 5 seconds default
+		MaxConcurrentProjections: 100,                         // Default: 100 concurrent projections (supports ~200 users)
+		MaxProjectionGoroutines:  50,                          // Default: 50 goroutines per projection
 	}
 	return newEventStore(pool, config), nil
 }
