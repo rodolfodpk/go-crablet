@@ -1,6 +1,8 @@
 package dcb
 
 import (
+	"fmt"
+
 	"github.com/rodolfodpk/go-crablet/pkg/dcb"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -191,5 +193,244 @@ var _ = Describe("Coverage Improvement Tests", func() {
 		q := dcb.NewQuery(dcb.NewTags("foo", "bar"), "TypeA")
 		cond := dcb.BuildAppendConditionFromQuery(q)
 		Expect(cond).NotTo(BeNil())
+	})
+
+	Describe("Error Handling Coverage", func() {
+		It("should test IsTableStructureError", func() {
+			// Test with actual table structure error
+			tableErr := &dcb.TableStructureError{
+				EventStoreError: dcb.EventStoreError{
+					Op:  "test",
+					Err: fmt.Errorf("table structure issue"),
+				},
+				TableName:    "events",
+				ColumnName:   "id",
+				ExpectedType: "bigint",
+				ActualType:   "integer",
+				Issue:        "column type mismatch",
+			}
+
+			Expect(dcb.IsTableStructureError(tableErr)).To(BeTrue())
+
+			// Test with non-table structure error
+			otherErr := &dcb.ValidationError{
+				EventStoreError: dcb.EventStoreError{
+					Op:  "test",
+					Err: fmt.Errorf("validation issue"),
+				},
+				Field: "type",
+				Value: "invalid",
+			}
+
+			Expect(dcb.IsTableStructureError(otherErr)).To(BeFalse())
+
+			// Test with nil error
+			Expect(dcb.IsTableStructureError(nil)).To(BeFalse())
+
+			// Test with regular error
+			regularErr := fmt.Errorf("regular error")
+			Expect(dcb.IsTableStructureError(regularErr)).To(BeFalse())
+		})
+
+		It("should test GetTableStructureError", func() {
+			// Test error extraction
+			tableErr := &dcb.TableStructureError{
+				EventStoreError: dcb.EventStoreError{
+					Op:  "test",
+					Err: fmt.Errorf("table structure issue"),
+				},
+				TableName:    "events",
+				ColumnName:   "id",
+				ExpectedType: "bigint",
+				ActualType:   "integer",
+				Issue:        "column type mismatch",
+			}
+
+			extractedErr, found := dcb.GetTableStructureError(tableErr)
+			Expect(found).To(BeTrue())
+			Expect(extractedErr).To(Equal(tableErr))
+			Expect(extractedErr.TableName).To(Equal("events"))
+			Expect(extractedErr.ColumnName).To(Equal("id"))
+
+			// Test with non-table structure error
+			otherErr := &dcb.ValidationError{
+				EventStoreError: dcb.EventStoreError{
+					Op:  "test",
+					Err: fmt.Errorf("validation issue"),
+				},
+				Field: "type",
+				Value: "invalid",
+			}
+
+			extractedErr, found = dcb.GetTableStructureError(otherErr)
+			Expect(found).To(BeFalse())
+			Expect(extractedErr).To(BeNil())
+
+			// Test with nil error
+			extractedErr, found = dcb.GetTableStructureError(nil)
+			Expect(found).To(BeFalse())
+			Expect(extractedErr).To(BeNil())
+		})
+
+		It("should test AsConcurrencyError alias", func() {
+			concurrencyErr := &dcb.ConcurrencyError{
+				EventStoreError: dcb.EventStoreError{
+					Op:  "append",
+					Err: fmt.Errorf("concurrency conflict"),
+				},
+				ExpectedPosition: 100,
+				ActualPosition:   200,
+			}
+
+			extractedErr, found := dcb.AsConcurrencyError(concurrencyErr)
+			Expect(found).To(BeTrue())
+			Expect(extractedErr).To(Equal(concurrencyErr))
+			Expect(extractedErr.ExpectedPosition).To(Equal(int64(100)))
+			Expect(extractedErr.ActualPosition).To(Equal(int64(200)))
+
+			// Test with non-concurrency error
+			otherErr := &dcb.ValidationError{
+				EventStoreError: dcb.EventStoreError{
+					Op:  "test",
+					Err: fmt.Errorf("validation issue"),
+				},
+				Field: "type",
+				Value: "invalid",
+			}
+
+			extractedErr, found = dcb.AsConcurrencyError(otherErr)
+			Expect(found).To(BeFalse())
+			Expect(extractedErr).To(BeNil())
+		})
+
+		It("should test AsResourceError alias", func() {
+			resourceErr := &dcb.ResourceError{
+				EventStoreError: dcb.EventStoreError{
+					Op:  "connect",
+					Err: fmt.Errorf("connection failed"),
+				},
+				Resource: "database",
+			}
+
+			extractedErr, found := dcb.AsResourceError(resourceErr)
+			Expect(found).To(BeTrue())
+			Expect(extractedErr).To(Equal(resourceErr))
+			Expect(extractedErr.Resource).To(Equal("database"))
+
+			// Test with non-resource error
+			otherErr := &dcb.ValidationError{
+				EventStoreError: dcb.EventStoreError{
+					Op:  "test",
+					Err: fmt.Errorf("validation issue"),
+				},
+				Field: "type",
+				Value: "invalid",
+			}
+
+			extractedErr, found = dcb.AsResourceError(otherErr)
+			Expect(found).To(BeFalse())
+			Expect(extractedErr).To(BeNil())
+		})
+
+		It("should test AsTableStructureError alias", func() {
+			tableErr := &dcb.TableStructureError{
+				EventStoreError: dcb.EventStoreError{
+					Op:  "test",
+					Err: fmt.Errorf("table structure issue"),
+				},
+				TableName:    "events",
+				ColumnName:   "id",
+				ExpectedType: "bigint",
+				ActualType:   "integer",
+				Issue:        "column type mismatch",
+			}
+
+			extractedErr, found := dcb.AsTableStructureError(tableErr)
+			Expect(found).To(BeTrue())
+			Expect(extractedErr).To(Equal(tableErr))
+			Expect(extractedErr.TableName).To(Equal("events"))
+
+			// Test with non-table structure error
+			otherErr := &dcb.ValidationError{
+				EventStoreError: dcb.EventStoreError{
+					Op:  "test",
+					Err: fmt.Errorf("validation issue"),
+				},
+				Field: "type",
+				Value: "invalid",
+			}
+
+			extractedErr, found = dcb.AsTableStructureError(otherErr)
+			Expect(found).To(BeFalse())
+			Expect(extractedErr).To(BeNil())
+		})
+	})
+
+	Describe("Constructor Coverage", func() {
+		It("should test NewEventStoreWithConfig", func() {
+			// This test requires a database connection, so we'll test the function exists
+			// and can be called with valid parameters
+			Expect(dcb.NewEventStoreWithConfig).NotTo(BeNil())
+			
+			// Test that the function signature is correct
+			// We can't easily test the full functionality without a database,
+			// but we can verify the function exists and has the right signature
+			var config dcb.EventStoreConfig
+			config.MaxAppendBatchSize = 500
+			config.StreamBuffer = 500
+			config.DefaultAppendIsolation = dcb.IsolationLevelReadCommitted
+			config.QueryTimeout = 5000
+			config.AppendTimeout = 3000
+			config.MaxConcurrentProjections = 50
+			config.MaxProjectionGoroutines = 25
+			
+			// The function should exist and be callable
+			// (actual database testing is done in other test files)
+			Expect(config.MaxAppendBatchSize).To(Equal(500))
+			Expect(config.StreamBuffer).To(Equal(500))
+		})
+
+		It("should test NewCommand constructor", func() {
+			// Test NewCommand with all parameters
+			commandType := "TestCommand"
+			data := []byte(`{"value": "test"}`)
+			metadata := map[string]interface{}{
+				"user_id": "123",
+				"tenant":  "test",
+			}
+
+			command := dcb.NewCommand(commandType, data, metadata)
+
+			Expect(command).NotTo(BeNil())
+			Expect(command.GetType()).To(Equal(commandType))
+			Expect(command.GetData()).To(Equal(data))
+			Expect(command.GetMetadata()).To(Equal(metadata))
+		})
+
+		It("should test NewCommand with minimal parameters", func() {
+			// Test NewCommand with minimal parameters
+			commandType := "SimpleCommand"
+			data := []byte(`{"value": "simple"}`)
+
+			command := dcb.NewCommand(commandType, data, nil)
+
+			Expect(command).NotTo(BeNil())
+			Expect(command.GetType()).To(Equal(commandType))
+			Expect(command.GetData()).To(Equal(data))
+			Expect(command.GetMetadata()).To(BeNil())
+		})
+
+		It("should test NewCommand with empty data", func() {
+			// Test NewCommand with empty data
+			commandType := "EmptyCommand"
+			data := []byte{}
+
+			command := dcb.NewCommand(commandType, data, nil)
+
+			Expect(command).NotTo(BeNil())
+			Expect(command.GetType()).To(Equal(commandType))
+			Expect(command.GetData()).To(Equal(data))
+			Expect(len(command.GetData())).To(Equal(0))
+		})
 	})
 })

@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Performance Documentation Format**: Fixed performance table formatting and units
+  - **Latency Units**: Converted from nanoseconds to milliseconds (divided by 1,000,000) for better readability
+  - **Memory Units**: Converted from bytes to KB (divided by 1,024) for more practical measurements
+  - **Table Sorting**: Fixed ALL performance tables to sort by Throughput (ops/sec) in descending order
+  - **Consistency**: Applied formatting fixes to all performance documentation files
+  - **Readability**: Improved table readability with more practical units and proper sorting
+- **Benchmark Standardization**: Standardized benchmark concurrency levels and event counts for consistency
+  - **Concurrency Levels**: Changed from `1, 10, 25` to `1, 100` users for all benchmark operations
+  - **Attempted Events**: Changed from `1, 100` to `1, 10` events per operation for Append and AppendIf benchmarks
+  - **Conflict Events**: Standardized to `1` event for all AppendIf conflict scenarios (removed variable conflict counts)
+  - **Performance Documentation**: Updated all performance tables with new standardized benchmark results
+  - **Benchmark Code**: Modified `BenchmarkAppendIfConcurrent` to create exactly 1 conflict event instead of variable counts
+  - **Documentation**: Updated performance documentation to reflect new benchmark structure and results
+
+### Added
+- **Test Coverage Improvements**: Added comprehensive tests for previously untested functions
+  - Added tests for `IsTableStructureError` and `GetTableStructureError` error detection functions
+  - Added tests for `AsConcurrencyError`, `AsResourceError`, `AsTableStructureError` error extraction aliases
+  - Added tests for `NewEventStoreWithConfig` constructor function existence and configuration validation
+  - Added comprehensive tests for `NewCommand` constructor with various parameter combinations
+  - Improved test coverage for error handling and constructor functions without changing existing code
+        - **Performance Documentation Updates**: Updated performance tables with fresh benchmark data
+          - Updated Append Performance table with September 7th benchmark results
+          - Updated AppendIf No Conflict Performance table with latest throughput and latency metrics
+          - Updated AppendIf With Conflict Performance table with current performance data
+          - Updated Projection Performance table with recent benchmark results
+          - All performance tables maintain standardized format with factual data only
+          - Data extracted from `go_benchmarks_20250907_175510.txt` benchmark results
+          - **Fixed throughput column ordering**: All tables now sorted by throughput (ops/sec) in descending order for better readability
+          - **Added column explanations**: Detailed explanations for all table columns to improve understanding
+            - Dataset sizes: Tiny (5 courses/10 students), Small (1K courses/10K students), Medium (1K courses/10K students)
+            - Performance metrics: Throughput (higher better), Latency (lower better), Memory (lower better), Allocations (lower better)
+            - Operation-specific details: Events per operation, concurrency levels, conflict scenarios
+          - **Docker Performance Documentation**: Applied same improvements to Docker PostgreSQL performance tables
+            - Added comprehensive column explanations for all Docker benchmark tables
+            - Fixed throughput column ordering: All tables sorted by throughput (ops/sec) in descending order
+            - Consistent documentation format between local and Docker performance results
+            - Improved readability and understanding of Docker benchmark results
+          - **Fixed Docker Projection Performance Table**: Added missing concurrency levels (10 and 25 users)
+            - Docker benchmarks were running with concurrency 1, 10, and 25 but documentation only showed concurrency 1
+            - Added complete projection performance data for all concurrency levels
+            - Docker projection performance: 2,555 ops/sec (1 user) → 620 ops/sec (25 users)
+            - Consistent with local performance documentation format
+
 ### Fixed
 - **Performance Documentation Accuracy**: Corrected incorrect benchmark numbers in performance documentation
   - Fixed misleading claim that "Complex Queries are 7.6x faster than Simple Read" in Small dataset

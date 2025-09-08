@@ -12,7 +12,8 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 
 **Core API - EventStore:**
 - **DCB-inspired decision models**: Project multiple states and check business invariants in a single query
-- **DCB concurrency control**: Append events only if no conflicting events exist within the same query scope (uses the DCB approach, not classic optimistic locking; transaction IDs ensure correct event ordering, inspired by Oskar’s article)
+- **DCB concurrency control**: Append events only if no conflicting events exist within the same query scope (uses the DCB approach, not classic optimistic locking; transaction IDs ensure correct event ordering, inspired by Oskar's article)
+- **Fail-fast concurrency limits**: Resource protection with immediate failure instead of blocking (prevents resource exhaustion under high load)
 - **Memory-efficient streaming**: Process events row-by-row for large event streams
 - **PostgreSQL-backed**: Uses PostgreSQL for robust, concurrent event storage
 - **Robust error handling**: Two-tier error handling with guaranteed transaction rollback
@@ -28,6 +29,7 @@ A Go library for event sourcing, exploring concepts inspired by Sara Pellegrini'
 - [Quick Start](./docs/quick-start.md): Get started using go-crablet in your project
 - [Getting Started](./docs/getting-started.md): Development setup
 - [Performance Guide](./docs/performance.md): Comprehensive performance information, benchmarks, and optimization details
+- [Concurrency Control](./docs/concurrency-control.md): Fail-fast semaphore implementation and resource protection
 - [EventStore Flow](./docs/eventstore-flow.md): Direct event operations without commands
 - [Command Execution Flow](./docs/command-execution-flow.md): Sequence diagram and command processing flow
 - [Low-Level Implementation](./docs/low-level-implementation.md): Database schema, SQL functions, and internal architecture
@@ -95,6 +97,19 @@ docker-compose down
 make example-transfer
 make example-enrollment
 make example-concurrency  # runs ticket_booking
+```
+
+## 🏃‍♂️ Performance & Benchmarks
+
+For comprehensive performance information, benchmarks, and detailed instructions:
+
+- **[Performance Guide](./docs/performance.md)**: Main performance index with links to all benchmark results
+- **[Local PostgreSQL Performance](./docs/performance-local.md)**: Latest benchmark results and analysis
+- **[Benchmark Documentation](./internal/benchmarks/README.md)**: Detailed benchmark instructions and test suite overview
+
+**Quick benchmark command:**
+```bash
+cd internal/benchmarks && go test -bench=. -benchmem -benchtime=1s -timeout=10m .
 ```
 
 ## 📖 References

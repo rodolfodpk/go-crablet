@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // =============================================================================
@@ -94,42 +96,50 @@ func (es *eventStore) Query(ctx context.Context, query Query, after *Cursor) ([]
 		}
 	}
 
-	// Execute query using caller's context (caller controls timeout)
-	rows, err := es.pool.Query(ctx, sqlQuery, args...)
-	if err != nil {
-		return nil, &EventStoreError{
-			Op:  "query",
-			Err: fmt.Errorf("failed to execute query: %w", err),
-		}
-	}
-	defer rows.Close()
-
-	// Scan results
+	// Execute query within a transaction for consistency
 	var events []Event
-	for rows.Next() {
-		var row rowEvent
-		err := rows.Scan(
-			&row.Type,
-			&row.Tags,
-			&row.Data,
-			&row.TransactionID,
-			&row.Position,
-			&row.OccurredAt,
-		)
+	err = es.executeReadInTx(ctx, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, sqlQuery, args...)
 		if err != nil {
-			return nil, &EventStoreError{
+			return &EventStoreError{
 				Op:  "query",
-				Err: fmt.Errorf("failed to scan event: %w", err),
+				Err: fmt.Errorf("failed to execute query: %w", err),
 			}
 		}
-		events = append(events, convertRowToEvent(row))
-	}
+		defer rows.Close()
 
-	if err := rows.Err(); err != nil {
-		return nil, &EventStoreError{
-			Op:  "query",
-			Err: fmt.Errorf("error iterating over rows: %w", err),
+		// Scan results
+		for rows.Next() {
+			var row rowEvent
+			err := rows.Scan(
+				&row.Type,
+				&row.Tags,
+				&row.Data,
+				&row.TransactionID,
+				&row.Position,
+				&row.OccurredAt,
+			)
+			if err != nil {
+				return &EventStoreError{
+					Op:  "query",
+					Err: fmt.Errorf("failed to scan event: %w", err),
+				}
+			}
+			events = append(events, convertRowToEvent(row))
 		}
+
+		if err := rows.Err(); err != nil {
+			return &EventStoreError{
+				Op:  "query",
+				Err: fmt.Errorf("error iterating over rows: %w", err),
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
 	}
 
 	return events, nil
