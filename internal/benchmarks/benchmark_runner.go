@@ -470,6 +470,253 @@ func BenchmarkAppendIfConcurrent(b *testing.B, benchCtx *BenchmarkContext, concu
 	}
 }
 
+// BenchmarkAppendIfConcurrentRealistic benchmarks concurrent AppendIf operations using realistic dataset events
+// Uses CourseOffered, StudentRegistered, and EnrollmentCompleted events with realistic business conditions
+func BenchmarkAppendIfConcurrentRealistic(b *testing.B, benchCtx *BenchmarkContext, concurrencyLevel int, eventCount int, conflictScenario bool) {
+	// Create context with timeout for each benchmark iteration using Go 1.25 WithTimeoutCause
+	ctx, cancel := context.WithTimeoutCause(context.Background(), 2*time.Minute,
+		fmt.Errorf("benchmark timeout after 2 minutes"))
+	defer cancel()
+
+	// Truncate events table BEFORE timing starts (but after dataset is loaded)
+	pool, err := getOrCreateGlobalPool()
+	if err != nil {
+		b.Fatalf("Failed to get global pool: %v", err)
+	}
+
+	_, err = pool.Exec(ctx, "TRUNCATE TABLE events RESTART IDENTITY CASCADE")
+	if err != nil {
+		b.Fatalf("Failed to truncate events table: %v", err)
+	}
+
+	// WARM-UP PHASE: Run the exact same logic we'll benchmark without timing
+	warmupBenchmark(func() {
+		// For conflict scenarios, create exactly 1 conflicting event
+		if conflictScenario {
+			uniqueID := fmt.Sprintf("warmup_conflict_%d", time.Now().UnixNano())
+			conflictEvent := dcb.NewInputEvent("CourseOffered",
+				dcb.NewTags("course_id", uniqueID, "category", "Computer Science"),
+				[]byte(fmt.Sprintf(`{
+					"id": "%s",
+					"name": "Conflicting Course",
+					"instructor": "Dr. Conflict",
+					"capacity": 50,
+					"category": "Computer Science",
+					"popularity": 0.5
+				}`, uniqueID)))
+
+			err := benchCtx.Store.Append(ctx, []dcb.InputEvent{conflictEvent})
+			if err != nil {
+				// Log but don't fail during warm-up
+				return
+			}
+		}
+
+		var wg sync.WaitGroup
+		results := make(chan error, concurrencyLevel)
+
+		// Launch concurrent AppendIf operations using WaitGroup.Go()
+		for j := 0; j < concurrencyLevel; j++ {
+			goroutineID := j // Capture loop variable
+			wg.Go(func() {
+				// Create unique ID for this goroutine
+				uniqueID := fmt.Sprintf("warmup_%d_%d", time.Now().UnixNano(), goroutineID)
+
+				// Create realistic events to append based on eventCount
+				events := make([]dcb.InputEvent, eventCount)
+				for k := 0; k < eventCount; k++ {
+					eventID := fmt.Sprintf("warmup_%s_%d", uniqueID, k)
+					
+					// Alternate between different realistic event types
+					switch k % 3 {
+					case 0: // CourseOffered
+						events[k] = dcb.NewInputEvent("CourseOffered",
+							dcb.NewTags("course_id", eventID, "category", "Computer Science"),
+							[]byte(fmt.Sprintf(`{
+								"id": "%s",
+								"name": "Advanced Programming",
+								"instructor": "Dr. Smith",
+								"capacity": 50,
+								"category": "Computer Science",
+								"popularity": 0.8
+							}`, eventID)))
+					case 1: // StudentRegistered
+						events[k] = dcb.NewInputEvent("StudentRegistered",
+							dcb.NewTags("student_id", eventID, "major", "Computer Science"),
+							[]byte(fmt.Sprintf(`{
+								"id": "%s",
+								"name": "John Doe",
+								"email": "john.doe@university.edu",
+								"major": "Computer Science",
+								"year": 3,
+								"maxCourses": 5
+							}`, eventID)))
+					case 2: // EnrollmentCompleted
+						events[k] = dcb.NewInputEvent("EnrollmentCompleted",
+							dcb.NewTags("student_id", eventID, "course_id", fmt.Sprintf("course_%d", k)),
+							[]byte(fmt.Sprintf(`{
+								"studentId": "%s",
+								"courseId": "course_%d",
+								"enrolledAt": "%s",
+								"grade": ""
+							}`, eventID, k, time.Now().Format(time.RFC3339))))
+					}
+				}
+
+				// Create realistic condition based on scenario
+				var condition dcb.AppendCondition
+				if conflictScenario {
+					// Condition that should fail (conflicting course exists)
+					condition = dcb.NewAppendCondition(
+						dcb.NewQuery(dcb.NewTags("course_id", uniqueID, "category", "Computer Science")),
+					)
+				} else {
+					// Condition that should pass (no conflicting course)
+					condition = dcb.NewAppendCondition(
+						dcb.NewQuery(dcb.NewTags("course_id", fmt.Sprintf("noconflict_%s", uniqueID), "category", "Computer Science")),
+					)
+				}
+
+				// Execute AppendIf
+				err := benchCtx.Store.AppendIf(ctx, events, condition)
+				if err != nil {
+					results <- fmt.Errorf("warmup realistic appendif failed: %v", err)
+					return
+				}
+
+				results <- nil
+			})
+		}
+
+		wg.Wait()
+		close(results)
+
+		// Check for errors but don't fail on warm-up
+		for err := range results {
+			if err != nil {
+				// Log but don't fail during warm-up
+				continue
+			}
+		}
+	})
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		// For conflict scenarios, create exactly 1 conflicting event
+		if conflictScenario {
+			uniqueID := fmt.Sprintf("conflict_%d_%d", time.Now().UnixNano(), i)
+			conflictEvent := dcb.NewInputEvent("CourseOffered",
+				dcb.NewTags("course_id", uniqueID, "category", "Computer Science"),
+				[]byte(fmt.Sprintf(`{
+					"id": "%s",
+					"name": "Conflicting Course",
+					"instructor": "Dr. Conflict",
+					"capacity": 50,
+					"category": "Computer Science",
+					"popularity": 0.5
+				}`, uniqueID)))
+
+			err := benchCtx.Store.Append(ctx, []dcb.InputEvent{conflictEvent})
+			if err != nil {
+				b.Fatalf("Failed to create conflicting event: %v", err)
+			}
+		}
+
+		var wg sync.WaitGroup
+		results := make(chan error, concurrencyLevel)
+
+		// Launch concurrent AppendIf operations using WaitGroup.Go()
+		for j := 0; j < concurrencyLevel; j++ {
+			goroutineID := j // Capture loop variable
+			wg.Go(func() {
+				// Create unique ID for this goroutine
+				uniqueID := fmt.Sprintf("realistic_%d_%d", time.Now().UnixNano(), goroutineID)
+
+				// Create realistic events to append based on eventCount
+				events := make([]dcb.InputEvent, eventCount)
+				for k := 0; k < eventCount; k++ {
+					eventID := fmt.Sprintf("realistic_%s_%d", uniqueID, k)
+					
+					// Alternate between different realistic event types
+					switch k % 3 {
+					case 0: // CourseOffered
+						events[k] = dcb.NewInputEvent("CourseOffered",
+							dcb.NewTags("course_id", eventID, "category", "Computer Science"),
+							[]byte(fmt.Sprintf(`{
+								"id": "%s",
+								"name": "Advanced Programming",
+								"instructor": "Dr. Smith",
+								"capacity": 50,
+								"category": "Computer Science",
+								"popularity": 0.8
+							}`, eventID)))
+					case 1: // StudentRegistered
+						events[k] = dcb.NewInputEvent("StudentRegistered",
+							dcb.NewTags("student_id", eventID, "major", "Computer Science"),
+							[]byte(fmt.Sprintf(`{
+								"id": "%s",
+								"name": "John Doe",
+								"email": "john.doe@university.edu",
+								"major": "Computer Science",
+								"year": 3,
+								"maxCourses": 5
+							}`, eventID)))
+					case 2: // EnrollmentCompleted
+						events[k] = dcb.NewInputEvent("EnrollmentCompleted",
+							dcb.NewTags("student_id", eventID, "course_id", fmt.Sprintf("course_%d", k)),
+							[]byte(fmt.Sprintf(`{
+								"studentId": "%s",
+								"courseId": "course_%d",
+								"enrolledAt": "%s",
+								"grade": ""
+							}`, eventID, k, time.Now().Format(time.RFC3339))))
+					}
+				}
+
+				// Create realistic condition based on scenario
+				var condition dcb.AppendCondition
+				if conflictScenario {
+					// Condition that should fail (conflicting course exists)
+					condition = dcb.NewAppendCondition(
+						dcb.NewQuery(dcb.NewTags("course_id", uniqueID, "category", "Computer Science")),
+					)
+				} else {
+					// Condition that should pass (no conflicting course)
+					condition = dcb.NewAppendCondition(
+						dcb.NewQuery(dcb.NewTags("course_id", fmt.Sprintf("noconflict_%s", uniqueID), "category", "Computer Science")),
+					)
+				}
+
+				// Execute AppendIf
+				err := benchCtx.Store.AppendIf(ctx, events, condition)
+				if conflictScenario && err != nil {
+					// Expected to fail in conflict scenario
+					results <- nil
+					return
+				} else if !conflictScenario && err != nil {
+					results <- fmt.Errorf("AppendIf should have succeeded: %v", err)
+					return
+				}
+
+				results <- nil
+			})
+		}
+
+		// Wait for all goroutines to complete
+		wg.Wait()
+		close(results)
+
+		// Check for any errors
+		for err := range results {
+			if err != nil {
+				b.Fatalf("Concurrent realistic AppendIf failed: %v", err)
+			}
+		}
+	}
+}
+
 // warmupBenchmark runs warm-up iterations without timing to ensure consistent performance
 func warmupBenchmark(warmupFunc func()) {
 	// Run warm-up iterations to warm up JIT compiler, CPU caches, memory allocators, and database connections
@@ -639,7 +886,7 @@ func BenchmarkAppendConcurrentRealistic(b *testing.B, benchCtx *BenchmarkContext
 				events := make([]dcb.InputEvent, eventCount)
 				for k := 0; k < eventCount; k++ {
 					eventID := fmt.Sprintf("warmup_%s_%d", uniqueID, k)
-					
+
 					// Alternate between different realistic event types
 					switch k % 3 {
 					case 0: // CourseOffered
@@ -717,7 +964,7 @@ func BenchmarkAppendConcurrentRealistic(b *testing.B, benchCtx *BenchmarkContext
 				events := make([]dcb.InputEvent, eventCount)
 				for k := 0; k < eventCount; k++ {
 					eventID := fmt.Sprintf("realistic_%s_%d", uniqueID, k)
-					
+
 					// Alternate between different realistic event types
 					switch k % 3 {
 					case 0: // CourseOffered
@@ -882,6 +1129,169 @@ func BenchmarkProjectConcurrent(b *testing.B, benchCtx *BenchmarkContext, gorout
 		for err := range results {
 			if err != nil {
 				b.Fatalf("Concurrent Project failed: %v", err)
+			}
+		}
+	}
+}
+
+// BenchmarkProjectConcurrentRealistic benchmarks concurrent projection operations using realistic dataset events
+// Uses CourseOffered, StudentRegistered, and EnrollmentCompleted events with realistic projectors
+func BenchmarkProjectConcurrentRealistic(b *testing.B, benchCtx *BenchmarkContext, goroutines int) {
+	// Create context with timeout using Go 1.25 WithTimeoutCause
+	ctx, cancel := context.WithTimeoutCause(context.Background(), 2*time.Minute,
+		fmt.Errorf("realistic projection benchmark timeout after 2 minutes"))
+	defer cancel()
+
+	// Truncate events table and create realistic test data BEFORE timing starts
+	pool, err := getOrCreateGlobalPool()
+	if err != nil {
+		b.Fatalf("Failed to get global pool: %v", err)
+	}
+
+	_, err = pool.Exec(ctx, "TRUNCATE TABLE events RESTART IDENTITY CASCADE")
+	if err != nil {
+		b.Fatalf("Failed to truncate events table: %v", err)
+	}
+
+	// Create realistic test events for projection benchmarks
+	testEvents := make([]dcb.InputEvent, 100)
+	for i := 0; i < 100; i++ {
+		eventID := fmt.Sprintf("realistic_event_%d", i)
+		
+		// Alternate between different realistic event types
+		switch i % 3 {
+		case 0: // CourseOffered
+			testEvents[i] = dcb.NewInputEvent("CourseOffered",
+				dcb.NewTags("course_id", eventID, "category", "Computer Science"),
+				[]byte(fmt.Sprintf(`{
+					"id": "%s",
+					"name": "Advanced Programming",
+					"instructor": "Dr. Smith",
+					"capacity": 50,
+					"category": "Computer Science",
+					"popularity": 0.8
+				}`, eventID)))
+		case 1: // StudentRegistered
+			testEvents[i] = dcb.NewInputEvent("StudentRegistered",
+				dcb.NewTags("student_id", eventID, "major", "Computer Science"),
+				[]byte(fmt.Sprintf(`{
+					"id": "%s",
+					"name": "John Doe",
+					"email": "john.doe@university.edu",
+					"major": "Computer Science",
+					"year": 3,
+					"maxCourses": 5
+				}`, eventID)))
+		case 2: // EnrollmentCompleted
+			testEvents[i] = dcb.NewInputEvent("EnrollmentCompleted",
+				dcb.NewTags("student_id", eventID, "course_id", fmt.Sprintf("course_%d", i)),
+				[]byte(fmt.Sprintf(`{
+					"studentId": "%s",
+					"courseId": "course_%d",
+					"enrolledAt": "%s",
+					"grade": ""
+				}`, eventID, i, time.Now().Format(time.RFC3339))))
+		}
+	}
+
+	// Append realistic test events to the store
+	if err := benchCtx.Store.Append(ctx, testEvents); err != nil {
+		b.Fatalf("Failed to append realistic test events: %v", err)
+	}
+
+	// Create realistic projectors for testing
+	courseProjector := dcb.StateProjector{
+		ID:           "course_count_projection",
+		Query:        dcb.NewQueryBuilder().WithType("CourseOffered").WithTag("category", "Computer Science").Build(),
+		InitialState: 0,
+		TransitionFn: func(state any, event dcb.Event) any {
+			return state.(int) + 1
+		},
+	}
+
+	studentProjector := dcb.StateProjector{
+		ID:           "student_count_projection",
+		Query:        dcb.NewQueryBuilder().WithType("StudentRegistered").WithTag("major", "Computer Science").Build(),
+		InitialState: 0,
+		TransitionFn: func(state any, event dcb.Event) any {
+			return state.(int) + 1
+		},
+	}
+
+	enrollmentProjector := dcb.StateProjector{
+		ID:           "enrollment_count_projection",
+		Query:        dcb.NewQueryBuilder().WithType("EnrollmentCompleted").Build(),
+		InitialState: 0,
+		TransitionFn: func(state any, event dcb.Event) any {
+			return state.(int) + 1
+		},
+	}
+
+	// Combine all realistic projectors
+	realisticProjectors := []dcb.StateProjector{courseProjector, studentProjector, enrollmentProjector}
+
+	// WARM-UP PHASE: Run the exact same logic we'll benchmark without timing
+	warmupBenchmark(func() {
+		var wg sync.WaitGroup
+		results := make(chan error, goroutines)
+
+		// Start concurrent realistic projections using core API's built-in limits
+		for j := 0; j < goroutines; j++ {
+			wg.Go(func() {
+				// Let the core API handle goroutine limits
+				_, _, err := benchCtx.Store.Project(ctx, realisticProjectors, nil)
+				if err != nil {
+					results <- fmt.Errorf("warmup realistic projection failed: %v", err)
+					return
+				}
+
+				results <- nil
+			})
+		}
+
+		// Wait for all goroutines to complete using Go 1.25 WaitGroup
+		wg.Wait()
+		close(results)
+
+		// Check for any errors
+		for err := range results {
+			if err != nil {
+				// Log but don't fail during warm-up
+				continue
+			}
+		}
+	})
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		// Use Go 1.25 WaitGroup.Go() for concurrent operations
+		var wg sync.WaitGroup
+		results := make(chan error, goroutines)
+
+		// Start concurrent realistic projections using core API's built-in limits
+		for j := 0; j < goroutines; j++ {
+			wg.Go(func() {
+				// Let the core API handle goroutine limits
+				_, _, err := benchCtx.Store.Project(ctx, realisticProjectors, nil)
+				if err != nil {
+					results <- fmt.Errorf("concurrent realistic projection failed: %v", err)
+					return
+				}
+
+				results <- nil
+			})
+		}
+
+		// Wait for all goroutines to complete using Go 1.25 WaitGroup
+		wg.Wait()
+		close(results)
+
+		// Check for any errors
+		for err := range results {
+			if err != nil {
+				b.Fatalf("Concurrent realistic Project failed: %v", err)
 			}
 		}
 	}
@@ -1258,8 +1668,52 @@ func RunAllBenchmarksRealistic(b *testing.B, datasetSize string) {
 		BenchmarkAppendConcurrentRealistic(b, benchCtx, 100, 10)
 	})
 
-	// Note: For now, we only have realistic Append benchmarks
-	// AppendIf and Project realistic benchmarks can be added in future phases
+	// Concurrent Realistic AppendIf benchmarks - NO CONFLICT (1 event)
+	b.Run("AppendIf_NoConflict_Concurrent_1User_1Event", func(b *testing.B) {
+		BenchmarkAppendIfConcurrentRealistic(b, benchCtx, 1, 1, false)
+	})
+
+	b.Run("AppendIf_NoConflict_Concurrent_100Users_1Event", func(b *testing.B) {
+		BenchmarkAppendIfConcurrentRealistic(b, benchCtx, 100, 1, false)
+	})
+
+	// Concurrent Realistic AppendIf benchmarks - NO CONFLICT (10 events)
+	b.Run("AppendIf_NoConflict_Concurrent_1User_10Events", func(b *testing.B) {
+		BenchmarkAppendIfConcurrentRealistic(b, benchCtx, 1, 10, false)
+	})
+
+	b.Run("AppendIf_NoConflict_Concurrent_100Users_10Events", func(b *testing.B) {
+		BenchmarkAppendIfConcurrentRealistic(b, benchCtx, 100, 10, false)
+	})
+
+	// Concurrent Realistic AppendIf benchmarks - WITH CONFLICT (1 event)
+	b.Run("AppendIf_WithConflict_Concurrent_1User_1Event", func(b *testing.B) {
+		BenchmarkAppendIfConcurrentRealistic(b, benchCtx, 1, 1, true)
+	})
+
+	b.Run("AppendIf_WithConflict_Concurrent_100Users_1Event", func(b *testing.B) {
+		BenchmarkAppendIfConcurrentRealistic(b, benchCtx, 100, 1, true)
+	})
+
+	// Concurrent Realistic AppendIf benchmarks - WITH CONFLICT (10 events)
+	b.Run("AppendIf_WithConflict_Concurrent_1User_10Events", func(b *testing.B) {
+		BenchmarkAppendIfConcurrentRealistic(b, benchCtx, 1, 10, true)
+	})
+
+	b.Run("AppendIf_WithConflict_Concurrent_100Users_10Events", func(b *testing.B) {
+		BenchmarkAppendIfConcurrentRealistic(b, benchCtx, 100, 10, true)
+	})
+
+	// Concurrent Realistic Project benchmarks
+	b.Run("Project_Concurrent_1User", func(b *testing.B) {
+		BenchmarkProjectConcurrentRealistic(b, benchCtx, 1)
+	})
+
+	b.Run("Project_Concurrent_100Users", func(b *testing.B) {
+		BenchmarkProjectConcurrentRealistic(b, benchCtx, 100)
+	})
+
+	// Note: ProjectStream realistic benchmarks can be added in future phases
 }
 
 // TestMain sets up and tears down the shared global pool for all benchmarks
