@@ -13,32 +13,26 @@
 **Column Explanations**:
 - **Dataset**: Test data size (Tiny: 5 courses/10 students, Small: 1K courses/10K students, Medium: 1K courses/10K students)
 - **Concurrency**: Number of concurrent users/goroutines running operations simultaneously
-- **Events**: Number of events appended per operation (1 = single event, 100 = batch of 100 events)
+- **Events**: Number of events appended per operation (1 = single event, 10 = batch of 10 events)
 - **Throughput (ops/sec)**: Operations completed per second (higher is better)
-- **Latency (ns/op)**: Time per operation in nanoseconds (lower is better)
-- **Memory (B/op)**: Memory allocated per operation in bytes (lower is better)
+- **Latency (ms/op)**: Time per operation in milliseconds (lower is better)
+- **Memory (KB/op)**: Memory allocated per operation in kilobytes (lower is better)
 - **Allocations**: Number of memory allocations per operation (lower is better)
 
-| Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
+| Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ms/op) | Memory (KB/op) | Allocations |
 |---------|-------------|--------|---------------------|-----------------|---------------|-------------|
-| Medium | 1 | 1 | 984 | 1,016,378 | 1,877 | 55 |
-| Small | 1 | 1 | 979 | 1,021,591 | 1,901 | 55 |
-| Tiny | 1 | 1 | 940 | 1,063,937 | 1,875 | 55 |
-| Small | 10 | 1 | 337 | 2,964,403 | 17,553 | 521 |
-| Tiny | 10 | 1 | 328 | 3,046,159 | 17,525 | 521 |
-| Medium | 10 | 1 | 299 | 3,339,308 | 17,522 | 521 |
-| Medium | 1 | 100 | 261 | 3,837,844 | 209,569 | 2,053 |
-| Small | 1 | 100 | 246 | 4,060,320 | 209,981 | 2,053 |
-| Tiny | 1 | 100 | 244 | 4,097,649 | 210,149 | 2,054 |
-| Medium | 100 | 1 | 73 | 13,711,205 | 182,523 | 5,257 |
-| Tiny | 100 | 1 | 72 | 13,835,732 | 182,497 | 5,258 |
-| Small | 100 | 1 | 62 | 16,006,970 | 182,861 | 5,258 |
-| Tiny | 10 | 100 | 40 | 24,919,232 | 2,096,906 | 20,505 |
-| Small | 10 | 100 | 39 | 25,352,330 | 2,095,482 | 20,496 |
-| Medium | 10 | 100 | 34 | 29,217,043 | 2,094,413 | 20,490 |
-| Medium | 100 | 100 | 4 | 234,358,689 | 2,095,436 | 205,059 |
-| Small | 100 | 100 | 4 | 265,204,075 | 2,095,318 | 205,066 |
-| Tiny | 100 | 100 | 4 | 253,122,474 | 2,096,825 | 205,114 |
+| Medium | 1 | 1 | 2,218 | 0.45 | 1.83 | 55 |
+| Tiny | 1 | 1 | 2,106 | 0.46 | 1.84 | 55 |
+| Small | 1 | 1 | 2,066 | 0.48 | 1.87 | 56 |
+| Tiny | 1 | 10 | 1,977 | 0.51 | 19.55 | 244 |
+| Medium | 1 | 10 | 1,972 | 0.51 | 19.54 | 243 |
+| Small | 1 | 10 | 1,773 | 0.56 | 19.55 | 243 |
+| Medium | 100 | 1 | 182 | 5.50 | 178.15 | 5,256 |
+| Tiny | 100 | 1 | 172 | 5.82 | 178.13 | 5,258 |
+| Small | 100 | 1 | 128 | 7.81 | 178.37 | 5,258 |
+| Medium | 100 | 10 | 100 | 10.00 | 1,949.29 | 24,067 |
+| Tiny | 100 | 10 | 100 | 10.00 | 1,950.08 | 24,074 |
+| Small | 100 | 10 | 80 | 12.50 | 1,949.56 | 24,075 |
 
 ## AppendIf Performance (No Conflict)
 
@@ -135,7 +129,7 @@
 - **Memory (B/op)**: Memory allocated per operation in bytes (lower is better)
 - **Allocations**: Number of memory allocations per operation (lower is better)
 
-| Operation | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
+| Operation | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ms/op) | Memory (KB/op) | Allocations |
 |-----------|---------|-------------|--------|---------------------|-----------------|---------------|-------------|
 | **Project** | Medium | 1 | 50,000 | 2,555 | 391,495 | 2,036 | 37 |
 | **Project** | Small | 1 | 25,000 | 2,550 | 391,810 | 2,036 | 37 |
@@ -174,7 +168,7 @@
 - **Memory (B/op)**: Memory allocated per operation in bytes (lower is better)
 - **Allocations**: Number of memory allocations per operation (lower is better)
 
-| Operation | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
+| Operation | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ms/op) | Memory (KB/op) | Allocations |
 |-----------|---------|-------------|--------|---------------------|-----------------|---------------|-------------|
 | **Concurrent_1User** | Small | 1 | - | 1,210 | 225,217 | 2,537 | 51 |
 | **Concurrent_10Users** | Small | 10 | - | 1,208 | 807,331 | 26,033 | 530 |

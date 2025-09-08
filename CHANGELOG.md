@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Performance Documentation Format**: Fixed performance table formatting and units
+  - **Latency Units**: Converted from nanoseconds to milliseconds (divided by 1,000,000) for better readability
+  - **Memory Units**: Converted from bytes to KB (divided by 1,024) for more practical measurements
+  - **Table Sorting**: Fixed ALL performance tables to sort by Throughput (ops/sec) in descending order
+  - **Consistency**: Applied formatting fixes to all performance documentation files
+  - **Readability**: Improved table readability with more practical units and proper sorting
 - **Benchmark Standardization**: Standardized benchmark concurrency levels and event counts for consistency
   - **Concurrency Levels**: Changed from `1, 10, 25` to `1, 100` users for all benchmark operations
   - **Attempted Events**: Changed from `1, 100` to `1, 10` events per operation for Append and AppendIf benchmarks
