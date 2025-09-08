@@ -69,7 +69,6 @@
 
 **AppendIf No Conflict Details**:
 - **Attempted Events**: Number of events AppendIf operation tries to append (1 or 10 events per operation)
-- **Actual Events**: Number of events successfully appended (1 or 10 events)
 - **Past Events**: Number of existing events in database before benchmark (100 events for all scenarios)
 - **Conflict Events**: 0 (no conflicts exist)
 
