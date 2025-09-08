@@ -83,22 +83,23 @@
 ## AppendIf Performance (No Conflict)
 
 **AppendIf No Conflict Details**:
-- **Attempted Events**: Number of events AppendIf operation tries to append (1 or 10 events per operation)
+- **Batch Size**: Number of events in the AppendIf transaction (1 or 10 events per transaction)
 - **Past Events**: Number of existing events in database before benchmark (100 events for all scenarios)
 - **Conflict Events**: 0 (no conflicts exist)
+- **Transaction Behavior**: Single transaction that either succeeds (appends ALL events) or fails (appends NO events)
 - **Business Logic**: Course enrollment system with realistic business rule validation
 
 **Column Explanations**:
 - **Dataset**: Test data size (Tiny: 5 courses/10 students, Small: 500 courses/5K students, Medium: 1K courses/10K students)
 - **Concurrency**: Number of concurrent users/goroutines running operations simultaneously
-- **Attempted Events**: Number of events AppendIf operation tries to append (1 or 10 events per operation)
+- **Batch Size**: Number of events in the AppendIf transaction (1 or 10 events per transaction)
 - **Throughput (ops/sec)**: Operations completed per second (higher is better)
 - **Latency (ms/op)**: Time per operation in milliseconds (lower is better)
 - **Memory (KB/op)**: Memory allocated per operation in kilobytes (lower is better)
 - **Allocations**: Number of memory allocations per operation (lower is better)
 
-| Dataset | Concurrency | Attempted Events | Throughput (ops/sec) | Latency (ms/op) | Memory (KB/op) | Allocations |
-|---------|-------------|------------------|---------------------|-----------------|---------------|-------------|
+| Dataset | Concurrency | Batch Size | Throughput (ops/sec) | Latency (ms/op) | Memory (KB/op) | Allocations |
+|---------|-------------|------------|---------------------|-----------------|---------------|-------------|
 | Tiny | 1 | 1 | 7,604 | 0.13 | 4.76 | 96 |
 | Small | 1 | 1 | 7,041 | 0.14 | 4.76 | 96 |
 | Medium | 1 | 1 | 7,290 | 0.14 | 4.76 | 96 |
@@ -115,15 +116,16 @@
 ## AppendIf Performance (With Conflict)
 
 **AppendIf With Conflict Details**:
-- **Attempted Events**: Number of events AppendIf operation tries to append (1 or 10 events per operation)
-- **Actual Events**: Number of events successfully appended (0 - all operations fail due to conflicts)
+- **Batch Size**: Number of events in the AppendIf transaction (1 or 10 events per transaction)
+- **Transaction Result**: All transactions fail due to conflicts (no events appended)
 - **Past Events**: Number of existing events in database before benchmark (100 events for all scenarios)
 - **Conflict Events**: Number of conflicting events created before AppendIf (1, 10, or 100 events, matching concurrency level)
+- **Transaction Behavior**: Single transaction that either succeeds (appends ALL events) or fails (appends NO events)
 
 **Column Explanations**:
 - **Dataset**: Test data size (Tiny: 5 courses/10 students, Small: 500 courses/5K students, Medium: 1K courses/10K students)
 - **Concurrency**: Number of concurrent users/goroutines running operations simultaneously
-- **Attempted Events**: Number of events AppendIf operation tries to append (1 or 10 events per operation)
+- **Batch Size**: Number of events in the AppendIf transaction (1 or 10 events per transaction)
 - **Conflict Events**: Number of conflicting events created before AppendIf (1, 10, or 100 events, matching concurrency level)
 - **Throughput (ops/sec)**: Operations completed per second (higher is better, but all fail due to conflicts)
 - **Latency (ms/op)**: Time per operation in milliseconds (lower is better)

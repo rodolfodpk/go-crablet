@@ -40,33 +40,42 @@
 
 ### Performance Differences
 
-**Local PostgreSQL vs Docker PostgreSQL Performance Comparison**:
+**Local PostgreSQL vs Docker PostgreSQL Performance Comparison (Realistic Benchmarks)**:
 
 | Operation | Dataset | Local PostgreSQL | Docker PostgreSQL | Performance Gain |
 |-----------|---------|------------------|-------------------|------------------|
-| **Append** | Tiny | 4,110 ops/sec | 2,406 ops/sec | **1.7x faster** |
-| **Append** | Small | 4,380 ops/sec | 2,110 ops/sec | **2.1x faster** |
-| **Append** | Medium | 4,100 ops/sec | 2,132 ops/sec | **1.9x faster** |
-| **AppendIf No Conflict** | Tiny | 1,164 ops/sec | 2,054 ops/sec | **1.8x faster** |
-| **AppendIf No Conflict** | Small | 864 ops/sec | 1,858 ops/sec | **2.2x faster** |
-| **AppendIf No Conflict** | Medium | 1,319 ops/sec | 2,061 ops/sec | **1.6x faster** |
-| **AppendIf With Conflict** | Tiny | 1,080 ops/sec | 1,132 ops/sec | **1.0x faster** |
-| **AppendIf With Conflict** | Small | 1,180 ops/sec | 1,171 ops/sec | **1.0x faster** |
-| **AppendIf With Conflict** | Medium | 1,179 ops/sec | 1,088 ops/sec | **1.1x faster** |
-| **ProjectStream** | Tiny | 5,665 ops/sec | 4,044 ops/sec | **1.4x faster** |
-| **ProjectStream** | Small | 5,665 ops/sec | 4,022 ops/sec | **1.4x faster** |
-| **ProjectStream** | Medium | 5,665 ops/sec | 3,992 ops/sec | **1.4x faster** |
-| **Project** | Tiny | 3,564 ops/sec | 1,766 ops/sec | **2.0x faster** |
-| **Project** | Small | 3,564 ops/sec | 1,704 ops/sec | **2.1x faster** |
-| **Project** | Medium | 3,564 ops/sec | 1,630 ops/sec | **2.2x faster** |
+| **Append** | Tiny | 8,668 ops/sec | 2,142 ops/sec | **4.0x faster** |
+| **Append** | Small | 9,096 ops/sec | 2,348 ops/sec | **3.9x faster** |
+| **Append** | Medium | 9,061 ops/sec | 2,175 ops/sec | **4.2x faster** |
+| **AppendIf No Conflict** | Tiny | 7,604 ops/sec | 2,139 ops/sec | **3.6x faster** |
+| **AppendIf No Conflict** | Small | 7,041 ops/sec | 2,172 ops/sec | **3.2x faster** |
+| **AppendIf No Conflict** | Medium | 7,290 ops/sec | 2,020 ops/sec | **3.6x faster** |
+| **AppendIf With Conflict** | Tiny | 4,221 ops/sec | 1,026 ops/sec | **4.1x faster** |
+| **AppendIf With Conflict** | Small | 4,021 ops/sec | 1,140 ops/sec | **3.5x faster** |
+| **AppendIf With Conflict** | Medium | 4,179 ops/sec | 1,027 ops/sec | **4.1x faster** |
+| **ProjectStream** | Tiny | 8,398 ops/sec | 3,586 ops/sec | **2.3x faster** |
+| **ProjectStream** | Small | 10,000 ops/sec | 3,628 ops/sec | **2.8x faster** |
+| **ProjectStream** | Medium | 10,000 ops/sec | 3,369 ops/sec | **3.0x faster** |
+| **Project** | Tiny | 6,082 ops/sec | 1,558 ops/sec | **3.9x faster** |
+| **Project** | Small | 7,119 ops/sec | 1,464 ops/sec | **4.9x faster** |
+| **Project** | Medium | 7,213 ops/sec | 1,419 ops/sec | **5.1x faster** |
+| **Query** | Tiny | 13,219 ops/sec | 2,041 ops/sec | **6.5x faster** |
+| **Query** | Small | 13,236 ops/sec | 2,594 ops/sec | **5.1x faster** |
+| **Query** | Medium | 13,242 ops/sec | 2,038 ops/sec | **6.5x faster** |
+| **QueryStream** | Tiny | 17,242 ops/sec | 4,539 ops/sec | **3.8x faster** |
+| **QueryStream** | Small | 18,691 ops/sec | 4,598 ops/sec | **4.1x faster** |
+| **QueryStream** | Medium | 19,407 ops/sec | 4,932 ops/sec | **3.9x faster** |
+| **ProjectionLimits** | Tiny | 6,093 ops/sec | 1,281 ops/sec | **4.8x faster** |
+| **ProjectionLimits** | Small | 6,837 ops/sec | 1,344 ops/sec | **5.1x faster** |
+| **ProjectionLimits** | Medium | 6,933 ops/sec | 1,294 ops/sec | **5.4x faster** |
 
 **Key Performance Insights**:
-- **Local PostgreSQL**: ~1.4-2.2x faster for most operations
-- **Docker PostgreSQL**: Additional latency from containerization
-- **Memory**: Local uses system memory, Docker has container limits
-- **I/O**: Local has direct disk access, Docker uses volume mounts
-- **Network**: Local uses localhost, Docker uses container networking
-- **Resource Contention**: Local has full system resources, Docker shares with host
+- **Local PostgreSQL**: 3.2-6.5x faster across all operations with realistic benchmarks
+- **Read Operations**: Query and QueryStream show the largest performance gains (5.1-6.5x faster)
+- **Write Operations**: Append and AppendIf show significant improvements (3.2-4.2x faster)
+- **Projection Operations**: Project and ProjectStream perform 2.3-5.1x faster
+- **Realistic Benchmarks**: Performance differences are more pronounced than generic benchmarks
+- **Business Logic**: Realistic event structures and queries show true production performance
 
 ## Environment Switching
 
@@ -80,9 +89,9 @@ docker-compose down
 # Start Local PostgreSQL
 brew services start postgresql@16
 
-# Run benchmarks
+# Run realistic benchmarks
 cd internal/benchmarks
-go test -bench="BenchmarkAppend" -benchmem -benchtime=2s -timeout=10m .
+go test -bench="BenchmarkAppend_.*_Realistic" -benchmem -benchtime=2s -timeout=10m .
 ```
 
 ### Switch to Docker PostgreSQL
@@ -93,9 +102,9 @@ brew services stop postgresql@16
 # Start Docker PostgreSQL
 docker-compose up -d
 
-# Run benchmarks
+# Run realistic benchmarks
 cd internal/benchmarks
-go test -bench="BenchmarkAppend" -benchmem -benchtime=2s -timeout=10m .
+go test -bench="BenchmarkAppend_.*_Realistic" -benchmem -benchtime=2s -timeout=10m .
 ```
 
 ## Dataset Sizes
