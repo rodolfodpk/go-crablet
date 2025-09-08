@@ -11,6 +11,28 @@
 - **Measurement**: Uses Go's `testing.B.Elapsed()` for precise timing and `b.ReportMetric()` for reporting
 - **Note**: This measures API calls per second, not individual events or database transactions
 
+### Benchmark Warm-up Procedure
+
+**All benchmarks include comprehensive warm-up to ensure accurate steady-state performance measurements:**
+
+- **Application-level warm-up**: Each benchmark runs its core logic multiple times before timing begins
+- **Database query plan warm-up**: PostgreSQL query plans are cached and optimized before measurements
+- **JIT compiler warm-up**: Go's runtime optimizations are applied during warm-up iterations
+- **Memory allocator warm-up**: Memory pools and allocation patterns are stabilized
+- **CPU cache warm-up**: Instruction and data caches are populated with relevant data
+
+**Warm-up Implementation**:
+- **Pre-timing iterations**: Core benchmark logic runs without timing (`b.ResetTimer()` called after warm-up)
+- **Database queries**: Append and Query operations are executed to warm up PostgreSQL query plans
+- **Consistent environment**: All benchmarks use the same warm-up procedure for fair comparison
+- **Steady-state measurement**: Only warmed-up performance is measured and reported
+
+**Benefits**:
+- **Accurate performance**: Eliminates cold-start effects and initialization overhead
+- **Consistent results**: Reduces variance between benchmark runs
+- **Real-world performance**: Reflects actual production performance characteristics
+- **Fair comparison**: All operations start from the same warmed-up state
+
 ## Append Performance
 
 **Append Operations Details**:
