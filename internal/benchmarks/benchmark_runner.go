@@ -1977,6 +1977,117 @@ func RunAllBenchmarks(b *testing.B, datasetSize string) {
 
 }
 
+// BenchmarkQueryConcurrentRealistic benchmarks realistic Query operations with business events
+func BenchmarkQueryConcurrentRealistic(b *testing.B, benchCtx *BenchmarkContext, goroutines int) {
+	ctx := context.Background()
+
+	// Warm-up: Run a few iterations without timing to stabilize JIT and caches
+	for i := 0; i < 3; i++ {
+		query := dcb.NewQuery(dcb.NewTags("category", "Computer Science"), "CourseOffered")
+		_, err := benchCtx.Store.Query(ctx, query, nil)
+		if err != nil {
+			b.Fatalf("Query warm-up failed: %v", err)
+		}
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		var wg sync.WaitGroup
+		results := make(chan error, goroutines)
+
+		for j := 0; j < goroutines; j++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+
+				// Realistic query: Find all Computer Science course offerings
+				query := dcb.NewQuery(dcb.NewTags("category", "Computer Science"), "CourseOffered")
+				_, err := benchCtx.Store.Query(ctx, query, nil)
+				if err != nil {
+					results <- fmt.Errorf("concurrent Query failed: %v", err)
+					return
+				}
+
+				results <- nil
+			}()
+		}
+
+		wg.Wait()
+		close(results)
+
+		// Check for errors
+		for err := range results {
+			if err != nil {
+				b.Fatalf("Query benchmark failed: %v", err)
+			}
+		}
+	}
+}
+
+// BenchmarkQueryStreamConcurrentRealistic benchmarks realistic QueryStream operations with business events
+func BenchmarkQueryStreamConcurrentRealistic(b *testing.B, benchCtx *BenchmarkContext, goroutines int) {
+	ctx := context.Background()
+
+	// Warm-up: Run a few iterations without timing to stabilize JIT and caches
+	for i := 0; i < 3; i++ {
+		query := dcb.NewQuery(dcb.NewTags("major", "Computer Science"), "StudentRegistered")
+		eventChan, err := benchCtx.Store.QueryStream(ctx, query, nil)
+		if err != nil {
+			b.Fatalf("QueryStream warm-up failed: %v", err)
+		}
+
+		// Consume from channels to prevent blocking
+		select {
+		case <-eventChan:
+		case <-time.After(1 * time.Second):
+		}
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		var wg sync.WaitGroup
+		results := make(chan error, goroutines)
+
+		for j := 0; j < goroutines; j++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+
+				// Realistic query: Stream all Computer Science student registrations
+				query := dcb.NewQuery(dcb.NewTags("major", "Computer Science"), "StudentRegistered")
+				eventChan, err := benchCtx.Store.QueryStream(ctx, query, nil)
+				if err != nil {
+					results <- fmt.Errorf("concurrent QueryStream failed: %v", err)
+					return
+				}
+
+				// Consume from channels (API handles concurrency internally)
+				select {
+				case <-eventChan:
+					// Use event to prevent optimization
+				case <-time.After(5 * time.Second):
+					results <- fmt.Errorf("QueryStream timeout")
+					return
+				}
+
+				results <- nil
+			}()
+		}
+
+		wg.Wait()
+		close(results)
+
+		// Check for errors
+		for err := range results {
+			if err != nil {
+				b.Fatalf("QueryStream benchmark failed: %v", err)
+			}
+		}
+	}
+}
+
 // RunAllBenchmarksRealistic runs all realistic benchmarks using actual dataset events
 // Uses CourseOffered, StudentRegistered, and EnrollmentCompleted events
 func RunAllBenchmarksRealistic(b *testing.B, datasetSize string) {
@@ -2055,6 +2166,24 @@ func RunAllBenchmarksRealistic(b *testing.B, datasetSize string) {
 
 	b.Run("ProjectStream_Concurrent_100Users", func(b *testing.B) {
 		BenchmarkProjectStreamConcurrentRealistic(b, benchCtx, 100)
+	})
+
+	// Realistic Read benchmarks (Query operations)
+	b.Run("Query_Concurrent_1User", func(b *testing.B) {
+		BenchmarkQueryConcurrentRealistic(b, benchCtx, 1)
+	})
+
+	b.Run("Query_Concurrent_100Users", func(b *testing.B) {
+		BenchmarkQueryConcurrentRealistic(b, benchCtx, 100)
+	})
+
+	// Realistic Read Stream benchmarks (QueryStream operations)
+	b.Run("QueryStream_Concurrent_1User", func(b *testing.B) {
+		BenchmarkQueryStreamConcurrentRealistic(b, benchCtx, 1)
+	})
+
+	b.Run("QueryStream_Concurrent_100Users", func(b *testing.B) {
+		BenchmarkQueryStreamConcurrentRealistic(b, benchCtx, 100)
 	})
 
 	// Realistic ProjectionLimits benchmarks
