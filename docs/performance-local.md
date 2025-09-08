@@ -57,7 +57,7 @@
 - **Model**: Realistic business events with proper JSON data structures
 
 **Column Explanations**:
-- **Dataset**: Test data size (Tiny: 5 courses/10 students, Small: 1K courses/10K students, Medium: 1K courses/10K students)
+- **Dataset**: Test data size (Tiny: 5 courses/10 students, Small: 500 courses/5K students, Medium: 1K courses/10K students)
 - **Concurrency**: Number of concurrent users/goroutines running operations simultaneously
 - **Events**: Number of events appended per operation (1 = single event, 10 = batch of 10 events)
 - **Throughput (ops/sec)**: Operations completed per second (higher is better)
@@ -89,7 +89,7 @@
 - **Business Logic**: Realistic course enrollment conditions using CourseOffered events
 
 **Column Explanations**:
-- **Dataset**: Test data size (Tiny: 5 courses/10 students, Small: 1K courses/10K students, Medium: 1K courses/10K students)
+- **Dataset**: Test data size (Tiny: 5 courses/10 students, Small: 500 courses/5K students, Medium: 1K courses/10K students)
 - **Concurrency**: Number of concurrent users/goroutines running operations simultaneously
 - **Attempted Events**: Number of events the AppendIf operation tries to append per operation
 - **Throughput (ops/sec)**: Operations completed per second (higher is better)
@@ -122,7 +122,7 @@
 - **Business Logic**: Realistic course enrollment conflicts using CourseOffered events with matching course IDs
 
 **Column Explanations**:
-- **Dataset**: Test data size (Tiny: 5 courses/10 students, Small: 1K courses/10K students, Medium: 1K courses/10K students)
+- **Dataset**: Test data size (Tiny: 5 courses/10 students, Small: 500 courses/5K students, Medium: 1K courses/10K students)
 - **Concurrency**: Number of concurrent users/goroutines running operations simultaneously
 - **Attempted Events**: Number of events the AppendIf operation tries to append per operation
 - **Conflict Events**: Number of conflicting events created before the AppendIf operation (causes all operations to fail)
@@ -156,7 +156,7 @@
 
 **Column Explanations**:
 - **Operation**: Type of projection operation (Project = single-threaded, ProjectStream = streaming with channels)
-- **Dataset**: Test data size (Tiny: 5 courses/10 students, Small: 1K courses/10K students, Medium: 1K courses/10K students)
+- **Dataset**: Test data size (Tiny: 5 courses/10 students, Small: 500 courses/5K students, Medium: 1K courses/10K students)
 - **Concurrency**: Number of concurrent users/goroutines running operations simultaneously
 - **Events**: Number of events processed during projection (varies by dataset size)
 - **Throughput (ops/sec)**: Operations completed per second (higher is better)
@@ -189,7 +189,7 @@
 
 **Column Explanations**:
 - **Operation**: Type of projection operation (ProjectionLimits = testing concurrency limits)
-- **Dataset**: Test data size (Tiny: 5 courses/10 students, Small: 1K courses/10K students, Medium: 1K courses/10K students)
+- **Dataset**: Test data size (Tiny: 5 courses/10 students, Small: 500 courses/5K students, Medium: 1K courses/10K students)
 - **Concurrency**: Number of concurrent users/goroutines running operations simultaneously
 - **Events**: Number of events processed during projection (varies by dataset size)
 - **Throughput (ops/sec)**: Operations completed per second (higher is better)
