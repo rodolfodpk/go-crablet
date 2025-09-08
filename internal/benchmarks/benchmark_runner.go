@@ -320,6 +320,78 @@ func BenchmarkAppendIfConcurrent(b *testing.B, benchCtx *BenchmarkContext, concu
 		b.Fatalf("Failed to truncate events table: %v", err)
 	}
 
+	// WARM-UP PHASE: Run the exact same logic we'll benchmark without timing
+	warmupBenchmark(func() {
+		// For conflict scenarios, create exactly 1 conflicting event
+		if conflictScenario {
+			uniqueID := fmt.Sprintf("warmup_conflict_%d", time.Now().UnixNano())
+			conflictEvent := dcb.NewInputEvent("WarmupConflictingEvent",
+				dcb.NewTags("test", "warmup", "unique_id", uniqueID),
+				[]byte(fmt.Sprintf(`{"value": "warmup", "unique_id": "%s"}`, uniqueID)))
+
+			err := benchCtx.Store.Append(ctx, []dcb.InputEvent{conflictEvent})
+			if err != nil {
+				// Log but don't fail during warm-up
+				return
+			}
+		}
+
+		var wg sync.WaitGroup
+		results := make(chan error, concurrencyLevel)
+
+		// Launch concurrent AppendIf operations using WaitGroup.Go()
+		for j := 0; j < concurrencyLevel; j++ {
+			goroutineID := j // Capture loop variable
+			wg.Go(func() {
+				// Create unique ID for this goroutine
+				uniqueID := fmt.Sprintf("warmup_%d_%d", time.Now().UnixNano(), goroutineID)
+
+				// Create events to append
+				events := make([]dcb.InputEvent, eventCount)
+				for k := 0; k < eventCount; k++ {
+					eventID := fmt.Sprintf("warmup_%s_%d", uniqueID, k)
+					events[k] = dcb.NewInputEvent("WarmupEvent",
+						dcb.NewTags("test", "warmup", "unique_id", eventID),
+						[]byte(fmt.Sprintf(`{"value": "warmup", "unique_id": "%s"}`, eventID)))
+				}
+
+				// Create condition
+				var condition dcb.AppendCondition
+				if conflictScenario {
+					// Condition that should fail (conflicting event exists)
+					condition = dcb.NewAppendCondition(
+						dcb.NewQuery(dcb.NewTags("test", "conflict")),
+					)
+				} else {
+					// Condition that should pass (no conflicting event)
+					condition = dcb.NewAppendCondition(
+						dcb.NewQuery(dcb.NewTags("test", "noconflict", "unique_id", uniqueID)),
+					)
+				}
+
+				// Execute AppendIf
+				err := benchCtx.Store.AppendIf(ctx, events, condition)
+				if err != nil {
+					results <- fmt.Errorf("warmup appendif failed: %v", err)
+					return
+				}
+
+				results <- nil
+			})
+		}
+
+		wg.Wait()
+		close(results)
+
+		// Check for errors but don't fail on warm-up
+		for err := range results {
+			if err != nil {
+				// Log but don't fail during warm-up
+				continue
+			}
+		}
+	})
+
 	b.ResetTimer()
 	b.ReportAllocs()
 
@@ -398,7 +470,31 @@ func BenchmarkAppendIfConcurrent(b *testing.B, benchCtx *BenchmarkContext, concu
 	}
 }
 
-// BenchmarkAppendConcurrent benchmarks concurrent Append operations
+// warmupBenchmark runs warm-up iterations without timing to ensure consistent performance
+func warmupBenchmark(warmupFunc func()) {
+	// Run warm-up iterations to warm up JIT compiler, CPU caches, memory allocators, and database connections
+	warmupIterations := 3
+	for i := 0; i < warmupIterations; i++ {
+		warmupFunc()
+	}
+}
+
+// warmupDatabaseQueries warms up PostgreSQL query plans and connection pool
+func warmupDatabaseQueries(ctx context.Context, store dcb.EventStore) {
+	// Warm up Append operations
+	for i := 0; i < 3; i++ {
+		events := []dcb.InputEvent{
+			dcb.NewInputEvent("WarmupEvent", dcb.NewTags("warmup", "true"), []byte(`{"warmup": true}`)),
+		}
+		store.Append(ctx, events) // This builds query plans for INSERT
+	}
+
+	// Warm up Query operations
+	for i := 0; i < 3; i++ {
+		query := dcb.NewQuery(dcb.NewTags("warmup", "true"), "WarmupEvent")
+		store.Query(ctx, query, nil) // This builds query plans for SELECT
+	}
+}
 func BenchmarkAppendConcurrent(b *testing.B, benchCtx *BenchmarkContext, concurrencyLevel int, eventCount int) {
 	// Create context with timeout for each benchmark iteration using Go 1.25 WithTimeoutCause
 	ctx, cancel := context.WithTimeoutCause(context.Background(), 2*time.Minute,
@@ -415,6 +511,50 @@ func BenchmarkAppendConcurrent(b *testing.B, benchCtx *BenchmarkContext, concurr
 	if err != nil {
 		b.Fatalf("Failed to truncate events table: %v", err)
 	}
+
+	// WARM-UP PHASE: Run the exact same logic we'll benchmark without timing
+	warmupBenchmark(func() {
+		var wg sync.WaitGroup
+		results := make(chan error, concurrencyLevel)
+
+		// Launch concurrent Append operations using WaitGroup.Go()
+		for j := 0; j < concurrencyLevel; j++ {
+			goroutineID := j // Capture loop variable
+			wg.Go(func() {
+				// Create unique ID for this goroutine
+				uniqueID := fmt.Sprintf("warmup_%d_%d", time.Now().UnixNano(), goroutineID)
+
+				// Create multiple events to append
+				events := make([]dcb.InputEvent, eventCount)
+				for k := 0; k < eventCount; k++ {
+					eventID := fmt.Sprintf("warmup_%s_%d", uniqueID, k)
+					events[k] = dcb.NewInputEvent("WarmupEvent",
+						dcb.NewTags("test", "warmup", "unique_id", eventID),
+						[]byte(fmt.Sprintf(`{"value": "warmup", "unique_id": "%s"}`, eventID)))
+				}
+
+				// Execute Append
+				err := benchCtx.Store.Append(ctx, events)
+				if err != nil {
+					results <- fmt.Errorf("warmup append failed: %v", err)
+					return
+				}
+
+				results <- nil
+			})
+		}
+
+		wg.Wait()
+		close(results)
+
+		// Check for errors but don't fail on warm-up
+		for err := range results {
+			if err != nil {
+				// Log but don't fail during warm-up
+				continue
+			}
+		}
+	})
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -507,6 +647,37 @@ func BenchmarkProjectConcurrent(b *testing.B, benchCtx *BenchmarkContext, gorout
 		},
 	}
 
+	// WARM-UP PHASE: Run the exact same logic we'll benchmark without timing
+	warmupBenchmark(func() {
+		var wg sync.WaitGroup
+		results := make(chan error, goroutines)
+
+		// Start concurrent projections using core API's built-in limits
+		for j := 0; j < goroutines; j++ {
+			wg.Go(func() {
+				// Let the core API handle goroutine limits
+				_, _, err := benchCtx.Store.Project(ctx, []dcb.StateProjector{projector}, nil)
+				if err != nil {
+					results <- fmt.Errorf("warmup projection failed: %v", err)
+					return
+				}
+
+				results <- nil
+			})
+		}
+
+		wg.Wait()
+		close(results)
+
+		// Check for errors but don't fail on warm-up
+		for err := range results {
+			if err != nil {
+				// Log but don't fail during warm-up
+				continue
+			}
+		}
+	})
+
 	b.ResetTimer()
 	b.ReportAllocs()
 
@@ -581,6 +752,54 @@ func BenchmarkProjectStreamConcurrent(b *testing.B, benchCtx *BenchmarkContext, 
 			return state.(int) + 1
 		},
 	}
+
+	// WARM-UP PHASE: Run the exact same logic we'll benchmark without timing
+	warmupBenchmark(func() {
+		var wg sync.WaitGroup
+		results := make(chan error, goroutines)
+
+		// Start concurrent streaming projections using core API's built-in limits
+		for j := 0; j < goroutines; j++ {
+			wg.Go(func() {
+				// Let the core API handle goroutine limits and streaming
+				stateChan, conditionChan, err := benchCtx.Store.ProjectStream(ctx, []dcb.StateProjector{projector}, nil)
+				if err != nil {
+					results <- fmt.Errorf("warmup ProjectStream failed: %v", err)
+					return
+				}
+
+				// Consume from channels (API handles concurrency internally)
+				select {
+				case state := <-stateChan:
+					_ = state // Use state to prevent optimization
+				case <-time.After(5 * time.Second):
+					results <- fmt.Errorf("warmup ProjectStream timeout")
+					return
+				}
+
+				select {
+				case condition := <-conditionChan:
+					_ = condition // Use condition to prevent optimization
+				case <-time.After(5 * time.Second):
+					results <- fmt.Errorf("warmup ProjectStream condition timeout")
+					return
+				}
+
+				results <- nil
+			})
+		}
+
+		wg.Wait()
+		close(results)
+
+		// Check for errors but don't fail on warm-up
+		for err := range results {
+			if err != nil {
+				// Log but don't fail during warm-up
+				continue
+			}
+		}
+	})
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -677,6 +896,31 @@ func BenchmarkProjectionLimits(b *testing.B, benchCtx *BenchmarkContext, gorouti
 			return state.(int) + 1
 		},
 	}
+
+	// WARM-UP PHASE: Run the exact same logic we'll benchmark without timing
+	warmupBenchmark(func() {
+		// Launch concurrent projections (may exceed limit of 5)
+		var wg sync.WaitGroup
+		results := make(chan error, goroutines)
+
+		for j := 0; j < goroutines; j++ {
+			wg.Go(func() {
+				_, _, err := store.Project(context.Background(), []dcb.StateProjector{projector}, nil)
+				results <- err
+			})
+		}
+
+		wg.Wait()
+		close(results)
+
+		// Check for errors but don't fail on warm-up
+		for err := range results {
+			if err != nil {
+				// Log but don't fail during warm-up
+				continue
+			}
+		}
+	})
 
 	b.ResetTimer()
 	b.ReportAllocs()
