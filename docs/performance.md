@@ -39,10 +39,34 @@
 | **Development** | **Recommended** for local development | Good for CI/CD and testing |
 
 ### Performance Differences
-- **Local PostgreSQL**: ~20-30% faster for most operations
+
+**Local PostgreSQL vs Docker PostgreSQL Performance Comparison**:
+
+| Operation | Dataset | Local PostgreSQL | Docker PostgreSQL | Performance Gain |
+|-----------|---------|------------------|-------------------|------------------|
+| **Append** | Tiny | 4,110 ops/sec | 2,406 ops/sec | **1.7x faster** |
+| **Append** | Small | 4,380 ops/sec | 2,110 ops/sec | **2.1x faster** |
+| **Append** | Medium | 4,100 ops/sec | 2,132 ops/sec | **1.9x faster** |
+| **AppendIf No Conflict** | Tiny | 1,164 ops/sec | 2,054 ops/sec | **1.8x faster** |
+| **AppendIf No Conflict** | Small | 864 ops/sec | 1,858 ops/sec | **2.2x faster** |
+| **AppendIf No Conflict** | Medium | 1,319 ops/sec | 2,061 ops/sec | **1.6x faster** |
+| **AppendIf With Conflict** | Tiny | 1,080 ops/sec | 1,132 ops/sec | **1.0x faster** |
+| **AppendIf With Conflict** | Small | 1,180 ops/sec | 1,171 ops/sec | **1.0x faster** |
+| **AppendIf With Conflict** | Medium | 1,179 ops/sec | 1,088 ops/sec | **1.1x faster** |
+| **ProjectStream** | Tiny | 5,665 ops/sec | 4,044 ops/sec | **1.4x faster** |
+| **ProjectStream** | Small | 5,665 ops/sec | 4,022 ops/sec | **1.4x faster** |
+| **ProjectStream** | Medium | 5,665 ops/sec | 3,992 ops/sec | **1.4x faster** |
+| **Project** | Tiny | 3,564 ops/sec | 1,766 ops/sec | **2.0x faster** |
+| **Project** | Small | 3,564 ops/sec | 1,704 ops/sec | **2.1x faster** |
+| **Project** | Medium | 3,564 ops/sec | 1,630 ops/sec | **2.2x faster** |
+
+**Key Performance Insights**:
+- **Local PostgreSQL**: ~1.4-2.2x faster for most operations
 - **Docker PostgreSQL**: Additional latency from containerization
 - **Memory**: Local uses system memory, Docker has container limits
 - **I/O**: Local has direct disk access, Docker uses volume mounts
+- **Network**: Local uses localhost, Docker uses container networking
+- **Resource Contention**: Local has full system resources, Docker shares with host
 
 ## Environment Switching
 
