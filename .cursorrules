@@ -273,6 +273,8 @@ go test -v ./pkg/dcb/tests/...
 - **Performance ratios** calculated and displayed
 - **Units clearly specified** (ops/sec, KB, MB, etc.)
 - **ALL tables MUST be sorted by Throughput (ops/sec) in descending order** - Highest throughput first
+- **CRITICAL: Every performance table must be sorted by throughput column** - No exceptions
+- **Table sorting validation**: Before committing, verify all tables are sorted by throughput descending
 
 ### Performance Comparison Table Structure
 
