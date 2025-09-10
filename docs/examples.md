@@ -20,10 +20,10 @@ import (
 )
 
 // BEST PRACTICE: Define event data as structs for type safety and performance
-type UserRegisteredData struct {
-    Name         string    `json:"name"`
-    Email        string    `json:"email"`
-    RegisteredAt time.Time `json:"registered_at"`
+type CourseOfferedData struct {
+    Title    string `json:"title"`
+    Credits  int    `json:"credits"`
+    Capacity int    `json:"capacity"`
 }
 
 func main() {
@@ -38,12 +38,13 @@ func main() {
     
     // Create events with struct-based data (RECOMMENDED)
     events := []dcb.InputEvent{
-        dcb.NewEvent("UserRegistered").
-            WithTag("user_id", "123").
-            WithData(UserRegisteredData{
-                Name:         "John Doe",
-                Email:        "john@example.com",
-                RegisteredAt: time.Now(),
+        dcb.NewEvent("CourseOffered").
+            WithTag("course_id", "CS101").
+            WithTag("department", "Computer Science").
+            WithData(CourseOfferedData{
+                Title:    "Introduction to Computer Science",
+                Credits:  3,
+                Capacity: 30,
             }).
             Build(),
     }
@@ -54,7 +55,7 @@ func main() {
         log.Fatal(err)
     }
     
-    log.Println("User registered successfully")
+    log.Println("Course offered successfully")
 }
 ```
 
@@ -62,27 +63,29 @@ func main() {
 
 ```go
 // BEST PRACTICE: Use structs for event data
-type TransferCompletedData struct {
-    Amount      float64 `json:"amount"`
-    TransferID  string  `json:"transfer_id"`
+type EnrollmentCompletedData struct {
+    StudentID string `json:"student_id"`
+    CourseID  string `json:"course_id"`
+    Grade     string `json:"grade"`
 }
 
 // Create events with business rule validation
 events := []dcb.InputEvent{
-    dcb.NewEvent("TransferCompleted").
-        WithTag("from_account", "acc-001").
-        WithTag("to_account", "acc-002").
-        WithData(TransferCompletedData{
-            Amount:     100.0,
-            TransferID: "txn-123",
+    dcb.NewEvent("EnrollmentCompleted").
+        WithTag("student_id", "student123").
+        WithTag("course_id", "CS101").
+        WithData(EnrollmentCompletedData{
+            StudentID: "student123",
+            CourseID:  "CS101",
+            Grade:     "A",
         }).
         Build(),
 }
 
-// Create condition to ensure accounts exist using QueryBuilder
+// Create condition to ensure student is registered using QueryBuilder
 query := dcb.NewQueryBuilder().
-    WithTag("account_id", "acc-001").
-    WithType("AccountCreated").
+    WithTag("student_id", "student123").
+    WithType("StudentRegistered").
     Build()
 condition := dcb.NewAppendCondition(query)
 
@@ -90,7 +93,7 @@ condition := dcb.NewAppendCondition(query)
 err = store.AppendIf(ctx, events, condition)
 if err != nil {
     if dcb.IsConcurrencyError(err) {
-        log.Println("Transfer failed: account does not exist")
+        log.Println("Enrollment failed: student not registered")
     } else {
         log.Fatal(err)
     }
@@ -124,7 +127,7 @@ func handleEnrollStudent(ctx context.Context, store dcb.EventStore, cmd dcb.Comm
     }
     
     // Create enrollment event
-    event := dcb.NewEvent("StudentEnrolled").
+    event := dcb.NewEvent("EnrollmentCompleted").
         WithTag("student_id", data.StudentID).
         WithTag("course_id", data.CourseID).
         WithData(map[string]any{
@@ -156,7 +159,7 @@ enrollmentCondition := dcb.NewAppendCondition(
     dcb.NewQueryBuilder().
         WithTag("student_id", "student123").
         WithTag("course_id", "CS101").
-        WithType("StudentEnrolled").
+        WithType("EnrollmentCompleted").
         Build(),
 )
 
@@ -179,7 +182,7 @@ if err != nil {
 // Query events by tags using QueryBuilder
 query := dcb.NewQueryBuilder().
     WithTag("course_id", "CS101").
-    WithType("StudentEnrolled").
+    WithType("EnrollmentCompleted").
     Build()
 
 events, err := store.Query(ctx, query, nil)
@@ -210,7 +213,7 @@ for event := range eventChan {
 // Query events from the last hour using QueryBuilder
 recentQuery := dcb.NewQueryBuilder().
     WithTag("course_id", "CS101").
-    WithType("StudentEnrolled").
+    WithType("EnrollmentCompleted").
     SinceDuration(1 * time.Hour).
     Build()
 
@@ -245,8 +248,8 @@ projector := dcb.StateProjector{
 		currentState := state.(CourseEnrollmentState)
 		
 		switch event.GetEventType() {
-		case EventTypeStudentEnrolled:
-			var data StudentEnrolledData
+		case EventTypeEnrollmentCompleted:
+			var data EnrollmentCompletedData
 			if err := json.Unmarshal(event.GetData(), &data); err == nil {
 				studentID := data.StudentID
 				currentState.EnrolledStudents = append(currentState.EnrolledStudents, studentID)
@@ -273,15 +276,15 @@ log.Printf("Course has %d enrolled students", len(courseState["enrolled_students
 ```go
 // Create multiple events in a batch
 events := []dcb.InputEvent{
-    dcb.NewEvent("CourseCreated").
+    dcb.NewEvent("CourseOffered").
         WithTag("course_id", "CS101").
         WithData(map[string]any{
-            "name": "Introduction to Computer Science",
+            "title": "Introduction to Computer Science",
             "capacity": 30,
         }).
         Build(),
     
-    dcb.NewEvent("StudentEnrolled").
+    dcb.NewEvent("EnrollmentCompleted").
         WithTag("student_id", "student123").
         WithTag("course_id", "CS101").
         WithData(map[string]any{
@@ -301,7 +304,7 @@ err = store.Append(ctx, events)
 // This creates an OR condition: (course exists) OR (student is registered)
 complexQuery := dcb.NewQueryBuilder().
     WithTag("course_id", "CS101").
-    WithType("CourseCreated").
+    WithType("CourseOffered").
     AddItem().
     WithTag("student_id", "student123").
     WithType("StudentRegistered").
@@ -315,8 +318,8 @@ condition := dcb.NewAppendCondition(complexQuery)
 ```go
 // Query events with multiple conditions and time filtering
 complexQuery := dcb.NewQueryBuilder().
-    WithTag("user_id", "123").
-    WithTypes("OrderCreated", "OrderCancelled").
+    WithTag("student_id", "123").
+    WithTypes("EnrollmentCompleted", "CourseOffered").
     SinceDuration(24 * time.Hour).
     Build()
 
@@ -325,7 +328,7 @@ if err != nil {
     log.Fatal(err)
 }
 
-log.Printf("Found %d order events for user 123 in the last 24 hours", len(events))
+log.Printf("Found %d course events for student 123 in the last 24 hours", len(events))
 ```
 
 ### 4. Error Handling
@@ -356,6 +359,7 @@ config := dcb.EventStoreConfig{
     MaxBatchSize:           500,
     StreamBuffer:           500,
     DefaultAppendIsolation: dcb.IsolationLevelRepeatableRead,
+    DefaultReadIsolation:   dcb.IsolationLevelReadCommitted,
     QueryTimeout:           10000, // 10 seconds
     AppendTimeout:          5000,  // 5 seconds
 }
