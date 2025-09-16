@@ -49,7 +49,7 @@ $$ LANGUAGE plpgsql;
 
 -- Optimized function that receives primitive parameters instead of JSONB parsing
 -- This eliminates the JSONB parsing overhead for much better performance
-CREATE OR REPLACE FUNCTION append_events_with_condition_optimized(
+CREATE OR REPLACE FUNCTION append_events_if(
     p_types TEXT[],
     p_tags TEXT[],
     p_data JSONB[],

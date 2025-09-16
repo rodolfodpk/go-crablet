@@ -306,7 +306,7 @@ func (es *eventStore) appendInTx(ctx context.Context, tx pgx.Tx, events []InputE
 		eventTypes, conditionTags, afterCursorTxID, afterCursorPosition := extractConditionPrimitives(condition)
 
 		err = tx.QueryRow(ctx, `
-			SELECT append_events_with_condition_optimized($1, $2, $3, $4, $5, $6, $7)
+			SELECT append_events_if($1, $2, $3, $4, $5, $6, $7)
 		`, types, tags, data, eventTypes, conditionTags, afterCursorTxID, afterCursorPosition).Scan(&result)
 	} else {
 		_, err = tx.Exec(ctx, `SELECT append_events_batch($1, $2, $3)`, types, tags, data)
