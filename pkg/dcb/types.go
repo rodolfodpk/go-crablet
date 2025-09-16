@@ -88,13 +88,18 @@ type EventStoreConfig struct {
 	// APPEND OPERATIONS CONFIGURATION
 	// =============================================================================
 
-	// MaxBatchSize controls the maximum number of events that can be appended in a single batch
+	// MaxAppendBatchSize controls the maximum number of events that can be appended in a single batch
 	// Larger batches improve performance but increase memory usage and transaction duration
-	MaxBatchSize int `json:"max_batch_size"`
+	MaxAppendBatchSize int `json:"max_append_batch_size"`
 
 	// DefaultAppendIsolation sets the PostgreSQL transaction isolation level for append operations
 	// Higher isolation levels provide stronger consistency guarantees but may impact performance
 	DefaultAppendIsolation IsolationLevel `json:"default_append_isolation"`
+
+	// DefaultReadIsolation sets the PostgreSQL transaction isolation level for read operations
+	// Higher isolation levels provide stronger consistency guarantees for projections and queries
+	// Defaults to READ_COMMITTED for backward compatibility
+	DefaultReadIsolation IsolationLevel `json:"default_read_isolation"`
 
 	// AppendTimeout sets the maximum time (in milliseconds) for append operations to complete
 	// This is a defensive timeout to prevent hanging appends
@@ -111,6 +116,20 @@ type EventStoreConfig struct {
 	// StreamBuffer sets the channel buffer size for streaming operations (QueryStream, ProjectStream)
 	// Larger buffers improve throughput but increase memory usage
 	StreamBuffer int `json:"stream_buffer"`
+
+	// =============================================================================
+	// PROJECTION OPERATIONS CONFIGURATION
+	// =============================================================================
+
+	// MaxConcurrentProjections limits the number of projection operations that can run simultaneously
+	// This prevents resource exhaustion when many users perform projections concurrently
+	// Default: 50 concurrent projections (supports 100 users with reasonable queuing)
+	MaxConcurrentProjections int `json:"max_concurrent_projections"`
+
+	// MaxProjectionGoroutines limits the number of internal goroutines used per projection operation
+	// This prevents excessive goroutine creation in ProjectStream operations
+	// Default: 100 goroutines per projection
+	MaxProjectionGoroutines int `json:"max_projection_goroutines"`
 }
 
 // =============================================================================

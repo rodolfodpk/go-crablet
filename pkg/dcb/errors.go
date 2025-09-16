@@ -42,6 +42,13 @@ type (
 		ActualType   string // The actual data type found (if applicable)
 		Issue        string // Description of the specific issue
 	}
+
+	// TooManyProjectionsError represents an error when too many projections are running concurrently
+	TooManyProjectionsError struct {
+		EventStoreError
+		MaxConcurrent int // Maximum allowed concurrent projections
+		CurrentCount  int // Current number of running projections
+	}
 )
 
 // Error implements the error interface
@@ -85,6 +92,12 @@ func IsTableStructureError(err error) bool {
 	return errors.As(err, &tableStructureErr)
 }
 
+// IsTooManyProjectionsError checks if the error is a TooManyProjectionsError
+func IsTooManyProjectionsError(err error) bool {
+	var tooManyProjectionsErr *TooManyProjectionsError
+	return errors.As(err, &tooManyProjectionsErr)
+}
+
 // =============================================================================
 // Error Extraction Helpers
 // =============================================================================
@@ -121,6 +134,15 @@ func GetTableStructureError(err error) (*TableStructureError, bool) {
 	var tableStructureErr *TableStructureError
 	if errors.As(err, &tableStructureErr) {
 		return tableStructureErr, true
+	}
+	return nil, false
+}
+
+// GetTooManyProjectionsError extracts a TooManyProjectionsError from the error chain
+func GetTooManyProjectionsError(err error) (*TooManyProjectionsError, bool) {
+	var tooManyProjectionsErr *TooManyProjectionsError
+	if errors.As(err, &tooManyProjectionsErr) {
+		return tooManyProjectionsErr, true
 	}
 	return nil, false
 }

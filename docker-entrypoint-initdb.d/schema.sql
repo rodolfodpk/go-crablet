@@ -1,10 +1,3 @@
--- Create the database (PostgreSQL doesn't support IF NOT EXISTS for CREATE DATABASE)
--- This will be run in the default postgres database
-SELECT 'CREATE DATABASE crablet' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'crablet')\gexec
-
--- Use the database
-\c crablet;
-
 -- Agnostic event store for DCB, storing events of any type with TEXT[] tags and data.
 -- Using transaction_id for proper ordering guarantees (see: https://event-driven.io/en/ordering_in_postgres_outbox/)
 
@@ -35,71 +28,6 @@ CREATE INDEX idx_events_transaction_position_btree ON events (transaction_id, po
 CREATE INDEX idx_events_tags ON events USING GIN (tags);
 CREATE INDEX idx_events_type ON events (type);
 
--- Optimized function to check append conditions using transaction_id for proper ordering
--- Returns JSONB with status instead of raising exceptions for better performance
--- Always uses 'events' table for maximum performance
-CREATE OR REPLACE FUNCTION check_append_condition(
-    p_fail_if_events_match JSONB DEFAULT NULL,
-    p_after_cursor JSONB DEFAULT NULL
-) RETURNS JSONB AS $$
-DECLARE
-    condition_count INTEGER;
-    result JSONB;
-    event_types TEXT[];
-    required_tags TEXT[];
-    cursor_tx_id xid8;
-    cursor_position BIGINT;
-BEGIN
-    -- Initialize result
-    result := '{"success": true, "message": "condition check passed"}'::JSONB;
-    
-    -- Check FailIfEventsMatch condition (with optional after cursor scope)
-    IF p_fail_if_events_match IS NOT NULL THEN
-        -- Extract cursor information for efficient filtering
-        IF p_after_cursor IS NOT NULL THEN
-            cursor_tx_id := (p_after_cursor->>'transaction_id')::xid8;
-            cursor_position := (p_after_cursor->>'position')::BIGINT;
-        END IF;
-        
-        -- Optimized query: Parse JSONB once, use simple WHERE conditions
-        SELECT COUNT(DISTINCT e.position)
-        INTO condition_count
-        FROM events e,
-             jsonb_array_elements(p_fail_if_events_match->'items') AS item
-        WHERE (
-            -- Check event types if specified (use ANY for array comparison)
-            (item->'event_types' IS NULL OR 
-             e.type = ANY(SELECT jsonb_array_elements_text(item->'event_types')))
-            AND
-            -- Check tags if specified (use GIN index efficiently)
-            (item->'tags' IS NULL OR 
-             e.tags @> (
-                 SELECT array_agg((obj->>'key') || ':' || (obj->>'value'))
-                 FROM jsonb_array_elements((item->'tags')::jsonb) AS obj
-             )::TEXT[])
-        )
-        -- Apply cursor-based after condition using (transaction_id, position)
-        AND (p_after_cursor IS NULL OR 
-             (e.transaction_id > cursor_tx_id) OR
-             (e.transaction_id = cursor_tx_id AND e.position > cursor_position))
-        -- Only consider committed transactions for proper ordering
-        AND e.transaction_id < pg_snapshot_xmin(pg_current_snapshot());
-        
-        IF condition_count > 0 THEN
-            -- Return failure status instead of raising exception
-            result := jsonb_build_object(
-                'success', false,
-                'message', 'append condition violated',
-                'matching_events_count', condition_count,
-                'error_code', 'DCB01'
-            );
-        END IF;
-    END IF;
-    
-    RETURN result;
-END;
-$$ LANGUAGE plpgsql;
-
 -- Function to batch insert events using UNNEST for better performance
 -- Always uses 'events' table for maximum performance
 CREATE OR REPLACE FUNCTION append_events_batch(
@@ -119,34 +47,54 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Combined function to check conditions and append events atomically
--- Returns JSONB with status instead of raising exceptions for better performance
--- Always uses 'events' table for maximum performance
-CREATE OR REPLACE FUNCTION append_events_with_condition(
+-- Optimized function that receives primitive parameters instead of JSONB parsing
+-- This eliminates the JSONB parsing overhead for much better performance
+CREATE OR REPLACE FUNCTION append_events_if(
     p_types TEXT[],
-    p_tags TEXT[], -- array of Postgres array literals as strings
+    p_tags TEXT[],
     p_data JSONB[],
-    p_condition JSONB DEFAULT NULL
+    p_event_types TEXT[] DEFAULT NULL,
+    p_condition_tags TEXT[] DEFAULT NULL,
+    p_after_cursor_tx_id xid8 DEFAULT NULL,
+    p_after_cursor_position BIGINT DEFAULT NULL
 ) RETURNS JSONB AS $$
 DECLARE
-    fail_if_events_match JSONB;
-    after_cursor JSONB;
-    condition_result JSONB;
+    condition_count INTEGER;
+    result JSONB;
 BEGIN
-    -- Extract condition parameters
-    IF p_condition IS NOT NULL THEN
-        fail_if_events_match := p_condition->'fail_if_events_match';
-        IF p_condition->'after_cursor' IS NOT NULL AND p_condition->'after_cursor' != 'null' THEN
-            after_cursor := p_condition->'after_cursor';
+    -- Initialize result
+    result := '{"success": true, "message": "condition check passed"}'::JSONB;
+    
+    -- Check condition using direct array comparisons (no JSONB parsing)
+    IF p_event_types IS NOT NULL OR p_condition_tags IS NOT NULL THEN
+        SELECT COUNT(*)
+        INTO condition_count
+        FROM events e
+        WHERE (
+            -- Check event types if specified (direct array comparison)
+            (p_event_types IS NULL OR e.type = ANY(p_event_types))
+            AND
+            -- Check tags if specified (direct array comparison)
+            (p_condition_tags IS NULL OR e.tags @> p_condition_tags)
+        )
+        -- Apply cursor-based after condition using (transaction_id, position)
+        AND (p_after_cursor_tx_id IS NULL OR
+             (e.transaction_id > p_after_cursor_tx_id) OR
+             (e.transaction_id = p_after_cursor_tx_id AND e.position > p_after_cursor_position))
+        -- Only consider committed transactions for proper ordering
+        AND e.transaction_id < pg_snapshot_xmin(pg_current_snapshot())
+        LIMIT 1;
+        
+        IF condition_count > 0 THEN
+            -- Return failure status instead of raising exception
+            result := jsonb_build_object(
+                'success', false,
+                'message', 'append condition violated',
+                'matching_events_count', condition_count,
+                'error_code', 'DCB01'
+            );
+            RETURN result;
         END IF;
-    END IF;
-    
-    -- Check append conditions first
-    condition_result := check_append_condition(fail_if_events_match, after_cursor);
-    
-    -- If conditions failed, return the failure status
-    IF (condition_result->>'success')::boolean = false THEN
-        RETURN condition_result;
     END IF;
     
     -- If conditions pass, insert events using UNNEST for all cases
@@ -161,9 +109,3 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-
-
--- Removed backward compatibility functions - now using simplified functions directly
--- All functions now use the 'events' table for maximum performance
--- Debug and monitoring functions moved to debug.sql
-    

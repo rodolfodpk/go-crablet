@@ -58,29 +58,31 @@ sequenceDiagram
 
 ```go
 // BEST PRACTICE: Define event data as structs for type safety and performance
-type CourseCreatedData struct {
-    Name     string `json:"name"`
+type CourseOfferedData struct {
+    Title    string `json:"title"`
+    Credits  int    `json:"credits"`
     Capacity int    `json:"capacity"`
 }
 
-type StudentEnrolledData struct {
+type EnrollmentCompletedData struct {
     EnrollmentDate time.Time `json:"enrollment_date"`
 }
 
 // Create events with struct-based data (RECOMMENDED)
 events := []dcb.InputEvent{
-    dcb.NewEvent("CourseCreated").
+    dcb.NewEvent("CourseOffered").
         WithTag("course_id", "CS101").
-        WithData(CourseCreatedData{
-            Name:     "Introduction to Computer Science",
+        WithData(CourseOfferedData{
+            Title:    "Introduction to Computer Science",
+            Credits:  3,
             Capacity: 30,
         }).
         Build(),
     
-    dcb.NewEvent("StudentEnrolled").
+    dcb.NewEvent("EnrollmentCompleted").
         WithTag("student_id", "student123").
         WithTag("course_id", "CS101").
-        WithData(StudentEnrolledData{
+        WithData(EnrollmentCompletedData{
             EnrollmentDate: time.Now(),
         }).
         Build(),
@@ -105,7 +107,7 @@ condition := dcb.NewAppendCondition(
     dcb.NewQueryBuilder().
         WithTag("course_id", "CS101").
         WithTag("student_id", "student123").
-        WithType("StudentEnrolled").
+        WithType("EnrollmentCompleted").
         Build(),
 )
 
@@ -125,16 +127,17 @@ err := store.AppendIf(ctx, events, condition)
 
 ```go
 // BEST PRACTICE: Define event data as structs
-type AccountDebitedData struct {
-    Amount int `json:"amount"`
+type EnrollmentCompletedData struct {
+    Grade string `json:"grade"`
 }
 
 // Events with business logic validation
 events := []dcb.InputEvent{
-    dcb.NewEvent("AccountDebited").
-        WithTag("account_id", "acc-001").
-        WithData(AccountDebitedData{
-            Amount: 100,
+    dcb.NewEvent("EnrollmentCompleted").
+        WithTag("student_id", "student123").
+        WithTag("course_id", "CS101").
+        WithData(EnrollmentCompletedData{
+            Grade: "A",
         }).
         Build(),
 }
@@ -159,7 +162,7 @@ err := store.AppendIf(ctx, events, condition)
 // Define query using QueryBuilder
 query := dcb.NewQueryBuilder().
     WithTag("course_id", "CS101").
-    WithType("CourseCreated").
+    WithType("CourseOffered").
     Build()
 
 // Execute batch query
@@ -201,7 +204,7 @@ for event := range eventChan {
 ```go
 // BEST PRACTICE: Use typed constants for event types and typed structs for state projection
 const (
-	EventTypeStudentEnrolled = "StudentEnrolled"
+	EventTypeEnrollmentCompleted = "EnrollmentCompleted"
 )
 
 // Helper function to extract student ID from event tags
@@ -233,8 +236,8 @@ projector := dcb.StateProjector{
 		currentState := state.(CourseEnrollmentState)
 		
 		switch event.GetEventType() {
-		case EventTypeStudentEnrolled:
-			var data StudentEnrolledData
+		case EventTypeEnrollmentCompleted:
+			var data EnrollmentCompletedData
 			if err := json.Unmarshal(event.GetData(), &data); err == nil {
 				// Extract student ID from event tags
 				studentID := extractStudentIDFromTags(event.GetTags())
@@ -289,14 +292,14 @@ cursor := <-cursorChan
 All events are stored in the `events` table:
 
 ```sql
--- Example: Course creation and enrollment events
+-- Example: Course offering and enrollment events
 SELECT * FROM events WHERE transaction_id = 456 ORDER BY position;
 ```
 
 | type | tags | data | transaction_id | position | occurred_at |
 |------|------|------|----------------|----------|-------------|
-| CourseCreated | {"course_id:CS101"} | {"name":"Intro to CS","capacity":30} | 456 | 1 | 2024-01-15 10:30:00 |
-| StudentEnrolled | {"student_id:student123","course_id:CS101"} | {"enrollment_date":"2024-01-15T10:30:00Z"} | 456 | 2 | 2024-01-15 10:30:00 |
+| CourseOffered | {"course_id:CS101"} | {"title":"Intro to CS","credits":3,"capacity":30} | 456 | 1 | 2024-01-15 10:30:00 |
+| EnrollmentCompleted | {"student_id:student123","course_id:CS101"} | {"enrollment_date":"2024-01-15T10:30:00Z"} | 456 | 2 | 2024-01-15 10:30:00 |
 
 **Key Points:**
 - **Same transaction_id**: All events in a batch share the same transaction ID
@@ -325,17 +328,19 @@ import (
 )
 
 // BEST PRACTICE: Define event data as structs for type safety and performance
-type CourseCreatedData struct {
-    Name     string `json:"name"`
+type CourseOfferedData struct {
+    Title    string `json:"title"`
+    Credits  int    `json:"credits"`
     Capacity int    `json:"capacity"`
 }
 
-type StudentEnrolledData struct {
+type EnrollmentCompletedData struct {
     EnrollmentDate time.Time `json:"enrollment_date"`
 }
 
 type CourseState struct {
-    Name             string   `json:"name"`
+    Title            string   `json:"title"`
+    Credits          int      `json:"credits"`
     Capacity         int      `json:"capacity"`
     EnrolledStudents []string `json:"enrolled_students"`
 }
@@ -352,10 +357,11 @@ func main() {
     
     // Create course with struct-based data (RECOMMENDED)
     courseEvents := []dcb.InputEvent{
-        dcb.NewEvent("CourseCreated").
+        dcb.NewEvent("CourseOffered").
             WithTag("course_id", "CS101").
-            WithData(CourseCreatedData{
-                Name:     "Introduction to Computer Science",
+            WithData(CourseOfferedData{
+                Title:    "Introduction to Computer Science",
+                Credits:  3,
                 Capacity: 30,
             }).
             Build(),
@@ -368,10 +374,10 @@ func main() {
     
     // Enroll student with struct-based data (RECOMMENDED)
     enrollmentEvents := []dcb.InputEvent{
-        dcb.NewEvent("StudentEnrolled").
+        dcb.NewEvent("EnrollmentCompleted").
             WithTag("student_id", "student123").
             WithTag("course_id", "CS101").
-            WithData(StudentEnrolledData{
+            WithData(EnrollmentCompletedData{
                 EnrollmentDate: time.Now(),
             }).
             Build(),
@@ -401,7 +407,8 @@ func main() {
             WithTag("course_id", "CS101").
             Build(),
         InitialState: CourseState{
-            Name:             "",
+            Title:            "",
+            Credits:          0,
             Capacity:         0,
             EnrolledStudents: []string{},
         },
@@ -409,14 +416,15 @@ func main() {
             currentState := state.(CourseState)
             
             switch event.GetEventType() {
-            case EventTypeCourseScheduled:
-                var data CourseScheduledData
+            case EventTypeCourseOffered:
+                var data CourseOfferedData
                 if err := json.Unmarshal(event.GetData(), &data); err == nil {
-                    currentState.Name = data.Name
+                    currentState.Title = data.Title
+                    currentState.Credits = data.Credits
                     currentState.Capacity = data.Capacity
                 }
-            case EventTypeStudentEnrolled:
-                var data StudentEnrolledData
+            case EventTypeEnrollmentCompleted:
+                var data EnrollmentCompletedData
                 if err := json.Unmarshal(event.GetData(), &data); err == nil {
                     // Note: In a real implementation, you'd extract student_id from tags
                     // This is simplified for demonstration
@@ -444,15 +452,15 @@ condition := dcb.NewAppendCondition(
     dcb.NewQueryBuilder().
         WithTag("course_id", "CS101").
         WithTag("student_id", "student123").
-        WithType("StudentEnrolled").
+        WithType("EnrollmentCompleted").
         Build(),
 )
 
 enrollmentEvents := []dcb.InputEvent{
-    dcb.NewEvent("StudentEnrolled").
+    dcb.NewEvent("EnrollmentCompleted").
         WithTag("student_id", "student123").
         WithTag("course_id", "CS101").
-        WithData(StudentEnrolledData{
+        WithData(EnrollmentCompletedData{
             EnrollmentDate: time.Now(),
         }).
         Build(),

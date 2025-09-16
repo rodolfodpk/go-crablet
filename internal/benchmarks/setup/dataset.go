@@ -332,7 +332,7 @@ func selectCourse(courses []CourseData, courseEnrollments map[string]int, studen
 func LoadDatasetIntoStore(ctx context.Context, store dcb.EventStore, dataset *Dataset) error {
 	// Create course events
 	for _, course := range dataset.Courses {
-		event := dcb.NewInputEvent("CourseCreated",
+		event := dcb.NewInputEvent("CourseOffered",
 			dcb.NewTags("course_id", course.ID, "category", course.Category),
 			[]byte(fmt.Sprintf(`{
 				"id": "%s",
@@ -368,7 +368,7 @@ func LoadDatasetIntoStore(ctx context.Context, store dcb.EventStore, dataset *Da
 
 	// Create enrollment events
 	for _, enrollment := range dataset.Enrollments {
-		event := dcb.NewInputEvent("StudentEnrolled",
+		event := dcb.NewInputEvent("EnrollmentCompleted",
 			dcb.NewTags("student_id", enrollment.StudentID, "course_id", enrollment.CourseID),
 			[]byte(fmt.Sprintf(`{
 				"studentId": "%s",

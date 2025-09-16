@@ -93,11 +93,11 @@ func main() {
     }
 
     // Define a simple event using the fluent API
-    event := dcb.NewEvent("UserCreated").
-        WithTag("user_id", "123").
+    event := dcb.NewEvent("CourseOffered").
+        WithTag("course_id", "CS101").
         WithData(map[string]string{
-            "name":  "John Doe",
-            "email": "john@example.com",
+            "title":   "Introduction to Computer Science",
+            "credits": "3",
         }).
         Build()
 
@@ -110,8 +110,8 @@ func main() {
 
     // Query events using the new QueryBuilder
     query := dcb.NewQueryBuilder().
-        WithTag("user_id", "123").
-        WithType("UserCreated").
+        WithTag("course_id", "CS101").
+        WithType("CourseOffered").
         Build()
     
     events, err := store.Query(ctx, query, nil)
@@ -126,11 +126,12 @@ func main() {
     // Conditional append with DCB concurrency control
     if len(events) > 0 {
         // Use fluent append condition constructor
-        condition := dcb.FailIfExists("user_id", "123")
+        condition := dcb.FailIfExists("course_id", "CS101")
         
-        newEvent := dcb.NewEvent("UserUpdated").
-            WithTag("user_id", "123").
-            WithData(map[string]string{"name": "John Smith"}).
+        newEvent := dcb.NewEvent("StudentRegistered").
+            WithTag("student_id", "student123").
+            WithTag("course_id", "CS101").
+            WithData(map[string]string{"name": "John Smith", "email": "john@example.com"}).
             Build()
             
         err = store.AppendIf(ctx, []dcb.InputEvent{newEvent}, condition)

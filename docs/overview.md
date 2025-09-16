@@ -14,11 +14,11 @@ docker-compose ps  # Wait for ready
 
 ### 2. Run Examples
 ```bash
-# Try the transfer example
-go run internal/examples/transfer/main.go
+# Try the course enrollment example
+go run internal/examples/enrollment/main.go
 
 # Or use Makefile
-make example-transfer
+make example-enrollment
 ```
 
 ### 3. Cleanup
@@ -45,7 +45,7 @@ type Tag interface {
 
 // Event represents a single event in the event store
 type Event struct {
-    Type          string    // Event type identifier (e.g., "UserRegistered", "CourseEnrolled")
+    Type          string    // Event type identifier (e.g., "CourseOffered", "StudentRegistered", "EnrollmentCompleted")
     Tags          []Tag     // Key-value pairs for filtering and categorization
     Data          []byte    // Event payload as JSON bytes
     TransactionID uint64    // Database transaction ID for ordering
@@ -96,7 +96,7 @@ type EventStore interface {
 
 - **Append**: **Event Driven** - High-volume, simple event creation and storage
   - Use when: You need speed and throughput for event streaming, logging, notifications
-  - Example: "User clicked button" → store click event
+  - Example: "Student registered for course" → store registration event
   
 - **AppendIf**: **Event Sourcing** - Business rule validation + conditional event creation
   - Use when: You need business consistency and validation rules
@@ -109,8 +109,8 @@ type EventStore interface {
 type StateProjector struct {
     ID           string                    // Unique identifier for this projection
     InitialState any                       // Starting state (e.g., empty map, struct, or nil)
-    EventTypes   []string                  // Event types to process (e.g., ["UserRegistered", "ProfileUpdated"])
-    Tags         []Tag                     // Filter events by these tags (e.g., user_id="123")
+    EventTypes   []string                  // Event types to process (e.g., ["CourseOffered", "StudentRegistered"])
+    Tags         []Tag                     // Filter events by these tags (e.g., course_id="CS101")
     Project      func(state any, event Event) any  // Function that updates state based on each event
 }
 ```
@@ -136,7 +136,7 @@ type CommandHandler interface {
 
 **Note**: CommandExecutor is an optional convenience layer that helps you organize business logic. Instead of manually calling your business logic and then appending events, you can:
 
-1. **Define commands** that represent business actions (like "EnrollStudent", "TransferMoney")
+1. **Define commands** that represent business actions (like "EnrollStudent", "OfferCourse")
 2. **Write handlers** that contain your business logic and decide what events to create
 3. **Execute commands** - the system automatically runs your handler, stores the generated events, and keeps an audit trail
 
@@ -152,12 +152,14 @@ if err != nil {
     log.Fatal(err)
 }
 
-// Create and append a simple event
-event := dcb.NewEvent("UserRegistered").
-    WithTag("user_id", "123").
+// Create and append a course offering event
+event := dcb.NewEvent("CourseOffered").
+    WithTag("course_id", "CS101").
+    WithTag("department", "Computer Science").
     WithData(map[string]any{
-        "name": "John Doe",
-        "email": "john@example.com",
+        "title": "Introduction to Computer Science",
+        "credits": 3,
+        "capacity": 30,
     }).
     Build()
 
@@ -168,8 +170,8 @@ err = store.Append(ctx, []dcb.InputEvent{event})
 ```go
 // Query events by tags
 query := dcb.NewQueryBuilder().
-    WithTag("user_id", "123").
-    WithType("UserRegistered").
+    WithTag("course_id", "CS101").
+    WithType("CourseOffered").
     Build()
 
 events, err := store.Query(ctx, query, nil)
@@ -177,38 +179,39 @@ events, err := store.Query(ctx, query, nil)
 
 ### 3. State Projection
 ```go
-// Project user state from events
-userProjector := dcb.ProjectState("user_state", "UserRegistered", "user_id", "123", 
+// Project course state from events
+courseProjector := dcb.ProjectState("course_state", "CourseOffered", "course_id", "CS101", 
     map[string]any{}, 
     func(state any, event dcb.Event) any {
-        userState := state.(map[string]any)
+        courseState := state.(map[string]any)
         // Update state based on event
-        return userState
+        return courseState
     })
 
-state, condition, err := store.Project(ctx, []dcb.StateProjector{userProjector}, nil)
+state, condition, err := store.Project(ctx, []dcb.StateProjector{courseProjector}, nil)
 ```
 
 ### 4. DCB Concurrency Control
 ```go
-// Prevent duplicate account creation
+// Prevent duplicate course offerings
 condition := dcb.NewAppendCondition(
     dcb.NewQueryBuilder().
-        WithTag("account_id", "123").
-        WithType("AccountCreated").
+        WithTag("course_id", "CS101").
+        WithType("CourseOffered").
         Build(),
 )
 
-accountEvent := dcb.NewEvent("AccountCreated").
-    WithTag("account_id", "123").
+courseEvent := dcb.NewEvent("CourseOffered").
+    WithTag("course_id", "CS101").
     WithData(map[string]any{
-        "owner": "John Doe",
-        "balance": 0,
+        "title": "Introduction to Computer Science",
+        "credits": 3,
+        "capacity": 30,
     }).
     Build()
 
-// Only succeeds if account doesn't exist
-err := store.AppendIf(ctx, []dcb.InputEvent{accountEvent}, condition)
+// Only succeeds if course doesn't exist
+err := store.AppendIf(ctx, []dcb.InputEvent{courseEvent}, condition)
 ```
 
 ### 5. Command Pattern (Optional)
@@ -247,6 +250,9 @@ config := dcb.EventStoreConfig{
     // =============================================================================
     // QUERY OPERATIONS CONFIGURATION  
     // =============================================================================
+    
+    // DefaultReadIsolation sets PostgreSQL transaction isolation level for read operations
+    DefaultReadIsolation: dcb.IsolationLevelReadCommitted,
     
     // QueryTimeout sets maximum time for query operations (milliseconds)
     QueryTimeout: 15000, // 15 seconds
@@ -327,5 +333,23 @@ Client → CommandExecutor → CommandHandler → EventStore → PostgreSQL (com
 ```
 
 
+
+## Performance Characteristics
+
+The library has been benchmarked with realistic course enrollment system data:
+
+**Local PostgreSQL Performance (ops/sec):**
+- **Append**: 3,821-4,199 (single event), 476-678 (batch)
+- **AppendIf**: 669-1,432 (no conflict), 100-169 (with conflict)
+- **Query**: 294-328 (single), 6,724-7,898 (batch)
+- **QueryStream**: 123-328 (single), 49,030-7,898 (batch)
+- **Project**: 6,811-36,338 (state reconstruction)
+- **ProjectStream**: 6,811-36,338 (streaming state reconstruction)
+
+**Key Performance Insights:**
+- **Read operations excel**: Query and QueryStream show high throughput
+- **Streaming outperforms batch**: ProjectStream > Project for large datasets
+- **Local PostgreSQL**: 3.2-6.5x faster than Docker PostgreSQL
+- **Concurrency scaling**: Performance degrades gracefully under load
 
 This library explores event sourcing concepts with DCB concurrency control. It's a learning project that experiments with DCB approaches using PostgreSQL, suitable for understanding event sourcing principles and testing DCB concepts.

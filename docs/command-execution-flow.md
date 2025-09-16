@@ -73,8 +73,8 @@ SELECT * FROM events WHERE transaction_id = 123 ORDER BY position;
 
 | type | tags | data | transaction_id | position | occurred_at |
 |------|------|------|----------------|----------|-------------|
-| CourseDefined | {"course_id:CS101"} | {"course_id":"CS101","name":"Math 101","capacity":30} | 123 | 1 | 2024-01-15 10:30:00 |
-| StudentEnrolled | {"student_id:student123","course_id:CS101"} | {"student_id":"student123","course_id":"CS101"} | 123 | 2 | 2024-01-15 10:30:00 |
+| CourseOffered | {"course_id:CS101"} | {"course_id":"CS101","title":"Introduction to Computer Science","credits":3,"capacity":30} | 123 | 1 | 2024-01-15 10:30:00 |
+| EnrollmentCompleted | {"student_id:student123","course_id:CS101"} | {"student_id":"student123","course_id":"CS101","grade":"A"} | 123 | 2 | 2024-01-15 10:30:00 |
 
 ### Commands Table (Audit Trail)
 ```sql
@@ -159,7 +159,7 @@ type Command interface {
 
 ```go
 // Create command
-cmd := dcb.NewCommand("EnrollStudent", []byte(`{"student_id": "123", "course_id": "456"}`), nil)
+cmd := dcb.NewCommand("EnrollStudent", []byte(`{"student_id": "student123", "course_id": "CS101"}`), nil)
 
 // Execute command with handler
 events, err := executor.ExecuteCommand(ctx, cmd, enrollHandler, nil)

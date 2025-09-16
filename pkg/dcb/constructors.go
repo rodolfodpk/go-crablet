@@ -14,22 +14,35 @@ import (
 
 func newEventStore(pool *pgxpool.Pool, cfg EventStoreConfig) *eventStore {
 	// Set sensible defaults for required fields
-	if cfg.MaxBatchSize <= 0 {
-		cfg.MaxBatchSize = 1000 // Default batch size
+	if cfg.MaxAppendBatchSize <= 0 {
+		cfg.MaxAppendBatchSize = 1000 // Default batch size
 	}
 	if cfg.StreamBuffer <= 0 {
 		cfg.StreamBuffer = 1000 // Default stream buffer size
 	}
 	if cfg.QueryTimeout <= 0 {
-		cfg.QueryTimeout = 15000 // 15 seconds default
+		cfg.QueryTimeout = 10000 // 5 seconds default
 	}
 	if cfg.AppendTimeout <= 0 {
-		cfg.AppendTimeout = 10000 // 10 seconds default
+		cfg.AppendTimeout = 5000 // 5 seconds default
+	}
+	if cfg.MaxConcurrentProjections <= 0 {
+		cfg.MaxConcurrentProjections = 100 // Default: 100 concurrent projections (supports ~200 users)
+	}
+	if cfg.MaxProjectionGoroutines <= 0 {
+		cfg.MaxProjectionGoroutines = 50 // Default: 50 goroutines per projection
+	}
+
+	// Create semaphore with pre-filled tokens
+	semaphore := make(chan struct{}, cfg.MaxConcurrentProjections)
+	for i := 0; i < cfg.MaxConcurrentProjections; i++ {
+		semaphore <- struct{}{}
 	}
 
 	return &eventStore{
-		pool:   pool,
-		config: cfg,
+		pool:                pool,
+		config:              cfg,
+		projectionSemaphore: semaphore,
 	}
 }
 
@@ -55,11 +68,14 @@ func NewEventStore(ctx context.Context, pool *pgxpool.Pool) (EventStore, error) 
 	}
 
 	config := EventStoreConfig{
-		MaxBatchSize:           1000,
-		StreamBuffer:           1000,
-		DefaultAppendIsolation: IsolationLevelReadCommitted,
-		QueryTimeout:           15000, // 15 seconds default
-		AppendTimeout:          10000, // 10 seconds default
+		MaxAppendBatchSize:       1000,
+		StreamBuffer:             1000,
+		DefaultAppendIsolation:   IsolationLevelReadCommitted,
+		DefaultReadIsolation:     IsolationLevelReadCommitted, // Default to same as append for consistency
+		QueryTimeout:             10000,                       // 5 seconds default
+		AppendTimeout:            5000,                        // 5 seconds default
+		MaxConcurrentProjections: 100,                         // Default: 100 concurrent projections (supports ~200 users)
+		MaxProjectionGoroutines:  50,                          // Default: 50 goroutines per projection
 	}
 	return newEventStore(pool, config), nil
 }
