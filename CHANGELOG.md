@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Multi-Item AppendCondition Bug**: Fixed `extractConditionPrimitives` function to process all query items instead of just the first one
+  - **Issue**: Function only extracted event types and tags from the first item of `failIfEventsMatch` condition
+  - **Impact**: Multi-item `AppendCondition` queries using OR logic were not fully evaluated, causing incorrect event appends
+  - **Fix**: Modified function to iterate through all query items and collect event types and tags from each item
+  - **Testing**: All 207 tests pass, confirming the fix works correctly without regressions
+
 ### Changed
 - **Performance Documentation Format**: Fixed performance table formatting and units
   - **Latency Units**: Converted from nanoseconds to milliseconds (divided by 1,000,000) for better readability

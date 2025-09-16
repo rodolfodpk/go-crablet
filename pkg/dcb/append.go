@@ -206,13 +206,15 @@ func extractConditionPrimitives(condition AppendCondition) ([]string, []string, 
 	// Extract fail condition if present
 	if failQuery := condition.getFailIfEventsMatch(); failQuery != nil {
 		items := (*failQuery).GetItems()
-		if len(items) > 0 {
-			// Extract event types from first item
-			eventTypes = items[0].GetEventTypes()
+		// Process ALL items in the query (OR logic)
+		for _, item := range items {
+			// Extract event types from each item
+			itemEventTypes := item.GetEventTypes()
+			eventTypes = append(eventTypes, itemEventTypes...)
 
-			// Extract tags from first item
-			tags := items[0].GetTags()
-			for _, tag := range tags {
+			// Extract tags from each item
+			itemTags := item.GetTags()
+			for _, tag := range itemTags {
 				conditionTags = append(conditionTags, tag.GetKey()+":"+tag.GetValue())
 			}
 		}
