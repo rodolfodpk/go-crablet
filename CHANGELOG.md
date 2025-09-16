@@ -59,6 +59,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Fix**: Modified function to iterate through all query items and collect event types and tags from each item
   - **Testing**: All 207 tests pass, confirming the fix works correctly without regressions
 
+### Updated
+- **Performance Documentation**: Updated performance tables with fresh benchmark data from September 16th, 2025
+  - **Append Performance**: Updated with latest throughput and latency metrics across all datasets (Tiny, Small, Medium)
+  - **AppendIf No Conflict Performance**: Updated with current performance data for conditional append operations
+  - **AppendIf With Conflict Performance**: Updated with latest conflict scenario performance metrics
+  - **Projection Performance**: Updated with fresh state reconstruction performance data
+  - **Read Performance**: Updated with latest query and streaming performance metrics
+  - **ProjectionLimits Performance**: Updated with current concurrency limit testing results
+  - **Data Source**: All performance data extracted from comprehensive benchmark suite run on September 16th, 2025
+  - **Table Formatting**: Maintained standardized table format with throughput sorting and detailed column explanations
+
 ### Changed
 - **Performance Documentation Format**: Fixed performance table formatting and units
   - **Latency Units**: Converted from nanoseconds to milliseconds (divided by 1,000,000) for better readability
