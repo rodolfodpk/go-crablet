@@ -50,11 +50,8 @@ var _ = BeforeSuite(func() {
 	schemaSQL, err := os.ReadFile("../../../docker-entrypoint-initdb.d/schema.sql")
 	Expect(err).NotTo(HaveOccurred())
 
-	// Filter out psql meta-commands and user-specific grants that don't work with Go's database driver
+	// Filter out psql meta-commands that don't work with Go's database driver
 	filteredSQL := filterPsqlCommands(string(schemaSQL))
-
-	// Remove user-specific grants for test environment
-	filteredSQL = removeUserGrants(filteredSQL)
 
 	// Debug: print the filtered SQL
 	fmt.Printf("Filtered SQL:\n%s\n", filteredSQL)
@@ -197,24 +194,6 @@ func filterPsqlCommands(sql string) string {
 		}
 		// Skip lines that contain \gexec (psql command)
 		if strings.Contains(line, "\\gexec") {
-			continue
-		}
-		filteredLines = append(filteredLines, line)
-	}
-
-	return strings.Join(filteredLines, "\n")
-}
-
-// removeUserGrants removes user-specific GRANT and ALTER DEFAULT PRIVILEGES statements
-func removeUserGrants(sql string) string {
-	lines := strings.Split(sql, "\n")
-	var filteredLines []string
-
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		// Skip GRANT and ALTER DEFAULT PRIVILEGES statements
-		if strings.HasPrefix(strings.ToUpper(trimmed), "GRANT ") ||
-			strings.HasPrefix(strings.ToUpper(trimmed), "ALTER DEFAULT PRIVILEGES ") {
 			continue
 		}
 		filteredLines = append(filteredLines, line)
