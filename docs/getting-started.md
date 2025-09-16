@@ -26,10 +26,10 @@ import (
 )
 
 // BEST PRACTICE: Define event data as structs for type safety and performance
-type UserRegisteredData struct {
-    Name         string    `json:"name"`
-    Email        string    `json:"email"`
-    RegisteredAt time.Time `json:"registered_at"`
+type CourseOfferedData struct {
+    Title    string `json:"title"`
+    Credits  int    `json:"credits"`
+    Capacity int    `json:"capacity"`
 }
 
 func main() {
@@ -43,12 +43,13 @@ func main() {
     
     // Create events with struct-based data (RECOMMENDED)
     events := []dcb.InputEvent{
-        dcb.NewEvent("UserRegistered").
-            WithTag("user_id", "123").
-            WithData(UserRegisteredData{
-                Name:         "John Doe",
-                Email:        "john@example.com",
-                RegisteredAt: time.Now(),
+        dcb.NewEvent("CourseOffered").
+            WithTag("course_id", "CS101").
+            WithTag("department", "Computer Science").
+            WithData(CourseOfferedData{
+                Title:    "Introduction to Computer Science",
+                Credits:  3,
+                Capacity: 30,
             }).
             Build(),
     }
@@ -59,7 +60,7 @@ func main() {
         log.Fatal(err)
     }
     
-    log.Println("User registered successfully")
+    log.Println("Course offered successfully")
 }
 ```
 
@@ -69,16 +70,16 @@ func main() {
 // Create condition to prevent conflicts using QueryBuilder
 condition := dcb.NewAppendCondition(
     dcb.NewQueryBuilder().
-        WithTag("user_id", "123").
-        WithType("UserRegistered").
+        WithTag("course_id", "CS101").
+        WithType("CourseOffered").
         Build(),
 )
 
-// Append with condition (fails if user already exists)
+// Append with condition (fails if course already exists)
 err = store.AppendIf(ctx, events, condition)
 if err != nil {
     if dcb.IsConcurrencyError(err) {
-        log.Println("User already exists")
+        log.Println("Course already exists")
     } else {
         log.Fatal(err)
     }
@@ -90,7 +91,7 @@ if err != nil {
 ```go
 // Query events by tags using QueryBuilder
 query := dcb.NewQueryBuilder().
-    WithTag("user_id", "123").
+    WithTag("course_id", "CS101").
     Build()
 
 events, err := store.Query(ctx, query, nil)
@@ -98,7 +99,7 @@ if err != nil {
     log.Fatal(err)
 }
 
-log.Printf("Found %d events for user 123", len(events))
+log.Printf("Found %d events for course CS101", len(events))
 ```
 
 ### 5. Project State
@@ -106,68 +107,67 @@ log.Printf("Found %d events for user 123", len(events))
 ```go
 // BEST PRACTICE: Use typed constants for event types and typed structs for state projection
 const (
-	EventTypeUserRegistered = "UserRegistered"
-	EventTypeCourseScheduled = "CourseScheduled"
-	EventTypeStudentEnrolled = "StudentEnrolled"
+	EventTypeCourseOffered = "CourseOffered"
+	EventTypeStudentRegistered = "StudentRegistered"
+	EventTypeEnrollmentCompleted = "EnrollmentCompleted"
 )
 
-type UserState struct {
+type CourseState struct {
+	Title    string `json:"title"`
+	Credits  int    `json:"credits"`
+	Capacity int    `json:"capacity"`
+}
+
+type StudentState struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
 }
 
-type CourseState struct {
-	Title            string   `json:"title"`
-	EnrolledStudents []string `json:"enrolled_students"`
-}
-
 // Define projectors with typed state
 projectors := []dcb.StateProjector{
-	{
-		ID: "UserState",
-		Query: dcb.NewQueryBuilder().
-			WithTag("user_id", "123").
-			Build(),
-		InitialState: UserState{
-			Name:  "",
-			Email: "",
-		},
-		TransitionFn: func(state any, event dcb.Event) any {
-			currentState := state.(UserState)
-			
-			switch event.GetEventType() {
-			case EventTypeUserRegistered:
-				var data UserRegisteredData
-				if err := json.Unmarshal(event.GetData(), &data); err == nil {
-					currentState.Name = data.Name
-					currentState.Email = data.Email
-				}
-			}
-			return currentState
-		},
-	},
 	{
 		ID: "CourseState",
 		Query: dcb.NewQueryBuilder().
 			WithTag("course_id", "CS101").
 			Build(),
 		InitialState: CourseState{
-			Title:            "",
-			EnrolledStudents: []string{},
+			Title:    "",
+			Credits:  0,
+			Capacity: 0,
 		},
 		TransitionFn: func(state any, event dcb.Event) any {
 			currentState := state.(CourseState)
 			
 			switch event.GetEventType() {
-			case EventTypeCourseScheduled:
-				var data CourseScheduledData
+			case EventTypeCourseOffered:
+				var data CourseOfferedData
 				if err := json.Unmarshal(event.GetData(), &data); err == nil {
 					currentState.Title = data.Title
+					currentState.Credits = data.Credits
+					currentState.Capacity = data.Capacity
 				}
-			case EventTypeStudentEnrolled:
-				var data StudentEnrolledData
+			}
+			return currentState
+		},
+	},
+	{
+		ID: "StudentState",
+		Query: dcb.NewQueryBuilder().
+			WithTag("student_id", "123").
+			Build(),
+		InitialState: StudentState{
+			Name:  "",
+			Email: "",
+		},
+		TransitionFn: func(state any, event dcb.Event) any {
+			currentState := state.(StudentState)
+			
+			switch event.GetEventType() {
+			case EventTypeStudentRegistered:
+				var data StudentRegisteredData
 				if err := json.Unmarshal(event.GetData(), &data); err == nil {
-					currentState.EnrolledStudents = append(currentState.EnrolledStudents, data.StudentID)
+					currentState.Name = data.Name
+					currentState.Email = data.Email
 				}
 			}
 			return currentState
@@ -182,11 +182,11 @@ if err != nil {
 }
 
 // Access typed state
-userState := finalState["UserState"].(UserState)
 courseState := finalState["CourseState"].(CourseState)
+studentState := finalState["StudentState"].(StudentState)
 
-fmt.Printf("User: %s (%s)\n", userState.Name, userState.Email)
-fmt.Printf("Course: %s with %d students\n", courseState.Title, len(courseState.EnrolledStudents))
+fmt.Printf("Course: %s (%d credits, capacity: %d)\n", courseState.Title, courseState.Credits, courseState.Capacity)
+fmt.Printf("Student: %s (%s)\n", studentState.Name, studentState.Email)
 ```
 
 ## Command Execution
@@ -200,18 +200,19 @@ commandExecutor := dcb.NewCommandExecutor(store)
 ### 2. Define Command Handler
 
 ```go
-func handleRegisterUser(ctx context.Context, store dcb.EventStore, cmd dcb.Command) ([]dcb.InputEvent, error) {
+func handleOfferCourse(ctx context.Context, store dcb.EventStore, cmd dcb.Command) ([]dcb.InputEvent, error) {
     var data map[string]any
     json.Unmarshal(cmd.GetData(), &data)
     
     // Business logic validation
-    if data["email"] == "" {
-        return nil, errors.New("email required")
+    if data["title"] == "" {
+        return nil, errors.New("course title required")
     }
     
     // Create event
-    event := dcb.NewEvent("UserRegistered").
-        WithTag("user_id", data["user_id"].(string)).
+    event := dcb.NewEvent("CourseOffered").
+        WithTag("course_id", data["course_id"].(string)).
+        WithTag("department", data["department"].(string)).
         WithData(data).
         Build()
     
@@ -223,14 +224,16 @@ func handleRegisterUser(ctx context.Context, store dcb.EventStore, cmd dcb.Comma
 
 ```go
 // Create command
-command := dcb.NewCommand("RegisterUser", dcb.ToJSON(map[string]any{
-    "user_id": "123",
-    "name": "John Doe",
-    "email": "john@example.com",
+command := dcb.NewCommand("OfferCourse", dcb.ToJSON(map[string]any{
+    "course_id": "CS101",
+    "title": "Introduction to Computer Science",
+    "credits": 3,
+    "capacity": 30,
+    "department": "Computer Science",
 }), nil)
 
 // Execute command
-events, err := commandExecutor.ExecuteCommand(ctx, command, handleRegisterUser, nil)
+events, err := commandExecutor.ExecuteCommand(ctx, command, handleOfferCourse, nil)
 if err != nil {
     log.Fatal(err)
 }
@@ -245,6 +248,7 @@ config := dcb.EventStoreConfig{
     MaxBatchSize:           1000,
     StreamBuffer:           1000,
     DefaultAppendIsolation: dcb.IsolationLevelReadCommitted,
+    DefaultReadIsolation:   dcb.IsolationLevelReadCommitted,
     QueryTimeout:           15000, // 15 seconds
     AppendTimeout:          10000, // 10 seconds
 }
@@ -270,7 +274,7 @@ pool.Config().MinConns = 5
 
 The `internal/examples/` directory contains complete, runnable examples:
 
-- **`internal/examples/transfer/`** - Money transfer system with DCB concurrency control
+- **`internal/examples/enrollment/`** - Course enrollment system with DCB concurrency control
 - **`internal/examples/ticket_booking/`** - Concert ticket booking demonstrating DCB concurrency control
 - **`internal/examples/decision_model/`** - Complex decision model with multiple projectors
 - **`internal/examples/batch/`** - Batch event processing examples
@@ -287,7 +291,6 @@ docker-compose up -d
 go run internal/examples/[example-name]/main.go
 
 # 3. Or use Makefile targets
-make example-transfer
 make example-enrollment
 make example-concurrency  # runs ticket_booking
 make example-batch
@@ -357,7 +360,7 @@ make generate-datasets
    - [Examples](./examples.md): Complete usage examples
 
 2. **Explore Examples**:
-   - Start with `internal/examples/transfer/` for basic usage
+   - Start with `internal/examples/enrollment/` for basic usage
    - Try `internal/examples/ticket_booking/` for DCB concurrency control
    - Check `internal/examples/decision_model/` for complex scenarios
 

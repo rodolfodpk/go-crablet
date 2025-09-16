@@ -98,14 +98,36 @@ Tests use PostgreSQL containers via testcontainers-go for isolated, reproducible
 
 For comprehensive performance testing and benchmarks, see the **[Performance Guide](./performance.md)**.
 
+### Realistic Benchmark Testing
+
+The project now uses **realistic benchmarks** that test actual business scenarios with course enrollment system data:
+
+**Benchmark Categories:**
+- **Append Operations**: Course offering and student enrollment events
+- **AppendIf Operations**: Conditional enrollment with business rule validation
+- **Query Operations**: Event querying with realistic tags and filters
+- **QueryStream Operations**: Streaming event processing
+- **Project Operations**: State reconstruction from events
+- **ProjectStream Operations**: Streaming state reconstruction
+- **ProjectionLimits Operations**: Concurrency limit testing
+
+**Dataset Sizes:**
+- **Tiny**: 5 courses, 10 students, 20 enrollments (quick validation)
+- **Small**: 500 courses, 5,000 students, 25,000 enrollments (development)
+- **Medium**: 1,000 courses, 10,000 students, 50,000 enrollments (production planning)
+
+**Testing Strategy:**
+1. **Phase 1**: Quick validation with Tiny dataset (`go test -bench="BenchmarkAppend_Tiny_Realistic" -benchtime=1s -timeout=30s .`)
+2. **Phase 2**: Complete benchmark suite with all datasets (`go test -bench="BenchmarkAppend_.*_Realistic" -benchtime=2s -timeout=120s .`)
+
 ### Quick Performance Checks
 ```bash
 # Run quick benchmarks for fast feedback
 cd internal/benchmarks
-go test -bench=BenchmarkQuick -benchtime=1s
+go test -bench=BenchmarkAppend_Tiny_Realistic -benchtime=1s
 
 # Run specific benchmark suites
-go test -bench=BenchmarkAppend_Tiny -benchtime=1s
+go test -bench=BenchmarkAppend_.*_Realistic -benchtime=2s
 ```
 
 ### Test Lifecycle
@@ -171,32 +193,33 @@ Test concurrent operations and race conditions:
 
 ## Example Demonstrations
 
-### Transfer Example
-The transfer example demonstrates proper DCB compliance and business logic validation:
+### Course Enrollment Example
+The course enrollment example demonstrates proper DCB compliance and business logic validation:
 
 **Example Structure:**
 ```
-internal/examples/transfer/main.go
+internal/examples/enrollment/main.go
 ```
 
 **Key Demonstrations:**
-- **Account Creation**: Creating accounts with proper validation
-- **Money Transfers**: Successful transfers between accounts
-- **Business Rules**: Duplicate account prevention and insufficient funds handling
-- **Non-existent Accounts**: Transfers to non-existent accounts (creates them automatically)
-- **Sequential Transfers**: Multiple transfers and balance tracking
+- **Course Offering**: Creating courses with proper validation
+- **Student Registration**: Registering students with proper validation
+- **Enrollment Completion**: Successful enrollments with business rules
+- **Business Rules**: Duplicate enrollment prevention and capacity limits
+- **Non-existent Courses**: Enrollments to non-existent courses (creates them automatically)
+- **Sequential Enrollments**: Multiple enrollments and capacity tracking
 - **Concurrency Control**: DCB compliance with `AppendCondition`
 
 **Example Features:**
 - **Flat Structure**: Single main.go file with all types and handlers
 - **Comprehensive Scenarios**: All business scenarios including edge cases
 - **DCB Compliance**: Uses proper `AppendCondition` for concurrency control
-- **Realistic Scenarios**: Realistic banking scenarios with proper validation
+- **Realistic Scenarios**: Realistic course enrollment scenarios with proper validation
 
-**Running Transfer Example:**
+**Running Course Enrollment Example:**
 ```bash
-# Run transfer example
-go run internal/examples/transfer/main.go
+# Run course enrollment example
+go run internal/examples/enrollment/main.go
 ```
 
 ### Ticket Booking Example
