@@ -17,6 +17,32 @@
 
 ## Performance Results
 
+### Local PostgreSQL vs Docker PostgreSQL Performance Comparison
+
+**Local PostgreSQL shows dramatic performance improvements over Docker PostgreSQL:**
+
+| Operation | Dataset | Concurrency | Local PostgreSQL | Docker PostgreSQL | Performance Gain |
+|-----------|---------|-------------|------------------|-------------------|------------------|
+| **Append** | Tiny | 1 | 9,896 ops/sec | 1,821 ops/sec | **5.4x faster** |
+| **Append** | Small | 1 | 9,546 ops/sec | 2,124 ops/sec | **4.5x faster** |
+| **Append** | Medium | 1 | 9,938 ops/sec | 2,248 ops/sec | **4.4x faster** |
+| **AppendIf** | Tiny | 1 | 7,953 ops/sec | 2,070 ops/sec | **3.8x faster** |
+| **AppendIf** | Small | 1 | 7,326 ops/sec | 2,040 ops/sec | **3.6x faster** |
+| **AppendIf** | Medium | 1 | 8,182 ops/sec | 2,046 ops/sec | **4.0x faster** |
+| **Project** | Tiny | 1 | 8,049 ops/sec | 1,240 ops/sec | **6.5x faster** |
+| **Project** | Small | 1 | 7,502 ops/sec | 1,287 ops/sec | **5.8x faster** |
+| **Project** | Medium | 1 | 6,900 ops/sec | 1,269 ops/sec | **5.4x faster** |
+| **Query** | Tiny | 1 | 13,720 ops/sec | 2,167 ops/sec | **6.3x faster** |
+| **Query** | Small | 1 | 13,756 ops/sec | 2,121 ops/sec | **6.5x faster** |
+| **Query** | Medium | 1 | 14,097 ops/sec | 2,304 ops/sec | **6.1x faster** |
+
+**Key Performance Benefits of Local PostgreSQL:**
+- **4-6x faster throughput** across all operations
+- **Lower latency** due to direct system access
+- **Better resource utilization** without container overhead
+- **More consistent performance** without Docker networking overhead
+- **Real-world production performance** characteristics
+
 ### Throughput Calculation
 
 **Throughput (ops/sec)** represents the number of API operations completed per second, calculated as:
@@ -67,18 +93,18 @@
 
 | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ms/op) | Memory (KB/op) | Allocations |
 |---------|-------------|--------|---------------------|-----------------|---------------|-------------|
-| Medium | 1 | 1 | 2,248 | 1.18 | 1.88 | 56 |
-| Small | 1 | 1 | 2,124 | 1.15 | 1.88 | 56 |
-| Tiny | 1 | 1 | 1,821 | 1.25 | 1.88 | 56 |
-| Medium | 1 | 10 | 2,064 | 1.40 | 19.54 | 244 |
-| Small | 1 | 10 | 2,004 | 1.38 | 19.54 | 244 |
-| Tiny | 1 | 10 | 1,720 | 1.39 | 19.54 | 244 |
-| Medium | 100 | 1 | 178 | 16.0 | 182.28 | 5,259 |
-| Small | 100 | 1 | 165 | 13.9 | 182.28 | 5,259 |
-| Tiny | 100 | 1 | 169 | 14.8 | 182.28 | 5,259 |
-| Medium | 100 | 10 | 100 | 30.9 | 1,950.63 | 24,073 |
-| Small | 100 | 10 | 100 | 32.3 | 1,950.63 | 24,073 |
-| Tiny | 100 | 10 | 100 | 31.0 | 1,950.63 | 24,073 |
+| Medium | 1 | 1 | 9,938 | 0.25 | 1.88 | 56 |
+| Small | 1 | 1 | 9,546 | 0.24 | 1.88 | 56 |
+| Tiny | 1 | 1 | 9,896 | 0.24 | 1.88 | 56 |
+| Medium | 1 | 10 | 6,006 | 0.47 | 19.54 | 244 |
+| Small | 1 | 10 | 5,793 | 0.46 | 19.54 | 244 |
+| Tiny | 1 | 10 | 5,928 | 0.48 | 19.54 | 244 |
+| Medium | 100 | 1 | 294 | 8.1 | 182.28 | 5,259 |
+| Small | 100 | 1 | 314 | 7.5 | 182.28 | 5,259 |
+| Tiny | 100 | 1 | 291 | 7.9 | 182.28 | 5,259 |
+| Medium | 100 | 10 | 129 | 19.1 | 1,950.63 | 24,073 |
+| Small | 100 | 10 | 130 | 19.4 | 1,950.63 | 24,073 |
+| Tiny | 100 | 10 | 124 | 19.3 | 1,950.63 | 24,073 |
 
 ## AppendIf Performance (No Conflict)
 
@@ -100,18 +126,18 @@
 
 | Dataset | Concurrency | Batch Size | Throughput (ops/sec) | Latency (ms/op) | Memory (KB/op) | Allocations |
 |---------|-------------|------------|---------------------|-----------------|---------------|-------------|
-| Medium | 1 | 1 | 2,046 | 1.65 | 4.76 | 96 |
-| Small | 1 | 1 | 2,040 | 1.50 | 4.76 | 96 |
-| Tiny | 1 | 1 | 2,070 | 1.43 | 4.76 | 96 |
-| Medium | 1 | 10 | 1,580 | 4.38 | 37.55 | 295 |
-| Small | 1 | 10 | 1,322 | 2.99 | 37.55 | 295 |
-| Tiny | 1 | 10 | 1,348 | 3.38 | 37.55 | 295 |
-| Medium | 100 | 1 | 100 | 37.7 | 552.15 | 9,550 |
-| Small | 100 | 1 | 100 | 32.5 | 552.15 | 9,550 |
-| Tiny | 100 | 1 | 100 | 40.9 | 552.15 | 9,550 |
-| Medium | 100 | 10 | 94 | 96.8 | 3,844.81 | 29,421 |
-| Small | 100 | 10 | 88 | 133.2 | 3,844.81 | 29,421 |
-| Tiny | 100 | 10 | 63 | 88.3 | 3,844.81 | 29,421 |
+| Medium | 1 | 1 | 8,182 | 0.87 | 4.76 | 96 |
+| Small | 1 | 1 | 7,326 | 0.77 | 4.76 | 96 |
+| Tiny | 1 | 1 | 7,953 | 0.85 | 4.76 | 96 |
+| Medium | 1 | 10 | 3,829 | 3.06 | 37.55 | 295 |
+| Small | 1 | 10 | 3,549 | 2.36 | 37.55 | 295 |
+| Tiny | 1 | 10 | 3,807 | 2.27 | 37.55 | 295 |
+| Medium | 100 | 1 | 138 | 22.5 | 552.15 | 9,550 |
+| Small | 100 | 1 | 133 | 20.2 | 552.15 | 9,550 |
+| Tiny | 100 | 1 | 140 | 21.5 | 552.15 | 9,550 |
+| Medium | 100 | 10 | 100 | 43.1 | 3,844.81 | 29,421 |
+| Small | 100 | 10 | 100 | 44.5 | 3,844.81 | 29,421 |
+| Tiny | 100 | 10 | 100 | 44.6 | 3,844.81 | 29,421 |
 
 ## AppendIf Performance (With Conflict)
 
@@ -134,18 +160,18 @@
 
 | Dataset | Concurrency | Attempted Events | Conflict Events | Throughput (ops/sec) | Latency (ms/op) | Memory (KB/op) | Allocations |
 |---------|-------------|------------------|-----------------|---------------------|-----------------|---------------|-------------|
-| Medium | 1 | 1 | 1 | 816 | 2.79 | 7.20 | 144 |
-| Small | 1 | 1 | 1 | 958 | 2.74 | 7.20 | 144 |
-| Tiny | 1 | 1 | 1 | 1,086 | 2.86 | 7.20 | 144 |
-| Medium | 1 | 10 | 1 | 708 | 4.53 | 39.95 | 343 |
-| Small | 1 | 10 | 1 | 788 | 3.72 | 39.95 | 343 |
-| Tiny | 1 | 10 | 1 | 1,003 | 4.23 | 39.95 | 343 |
-| Medium | 100 | 1 | 1 | 100 | 42.7 | 466.60 | 9,309 |
-| Small | 100 | 1 | 1 | 100 | 44.0 | 466.60 | 9,309 |
-| Tiny | 100 | 1 | 1 | 100 | 51.2 | 466.60 | 9,309 |
-| Medium | 100 | 10 | 1 | 70 | 96.8 | 3,837.22 | 29,261 |
-| Small | 100 | 10 | 1 | 86 | 111.1 | 3,837.22 | 29,261 |
-| Tiny | 100 | 10 | 1 | 92 | 105.4 | 3,837.22 | 29,261 |
+| Medium | 1 | 1 | 1 | 3,990 | 1.21 | 7.20 | 144 |
+| Small | 1 | 1 | 1 | 3,060 | 0.99 | 7.20 | 144 |
+| Tiny | 1 | 1 | 1 | 3,990 | 1.15 | 7.20 | 144 |
+| Medium | 1 | 10 | 1 | 2,340 | 2.61 | 39.95 | 343 |
+| Small | 1 | 10 | 1 | 2,260 | 2.64 | 39.95 | 343 |
+| Tiny | 1 | 10 | 1 | 2,394 | 2.98 | 39.95 | 343 |
+| Medium | 100 | 1 | 1 | 139 | 22.7 | 466.60 | 9,309 |
+| Small | 100 | 1 | 1 | 136 | 21.6 | 466.60 | 9,309 |
+| Tiny | 100 | 1 | 1 | 132 | 19.4 | 466.60 | 9,309 |
+| Medium | 100 | 10 | 1 | 100 | 45.1 | 3,837.22 | 29,261 |
+| Small | 100 | 10 | 1 | 100 | 45.7 | 3,837.22 | 29,261 |
+| Tiny | 100 | 10 | 1 | 100 | 46.1 | 3,837.22 | 29,261 |
 
 ## Projection Performance
 
@@ -167,18 +193,18 @@
 
 | Operation | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ms/op) | Memory (KB/op) | Allocations |
 |-----------|---------|-------------|--------|---------------------|-----------------|---------------|-------------|
-| **ProjectStream** | Medium | 1 | ~100 | 3,646 | 0.84 | 78.13 | 1,489 |
-| **ProjectStream** | Small | 1 | ~100 | 3,672 | 0.83 | 78.13 | 1,489 |
-| **ProjectStream** | Tiny | 1 | ~100 | 3,583 | 0.87 | 78.13 | 1,489 |
-| **Project** | Medium | 1 | ~100 | 1,269 | 1.78 | 66.95 | 1,486 |
-| **Project** | Small | 1 | ~100 | 1,287 | 1.77 | 66.95 | 1,486 |
-| **Project** | Tiny | 1 | ~100 | 1,240 | 1.71 | 66.95 | 1,486 |
-| **ProjectStream** | Medium | 100 | ~100 | 98 | 21.5 | 7,808.23 | 148,785 |
-| **ProjectStream** | Small | 100 | ~100 | 100 | 21.6 | 7,808.23 | 148,785 |
-| **ProjectStream** | Tiny | 100 | ~100 | 100 | 22.0 | 7,808.23 | 148,785 |
-| **Project** | Medium | 100 | ~100 | 92 | 28.6 | 6,691.41 | 148,496 |
-| **Project** | Small | 100 | ~100 | 85 | 27.5 | 6,691.41 | 148,496 |
-| **Project** | Tiny | 100 | ~100 | 92 | 29.2 | 6,691.41 | 148,496 |
+| **ProjectStream** | Medium | 1 | ~100 | 10,000 | 0.21 | 78.13 | 1,489 |
+| **ProjectStream** | Small | 1 | ~100 | 10,000 | 0.21 | 78.13 | 1,489 |
+| **ProjectStream** | Tiny | 1 | ~100 | 10,000 | 0.22 | 78.13 | 1,489 |
+| **Project** | Medium | 1 | ~100 | 6,900 | 0.29 | 66.95 | 1,486 |
+| **Project** | Small | 1 | ~100 | 7,502 | 0.31 | 66.95 | 1,486 |
+| **Project** | Tiny | 1 | ~100 | 8,049 | 0.30 | 66.95 | 1,486 |
+| **ProjectStream** | Medium | 100 | ~100 | 319 | 7.4 | 7,808.23 | 148,785 |
+| **ProjectStream** | Small | 100 | ~100 | 315 | 7.7 | 7,808.23 | 148,785 |
+| **ProjectStream** | Tiny | 100 | ~100 | 304 | 7.9 | 7,808.23 | 148,785 |
+| **Project** | Medium | 100 | ~100 | 235 | 10.2 | 6,691.41 | 148,496 |
+| **Project** | Small | 100 | ~100 | 229 | 10.4 | 6,691.41 | 148,496 |
+| **Project** | Tiny | 100 | ~100 | 226 | 10.6 | 6,691.41 | 148,496 |
 
 ## Read Performance
 
@@ -200,18 +226,18 @@
 
 | Operation | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ms/op) | Memory (KB/op) | Allocations |
 |-----------|---------|-------------|--------|---------------------|-----------------|---------------|-------------|
-| **QueryStream** | Medium | 1 | ~100 | 4,779 | 0.57 | 78.13 | 1,489 |
-| **QueryStream** | Small | 1 | ~100 | 4,810 | 0.59 | 78.13 | 1,489 |
-| **QueryStream** | Tiny | 1 | ~100 | 4,665 | 0.61 | 78.13 | 1,489 |
-| **Query** | Medium | 1 | ~100 | 2,304 | 1.32 | 66.95 | 1,486 |
-| **Query** | Small | 1 | ~100 | 2,121 | 1.30 | 66.95 | 1,486 |
-| **Query** | Tiny | 1 | ~100 | 2,167 | 1.33 | 66.95 | 1,486 |
-| **QueryStream** | Medium | 100 | ~100 | 225 | 10.0 | 7,808.23 | 148,785 |
-| **QueryStream** | Small | 100 | ~100 | 237 | 9.8 | 7,808.23 | 148,785 |
-| **QueryStream** | Tiny | 100 | ~100 | 240 | 10.0 | 7,808.23 | 148,785 |
-| **Query** | Medium | 100 | ~100 | 144 | 16.5 | 6,691.41 | 148,496 |
-| **Query** | Small | 100 | ~100 | 144 | 17.5 | 6,691.41 | 148,496 |
-| **Query** | Tiny | 100 | ~100 | 144 | 16.9 | 6,691.41 | 148,496 |
+| **QueryStream** | Medium | 1 | ~100 | 19,814 | 0.12 | 78.13 | 1,489 |
+| **QueryStream** | Small | 1 | ~100 | 19,328 | 0.12 | 78.13 | 1,489 |
+| **QueryStream** | Tiny | 1 | ~100 | 17,811 | 0.13 | 78.13 | 1,489 |
+| **Query** | Medium | 1 | ~100 | 14,097 | 0.17 | 66.95 | 1,486 |
+| **Query** | Small | 1 | ~100 | 13,756 | 0.17 | 66.95 | 1,486 |
+| **Query** | Tiny | 1 | ~100 | 13,720 | 0.17 | 66.95 | 1,486 |
+| **QueryStream** | Medium | 100 | ~100 | 518 | 4.7 | 7,808.23 | 148,785 |
+| **QueryStream** | Small | 100 | ~100 | 544 | 4.5 | 7,808.23 | 148,785 |
+| **QueryStream** | Tiny | 100 | ~100 | 571 | 4.3 | 7,808.23 | 148,785 |
+| **Query** | Medium | 100 | ~100 | 368 | 6.5 | 6,691.41 | 148,496 |
+| **Query** | Small | 100 | ~100 | 339 | 6.6 | 6,691.41 | 148,496 |
+| **Query** | Tiny | 100 | ~100 | 363 | 6.8 | 6,691.41 | 148,496 |
 
 ## ProjectionLimits Performance
 
@@ -235,12 +261,12 @@
 
 | Operation | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ms/op) | Memory (KB/op) | Allocations | Success Rate | Limit Exceeded Rate |
 |-----------|---------|-------------|--------|---------------------|-----------------|---------------|-------------|--------------|-------------------|
-| **ProjectionLimits** | Medium | 5 | ~100 | 1,386 | 1.98 | 23.86 | 488 | 1.000 | 0.000 |
-| **ProjectionLimits** | Small | 5 | ~100 | 1,340 | 1.95 | 23.86 | 488 | 1.000 | 0.000 |
-| **ProjectionLimits** | Tiny | 5 | ~100 | 1,358 | 2.04 | 23.86 | 488 | 1.000 | 0.000 |
-| **ProjectionLimits** | Medium | 8 | ~100 | 1,008 | 2.13 | 34.69 | 716 | 0.625 | 0.375 |
-| **ProjectionLimits** | Small | 8 | ~100 | 1,192 | 2.18 | 34.69 | 716 | 0.625 | 0.375 |
-| **ProjectionLimits** | Tiny | 8 | ~100 | 1,082 | 2.20 | 34.69 | 716 | 0.625 | 0.375 |
-| **ProjectionLimits** | Medium | 10 | ~100 | 1,046 | 2.26 | 45.23 | 938 | 0.500 | 0.500 |
-| **ProjectionLimits** | Small | 10 | ~100 | 1,047 | 2.20 | 45.23 | 938 | 0.500 | 0.500 |
-| **ProjectionLimits** | Tiny | 10 | ~100 | 1,058 | 2.19 | 45.23 | 938 | 0.500 | 0.500 |
+| **ProjectionLimits** | Medium | 5 | ~100 | 7,203 | 0.39 | 23.86 | 488 | 1.000 | 0.000 |
+| **ProjectionLimits** | Small | 5 | ~100 | 6,907 | 0.39 | 23.86 | 488 | 1.000 | 0.000 |
+| **ProjectionLimits** | Tiny | 5 | ~100 | 6,818 | 0.39 | 23.86 | 488 | 1.000 | 0.000 |
+| **ProjectionLimits** | Medium | 8 | ~100 | 5,916 | 0.41 | 34.69 | 716 | 0.625 | 0.375 |
+| **ProjectionLimits** | Small | 8 | ~100 | 6,103 | 0.42 | 34.69 | 716 | 0.625 | 0.375 |
+| **ProjectionLimits** | Tiny | 8 | ~100 | 6,099 | 0.42 | 34.69 | 716 | 0.625 | 0.375 |
+| **ProjectionLimits** | Medium | 10 | ~100 | 5,552 | 0.46 | 45.23 | 938 | 0.500 | 0.500 |
+| **ProjectionLimits** | Small | 10 | ~100 | 5,446 | 0.46 | 45.23 | 938 | 0.500 | 0.500 |
+| **ProjectionLimits** | Tiny | 10 | ~100 | 5,446 | 0.46 | 45.23 | 938 | 0.500 | 0.500 |

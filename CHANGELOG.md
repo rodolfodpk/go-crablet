@@ -69,6 +69,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **ProjectionLimits Performance**: Updated with current concurrency limit testing results
   - **Data Source**: All performance data extracted from comprehensive benchmark suite run on September 16th, 2025
   - **Table Formatting**: Maintained standardized table format with throughput sorting and detailed column explanations
+- **Local PostgreSQL Performance**: Added comprehensive local PostgreSQL performance data showing dramatic improvements
+  - **Performance Comparison**: Added detailed comparison table between Local PostgreSQL and Docker PostgreSQL
+  - **Performance Gains**: Local PostgreSQL shows 4-6x faster throughput across all operations
+  - **Real-world Performance**: Local PostgreSQL provides production-ready performance characteristics
+  - **Benchmark Results**: Updated all performance tables with local PostgreSQL benchmark data
+  - **Performance Benefits**: Documented key advantages of local PostgreSQL over Docker PostgreSQL
 
 ### Changed
 - **Performance Documentation Format**: Fixed performance table formatting and units
