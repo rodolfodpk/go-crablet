@@ -17,26 +17,7 @@
 
 ## Performance Results
 
-### Local PostgreSQL vs Docker PostgreSQL Performance Comparison
-
 **Current Local PostgreSQL Performance (September 16, 2025):**
-
-**Note**: Docker PostgreSQL comparison data will be added after running Docker benchmarks.
-
-| Operation | Dataset | Concurrency | Local PostgreSQL | Docker PostgreSQL | Performance Gain |
-|-----------|---------|-------------|------------------|-------------------|------------------|
-| **Append** | Tiny | 1 | 3,870 ops/sec | TBD | **TBD** |
-| **Append** | Small | 1 | 3,870 ops/sec | TBD | **TBD** |
-| **Append** | Medium | 1 | 3,625 ops/sec | TBD | **TBD** |
-| **AppendIf No Conflict** | Tiny | 1 | 1,164 ops/sec | TBD | **TBD** |
-| **AppendIf No Conflict** | Small | 1 | 1,220 ops/sec | TBD | **TBD** |
-| **AppendIf No Conflict** | Medium | 1 | 1,103 ops/sec | TBD | **TBD** |
-| **Project** | Tiny | 1 | 3,433 ops/sec | TBD | **TBD** |
-| **Project** | Small | 1 | 3,348 ops/sec | TBD | **TBD** |
-| **Project** | Medium | 1 | 3,163 ops/sec | TBD | **TBD** |
-| **Query** | Tiny | 1 | 5,750 ops/sec | TBD | **TBD** |
-| **Query** | Small | 1 | 5,696 ops/sec | TBD | **TBD** |
-| **Query** | Medium | 1 | 6,147 ops/sec | TBD | **TBD** |
 
 ## Detailed Performance Results (Local PostgreSQL)
 
