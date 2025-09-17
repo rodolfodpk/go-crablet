@@ -42,31 +42,31 @@
 
 **Local PostgreSQL vs Docker PostgreSQL Performance Comparison (Realistic Benchmarks)**:
 
-**Note**: Docker PostgreSQL comparison data will be added after running Docker benchmarks.
+**Docker PostgreSQL benchmark data from `go_benchmarks_20250916_213723.txt` (September 16, 2025)**
 
 | Operation | Dataset | Local PostgreSQL | Docker PostgreSQL | Performance Gain |
 |-----------|---------|------------------|-------------------|------------------|
-| **Append** | Tiny | 3,870 ops/sec | TBD | **TBD** |
-| **Append** | Small | 3,870 ops/sec | TBD | **TBD** |
-| **Append** | Medium | 3,625 ops/sec | TBD | **TBD** |
-| **AppendIf No Conflict** | Tiny | 1,164 ops/sec | TBD | **TBD** |
-| **AppendIf No Conflict** | Small | 1,220 ops/sec | TBD | **TBD** |
-| **AppendIf No Conflict** | Medium | 1,103 ops/sec | TBD | **TBD** |
-| **Project** | Tiny | 3,433 ops/sec | TBD | **TBD** |
-| **Project** | Small | 3,348 ops/sec | TBD | **TBD** |
-| **Project** | Medium | 3,163 ops/sec | TBD | **TBD** |
-| **Query** | Tiny | 5,750 ops/sec | TBD | **TBD** |
-| **Query** | Small | 5,696 ops/sec | TBD | **TBD** |
-| **Query** | Medium | 6,147 ops/sec | TBD | **TBD** |
+| **Append** | Tiny | 3,870 ops/sec | 820 ops/sec | **4.7x faster** |
+| **Append** | Small | 3,870 ops/sec | 820 ops/sec | **4.7x faster** |
+| **Append** | Medium | 3,625 ops/sec | 820 ops/sec | **4.4x faster** |
+| **AppendIf No Conflict** | Tiny | 1,164 ops/sec | 685 ops/sec | **1.7x faster** |
+| **AppendIf No Conflict** | Small | 1,220 ops/sec | 680 ops/sec | **1.8x faster** |
+| **AppendIf No Conflict** | Medium | 1,103 ops/sec | 680 ops/sec | **1.6x faster** |
+| **Project** | Tiny | 3,433 ops/sec | 502 ops/sec | **6.8x faster** |
+| **Project** | Small | 3,348 ops/sec | 537 ops/sec | **6.2x faster** |
+| **Project** | Medium | 3,163 ops/sec | 537 ops/sec | **5.9x faster** |
+| **Query** | Tiny | 5,750 ops/sec | 768 ops/sec | **7.5x faster** |
+| **Query** | Small | 5,696 ops/sec | 680 ops/sec | **8.4x faster** |
+| **Query** | Medium | 6,147 ops/sec | 680 ops/sec | **9.0x faster** |
 
 **Key Performance Insights**:
-- **Local PostgreSQL**: Current performance data available for all operations
-- **Append Operations**: 3,625-3,870 ops/sec (single user, single event)
-- **AppendIf Operations**: 1,103-1,220 ops/sec (single user, single event)
-- **Project Operations**: 3,163-3,433 ops/sec (single user)
-- **Query Operations**: 5,696-6,147 ops/sec (single user)
-- **Docker Comparison**: TBD - will be updated after running Docker benchmarks
-- **Realistic Benchmarks**: Performance data from actual business scenarios
+- **Local PostgreSQL**: 1.6-9.0x faster across all operations compared to Docker PostgreSQL
+- **Query Operations**: Show the largest performance gains (7.5-9.0x faster on Local)
+- **Project Operations**: Significant improvements (5.9-6.8x faster on Local)
+- **Append Operations**: Consistent performance gains (4.4-4.7x faster on Local)
+- **AppendIf Operations**: Moderate improvements (1.6-1.8x faster on Local)
+- **Docker Overhead**: Containerization adds significant latency to all operations
+- **Realistic Benchmarks**: Performance differences are more pronounced with business scenarios
 
 ## Environment Switching
 
