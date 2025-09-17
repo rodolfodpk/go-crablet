@@ -119,7 +119,7 @@ benchmark-concurrency:
 benchmark-go:
 	@echo "🚀 Running Go Library Benchmarks..."
 	@mkdir -p $(BENCHMARK_RESULTS_DIR)
-	@cd internal/benchmarks && $(GO) test -bench=. -benchmem -benchtime=2s -timeout=5m . > ../../$(BENCHMARK_RESULTS_DIR)/go_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@cd internal/benchmarks && $(GO) test -bench="BenchmarkAppend_.*_Realistic" -benchmem -benchtime=2s -timeout=10m . > ../../$(BENCHMARK_RESULTS_DIR)/go_benchmarks_$(TIMESTAMP).txt 2>&1 || true
 	@echo "✅ Go benchmarks completed"
 
 benchmark-go-quick:
@@ -134,13 +134,13 @@ benchmark-go-quick:
 benchmark-go-append:
 	@echo "🚀 Running Append Operation Benchmarks (Tiny dataset, single-threaded)..."
 	@mkdir -p $(BENCHMARK_RESULTS_DIR)
-	@cd internal/benchmarks && $(GO) test -bench="BenchmarkAppend_Tiny" -benchmem -benchtime=1s -timeout=3m . > ../../$(BENCHMARK_RESULTS_DIR)/go_append_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@cd internal/benchmarks && $(GO) test -bench="BenchmarkAppend_Tiny_Realistic" -benchmem -benchtime=1s -timeout=3m . > ../../$(BENCHMARK_RESULTS_DIR)/go_append_benchmarks_$(TIMESTAMP).txt 2>&1 || true
 	@echo "✅ Append benchmarks completed"
 
 benchmark-go-appendif:
 	@echo "🚀 Running AppendIf Operation Benchmarks (Tiny dataset, single-threaded)..."
 	@mkdir -p $(BENCHMARK_RESULTS_DIR)
-	@cd internal/benchmarks && $(GO) test -bench="BenchmarkAppend.*AppendIf.*_Tiny" -benchmem -benchtime=1s -timeout=3m . > ../../$(BENCHMARK_RESULTS_DIR)/go_appendif_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@cd internal/benchmarks && $(GO) test -bench="BenchmarkAppend_Tiny_Realistic.*AppendIf" -benchmem -benchtime=1s -timeout=3m . > ../../$(BENCHMARK_RESULTS_DIR)/go_appendif_benchmarks_$(TIMESTAMP).txt 2>&1 || true
 	@echo "✅ AppendIf benchmarks completed"
 
 benchmark-go-read:
@@ -210,19 +210,19 @@ benchmark-go-projection-concurrent-100:
 benchmark-go-tiny:
 	@echo "🚀 Running All Operations with Tiny Dataset (5 courses, 10 students, 20 enrollments)..."
 	@mkdir -p $(BENCHMARK_RESULTS_DIR)
-	@cd internal/benchmarks && $(GO) test -bench=".*_Tiny" -benchmem -benchtime=1s -timeout=3m . > ../../$(BENCHMARK_RESULTS_DIR)/go_tiny_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@cd internal/benchmarks && $(GO) test -bench="BenchmarkAppend_Tiny_Realistic" -benchmem -benchtime=1s -timeout=3m . > ../../$(BENCHMARK_RESULTS_DIR)/go_tiny_benchmarks_$(TIMESTAMP).txt 2>&1 || true
 	@echo "✅ Tiny dataset benchmarks completed"
 
 benchmark-go-small:
 	@echo "🚀 Running All Operations with Small Dataset (500 courses, 5K students, 25K enrollments)..."
 	@mkdir -p $(BENCHMARK_RESULTS_DIR)
-	@cd internal/benchmarks && $(GO) test -bench=".*_Small" -benchmem -benchtime=2s -timeout=5m . > ../../$(BENCHMARK_RESULTS_DIR)/go_small_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@cd internal/benchmarks && $(GO) test -bench="BenchmarkAppend_Small_Realistic" -benchmem -benchtime=2s -timeout=5m . > ../../$(BENCHMARK_RESULTS_DIR)/go_small_benchmarks_$(TIMESTAMP).txt 2>&1 || true
 	@echo "✅ Small dataset benchmarks completed"
 
 benchmark-go-medium:
 	@echo "🚀 Running All Operations with Medium Dataset (1K courses, 10K students, 50K enrollments)..."
 	@mkdir -p $(BENCHMARK_RESULTS_DIR)
-	@cd internal/benchmarks && $(GO) test -bench=".*_Medium" -benchmem -benchtime=5s -timeout=10m . > ../../$(BENCHMARK_RESULTS_DIR)/go_medium_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@cd internal/benchmarks && $(GO) test -bench="BenchmarkAppend_Medium_Realistic" -benchmem -benchtime=5s -timeout=10m . > ../../$(BENCHMARK_RESULTS_DIR)/go_medium_benchmarks_$(TIMESTAMP).txt 2>&1 || true
 	@echo "✅ Medium dataset benchmarks completed"
 
 

@@ -19,29 +19,85 @@
 
 ### Local PostgreSQL vs Docker PostgreSQL Performance Comparison
 
-**Local PostgreSQL shows dramatic performance improvements over Docker PostgreSQL:**
+**Current Local PostgreSQL Performance (September 16, 2025):**
+
+**Note**: Docker PostgreSQL comparison data will be added after running Docker benchmarks.
 
 | Operation | Dataset | Concurrency | Local PostgreSQL | Docker PostgreSQL | Performance Gain |
 |-----------|---------|-------------|------------------|-------------------|------------------|
-| **Append** | Tiny | 1 | 9,896 ops/sec | 1,821 ops/sec | **5.4x faster** |
-| **Append** | Small | 1 | 9,546 ops/sec | 2,124 ops/sec | **4.5x faster** |
-| **Append** | Medium | 1 | 9,938 ops/sec | 2,248 ops/sec | **4.4x faster** |
-| **AppendIf** | Tiny | 1 | 7,953 ops/sec | 2,070 ops/sec | **3.8x faster** |
-| **AppendIf** | Small | 1 | 7,326 ops/sec | 2,040 ops/sec | **3.6x faster** |
-| **AppendIf** | Medium | 1 | 8,182 ops/sec | 2,046 ops/sec | **4.0x faster** |
-| **Project** | Tiny | 1 | 8,049 ops/sec | 1,240 ops/sec | **6.5x faster** |
-| **Project** | Small | 1 | 7,502 ops/sec | 1,287 ops/sec | **5.8x faster** |
-| **Project** | Medium | 1 | 6,900 ops/sec | 1,269 ops/sec | **5.4x faster** |
-| **Query** | Tiny | 1 | 13,720 ops/sec | 2,167 ops/sec | **6.3x faster** |
-| **Query** | Small | 1 | 13,756 ops/sec | 2,121 ops/sec | **6.5x faster** |
-| **Query** | Medium | 1 | 14,097 ops/sec | 2,304 ops/sec | **6.1x faster** |
+| **Append** | Tiny | 1 | 4,093 ops/sec | TBD | **TBD** |
+| **Append** | Small | 1 | 4,162 ops/sec | TBD | **TBD** |
+| **Append** | Medium | 1 | 3,833 ops/sec | TBD | **TBD** |
+| **AppendIf No Conflict** | Tiny | 1 | 1,095 ops/sec | TBD | **TBD** |
+| **AppendIf No Conflict** | Small | 1 | 999 ops/sec | TBD | **TBD** |
+| **AppendIf No Conflict** | Medium | 1 | 1,133 ops/sec | TBD | **TBD** |
+| **Project** | Tiny | 1 | 2,978 ops/sec | TBD | **TBD** |
+| **Project** | Small | 1 | 3,317 ops/sec | TBD | **TBD** |
+| **Project** | Medium | 1 | 3,500 ops/sec | TBD | **TBD** |
+| **Query** | Tiny | 1 | 5,215 ops/sec | TBD | **TBD** |
+| **Query** | Small | 1 | 5,794 ops/sec | TBD | **TBD** |
+| **Query** | Medium | 1 | 5,884 ops/sec | TBD | **TBD** |
 
-**Key Performance Benefits of Local PostgreSQL:**
-- **4-6x faster throughput** across all operations
-- **Lower latency** due to direct system access
-- **Better resource utilization** without container overhead
-- **More consistent performance** without Docker networking overhead
-- **Real-world production performance** characteristics
+## Detailed Performance Results (Local PostgreSQL)
+
+**Benchmark Data Source**: `go_benchmarks_20250916_205736.txt` (September 16, 2025)
+**Environment**: Local PostgreSQL 16 on macOS (Apple M1 Pro)
+**Benchmark Type**: Realistic business scenarios with course enrollment events
+
+### Append Performance
+
+| Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
+|---------|-------------|--------|---------------------|-----------------|---------------|-------------|
+| Tiny | 1 | 1 | 4,093 | 244,354 | 2,990 | 56 |
+| Small | 1 | 1 | 4,162 | 240,270 | 3,001 | 56 |
+| Medium | 1 | 1 | 3,833 | 260,890 | 2,989 | 56 |
+| Tiny | 100 | 1 | 137 | 7,285,283 | 295,535 | 5,458 |
+| Small | 100 | 1 | 131 | 7,614,261 | 295,521 | 5,458 |
+| Medium | 100 | 1 | 127 | 7,851,026 | 295,291 | 5,457 |
+| Tiny | 1 | 10 | 2,097 | 476,976 | 31,678 | 253 |
+| Small | 1 | 10 | 2,174 | 459,906 | 31,664 | 253 |
+| Medium | 1 | 10 | 2,313 | 432,383 | 31,654 | 253 |
+
+### AppendIf Performance (No Conflict)
+
+| Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
+|---------|-------------|--------|---------------------|-----------------|---------------|-------------|
+| Tiny | 1 | 1 | 1,095 | 913,347 | 4,852 | 96 |
+| Small | 1 | 1 | 999 | 1,001,896 | 4,851 | 96 |
+| Medium | 1 | 1 | 1,133 | 882,842 | 4,846 | 96 |
+| Tiny | 100 | 1 | 47 | 21,265,037 | 562,759 | 9,554 |
+| Small | 100 | 1 | 49 | 20,323,044 | 562,335 | 9,552 |
+| Medium | 100 | 1 | 52 | 19,250,116 | 561,848 | 9,549 |
+
+### Project Performance
+
+| Dataset | Concurrency | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
+|---------|-------------|---------------------|-----------------|---------------|-------------|
+| Tiny | 1 | 2,978 | 335,909 | 68,553 | 1,486 |
+| Small | 1 | 3,317 | 301,363 | 68,546 | 1,486 |
+| Medium | 1 | 3,500 | 285,714 | 68,534 | 1,486 |
+| Tiny | 100 | 92 | 10,821,593 | 6,852,033 | 148,491 |
+| Small | 100 | 96 | 10,392,868 | 6,850,657 | 148,478 |
+| Medium | 100 | 103 | 9,734,996 | 6,849,358 | 148,464 |
+
+### Query Performance
+
+| Dataset | Concurrency | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
+|---------|-------------|---------------------|-----------------|---------------|-------------|
+| Tiny | 1 | 5,215 | 191,759 | 32,850 | 497 |
+| Small | 1 | 5,794 | 172,583 | 32,845 | 497 |
+| Medium | 1 | 5,884 | 169,974 | 32,842 | 497 |
+| Tiny | 100 | 156 | 6,415,878 | 3,281,312 | 49,563 |
+| Small | 100 | 149 | 6,722,330 | 3,280,509 | 49,559 |
+| Medium | 100 | 155 | 6,438,548 | 3,280,189 | 49,557 |
+
+**Key Performance Insights:**
+- **Append operations**: 3,833-4,162 ops/sec (single user, single event)
+- **AppendIf operations**: 999-1,133 ops/sec (single user, single event)
+- **Project operations**: 2,978-3,500 ops/sec (single user)
+- **Query operations**: 5,215-5,884 ops/sec (single user)
+- **Concurrency impact**: Performance degrades significantly with 100 concurrent users
+- **Memory usage**: Consistent across datasets, scales with concurrency
 
 ### Throughput Calculation
 
