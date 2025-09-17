@@ -24,7 +24,7 @@
 | Guide | Environment | Datasets | Description |
 |-------|-------------|----------|-------------|
 | **[Local PostgreSQL Performance](performance-local.md)** | Local PostgreSQL 16 | Tiny, Small, Medium | **Latest benchmark results** |
-| **[Docker PostgreSQL Performance](performance-docker.md)** | Docker PostgreSQL 16 | Tiny, Small, Medium | Containerized benchmark results |
+| **[Docker PostgreSQL Performance](performance-docker.md)** | Docker PostgreSQL 16.10 | Tiny, Small, Medium | Containerized benchmark results |
 
 ## Local vs Docker PostgreSQL Comparison
 
