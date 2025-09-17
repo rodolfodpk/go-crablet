@@ -84,12 +84,12 @@
 **Key Performance Insights:**
 - **Append operations**: 4,255-4,450 ops/sec (single user, single event) - **Improved with PostgreSQL 17.6**
 - **AppendIf operations**: 1,134-1,286 ops/sec (single user, single event) - **Improved with PostgreSQL 17.6**
-- **Project operations**: 2,950-3,320 ops/sec (single user) - **Improved with PostgreSQL 17.6**
-- **Query operations**: 5,650-5,800 ops/sec (single user) - **Improved with PostgreSQL 17.6**
+- **Project operations**: 2,950-3,320 ops/sec (single user) - **Slightly decreased with PostgreSQL 17.6**
+- **Query operations**: 5,650-5,800 ops/sec (single user) - **Slightly decreased with PostgreSQL 17.6**
 - **Concurrency impact**: Performance degrades significantly with 100 concurrent users
 - **Memory usage**: Consistent across datasets, scales with concurrency
 - **Total execution time**: 398.747 seconds (~6.6 minutes) for complete benchmark suite
-- **PostgreSQL 17.6 benefits**: Better query planning and performance optimizations
+- **PostgreSQL 17.6 benefits**: Better query planning and performance optimizations (mixed results - Append/AppendIf improved, Project/Query slightly decreased)
 
 ### Throughput Calculation
 
