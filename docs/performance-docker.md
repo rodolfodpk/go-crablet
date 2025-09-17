@@ -233,12 +233,12 @@
 
 | Operation | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ms/op) | Memory (KB/op) | Allocations | Success Rate | Limit Exceeded Rate |
 |-----------|---------|-------------|--------|---------------------|-----------------|---------------|-------------|--------------|-------------------|
-| **ProjectionLimits** | Tiny | 5 | ~100 | 1,281 | 0.78 | 23.86 | 488 | 1.000 | 0.000 |
-| **ProjectionLimits** | Small | 5 | ~100 | 1,344 | 0.74 | 23.86 | 488 | 1.000 | 0.000 |
-| **ProjectionLimits** | Medium | 5 | ~100 | 1,294 | 0.77 | 23.86 | 488 | 1.000 | 0.000 |
-| **ProjectionLimits** | Tiny | 8 | ~100 | 1,294 | 0.77 | 34.69 | 716 | 0.625 | 0.375 |
-| **ProjectionLimits** | Small | 8 | ~100 | 1,242 | 0.81 | 34.69 | 716 | 0.625 | 0.375 |
-| **ProjectionLimits** | Medium | 8 | ~100 | 1,249 | 0.80 | 34.69 | 716 | 0.625 | 0.375 |
-| **ProjectionLimits** | Tiny | 10 | ~100 | 1,231 | 0.81 | 45.23 | 938 | 0.500 | 0.500 |
-| **ProjectionLimits** | Small | 10 | ~100 | 1,233 | 0.81 | 45.23 | 938 | 0.500 | 0.500 |
-| **ProjectionLimits** | Medium | 10 | ~100 | 1,090 | 0.92 | 45.23 | 938 | 0.500 | 0.500 |
+| **ProjectionLimits** | Tiny | 5 | ~100 | 1,281 | 0.78 | 23.86 | 488 | 100% | 0% |
+| **ProjectionLimits** | Small | 5 | ~100 | 1,344 | 0.74 | 23.86 | 488 | 100% | 0% |
+| **ProjectionLimits** | Medium | 5 | ~100 | 1,294 | 0.77 | 23.86 | 488 | 100% | 0% |
+| **ProjectionLimits** | Tiny | 8 | ~100 | 1,294 | 0.77 | 34.69 | 716 | 62.5% | 37.5% |
+| **ProjectionLimits** | Small | 8 | ~100 | 1,242 | 0.81 | 34.69 | 716 | 62.5% | 37.5% |
+| **ProjectionLimits** | Medium | 8 | ~100 | 1,249 | 0.80 | 34.69 | 716 | 62.5% | 37.5% |
+| **ProjectionLimits** | Tiny | 10 | ~100 | 1,231 | 0.81 | 45.23 | 938 | 50% | 50% |
+| **ProjectionLimits** | Small | 10 | ~100 | 1,233 | 0.81 | 45.23 | 938 | 50% | 50% |
+| **ProjectionLimits** | Medium | 10 | ~100 | 1,090 | 0.92 | 45.23 | 938 | 50% | 50% |
