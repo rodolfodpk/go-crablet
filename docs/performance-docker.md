@@ -17,6 +17,10 @@
 
 ## Performance Results
 
+**Docker PostgreSQL 17.6 benchmark data from `go_benchmarks_20250917_140652.txt` (September 17, 2025)**
+**Environment**: Docker PostgreSQL 17.6 on macOS (Apple M1 Pro)
+**Benchmark Type**: Realistic business scenarios with course enrollment events
+
 ### Throughput Calculation
 
 **Throughput (ops/sec)** represents the number of API operations completed per second, calculated as:
@@ -67,18 +71,18 @@
 
 | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ms/op) | Memory (KB/op) | Allocations |
 |---------|-------------|--------|---------------------|-----------------|---------------|-------------|
-| Tiny | 1 | 1 | 2,142 | 0.47 | 1.88 | 56 |
-| Small | 1 | 1 | 2,348 | 0.43 | 1.88 | 56 |
-| Medium | 1 | 1 | 2,175 | 0.46 | 1.88 | 56 |
-| Tiny | 1 | 10 | 1,989 | 0.50 | 19.54 | 244 |
-| Small | 1 | 10 | 2,014 | 0.50 | 19.54 | 244 |
-| Medium | 1 | 10 | 1,778 | 0.56 | 19.54 | 244 |
-| Tiny | 100 | 1 | 186 | 5.38 | 182.28 | 5,259 |
-| Small | 100 | 1 | 177 | 5.64 | 182.28 | 5,259 |
-| Medium | 100 | 1 | 171 | 5.84 | 182.28 | 5,259 |
-| Tiny | 100 | 10 | 100 | 10.00 | 1,950.63 | 24,073 |
-| Small | 100 | 10 | 100 | 10.00 | 1,950.63 | 24,073 |
-| Medium | 100 | 10 | 100 | 10.00 | 1,950.63 | 24,073 |
+| Tiny | 1 | 1 | 802 | 1.25 | 2.99 | 56 |
+| Small | 1 | 1 | 750 | 1.33 | 3.01 | 56 |
+| Medium | 1 | 1 | 802 | 1.25 | 2.99 | 56 |
+| Tiny | 1 | 10 | 680 | 1.47 | 31.67 | 253 |
+| Small | 1 | 10 | 800 | 1.25 | 31.66 | 253 |
+| Medium | 1 | 10 | 680 | 1.47 | 31.67 | 253 |
+| Tiny | 100 | 1 | 70 | 14.29 | 295.85 | 5,459 |
+| Small | 100 | 1 | 73 | 13.62 | 295.32 | 5,459 |
+| Medium | 100 | 1 | 70 | 14.29 | 295.19 | 5,456 |
+| Tiny | 100 | 10 | 32 | 31.41 | 3,602.49 | 25,272 |
+| Small | 100 | 10 | 32 | 31.41 | 3,602.49 | 25,272 |
+| Medium | 100 | 10 | 32 | 31.41 | 3,602.49 | 25,272 |
 
 ## AppendIf Performance (No Conflict)
 
