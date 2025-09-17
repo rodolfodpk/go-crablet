@@ -17,78 +17,79 @@
 
 ## Performance Results
 
-**Current Local PostgreSQL Performance (September 16, 2025):**
+**Current Local PostgreSQL Performance (September 17, 2025):**
 
 ## Detailed Performance Results (Local PostgreSQL)
 
-**Benchmark Data Source**: `go_benchmarks_20250916_211519.txt` (September 16, 2025)
-**Environment**: Local PostgreSQL 16 on macOS (Apple M1 Pro)
+**Benchmark Data Source**: `go_benchmarks_20250917_110824.txt` (September 17, 2025)
+**Environment**: Local PostgreSQL 17.6 on macOS (Apple M1 Pro)
 **Benchmark Type**: Realistic business scenarios with course enrollment events
 
 ### Append Performance
 
 | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
 |---------|-------------|--------|---------------------|-----------------|---------------|-------------|
-| Medium | 1 | 1 | 3,625 | 275,915 | 2,988 | 56 |
-| Small | 1 | 1 | 3,870 | 258,269 | 3,000 | 56 |
-| Tiny | 1 | 1 | 3,870 | 249,256 | 2,990 | 56 |
-| Medium | 1 | 10 | 2,288 | 494,445 | 31,654 | 253 |
-| Small | 1 | 10 | 1,603 | 626,150 | 31,666 | 253 |
-| Tiny | 1 | 10 | 2,070 | 483,204 | 31,679 | 253 |
-| Medium | 100 | 1 | 127 | 7,902,070 | 295,191 | 5,456 |
-| Small | 100 | 1 | 127 | 7,917,297 | 295,426 | 5,458 |
-| Tiny | 100 | 1 | 128 | 7,791,038 | 295,462 | 5,457 |
-| Medium | 100 | 10 | 56 | 17,786,466 | 3,599,902 | 25,258 |
-| Small | 100 | 10 | 50 | 20,086,309 | 3,602,393 | 25,271 |
-| Tiny | 100 | 10 | 50 | 20,076,981 | 3,603,581 | 25,283 |
+| Medium | 1 | 1 | 4,255 | 235,015 | 2,988 | 56 |
+| Small | 1 | 1 | 4,450 | 224,501 | 3,000 | 56 |
+| Tiny | 1 | 1 | 4,320 | 228,417 | 2,990 | 56 |
+| Medium | 1 | 10 | 2,164 | 461,961 | 31,654 | 253 |
+| Small | 1 | 10 | 2,084 | 479,830 | 31,669 | 253 |
+| Tiny | 1 | 10 | 2,888 | 346,220 | 31,683 | 253 |
+| Medium | 100 | 1 | 130 | 7,659,155 | 295,191 | 5,456 |
+| Small | 100 | 1 | 133 | 7,483,357 | 295,483 | 5,458 |
+| Tiny | 100 | 1 | 134 | 7,438,381 | 295,354 | 5,456 |
+| Medium | 100 | 10 | 52 | 19,255,328 | 3,599,856 | 25,259 |
+| Small | 100 | 10 | 54 | 18,449,782 | 3,602,216 | 25,274 |
+| Tiny | 100 | 10 | 53 | 18,928,322 | 3,603,500 | 25,282 |
 
 ### AppendIf Performance (No Conflict)
 
 | Dataset | Concurrency | Events | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
 |---------|-------------|--------|---------------------|-----------------|---------------|-------------|
-| Small | 1 | 1 | 1,220 | 819,145 | 4,850 | 96 |
-| Medium | 1 | 1 | 1,103 | 906,534 | 4,846 | 96 |
-| Tiny | 1 | 1 | 1,164 | 1,089,374 | 4,852 | 96 |
-| Small | 1 | 10 | 407 | 2,459,322 | 38,421 | 295 |
-| Medium | 1 | 10 | 430 | 2,325,759 | 38,393 | 295 |
-| Tiny | 1 | 10 | 272 | 3,666,334 | 38,436 | 295 |
-| Small | 100 | 1 | 35 | 28,724,148 | 562,312 | 9,551 |
-| Medium | 100 | 1 | 46 | 21,550,057 | 562,214 | 9,552 |
-| Tiny | 100 | 1 | 45 | 22,023,323 | 562,576 | 9,553 |
-| Small | 100 | 10 | 9 | 117,461,555 | 3,841,505 | 29,423 |
-| Medium | 100 | 10 | 7 | 148,948,714 | 3,839,164 | 29,407 |
-| Tiny | 100 | 10 | 9 | 112,978,576 | 3,844,722 | 29,444 |
+| Small | 1 | 1 | 1,286 | 792,663 | 4,850 | 96 |
+| Medium | 1 | 1 | 1,134 | 882,517 | 4,848 | 96 |
+| Tiny | 1 | 1 | 1,187 | 842,045 | 4,854 | 96 |
+| Small | 1 | 10 | 261 | 3,828,120 | 38,414 | 295 |
+| Medium | 1 | 10 | 307 | 3,254,077 | 38,392 | 295 |
+| Tiny | 1 | 10 | 313 | 3,193,914 | 38,436 | 295 |
+| Small | 100 | 1 | 49 | 20,467,479 | 562,143 | 9,549 |
+| Medium | 100 | 1 | 48 | 20,637,539 | 562,126 | 9,551 |
+| Tiny | 100 | 1 | 49 | 20,561,405 | 562,769 | 9,555 |
+| Small | 100 | 10 | 9 | 111,639,871 | 3,841,482 | 29,420 |
+| Medium | 100 | 10 | 12 | 78,166,339 | 3,837,997 | 29,396 |
+| Tiny | 100 | 10 | 9 | 114,132,904 | 3,845,850 | 29,454 |
 
 ### Project Performance
 
 | Dataset | Concurrency | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
 |---------|-------------|---------------------|-----------------|---------------|-------------|
-| Medium | 1 | 3,163 | 314,882 | 68,533 | 1,486 |
-| Small | 1 | 3,348 | 298,773 | 68,545 | 1,486 |
-| Tiny | 1 | 3,433 | 291,323 | 68,553 | 1,486 |
-| Medium | 100 | 97 | 10,290,708 | 6,849,270 | 148,463 |
-| Small | 100 | 96 | 10,414,504 | 6,850,855 | 148,478 |
-| Tiny | 100 | 98 | 10,162,482 | 6,852,068 | 148,491 |
+| Medium | 1 | 3,320 | 301,160 | 68,533 | 1,486 |
+| Small | 1 | 2,950 | 340,201 | 68,544 | 1,486 |
+| Tiny | 1 | 3,280 | 305,343 | 68,554 | 1,486 |
+| Medium | 100 | 98 | 10,213,354 | 6,849,372 | 148,465 |
+| Small | 100 | 93 | 10,783,231 | 6,850,643 | 148,477 |
+| Tiny | 100 | 93 | 10,731,336 | 6,852,027 | 148,491 |
 
 ### Query Performance
 
 | Dataset | Concurrency | Throughput (ops/sec) | Latency (ns/op) | Memory (B/op) | Allocations |
 |---------|-------------|---------------------|-----------------|---------------|-------------|
-| Medium | 1 | 6,147 | 162,680 | 32,842 | 497 |
-| Small | 1 | 5,696 | 175,570 | 32,845 | 497 |
-| Tiny | 1 | 5,750 | 173,920 | 32,850 | 497 |
-| Medium | 100 | 161 | 6,210,771 | 3,280,107 | 49,557 |
-| Small | 100 | 147 | 6,798,822 | 3,280,427 | 49,558 |
-| Tiny | 100 | 152 | 6,601,194 | 3,281,163 | 49,562 |
+| Medium | 1 | 5,800 | 172,446 | 32,842 | 497 |
+| Small | 1 | 5,650 | 176,745 | 32,845 | 497 |
+| Tiny | 1 | 5,680 | 176,185 | 32,852 | 497 |
+| Medium | 100 | 161 | 6,220,091 | 3,280,091 | 49,556 |
+| Small | 100 | 148 | 6,735,785 | 3,280,379 | 49,558 |
+| Tiny | 100 | 150 | 6,680,777 | 3,281,327 | 49,563 |
 
 **Key Performance Insights:**
-- **Append operations**: 3,625-3,870 ops/sec (single user, single event)
-- **AppendIf operations**: 1,103-1,220 ops/sec (single user, single event)
-- **Project operations**: 3,163-3,433 ops/sec (single user)
-- **Query operations**: 5,696-6,147 ops/sec (single user)
+- **Append operations**: 4,255-4,450 ops/sec (single user, single event) - **Improved with PostgreSQL 17.6**
+- **AppendIf operations**: 1,134-1,286 ops/sec (single user, single event) - **Improved with PostgreSQL 17.6**
+- **Project operations**: 2,950-3,320 ops/sec (single user) - **Improved with PostgreSQL 17.6**
+- **Query operations**: 5,650-5,800 ops/sec (single user) - **Improved with PostgreSQL 17.6**
 - **Concurrency impact**: Performance degrades significantly with 100 concurrent users
 - **Memory usage**: Consistent across datasets, scales with concurrency
-- **Total execution time**: 390.817 seconds (~6.5 minutes) for complete benchmark suite
+- **Total execution time**: 398.747 seconds (~6.6 minutes) for complete benchmark suite
+- **PostgreSQL 17.6 benefits**: Better query planning and performance optimizations
 
 ### Throughput Calculation
 
