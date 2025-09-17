@@ -241,15 +241,15 @@ benchmark-go-stress:
 	@echo "✅ Stress benchmarks completed"
 
 benchmark-go-enhanced:
-	@echo "🚀 Running Enhanced Go Benchmarks with Complex Business Scenarios..."
+	@echo "🚀 Running Enhanced Go Benchmarks with All Realistic Scenarios..."
 	@mkdir -p $(BENCHMARK_RESULTS_DIR)
-	@cd internal/benchmarks && $(GO) test -bench=BenchmarkComplex -benchmem -benchtime=5s -count=3 -timeout=10m . > ../../$(BENCHMARK_RESULTS_DIR)/go_enhanced_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@cd internal/benchmarks && $(GO) test -bench="BenchmarkAppend_.*_Realistic" -benchmem -benchtime=2s -timeout=10m . > ../../$(BENCHMARK_RESULTS_DIR)/go_enhanced_benchmarks_$(TIMESTAMP).txt 2>&1 || true
 	@echo "✅ Enhanced Go benchmarks completed"
 
 benchmark-go-all:
-	@echo "🚀 Running All Go Benchmarks (Basic + Enhanced)..."
+	@echo "🚀 Running All Go Benchmarks (All Realistic Scenarios)..."
 	@mkdir -p $(BENCHMARK_RESULTS_DIR)
-	@cd internal/benchmarks && $(GO) test -bench=. -benchmem -benchtime=2s -count=3 -timeout=10m . > ../../$(BENCHMARK_RESULTS_DIR)/go_all_benchmarks_$(TIMESTAMP).txt 2>&1 || true
+	@cd internal/benchmarks && $(GO) test -bench="BenchmarkAppend_.*_Realistic" -benchmem -benchtime=2s -timeout=10m . > ../../$(BENCHMARK_RESULTS_DIR)/go_all_benchmarks_$(TIMESTAMP).txt 2>&1 || true
 	@echo "✅ All Go benchmarks completed"
 
 benchmark-web-app:

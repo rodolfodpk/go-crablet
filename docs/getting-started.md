@@ -316,19 +316,24 @@ go test -v ./pkg/dcb/tests/...
 ### Run Benchmarks
 
 ```bash
-# Run Go library benchmarks
+# Run Go library benchmarks (realistic business scenarios)
 make benchmark-go
 
-# Run enhanced business scenario benchmarks
+# Run quick benchmarks (Tiny dataset only)
+make benchmark-go-quick
+
+# Run specific dataset benchmarks
+make benchmark-go-tiny
+make benchmark-go-small
+make benchmark-go-medium
+
+# Run enhanced benchmarks (all realistic scenarios)
 make benchmark-go-enhanced
 
-# Run all Go benchmarks (comprehensive)
+# Run all benchmarks (comprehensive)
 make benchmark-go-all
 
-# Run web app benchmarks
-make benchmark-go
-
-# Run all benchmarks
+# Run all benchmarks (Go + Web App)
 make benchmark-all
 ```
 
@@ -365,7 +370,7 @@ make generate-datasets
    - Check `internal/examples/decision_model/` for complex scenarios
 
 3. **Run Benchmarks**:
-   - Use `make benchmark-go` to test performance
+   - Use `make benchmark-go` to test performance with realistic business scenarios
    - Check `./benchmarks.md` for detailed results
 
 4. **Production Setup**:
