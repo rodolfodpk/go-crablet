@@ -1,4 +1,4 @@
-# Local PostgreSQL Performance
+# Local PostgreSQL 17.6 Performance
 
 ## Realistic Benchmark Approach
 

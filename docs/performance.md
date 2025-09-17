@@ -5,16 +5,16 @@
 | Environment | Setup Command | Use Case | Status |
 |-------------|---------------|----------|--------|
 | **🐳 Docker PostgreSQL** | `docker-compose up -d` | Containerized environment | Available |
-| **💻 Local PostgreSQL** | `brew services start postgresql@16` | Development environment | **Currently Active** |
+| **💻 Local PostgreSQL** | `brew services start postgresql@17` | Development environment | **Currently Active** |
 
 ## Current Setup
 
-**Local PostgreSQL 16** is currently active and running via Homebrew services. This provides the best performance for development and benchmarking.
+**Local PostgreSQL 17.6** is currently active and running via Homebrew services. This provides the best performance for development and benchmarking.
 
 ### Local PostgreSQL Details
-- **Version**: PostgreSQL 16 (LTS)
-- **Installation**: Homebrew (`brew install postgresql@16`)
-- **Service**: `brew services start postgresql@16`
+- **Version**: PostgreSQL 17.6 (Latest LTS)
+- **Installation**: Homebrew (`brew install postgresql@17`)
+- **Service**: `brew services start postgresql@17`
 - **Database**: `crablet` (created automatically)
 - **Port**: 5432 (default)
 - **Performance**: Optimized for local development
@@ -23,8 +23,8 @@
 
 | Guide | Environment | Datasets | Description |
 |-------|-------------|----------|-------------|
-| **[Local PostgreSQL Performance](performance-local.md)** | Local PostgreSQL 16 | Tiny, Small, Medium | **Latest benchmark results** |
-| **[Docker PostgreSQL Performance](performance-docker.md)** | Docker PostgreSQL 16.10 | Tiny, Small, Medium | Containerized benchmark results |
+| **[Local PostgreSQL Performance](performance-local.md)** | Local PostgreSQL 17.6 | Tiny, Small, Medium | **Latest benchmark results** |
+| **[Docker PostgreSQL Performance](performance-docker.md)** | Docker PostgreSQL 17.6 | Tiny, Small, Medium | Containerized benchmark results |
 
 ## Local vs Docker PostgreSQL Comparison
 

@@ -4,7 +4,7 @@
 
 services:
   postgres:
-    image: postgres:16.10
+    image: postgres:17.6
     container_name: ${POSTGRES_CONTAINER_NAME:-postgres_db}
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-crablet}

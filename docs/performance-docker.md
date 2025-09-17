@@ -1,4 +1,4 @@
-# Docker PostgreSQL Performance
+# Docker PostgreSQL 17.6 Performance
 
 ## Realistic Benchmark Approach
 
